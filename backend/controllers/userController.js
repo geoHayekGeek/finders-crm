@@ -1,6 +1,7 @@
 // controllers/userController.js
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
+const jwtUtil = require('../utils/jwt');
 
 const registerUser = async (req, res) => {
   try {
@@ -45,6 +46,38 @@ const registerUser = async (req, res) => {
   }
 };
 
+const loginUser = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Check if user exists
+    const user = await userModel.getUserByEmail(email);
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
+
+    // Generate token
+    const token = jwtUtil.generateToken(user);
+
+    res.json({
+      message: 'Login successful',
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   registerUser,
+  loginUser
 };
