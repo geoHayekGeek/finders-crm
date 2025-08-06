@@ -2,7 +2,6 @@ services:
   - type: web
     name: backend
     env: node
-    repo: https://github.com/YOUR_USERNAME/YOUR_REPO
     buildCommand: cd backend && npm install
     startCommand: cd backend && node index.js
     rootDir: backend
