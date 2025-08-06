@@ -13,7 +13,7 @@ const createUser = async ({ name, email, password, role, location, phone }) => {
 
 const getUserByEmail = async (email) => {
   const result = await pool.query(
-    `SELECT * FROM users WHERE email = $1`,
+    `SELECT * FROM public.users WHERE email = $1`,
     [email]
   );
   return result.rows[0];
