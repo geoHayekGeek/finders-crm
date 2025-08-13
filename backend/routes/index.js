@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
+const userRoutes = require('./userRoutes');
+const passwordResetRoutes = require('./passwordResetRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -11,5 +13,9 @@ router.get('/', async (req, res) => {
     res.status(500).send('Database connection error');
   }
 });
+
+// Mount route modules
+router.use('/users', userRoutes);
+router.use('/password-reset', passwordResetRoutes);
 
 module.exports = router;

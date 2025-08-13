@@ -7,7 +7,9 @@ const pool = new Pool({
     rejectUnauthorized: false, // Required for Railway
   },
   idleTimeoutMillis: 30000,  // 30 seconds
-  connectionTimeoutMillis: 2000 // 2 seconds
+  connectionTimeoutMillis: 10000, // 10 seconds - more reasonable for Railway
+  max: 20, // Maximum number of clients in the pool
+  min: 2,  // Minimum number of clients in the pool
 });
 
 module.exports = pool;

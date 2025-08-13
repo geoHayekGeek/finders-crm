@@ -14,14 +14,16 @@ class ApiClient {
     this.baseURL = baseURL
   }
 
-  private getHeaders(): HeadersInit {
-    const token = localStorage.getItem('token')
+  private getHeaders(requireAuth: boolean = true): HeadersInit {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
     }
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
+    if (requireAuth) {
+      const token = localStorage.getItem('token')
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
     }
 
     return headers
@@ -29,13 +31,14 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    requireAuth: boolean = true
   ): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`
       const response = await fetch(url, {
         ...options,
-        headers: this.getHeaders(),
+        headers: this.getHeaders(requireAuth),
       })
 
       const data = await response.json()
@@ -71,6 +74,35 @@ class ApiClient {
 
   async getCurrentUser() {
     return this.request('/users/me')
+  }
+
+  // Password reset endpoints
+  async requestPasswordReset(email: string) {
+    return this.request('/password-reset/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }, false) // No auth required
+  }
+
+  async verifyResetCode(email: string, code: string) {
+    return this.request('/password-reset/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    }, false) // No auth required
+  }
+
+  async resetPassword(email: string, code: string, newPassword: string) {
+    return this.request('/password-reset/reset', {
+      method: 'POST',
+      body: JSON.stringify({ email, code, newPassword }),
+    }, false) // No auth required
+  }
+
+  async resendResetCode(email: string) {
+    return this.request('/password-reset/resend', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }, false) // No auth required
   }
 
   // Properties endpoints
@@ -160,3 +192,9 @@ class ApiClient {
 
 export const apiClient = new ApiClient(API_BASE_URL)
 export default apiClient
+
+// Export individual functions for easier imports
+export const requestPasswordReset = (email: string) => apiClient.requestPasswordReset(email)
+export const verifyResetCode = (email: string, code: string) => apiClient.verifyResetCode(email, code)
+export const resetPassword = (email: string, code: string, newPassword: string) => apiClient.resetPassword(email, code, newPassword)
+export const resendResetCode = (email: string) => apiClient.resendResetCode(email)

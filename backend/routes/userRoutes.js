@@ -5,7 +5,10 @@ const { registerValidator, loginValidator } = require('../middlewares/validators
 const { validationResult } = require('express-validator');
 
 const userController = require('../controllers/userController');
-const authLimiter = require('../middlewares/rateLimiter');
+const { authLimiter } = require('../middlewares/rateLimiter');
+
+// Ensure JSON body parsing for this route
+router.use(express.json());
 
 // Middleware to handle validation errors
 const handleValidation = (req, res, next) => {
@@ -18,5 +21,6 @@ const handleValidation = (req, res, next) => {
 
 router.post('/register', authLimiter, registerValidator, handleValidation, userController.registerUser);
 router.post('/login', authLimiter, loginValidator, handleValidation, userController.loginUser);
+router.post('/check-exists', userController.checkUserExists);
 
 module.exports = router;

@@ -24,3 +24,168 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Input field fixes for better visibility */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+input[type="url"],
+input[type="search"],
+textarea,
+select {
+  color: #1f2937 !important; /* text-gray-800 */
+  background-color: #ffffff !important;
+  border: 2px solid #d1d5db !important; /* border-gray-300 */
+  border-radius: 0.5rem !important; /* rounded-lg */
+  padding: 0.75rem 1rem !important; /* py-3 px-4 */
+  font-size: 1rem !important;
+  line-height: 1.5rem !important;
+  width: 100% !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="password"]:focus,
+input[type="number"]:focus,
+input[type="tel"]:focus,
+input[type="url"]:focus,
+input[type="search"]:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: #3b82f6 !important; /* border-blue-500 */
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important; /* ring-blue-500 */
+}
+
+input[type="text"]::placeholder,
+input[type="email"]::placeholder,
+input[type="password"]::placeholder,
+input[type="number"]::placeholder,
+input[type="tel"]::placeholder,
+input[type="url"]::placeholder,
+input[type="search"]::placeholder,
+textarea::placeholder {
+  color: #6b7280 !important; /* text-gray-500 */
+  opacity: 1 !important;
+}
+
+/* Error state for input fields */
+input[type="text"].error,
+input[type="email"].error,
+input[type="password"].error,
+input[type="number"].error,
+input[type="tel"].error,
+input[type="url"].error,
+input[type="search"].error,
+textarea.error,
+select.error {
+  border-color: #ef4444 !important; /* border-red-500 */
+}
+
+input[type="text"].error:focus,
+input[type="email"].error:focus,
+input[type="password"].error:focus,
+input[type="number"].error:focus,
+input[type="tel"].error:focus,
+input[type="url"].error:focus,
+input[type="search"].error:focus,
+textarea.error:focus,
+select.error:focus {
+  border-color: #ef4444 !important; /* border-red-500 */
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1) !important; /* ring-red-500 */
+}
+
+/* Disabled state */
+input[type="text"]:disabled,
+input[type="email"]:disabled,
+input[type="password"]:disabled,
+input[type="number"]:disabled,
+input[type="tel"]:disabled,
+input[type="url"]:disabled,
+input[type="search"]:disabled,
+textarea:disabled,
+select:disabled {
+  background-color: #f3f4f6 !important; /* bg-gray-100 */
+  color: #9ca3af !important; /* text-gray-400 */
+  cursor: not-allowed !important;
+}
+
+/* Specific styling for the login page inputs */
+.login-form input[type="email"],
+.login-form input[type="password"] {
+  color: #1f2937 !important;
+  background-color: #ffffff !important;
+  border: 2px solid #d1d5db !important;
+}
+
+.login-form input[type="email"]:focus,
+.login-form input[type="password"]:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}
+
+.login-form input[type="email"]::placeholder,
+.login-form input[type="password"]::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Specific styling for forgot password input */
+.forgot-password-input {
+  position: relative;
+}
+
+.forgot-password-input input[type="email"]::placeholder {
+  color: #9ca3af !important; /* text-gray-400 */
+  opacity: 1 !important;
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* Force placeholder text positioning when icon is visible */
+.forgot-password-input input[type="email"]:placeholder-shown {
+  text-indent: 0 !important;
+  padding-left: 3rem !important; /* 64px - enough space for icon + buffer */
+}
+
+.forgot-password-input input[type="email"]:not(:placeholder-shown) {
+  padding-left: 0.75rem !important; /* 12px - normal padding when typing */
+}
+
+/* General styling for all input fields with icons */
+.input-with-icon {
+  position: relative;
+}
+
+.input-with-icon input {
+  padding-left: 2.5rem !important; /* 40px - standard space for left icon */
+}
+
+.input-with-icon input:focus {
+  padding-left: 2.5rem !important; /* Maintain padding on focus */
+}
+
+/* Specific adjustments for different input types */
+.input-with-icon input[type="password"] {
+  padding-right: 2.5rem !important; /* 40px - space for right eye icon */
+}
+
+.input-with-icon input[type="email"] {
+  padding-left: 2.5rem !important; /* 40px - space for left mail icon */
+}
+
+.input-with-icon input[type="text"] {
+  padding-left: 2.5rem !important; /* 40px - space for left icon */
+}
+
+/* Ensure icon doesn't interfere with text */
+.forgot-password-input .mail-icon {
+  position: absolute !important;
+  left: 0.75rem !important; /* 12px from left */
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  pointer-events: none !important;
+  z-index: 10 !important;
+}

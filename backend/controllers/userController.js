@@ -13,7 +13,7 @@ const registerUser = async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await userModel.getUserByEmail(email);
+    const existingUser = await userModel.findByEmail(email);
     if (existingUser) {
       return res.status(409).json({ message: 'User already exists' });
     }
@@ -51,7 +51,7 @@ const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     // Check if user exists
-    const user = await userModel.getUserByEmail(email);
+    const user = await userModel.findByEmail(email);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
     // Check password
@@ -77,7 +77,54 @@ const loginUser = async (req, res) => {
   }
 };
 
+const checkUserExists = async (req, res) => {
+  try {
+    // Check if req.body exists
+    if (!req.body) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Request body is missing' 
+      });
+    }
+
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email is required' 
+      });
+    }
+
+    // Check if user exists in database
+    try {
+      const user = await userModel.findByEmail(email);
+      res.json({
+        success: true,
+        exists: !!user,
+        message: user ? 'User found' : 'User not found'
+      });
+    } catch (dbError) {
+      console.error('Database error:', dbError.message);
+      // When database is not available, return an error instead of a mock response
+      res.status(503).json({
+        success: false,
+        exists: false,
+        message: 'Database service unavailable. Please try again later.'
+      });
+    }
+
+  } catch (error) {
+    console.error('Error checking user existence:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+};
+
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
+  checkUserExists
 };
