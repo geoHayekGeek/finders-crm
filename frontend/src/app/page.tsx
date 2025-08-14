@@ -254,7 +254,7 @@ export default function HomePage() {
             Empowering real estate professionals with powerful tools for success
           </p>
           <p className="text-gray-500 text-sm">
-            © 2024 Finders CRM. All rights reserved.
+            © 2025 Ctrly Agency. All rights reserved.
           </p>
         </div>
       </footer>

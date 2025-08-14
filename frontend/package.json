@@ -12,6 +12,7 @@
     "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.1",
+    "@tanstack/react-table": "^8.21.3",
     "axios": "^1.11.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",

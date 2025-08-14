@@ -189,3 +189,21 @@ select:disabled {
   pointer-events: none !important;
   z-index: 10 !important;
 }
+
+/* Button and link cursor styles */
+button,
+input[type="button"],
+input[type="submit"],
+input[type="reset"],
+a,
+[role="button"] {
+  cursor: pointer !important;
+}
+
+/* Disabled button state */
+button:disabled,
+input[type="button"]:disabled,
+input[type="submit"]:disabled,
+input[type="reset"]:disabled {
+  cursor: not-allowed !important;
+}

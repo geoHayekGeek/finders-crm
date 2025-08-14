@@ -13,7 +13,9 @@ import {
   Menu, 
   X,
   LogOut,
-  User
+  User,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 
 const navigation = [
@@ -31,6 +33,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const { user, logout } = useAuth()
 
   const handleLogout = () => {
@@ -90,49 +93,96 @@ export default function DashboardLayout({
         </div>
 
         {/* Desktop sidebar */}
-        <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+        <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-all duration-300 ease-in-out ${
+          sidebarExpanded ? 'lg:w-64' : 'lg:w-16'
+        }`}>
           <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
             <div className="flex h-16 items-center px-4">
               <div className="flex items-center space-x-2">
-                <Building2 className="h-8 w-8 text-blue-600" />
-                <span className="text-xl font-bold text-gray-900">Finders CRM</span>
+                <Building2 className="h-8 w-8 text-blue-600 flex-shrink-0" />
+                {sidebarExpanded && (
+                  <span className="text-xl font-bold text-gray-900 transition-opacity duration-300">
+                    Finders CRM
+                  </span>
+                )}
               </div>
             </div>
+            
+            {/* Toggle button */}
+            <div className="px-2 py-2">
+              <button
+                onClick={() => setSidebarExpanded(!sidebarExpanded)}
+                className="w-full flex items-center justify-center p-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors duration-200"
+                title={sidebarExpanded ? 'Collapse sidebar' : 'Expand sidebar'}
+              >
+                {sidebarExpanded ? (
+                  <ChevronLeft className="h-5 w-5" />
+                ) : (
+                  <ChevronRight className="h-5 w-5" />
+                )}
+              </button>
+            </div>
+
             <nav className="flex-1 space-y-1 px-2 py-4">
               {navigation.map((item) => (
                 <a
                   key={item.name}
                   href={item.href}
-                  className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                  title={!sidebarExpanded ? item.name : undefined}
                 >
-                  <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
-                  {item.name}
+                  <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                  {sidebarExpanded && (
+                    <span className="ml-3 transition-opacity duration-300">{item.name}</span>
+                  )}
                 </a>
               ))}
             </nav>
+            
             <div className="border-t border-gray-200 p-4">
-              <div className="flex items-center space-x-3 mb-3">
-                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="h-4 w-4 text-blue-600" />
+              {sidebarExpanded ? (
+                <>
+                  <div className="flex items-center space-x-3 mb-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">{user?.name || 'User'}</p>
+                      <p className="text-xs text-gray-500 capitalize">{user?.role || 'User'}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="flex items-center w-full px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md transition-colors duration-200"
+                  >
+                    <LogOut className="mr-3 h-4 w-4" />
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex justify-center">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-blue-600" />
+                    </div>
+                  </div>
+                  <button 
+                    onClick={handleLogout}
+                    className="w-full flex justify-center p-2 text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md transition-colors duration-200"
+                    title="Sign out"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-700">{user?.name || 'User'}</p>
-                  <p className="text-xs text-gray-500 capitalize">{user?.role || 'User'}</p>
-                </div>
-              </div>
-              <button 
-                onClick={handleLogout}
-                className="flex items-center w-full px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md"
-              >
-                <LogOut className="mr-3 h-4 w-4" />
-                Sign out
-              </button>
+              )}
             </div>
           </div>
         </div>
 
         {/* Main content */}
-        <div className="lg:pl-64">
+        <div className={`transition-all duration-300 ease-in-out ${
+          sidebarExpanded ? 'lg:pl-64' : 'lg:pl-16'
+        }`}>
           <div className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
             <button
               type="button"
