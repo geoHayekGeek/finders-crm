@@ -29,6 +29,7 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [isLoading, setIsLoading] = useState(true)
+  const [showSidebar, setShowSidebar] = useState(false)
 
   // Load events from localStorage on component mount
   useEffect(() => {
@@ -108,29 +109,29 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <CalendarIcon className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">Calendar</h1>
-                <p className="text-gray-600">Manage your appointments and events</p>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h1>
+                <p className="text-sm sm:text-base text-gray-600">Manage your appointments and events</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
               <button
                 onClick={() => setEvents(getSampleEvents())}
-                className="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                className="inline-flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
               >
                 Load Sample Events
               </button>
               <button
                 onClick={openNewEventModal}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <PlusIcon className="h-4 w-4 mr-2" />
                 Add Event
@@ -139,7 +140,28 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Mobile Events Section */}
+        <div className="lg:hidden mb-4">
+          <button
+            onClick={() => setShowSidebar(!showSidebar)}
+            className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {showSidebar ? 'Hide Events' : 'Show Events'}
+          </button>
+          
+          {/* Mobile Events List - appears directly below the button */}
+          {showSidebar && (
+            <div className="mt-4">
+              <EventList
+                events={events}
+                selectedDate={selectedDate}
+                onEventClick={handleEventClick}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
           {/* Calendar Section */}
           <div className="lg:col-span-3">
             <CalendarHeader
@@ -157,8 +179,8 @@ export default function CalendarPage() {
             />
           </div>
 
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
+          {/* Desktop Sidebar - Hidden on mobile */}
+          <div className="hidden lg:block lg:col-span-1">
             <EventList
               events={events}
               selectedDate={selectedDate}

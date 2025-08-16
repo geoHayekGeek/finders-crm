@@ -105,8 +105,8 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Events</h3>
+      <div className="p-3 sm:p-4 border-b border-gray-200">
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Events</h3>
         
         {/* Filter Tabs */}
         <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
@@ -131,12 +131,12 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
         </div>
       </div>
 
-      {/* Events List */}
-      <div className="p-4">
+      {/* Events List - Scrollable Container */}
+      <div className="p-3 sm:p-4">
         {filteredEvents.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="text-gray-400 text-4xl mb-2">📅</div>
-            <p className="text-gray-500 text-sm">
+          <div className="text-center py-6 sm:py-8">
+            <div className="text-gray-400 text-3xl sm:text-4xl mb-2">📅</div>
+            <p className="text-gray-500 text-xs sm:text-sm">
               {filter === 'all' && 'No events found'}
               {filter === 'today' && 'No events today'}
               {filter === 'upcoming' && 'No upcoming events'}
@@ -144,78 +144,80 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredEvents.map((event) => (
-              <div
-                key={event.id}
-                onClick={() => onEventClick(event)}
-                className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm cursor-pointer transition-all group"
-              >
-                {/* Event Header */}
-                <div className="flex items-start justify-between mb-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">{getEventTypeIcon(event.type)}</span>
-                    <div className={`w-3 h-3 rounded-full ${getEventColor(event.color)}`} />
-                  </div>
-                  <span className="text-xs text-gray-500 font-medium">
-                    {formatEventDate(event)}
-                  </span>
-                </div>
-
-                {/* Event Title */}
-                <h4 className="font-medium text-gray-900 mb-1 group-hover:text-blue-600 transition-colors">
-                  {event.title}
-                </h4>
-
-                {/* Event Details */}
-                <div className="space-y-1 text-xs text-gray-600">
-                  {/* Time */}
-                  <div className="flex items-center space-x-1">
-                    <ClockIcon className="h-3 w-3" />
-                    <span>{formatEventTime(event)}</span>
+          <div className="max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+            <div className="space-y-2 sm:space-y-3 pr-2">
+              {filteredEvents.map((event) => (
+                <div
+                  key={event.id}
+                  onClick={() => onEventClick(event)}
+                  className="p-2 sm:p-3 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm cursor-pointer transition-all group"
+                >
+                  {/* Event Header */}
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-base sm:text-lg">{getEventTypeIcon(event.type)}</span>
+                      <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${getEventColor(event.color)}`} />
+                    </div>
+                    <span className="text-xs text-gray-500 font-medium">
+                      {formatEventDate(event)}
+                    </span>
                   </div>
 
-                  {/* Location */}
-                  {event.location && (
+                  {/* Event Title */}
+                  <h4 className="font-medium text-gray-900 mb-1 group-hover:text-blue-600 transition-colors text-sm sm:text-base">
+                    {event.title}
+                  </h4>
+
+                  {/* Event Details */}
+                  <div className="space-y-1 text-xs text-gray-600">
+                    {/* Time */}
                     <div className="flex items-center space-x-1">
-                      <MapPinIcon className="h-3 w-3" />
-                      <span className="truncate">{event.location}</span>
+                      <ClockIcon className="h-3 w-3" />
+                      <span>{formatEventTime(event)}</span>
                     </div>
-                  )}
 
-                  {/* Attendees */}
-                  {event.attendees && event.attendees.length > 0 && (
-                    <div className="flex items-center space-x-1">
-                      <UserGroupIcon className="h-3 w-3" />
-                      <span>{event.attendees.length} attendee{event.attendees.length !== 1 ? 's' : ''}</span>
-                    </div>
-                  )}
+                    {/* Location */}
+                    {event.location && (
+                      <div className="flex items-center space-x-1">
+                        <MapPinIcon className="h-3 w-3" />
+                        <span className="truncate">{event.location}</span>
+                      </div>
+                    )}
 
-                  {/* Description */}
-                  {event.description && (
-                    <p className="text-gray-500 line-clamp-2 mt-2">
-                      {event.description}
-                    </p>
-                  )}
+                    {/* Attendees */}
+                    {event.attendees && event.attendees.length > 0 && (
+                      <div className="flex items-center space-x-1">
+                        <UserGroupIcon className="h-3 w-3" />
+                        <span>{event.attendees.length} attendee{event.attendees.length !== 1 ? 's' : ''}</span>
+                      </div>
+                    )}
+
+                    {/* Description */}
+                    {event.description && (
+                      <p className="text-gray-500 line-clamp-2 mt-2 text-xs">
+                        {event.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Event Type Badge */}
+                  <div className="mt-2">
+                    <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                      {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
+                    </span>
+                  </div>
                 </div>
-
-                {/* Event Type Badge */}
-                <div className="mt-2">
-                  <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                    {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         )}
       </div>
 
       {/* Quick Stats */}
-      <div className="p-4 border-t border-gray-200 bg-gray-50">
-        <div className="grid grid-cols-3 gap-4 text-center">
+      <div className="p-3 sm:p-4 border-t border-gray-200 bg-gray-50">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
           <div>
-            <div className="text-lg font-semibold text-gray-900">
+            <div className="text-base sm:text-lg font-semibold text-gray-900">
               {events.filter(e => new Date(e.start) >= new Date()).length}
             </div>
             <div className="text-xs text-gray-500">Upcoming</div>
@@ -231,7 +233,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
             <div className="text-xs text-gray-500">Today</div>
           </div>
           <div>
-            <div className="text-lg font-semibold text-gray-900">
+            <div className="text-base sm:text-lg font-semibold text-gray-900">
               {events.filter(e => new Date(e.start) < new Date()).length}
             </div>
             <div className="text-xs text-gray-500">Past</div>

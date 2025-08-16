@@ -148,43 +148,45 @@ export function CalendarHeader({ view, onViewChange, selectedDate, onDateChange 
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4">
-      <div className="flex items-center justify-between p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 space-y-3 sm:space-y-0">
         {/* Left side - View selector */}
-        <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
-          {viewOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => onViewChange(option.value)}
-              className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                view === option.value
-                  ? 'bg-white text-gray-900 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="flex items-center justify-center sm:justify-start">
+          <div className="flex items-center space-x-1 bg-gray-100 rounded-lg p-1">
+            {viewOptions.map((option) => (
+              <button
+                key={option.value}
+                onClick={() => onViewChange(option.value)}
+                className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-md transition-colors ${
+                  view === option.value
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Center - Smart Date Navigation */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-center space-x-2 sm:space-x-3">
           {/* Previous/Next buttons */}
           <button
             onClick={() => navigateDate('prev')}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors group"
+            className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors group"
             title={`Previous ${view}`}
           >
-            <ChevronLeftIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
+            <ChevronLeftIcon className="h-4 w-4 sm:h-5 sm:w-5 group-hover:scale-110 transition-transform" />
           </button>
           
           {/* Date Display with Dropdown */}
           <div className="relative" ref={datePickerRef}>
             <button
               onClick={() => setIsDatePickerOpen(!isDatePickerOpen)}
-              className="flex items-center space-x-2 px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 hover:border-gray-300"
+              className="flex items-center space-x-2 px-2 sm:px-4 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors border border-gray-200 hover:border-gray-300"
             >
               <CalendarIcon className="h-4 w-4 text-gray-600" />
-              <span className="text-lg font-semibold text-gray-900 min-w-[200px] text-center">
+              <span className="text-sm sm:text-lg font-semibold text-gray-900 min-w-[140px] sm:min-w-[200px] text-center">
                 {formatSelectedDate()}
               </span>
               <ChevronDownIcon className={`h-4 w-4 text-gray-600 transition-transform ${isDatePickerOpen ? 'rotate-180' : ''}`} />
@@ -192,9 +194,9 @@ export function CalendarHeader({ view, onViewChange, selectedDate, onDateChange 
             
             {/* Date Picker Dropdown */}
             {isDatePickerOpen && (
-              <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                <div className="p-4">
-                  <div className="mb-4">
+              <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                <div className="p-3 sm:p-4">
+                  <div className="mb-3 sm:mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Pick a date</label>
                     <input
                       type="date"
@@ -251,18 +253,18 @@ export function CalendarHeader({ view, onViewChange, selectedDate, onDateChange 
           
           <button
             onClick={() => navigateDate('next')}
-            className="p-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors group"
+            className="p-1.5 sm:p-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors group"
             title={`Next ${view}`}
           >
-            <ChevronRightIcon className="h-5 w-5 group-hover:scale-110 transition-transform" />
+            <ChevronRightIcon className="h-4 w-4 sm:h-5 sm:w-5 group-hover:scale-110 transition-transform" />
           </button>
         </div>
 
         {/* Right side - Additional Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center justify-center sm:justify-end">
           <button
             onClick={goToToday}
-            className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200 hover:border-blue-300"
+            className="px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200 hover:border-blue-300"
           >
             Today
           </button>

@@ -30,7 +30,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
   // Don't render until we have a valid currentDate
   if (!currentDate || isNaN(currentDate.getTime())) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
         <div className="text-center text-gray-500">Loading calendar...</div>
       </div>
     )
@@ -129,7 +129,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
     // Ensure calendarData is valid
     if (!Array.isArray(calendarData) || calendarData.length === 0) {
       return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
           <div className="text-center text-gray-500">Unable to load calendar data</div>
         </div>
       )
@@ -138,21 +138,21 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Month Navigation */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
           <button
             onClick={() => navigateDate('prev')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ChevronLeftIcon className="h-5 w-5" />
+            <ChevronLeftIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
           
-          <div className="flex items-center space-x-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 text-center">
               {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
             </h2>
             <button
               onClick={goToToday}
-              className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              className="px-2 sm:px-3 py-1 text-xs sm:text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
             >
               Today
             </button>
@@ -160,18 +160,18 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
           
           <button
             onClick={() => navigateDate('next')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ChevronRightIcon className="h-5 w-5" />
+            <ChevronRightIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
         {/* Month Grid */}
-        <div className="p-4">
+        <div className="p-2 sm:p-4">
           {/* Day Headers */}
           <div className="grid grid-cols-7 gap-1 mb-2">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+              <div key={day} className="text-center text-xs sm:text-sm font-medium text-gray-500 py-1 sm:py-2">
                 {day}
               </div>
             ))}
@@ -190,7 +190,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                   return (
                     <div
                       key={`${weekIndex}-${dayIndex}`}
-                      className={`min-h-[120px] p-2 border border-gray-100 ${
+                      className={`min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 border border-gray-100 ${
                         !isCurrentMonth ? 'bg-gray-50' : 'bg-white'
                       } ${isToday ? 'bg-blue-50 border-blue-200' : ''} ${
                         isSelected ? 'ring-2 ring-blue-500' : ''
@@ -199,7 +199,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                     >
                       {day && (
                         <>
-                          <div className={`text-sm font-medium mb-1 ${
+                          <div className={`text-xs sm:text-sm font-medium mb-1 ${
                             !isCurrentMonth ? 'text-gray-400' : 
                             isToday ? 'text-blue-600' : 'text-gray-900'
                           }`}>
@@ -207,11 +207,11 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                           </div>
                           
                           {/* Events */}
-                          <div className="space-y-1">
+                          <div className="space-y-0.5 sm:space-y-1">
                             {dayEvents.slice(0, 3).map(event => (
                               <div
                                 key={event.id}
-                                className={`text-xs px-2 py-1 rounded truncate cursor-pointer ${getEventColor(event.color)}`}
+                                className={`text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded truncate cursor-pointer ${getEventColor(event.color)}`}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   onEventClick(event)
@@ -221,7 +221,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                               </div>
                             ))}
                             {dayEvents.length > 3 && (
-                              <div className="text-xs text-gray-500 px-2">
+                              <div className="text-xs text-gray-500 px-1 sm:px-2">
                                 +{dayEvents.length - 3} more
                               </div>
                             )}
@@ -233,7 +233,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                 } catch (error) {
                   console.error('Error rendering day:', error)
                   return (
-                    <div key={`${weekIndex}-${dayIndex}`} className="min-h-[120px] p-2 border border-gray-100 bg-gray-50">
+                    <div key={`${weekIndex}-${dayIndex}`} className="min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 border border-gray-100 bg-gray-50">
                       <div className="text-xs text-gray-400">Error</div>
                     </div>
                   )
@@ -250,7 +250,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
     // Ensure calendarData is valid
     if (!Array.isArray(calendarData) || calendarData.length === 0) {
       return (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
           <div className="text-center text-gray-500">Unable to load calendar data</div>
         </div>
       )
@@ -259,23 +259,23 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         {/* Week Navigation */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
           <button
             onClick={() => navigateDate('prev')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ChevronLeftIcon className="h-5 w-5" />
+            <ChevronLeftIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
           
-          <div className="flex items-center space-x-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+          <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 text-center">
               {calendarData[0]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {
                 calendarData[6]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
               }
             </h2>
             <button
               onClick={goToToday}
-              className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+              className="px-2 sm:px-3 py-1 text-xs sm:text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
             >
               Today
             </button>
@@ -283,21 +283,21 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
           
           <button
             onClick={() => navigateDate('next')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ChevronRightIcon className="h-5 w-5" />
+            <ChevronRightIcon className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
         {/* Week Grid */}
-        <div className="p-4">
+        <div className="p-2 sm:p-4 overflow-x-auto">
           {/* Time Grid */}
-          <div className="grid grid-cols-8 gap-1">
+          <div className="grid grid-cols-8 gap-1 min-w-[600px]">
             {/* Time Column */}
             <div className="space-y-1">
-              <div className="h-12"></div>
+              <div className="h-8 sm:h-12"></div>
               {Array.from({ length: 24 }, (_, i) => (
-                <div key={i} className="h-12 text-xs text-gray-500 pr-2 text-right">
+                <div key={i} className="h-8 sm:h-12 text-xs text-gray-500 pr-1 sm:pr-2 text-right">
                   {i === 0 ? '12 AM' : i === 12 ? '12 PM' : i > 12 ? `${i - 12} PM` : `${i} AM`}
                 </div>
               ))}
@@ -311,10 +311,10 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
               return (
                 <div key={index} className="border-l border-gray-200">
                   {/* Day Header */}
-                  <div className={`h-12 flex flex-col items-center justify-center border-b border-gray-200 ${
+                  <div className={`h-8 sm:h-12 flex flex-col items-center justify-center border-b border-gray-200 ${
                     isToday ? 'bg-blue-50' : ''
                   }`}>
-                    <div className={`text-sm font-medium ${
+                    <div className={`text-xs sm:text-sm font-medium ${
                       isToday ? 'text-blue-600' : 'text-gray-900'
                     }`}>
                       {date.toLocaleDateString('en-US', { weekday: 'short' })}
@@ -334,11 +334,11 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                     })
                     
                     return (
-                      <div key={hour} className="h-12 border-b border-gray-100 relative">
+                      <div key={hour} className="h-8 sm:h-12 border-b border-gray-100 relative">
                         {hourEvents.map(event => (
                           <div
                             key={event.id}
-                            className={`absolute left-0 right-0 mx-1 px-2 py-1 text-xs rounded cursor-pointer ${getEventColor(event.color)}`}
+                            className={`absolute left-0 right-0 mx-0.5 sm:mx-1 px-1 sm:px-2 py-0.5 sm:py-1 text-xs rounded cursor-pointer ${getEventColor(event.color)}`}
                             onClick={(e) => {
                               e.stopPropagation()
                               onEventClick(event)
@@ -363,7 +363,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
   // Ensure calendarData is valid
   if (!Array.isArray(calendarData) || calendarData.length === 0) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
         <div className="text-center text-gray-500">Unable to load calendar data</div>
       </div>
     )
@@ -372,16 +372,16 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Day Navigation */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
         <button
           onClick={() => navigateDate('prev')}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <ChevronLeftIcon className="h-5 w-5" />
+          <ChevronLeftIcon className="h-4 w-4 sm:h-5 sm:w-5" />
         </button>
         
-        <div className="flex items-center space-x-4">
-          <h2 className="text-lg font-semibold text-gray-900">
+        <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 text-center">
             {currentDate.toLocaleDateString('en-US', { 
               weekday: 'long', 
               month: 'long', 
@@ -391,7 +391,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
           </h2>
           <button
             onClick={goToToday}
-            className="px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
           >
             Today
           </button>
@@ -399,14 +399,14 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
         
         <button
           onClick={() => navigateDate('next')}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          <ChevronRightIcon className="h-5 w-5" />
+          <ChevronRightIcon className="h-4 w-4 sm:h-5 sm:w-5" />
         </button>
       </div>
 
       {/* Day Schedule */}
-      <div className="p-4">
+      <div className="p-2 sm:p-4">
         <div className="space-y-1">
           {Array.from({ length: 24 }, (_, hour) => {
             const hourEvents = events.filter(event => {
@@ -415,18 +415,18 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
             })
             
             return (
-              <div key={hour} className="flex h-16 border-b border-gray-100">
-                <div className="w-20 text-sm text-gray-500 pr-4 pt-2">
+              <div key={hour} className="flex h-12 sm:h-16 border-b border-gray-100">
+                <div className="w-16 sm:w-20 text-xs sm:text-sm text-gray-500 pr-2 sm:pr-4 pt-2">
                   {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                 </div>
                 <div className="flex-1 pt-2 relative">
                   {hourEvents.map(event => (
                     <div
                       key={event.id}
-                      className={`mb-2 px-3 py-2 rounded cursor-pointer ${getEventColor(event.color)}`}
+                      className={`mb-1 sm:mb-2 px-2 sm:px-3 py-1 sm:py-2 rounded cursor-pointer ${getEventColor(event.color)}`}
                       onClick={() => onEventClick(event)}
                     >
-                      <div className="font-medium">{event.title}</div>
+                      <div className="font-medium text-xs sm:text-sm">{event.title}</div>
                       {event.location && (
                         <div className="text-xs opacity-90">{event.location}</div>
                       )}

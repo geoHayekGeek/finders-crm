@@ -159,11 +159,11 @@ export function EventModal({
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-w-lg w-full max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col">
+      <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+        <Dialog.Panel className="mx-auto w-full max-w-lg max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200">
-            <Dialog.Title className="text-lg font-semibold text-gray-900">
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
+            <Dialog.Title className="text-base sm:text-lg font-semibold text-gray-900">
               {event ? 'Edit Event' : 'New Event'}
             </Dialog.Title>
             <button
@@ -175,7 +175,7 @@ export function EventModal({
           </div>
 
           {/* Form */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {/* Title */}
             <div>
               <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
@@ -226,7 +226,7 @@ export function EventModal({
 
             {/* Date/Time */}
             {!formData.allDay && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="start" className="block text-sm font-medium text-gray-700 mb-1">
                     Start *
@@ -263,7 +263,7 @@ export function EventModal({
             )}
 
             {/* Color and Type */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Color
@@ -347,13 +347,13 @@ export function EventModal({
             </div>
 
             {/* Actions */}
-            <div className="flex items-center justify-between pt-4">
-              <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between pt-4 space-y-3 sm:space-y-0">
+              <div className="flex items-center justify-center sm:justify-start">
                 {event && onDelete && (
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="inline-flex items-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors w-full sm:w-auto"
                   >
                     <TrashIcon className="h-4 w-4 mr-1" />
                     Delete
@@ -361,7 +361,7 @@ export function EventModal({
                 )}
               </div>
 
-              <div className="flex items-center space-x-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
                 <button
                   type="button"
                   onClick={onClose}
