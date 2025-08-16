@@ -123,8 +123,32 @@ const checkUserExists = async (req, res) => {
   }
 };
 
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await userModel.getAllUsers();
+    res.json({
+      success: true,
+      users: users.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        location: user.location,
+        phone: user.phone
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users'
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
-  checkUserExists
+  checkUserExists,
+  getAllUsers
 };

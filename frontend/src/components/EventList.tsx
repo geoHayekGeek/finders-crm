@@ -102,6 +102,18 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
     }
   }
 
+  const formatAttendees = (attendees?: string[]) => {
+    if (!attendees || attendees.length === 0) return null
+    
+    if (attendees.length === 1) {
+      return attendees[0]
+    } else if (attendees.length === 2) {
+      return `${attendees[0]} and ${attendees[1]}`
+    } else {
+      return `${attendees[0]}, ${attendees[1]}, and ${attendees.length - 2} others`
+    }
+  }
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Header */}
@@ -188,7 +200,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
                     {event.attendees && event.attendees.length > 0 && (
                       <div className="flex items-center space-x-1">
                         <UserGroupIcon className="h-3 w-3" />
-                        <span>{event.attendees.length} attendee{event.attendees.length !== 1 ? 's' : ''}</span>
+                        <span className="truncate">{formatAttendees(event.attendees)}</span>
                       </div>
                     )}
 
@@ -223,7 +235,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
             <div className="text-xs text-gray-500">Upcoming</div>
           </div>
           <div>
-            <div className="text-lg font-semibold text-gray-900">
+            <div className="text-base sm:text-lg font-semibold text-gray-900">
               {events.filter(e => {
                 const eventDate = new Date(e.start)
                 const today = new Date()

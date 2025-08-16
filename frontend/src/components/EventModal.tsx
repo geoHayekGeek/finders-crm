@@ -4,6 +4,16 @@ import { useState, useEffect } from 'react'
 import { Dialog } from '@headlessui/react'
 import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent } from '@/app/dashboard/calendar/page'
+import { UserSelector } from './UserSelector'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+  location?: string
+  phone?: string
+}
 
 interface EventModalProps {
   isOpen: boolean
@@ -31,7 +41,7 @@ export function EventModal({
     color: 'blue' as CalendarEvent['color'],
     type: 'other' as CalendarEvent['type'],
     location: '',
-    attendees: '',
+    attendees: [] as User[],
     notes: ''
   })
 
@@ -39,7 +49,16 @@ export function EventModal({
 
   useEffect(() => {
     if (event) {
-      // Editing existing event
+      // Editing existing event - convert attendee strings to User objects
+      const attendeeUsers: User[] = event.attendees?.map(attendee => ({
+        id: attendee, // For existing events, attendees might just be strings
+        name: attendee,
+        email: '',
+        role: '',
+        location: '',
+        phone: ''
+      })) || []
+
       setFormData({
         title: event.title,
         description: event.description || '',
@@ -49,7 +68,7 @@ export function EventModal({
         color: event.color,
         type: event.type,
         location: event.location || '',
-        attendees: event.attendees?.join(', ') || '',
+        attendees: attendeeUsers,
         notes: event.notes || ''
       })
     } else {
@@ -69,7 +88,7 @@ export function EventModal({
         color: 'blue',
         type: 'other',
         location: '',
-        attendees: '',
+        attendees: [],
         notes: ''
       })
     }
@@ -112,20 +131,36 @@ export function EventModal({
     const startDate = new Date(formData.start)
     const endDate = new Date(formData.end)
 
+    // Convert attendees to array of names for backward compatibility
+    const attendeeNames = formData.attendees.map(user => user.name)
+
     const eventData = event
-      ? { ...event, ...formData, title: formData.title.trim(), description: formData.description.trim() || undefined, start: startDate, end: endDate, allDay: formData.allDay, color: formData.color, type: formData.type, location: formData.location.trim() || undefined, attendees: formData.attendees.trim() ? formData.attendees.split(',').map(a => a.trim()) : undefined, notes: formData.notes.trim() || undefined }
+      ? { 
+          ...event, 
+          ...formData, 
+          title: formData.title.trim(), 
+          description: formData.description.trim() || undefined, 
+          start: startDate, 
+          end: endDate, 
+          allDay: formData.allDay, 
+          color: formData.color, 
+          type: formData.type, 
+          location: formData.location.trim() || undefined, 
+          attendees: attendeeNames, 
+          notes: formData.notes.trim() || undefined 
+        }
       : {
-        title: formData.title.trim(),
-        description: formData.description.trim() || undefined,
-        start: startDate,
-        end: endDate,
-        allDay: formData.allDay,
-        color: formData.color,
-        type: formData.type,
-        location: formData.location.trim() || undefined,
-        attendees: formData.attendees.trim() ? formData.attendees.split(',').map(a => a.trim()) : undefined,
-        notes: formData.notes.trim() || undefined
-      }
+          title: formData.title.trim(),
+          description: formData.description.trim() || undefined,
+          start: startDate,
+          end: endDate,
+          allDay: formData.allDay,
+          color: formData.color,
+          type: formData.type,
+          location: formData.location.trim() || undefined,
+          attendees: attendeeNames,
+          notes: formData.notes.trim() || undefined
+        }
 
     onSave(eventData)
   }
@@ -168,9 +203,10 @@ export function EventModal({
             </Dialog.Title>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors bg-gray-50 border border-gray-200 hover:border-gray-300"
+              title="Close"
             >
-              <XMarkIcon className="h-5 w-5" />
+              <XMarkIcon className="h-5 w-5 text-gray-600" />
             </button>
           </div>
 
@@ -316,18 +352,16 @@ export function EventModal({
               />
             </div>
 
-            {/* Attendees */}
+            {/* Attendees - Now using UserSelector */}
             <div>
-              <label htmlFor="attendees" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Attendees
               </label>
-              <input
-                type="text"
-                id="attendees"
-                value={formData.attendees}
-                onChange={(e) => setFormData(prev => ({ ...prev, attendees: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
-                placeholder="Separate with commas"
+              <UserSelector
+                selectedUsers={formData.attendees}
+                onUsersChange={(users) => setFormData(prev => ({ ...prev, attendees: users }))}
+                placeholder="Search and select attendees..."
+                maxUsers={20}
               />
             </div>
 

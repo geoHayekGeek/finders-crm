@@ -91,6 +91,14 @@ export default function CalendarPage() {
     setIsEventModalOpen(true)
   }
 
+  const handleHourClick = (date: Date, hour: number) => {
+    // Set the selected date to the clicked hour
+    const newDate = new Date(date)
+    newDate.setHours(hour, 0, 0, 0)
+    setSelectedDate(newDate)
+    setIsEventModalOpen(true)
+  }
+
   const openNewEventModal = () => {
     setSelectedEvent(null)
     setIsEventModalOpen(true)
@@ -176,6 +184,7 @@ export default function CalendarPage() {
               view={view}
               onEventClick={handleEventClick}
               onDateClick={handleDateClick}
+              onHourClick={handleHourClick}
             />
           </div>
 

@@ -10,9 +10,10 @@ interface CalendarProps {
   view: 'month' | 'week' | 'day'
   onEventClick: (event: CalendarEvent) => void
   onDateClick: (date: Date) => void
+  onHourClick?: (date: Date, hour: number) => void
 }
 
-export function Calendar({ events, selectedDate, view, onEventClick, onDateClick }: CalendarProps) {
+export function Calendar({ events, selectedDate, view, onEventClick, onDateClick, onHourClick }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(selectedDate)
 
   // Update currentDate when selectedDate changes
@@ -122,6 +123,14 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
       console.error('Error going to today:', error)
       // Fallback to a safe date
       setCurrentDate(new Date('2024-01-01'))
+    }
+  }
+
+  const handleHourClick = (hour: number) => {
+    if (onHourClick) {
+      const clickedDate = new Date(currentDate)
+      clickedDate.setHours(hour, 0, 0, 0)
+      onHourClick(clickedDate, hour)
     }
   }
 
@@ -419,12 +428,22 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                 <div className="w-16 sm:w-20 text-xs sm:text-sm text-gray-500 pr-2 sm:pr-4 pt-2">
                   {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                 </div>
-                <div className="flex-1 pt-2 relative">
+                <div 
+                  className="flex-1 pt-2 relative cursor-pointer hover:bg-gray-50 transition-colors group"
+                  onClick={() => handleHourClick(hour)}
+                >
+                  {/* Hour slot background with hover effect */}
+                  <div className="absolute inset-0 bg-transparent group-hover:bg-gray-50 transition-colors pointer-events-none" />
+                  
+                  {/* Events */}
                   {hourEvents.map(event => (
                     <div
                       key={event.id}
-                      className={`mb-1 sm:mb-2 px-2 sm:px-3 py-1 sm:py-2 rounded cursor-pointer ${getEventColor(event.color)}`}
-                      onClick={() => onEventClick(event)}
+                      className={`mb-1 sm:mb-2 px-2 sm:px-3 py-1 sm:py-2 rounded cursor-pointer ${getEventColor(event.color)} relative z-10`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onEventClick(event)
+                      }}
                     >
                       <div className="font-medium text-xs sm:text-sm">{event.title}</div>
                       {event.location && (
@@ -432,6 +451,13 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                       )}
                     </div>
                   ))}
+                  
+                  {/* Add event hint on hover */}
+                  {hourEvents.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                      <span className="text-xs text-gray-400 font-medium">Click to add event</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )
