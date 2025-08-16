@@ -28,15 +28,6 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
     }
   }, [currentDate])
 
-  // Don't render until we have a valid currentDate
-  if (!currentDate || isNaN(currentDate.getTime())) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
-        <div className="text-center text-gray-500">Loading calendar...</div>
-      </div>
-    )
-  }
-
   const calendarData = useMemo(() => {
     try {
       const year = currentDate.getFullYear()
@@ -64,6 +55,21 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
 
   // Get current month for month view calculations
   const currentMonth = currentDate.getMonth()
+
+  // Type-safe calendar data access
+  const getWeekDates = () => {
+    if (view === 'week' && Array.isArray(calendarData) && calendarData.length > 0) {
+      return calendarData as Date[]
+    }
+    return []
+  }
+
+  const getMonthDates = () => {
+    if (view === 'month' && Array.isArray(calendarData) && calendarData.length > 0) {
+      return calendarData as Date[][]
+    }
+    return []
+  }
 
   const getEventsForDate = (date: Date) => {
     try {
@@ -134,9 +140,19 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
     }
   }
 
+  // Don't render until we have a valid currentDate
+  if (!currentDate || isNaN(currentDate.getTime())) {
+    return (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
+        <div className="text-center text-gray-500">Loading calendar...</div>
+      </div>
+    )
+  }
+
   if (view === 'month') {
     // Ensure calendarData is valid
-    if (!Array.isArray(calendarData) || calendarData.length === 0) {
+    const monthDates = getMonthDates()
+    if (monthDates.length === 0) {
       return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
           <div className="text-center text-gray-500">Unable to load calendar data</div>
@@ -188,7 +204,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
 
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1">
-            {calendarData.map((week, weekIndex) =>
+            {getMonthDates().map((week, weekIndex) =>
               week && Array.isArray(week) ? week.map((day, dayIndex) => {
                 try {
                   const isCurrentMonth = day && day.getMonth() === currentMonth
@@ -257,7 +273,8 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
 
   if (view === 'week') {
     // Ensure calendarData is valid
-    if (!Array.isArray(calendarData) || calendarData.length === 0) {
+    const weekDates = getWeekDates()
+    if (weekDates.length === 0) {
       return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-8">
           <div className="text-center text-gray-500">Unable to load calendar data</div>
@@ -278,9 +295,15 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
           
           <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-4">
             <h2 className="text-base sm:text-lg font-semibold text-gray-900 text-center">
-              {calendarData[0]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {
-                calendarData[6]?.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-              }
+              {(() => {
+                const weekDates = getWeekDates()
+                if (weekDates.length >= 7) {
+                  return `${weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${
+                    weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  }`
+                }
+                return 'Week View'
+              })()}
             </h2>
             <button
               onClick={goToToday}
@@ -313,7 +336,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
             </div>
 
             {/* Day Columns */}
-            {calendarData.map((date, index) => {
+            {getWeekDates().map((date, index) => {
               const isToday = date.toDateString() === new Date().toDateString()
               const dayEvents = getEventsForDate(date)
               
@@ -419,8 +442,26 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
         <div className="space-y-1">
           {Array.from({ length: 24 }, (_, hour) => {
             const hourEvents = events.filter(event => {
-              const eventHour = new Date(event.start).getHours()
-              return eventHour === hour
+              try {
+                const eventDate = new Date(event.start)
+                const eventHour = eventDate.getHours()
+                const eventDay = eventDate.getDate()
+                const eventMonth = eventDate.getMonth()
+                const eventYear = eventDate.getFullYear()
+                
+                const selectedDay = selectedDate.getDate()
+                const selectedMonth = selectedDate.getMonth()
+                const selectedYear = selectedDate.getFullYear()
+                
+                // Check if event is on the selected date and at the correct hour
+                return eventHour === hour && 
+                       eventDay === selectedDay && 
+                       eventMonth === selectedMonth && 
+                       eventYear === selectedYear
+              } catch (error) {
+                console.error('Error filtering event by hour:', error)
+                return false
+              }
             })
             
             return (
@@ -472,7 +513,6 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
 function generateMonthData(year: number, month: number): Date[][] {
   try {
     const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
     const startDate = new Date(firstDay)
     startDate.setDate(startDate.getDate() - firstDay.getDay())
     

@@ -50,8 +50,8 @@ export function EventModal({
   useEffect(() => {
     if (event) {
       // Editing existing event - convert attendee strings to User objects
-      const attendeeUsers: User[] = event.attendees?.map(attendee => ({
-        id: attendee, // For existing events, attendees might just be strings
+      const attendeeUsers: User[] = event.attendees?.map((attendee, index) => ({
+        id: `existing-${index}-${attendee}`, // Generate unique ID for existing attendees
         name: attendee,
         email: '',
         role: '',

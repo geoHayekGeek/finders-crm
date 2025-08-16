@@ -6,7 +6,6 @@ import { EventModal } from '@/components/EventModal'
 import { EventList } from '@/components/EventList'
 import { CalendarHeader } from '@/components/CalendarHeader'
 import { PlusIcon, CalendarIcon } from '@heroicons/react/24/outline'
-import { getSampleEvents } from '@/utils/sampleEvents'
 
 export interface CalendarEvent {
   id: string
@@ -30,55 +29,131 @@ export default function CalendarPage() {
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [isLoading, setIsLoading] = useState(true)
   const [showSidebar, setShowSidebar] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // Load events from localStorage on component mount
+  // Load events from API on component mount
   useEffect(() => {
-    try {
-      const savedEvents = localStorage.getItem('calendar-events')
-      if (savedEvents) {
-        const parsedEvents = JSON.parse(savedEvents).map((event: any) => ({
-          ...event,
-          start: new Date(event.start),
-          end: new Date(event.end)
-        }))
-        setEvents(parsedEvents)
-      } else {
-        // Load sample events if no saved events exist
-        setEvents(getSampleEvents())
+    const fetchEvents = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        
+        const response = await fetch('/api/calendar')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            const eventsWithDates = data.events.map((event: { start: string; end: string; [key: string]: unknown }) => ({
+              ...event,
+              start: new Date(event.start),
+              end: new Date(event.end)
+            }))
+            setEvents(eventsWithDates)
+          } else {
+            setError(data.message || 'Failed to fetch events')
+          }
+        } else {
+          setError('Failed to fetch events')
+        }
+      } catch (error) {
+        console.error('Error fetching events:', error)
+        setError('Failed to fetch events')
+      } finally {
+        setIsLoading(false)
       }
-    } catch (error) {
-      console.error('Error loading events:', error)
-      // Fallback to sample events if there's an error
-      setEvents(getSampleEvents())
-    } finally {
-      setIsLoading(false)
     }
+
+    fetchEvents()
   }, [])
 
-  // Save events to localStorage whenever events change
-  useEffect(() => {
-    localStorage.setItem('calendar-events', JSON.stringify(events))
-  }, [events])
+  const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
+    try {
+      const response = await fetch('/api/calendar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event)
+      })
 
-  const handleAddEvent = (event: Omit<CalendarEvent, 'id'>) => {
-    const newEvent: CalendarEvent = {
-      ...event,
-      id: Date.now().toString()
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // Convert string dates back to Date objects
+          const newEvent: CalendarEvent = {
+            ...data.event,
+            start: new Date(data.event.start),
+            end: new Date(data.event.end)
+          }
+          setEvents(prev => [...prev, newEvent])
+          setIsEventModalOpen(false)
+        } else {
+          setError(data.message || 'Failed to create event')
+        }
+      } else {
+        setError('Failed to create event')
+      }
+    } catch (error) {
+      console.error('Error creating event:', error)
+      setError('Failed to create event')
     }
-    setEvents(prev => [...prev, newEvent])
-    setIsEventModalOpen(false)
   }
 
-  const handleUpdateEvent = (event: CalendarEvent) => {
-    setEvents(prev => prev.map(e => e.id === event.id ? event : e))
-    setIsEventModalOpen(false)
-    setSelectedEvent(null)
+  const handleUpdateEvent = async (event: CalendarEvent) => {
+    try {
+      const response = await fetch(`/api/calendar/${event.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event)
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // Convert string dates back to Date objects
+          const updatedEvent: CalendarEvent = {
+            ...data.event,
+            start: new Date(data.event.start),
+            end: new Date(data.event.end)
+          }
+          setEvents(prev => prev.map(e => e.id === event.id ? updatedEvent : e))
+          setIsEventModalOpen(false)
+          setSelectedEvent(null)
+        } else {
+          setError(data.message || 'Failed to update event')
+        }
+      } else {
+        setError('Failed to update event')
+      }
+    } catch (error) {
+      console.error('Error updating event:', error)
+      setError('Failed to update event')
+    }
   }
 
-  const handleDeleteEvent = (eventId: string) => {
-    setEvents(prev => prev.filter(e => e.id !== eventId))
-    setIsEventModalOpen(false)
-    setSelectedEvent(null)
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      const response = await fetch(`/api/calendar/${eventId}`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          setEvents(prev => prev.filter(e => e.id !== eventId))
+          setIsEventModalOpen(false)
+          setSelectedEvent(null)
+        } else {
+          setError(data.message || 'Failed to delete event')
+        }
+      } else {
+        setError('Failed to delete event')
+      }
+    } catch (error) {
+      console.error('Error deleting event:', error)
+      setError('Failed to delete event')
+    }
   }
 
   const handleEventClick = (event: CalendarEvent) => {
@@ -132,12 +207,6 @@ export default function CalendarPage() {
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
               <button
-                onClick={() => setEvents(getSampleEvents())}
-                className="inline-flex items-center justify-center px-3 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-              >
-                Load Sample Events
-              </button>
-              <button
                 onClick={openNewEventModal}
                 className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
@@ -147,6 +216,32 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-800">{error}</p>
+              </div>
+              <div className="ml-auto pl-3">
+                <button
+                  onClick={() => setError(null)}
+                  className="inline-flex text-red-400 hover:text-red-600"
+                >
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Mobile Events Section */}
         <div className="lg:hidden mb-4">
