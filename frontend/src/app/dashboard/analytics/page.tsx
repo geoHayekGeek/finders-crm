@@ -13,6 +13,7 @@ import {
   ArrowUpRight,
   ArrowDownRight
 } from 'lucide-react'
+import { usePermissions, RequireFinancialAccess, RequireAgentPerformanceAccess } from '@/contexts/PermissionContext'
 
 const monthlyData = [
   { month: 'Jan', properties: 12, clients: 45, revenue: 32000, leads: 28 },
@@ -49,6 +50,7 @@ const leadSources = [
 
 export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('6M')
+  const { role, canViewFinancial, canViewAgentPerformance } = usePermissions()
 
   return (
     <div className="space-y-6">
@@ -56,7 +58,10 @@ export default function AnalyticsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="text-gray-600">Track your business performance and key metrics</p>
+          <p className="text-gray-600">
+            Track your business performance and key metrics
+            {role && <span className="ml-2 text-sm text-blue-600">Role: {role}</span>}
+          </p>
         </div>
         <select
           value={timeRange}
@@ -110,24 +115,27 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-purple-600" />
+        {/* Monthly Revenue - Only visible to admin and operations manager */}
+        <RequireFinancialAccess>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="h-5 w-5 text-purple-600" />
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Monthly Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">$62,450</p>
               </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-500">Monthly Revenue</p>
-              <p className="text-2xl font-bold text-gray-900">$62,450</p>
+            <div className="mt-4 flex items-center text-sm">
+              <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
+              <span className="text-green-600">+23%</span>
+              <span className="text-gray-500 ml-1">from last month</span>
             </div>
           </div>
-          <div className="mt-4 flex items-center text-sm">
-            <ArrowUpRight className="h-4 w-4 text-green-500 mr-1" />
-            <span className="text-green-600">+23%</span>
-            <span className="text-gray-500 ml-1">from last month</span>
-          </div>
-        </div>
+        </RequireFinancialAccess>
 
         <div className="bg-white p-6 rounded-lg shadow">
           <div className="flex items-center">
@@ -172,16 +180,19 @@ export default function AnalyticsPage() {
                         style={{ width: `${(data.clients / 80) * 100}%` }}
                       ></div>
                     </div>
-                    <div className="flex-1 bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-purple-600 h-2 rounded-full" 
-                        style={{ width: `${(data.revenue / 70000) * 100}%` }}
-                      ></div>
-                    </div>
+                    {canViewFinancial && (
+                      <div className="flex-1 bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-purple-600 h-2 rounded-full" 
+                          style={{ width: `${(data.revenue / 70000) * 100}%` }}
+                        ></div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 w-20 text-right">
-                  {data.properties} | {data.clients} | ${data.revenue.toLocaleString()}
+                  {data.properties} | {data.clients}
+                  {canViewFinancial && ` | $${data.revenue.toLocaleString()}`}
                 </div>
               </div>
             ))}
@@ -195,36 +206,44 @@ export default function AnalyticsPage() {
               <div className="w-3 h-3 bg-green-600 rounded mr-1"></div>
               Clients
             </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-purple-600 rounded mr-1"></div>
-              Revenue
-            </div>
+            {canViewFinancial && (
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-purple-600 rounded mr-1"></div>
+                Revenue
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Top performing agents */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Top Performing Agents</h3>
-          <div className="space-y-4">
-            {topAgents.map((agent, index) => (
-              <div key={agent.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-600">
-                    {index + 1}
+        {/* Top performing agents - Only visible to admin, operations manager, and agent manager */}
+        <RequireAgentPerformanceAccess>
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Top Performing Agents</h3>
+            <div className="space-y-4">
+              {topAgents.map((agent, index) => (
+                <div key={agent.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-600">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{agent.name}</p>
+                      <p className="text-xs text-gray-500">⭐ {agent.rating}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{agent.name}</p>
-                    <p className="text-xs text-gray-500">⭐ {agent.rating}</p>
+                  <div className="text-right">
+                    {canViewFinancial ? (
+                      <p className="text-sm font-medium text-gray-900">${agent.revenue.toLocaleString()}</p>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900">{agent.properties} properties</p>
+                    )}
+                    <p className="text-xs text-gray-500">{agent.properties} properties</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">${agent.revenue.toLocaleString()}</p>
-                  <p className="text-xs text-gray-500">{agent.properties} properties</p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        </RequireAgentPerformanceAccess>
       </div>
 
       {/* Property and lead breakdowns */}
@@ -297,6 +316,23 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Role-based access notice */}
+      {!canViewFinancial && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <Target className="h-5 w-5 text-yellow-400" />
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">Limited Access</h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>As a {role}, you have limited access to analytics data. Financial information and agent performance details are restricted to admin and operations manager roles.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

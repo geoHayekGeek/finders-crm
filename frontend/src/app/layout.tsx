@@ -2,12 +2,13 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { PermissionProvider } from '@/contexts/PermissionContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Finders CRM - Real Estate Management System',
-  description: 'Professional real estate CRM system for property management, client tracking, and sales optimization',
+  title: 'Finders CRM',
+  description: 'Real Estate CRM System',
 }
 
 export default function RootLayout({
@@ -19,9 +20,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <div className="min-h-screen bg-gray-50">
+          <PermissionProvider>
             {children}
-          </div>
+          </PermissionProvider>
         </AuthProvider>
       </body>
     </html>

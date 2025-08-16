@@ -18,6 +18,7 @@ interface AuthContextType {
   logout: () => void
   isAuthenticated: boolean
   isLoading: boolean
+  loading: boolean // Add this for compatibility
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -67,7 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     isAuthenticated: !!token && !!user,
-    isLoading
+    isLoading,
+    loading: isLoading // Add this for compatibility
   }
 
   return (

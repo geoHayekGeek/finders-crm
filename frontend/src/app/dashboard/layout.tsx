@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   Home, 
@@ -18,15 +19,6 @@ import {
   ChevronRight
 } from 'lucide-react'
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Properties', href: '/dashboard/properties', icon: Building2 },
-  { name: 'Clients', href: '/dashboard/clients', icon: Users },
-  { name: 'Leads', href: '/dashboard/leads', icon: FileText },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-]
-
 export default function DashboardLayout({
   children,
 }: {
@@ -35,6 +27,35 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const { user, logout } = useAuth()
+  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance } = usePermissions()
+
+  // Permission-based navigation
+  const getNavigation = () => {
+    const baseNavigation = [
+      { name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true }
+    ]
+
+    // Properties - visible to all roles
+    baseNavigation.push({ name: 'Properties', href: '/dashboard/properties', icon: Building2, alwaysVisible: true })
+
+    // Clients - visible to all roles
+    baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
+
+    // Leads - visible to all roles
+    baseNavigation.push({ name: 'Leads', href: '/dashboard/leads', icon: FileText, alwaysVisible: true })
+
+    // Analytics - visible to all roles but content filtered by permissions
+    baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
+
+    // Settings - only visible to admin and operations manager
+    if (canManageUsers) {
+      baseNavigation.push({ name: 'Settings', href: '/dashboard/settings', icon: Settings, alwaysVisible: false })
+    }
+
+    return baseNavigation
+  }
+
+  const navigation = getNavigation()
 
   const handleLogout = () => {
     logout()

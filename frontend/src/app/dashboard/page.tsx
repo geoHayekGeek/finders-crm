@@ -12,6 +12,7 @@ import {
   Star,
   FileText
 } from 'lucide-react'
+import { usePermissions, RequireFinancialAccess, RequirePropertyManagement } from '@/contexts/PermissionContext'
 
 const stats = [
   { name: 'Total Properties', value: '24', icon: Building2, change: '+12%', changeType: 'positive' },
@@ -87,17 +88,30 @@ const recentLeads = [
 ]
 
 export default function DashboardPage() {
+  const { role, canViewFinancial } = usePermissions()
+
+  // Filter stats based on permissions
+  const filteredStats = stats.filter(stat => {
+    if (stat.name === 'Monthly Revenue' && !canViewFinancial) {
+      return false
+    }
+    return true
+  })
+
   return (
     <div className="space-y-6">
       {/* Page header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Welcome back! Here's what's happening with your real estate business.</p>
+        <p className="text-gray-600">
+          Welcome back! Here's what's happening with your real estate business.
+          {role && <span className="ml-2 text-sm text-blue-600">Role: {role}</span>}
+        </p>
       </div>
 
       {/* Stats grid */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
+        {filteredStats.map((stat) => (
           <div key={stat.name} className="bg-white overflow-hidden shadow rounded-lg">
             <div className="p-5">
               <div className="flex items-center">
@@ -209,31 +223,59 @@ export default function DashboardPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
-        </div>
-        <div className="p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
-              <Building2 className="h-5 w-5 mr-2" />
-              Add Property
-            </button>
-            <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
-              <Users className="h-5 w-5 mr-2" />
-              Add Client
-            </button>
-            <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
-              <FileText className="h-5 w-5 mr-2" />
-              Create Lead
-            </button>
-            <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
-              <Calendar className="h-5 w-5 mr-2" />
-              Schedule Viewing
-            </button>
+      <RequirePropertyManagement>
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Quick Actions</h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <Building2 className="h-5 w-5 mr-2" />
+                Add Property
+              </button>
+              <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <Users className="h-5 w-5 mr-2" />
+                Add Client
+              </button>
+              <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <FileText className="h-5 w-5 mr-2" />
+                Create Lead
+              </button>
+              <button className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 transition-colors">
+                <Calendar className="h-5 w-5 mr-2" />
+                Schedule Viewing
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </RequirePropertyManagement>
+
+      {/* Financial Summary - Only visible to admin and operations manager */}
+      <RequireFinancialAccess>
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Financial Summary</h3>
+            <p className="text-sm text-gray-500">Revenue and profit overview</p>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">$45,230</div>
+                <div className="text-sm text-gray-500">Monthly Revenue</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">$12,450</div>
+                <div className="text-sm text-gray-500">Monthly Profit</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-600">27.5%</div>
+                <div className="text-sm text-gray-500">Profit Margin</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </RequireFinancialAccess>
     </div>
   )
 }

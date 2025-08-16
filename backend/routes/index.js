@@ -3,6 +3,8 @@ const router = express.Router();
 const pool = require('../config/db');
 const userRoutes = require('./userRoutes');
 const passwordResetRoutes = require('./passwordResetRoutes');
+const propertyRoutes = require('./propertyRoutes');
+const analyticsRoutes = require('./analyticsRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -17,5 +19,7 @@ router.get('/', async (req, res) => {
 // Mount route modules
 router.use('/users', userRoutes);
 router.use('/password-reset', passwordResetRoutes);
+router.use('/properties', propertyRoutes);
+router.use('/analytics', analyticsRoutes);
 
 module.exports = router;

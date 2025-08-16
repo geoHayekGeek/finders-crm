@@ -20,6 +20,14 @@ class User {
     return result.rows[0];
   }
 
+  static async findById(id) {
+    const result = await pool.query(
+      `SELECT * FROM users WHERE id = $1`,
+      [id]
+    );
+    return result.rows[0];
+  }
+
   static async updatePassword(email, hashedPassword) {
     console.log('🔄 Updating password for email:', email);
     console.log('🔐 New hash length:', hashedPassword.length);
@@ -35,6 +43,45 @@ class User {
       email: result.rows[0]?.email
     });
     
+    return result.rows[0];
+  }
+
+  static async getAllUsers() {
+    const result = await pool.query(
+      `SELECT id, name, email, role, location, phone, created_at, updated_at FROM users ORDER BY created_at DESC`
+    );
+    return result.rows;
+  }
+
+  static async getUsersByRole(role) {
+    const result = await pool.query(
+      `SELECT id, name, email, role, location, phone, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
+      [role]
+    );
+    return result.rows;
+  }
+
+  static async updateUser(id, updates) {
+    const fields = Object.keys(updates);
+    const values = Object.values(updates);
+    
+    const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+    const query = `
+      UPDATE users 
+      SET ${setClause}, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, name, email, role, location, phone, created_at, updated_at
+    `;
+    
+    const result = await pool.query(query, [id, ...values]);
+    return result.rows[0];
+  }
+
+  static async deleteUser(id) {
+    const result = await pool.query(
+      'DELETE FROM users WHERE id = $1 RETURNING *',
+      [id]
+    );
     return result.rows[0];
   }
 }
