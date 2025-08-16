@@ -77,34 +77,17 @@ const PermissionContext = createContext<PermissionContextType | undefined>(undef
 export function PermissionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   
-  // Debug logging
-  console.log('PermissionProvider - User:', user)
-  console.log('PermissionProvider - User role:', user?.role)
-  
   const hasPermission = (resource: string, action: string): boolean => {
-    if (!user || !user.role) {
-      console.log('PermissionProvider - No user or role')
-      return false
-    }
-    
-    console.log('PermissionProvider - Checking permission:', resource, action, 'for role:', user.role)
+    if (!user || !user.role) return false
     
     const rolePermissions = PERMISSIONS[user.role as keyof typeof PERMISSIONS]
-    if (!rolePermissions) {
-      console.log('PermissionProvider - No permissions found for role:', user.role)
-      return false
-    }
+    if (!rolePermissions) return false
     
     // Type-safe access to resource permissions
     const resourcePermissions = rolePermissions[resource as keyof typeof rolePermissions]
-    if (!resourcePermissions) {
-      console.log('PermissionProvider - No resource permissions found for:', resource)
-      return false
-    }
+    if (!resourcePermissions) return false
     
-    const hasAccess = resourcePermissions.includes(action)
-    console.log('PermissionProvider - Permission result:', hasAccess)
-    return hasAccess
+    return resourcePermissions.includes(action)
   }
 
   const canViewFinancial = user ? ['admin', 'operations manager'].includes(user.role) : false

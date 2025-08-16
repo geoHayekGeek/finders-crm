@@ -16,7 +16,8 @@ import {
   LogOut,
   User,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Calendar
 } from 'lucide-react'
 
 export default function DashboardLayout({
@@ -43,6 +44,9 @@ export default function DashboardLayout({
 
     // Leads - visible to all roles
     baseNavigation.push({ name: 'Leads', href: '/dashboard/leads', icon: FileText, alwaysVisible: true })
+
+    // Calendar - visible to all roles
+    baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
 
     // Analytics - visible to all roles but content filtered by permissions
     baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
