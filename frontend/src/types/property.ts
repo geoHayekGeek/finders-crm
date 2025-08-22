@@ -86,4 +86,8 @@ export interface PropertyFilters {
   price_max?: number
   view_type?: string
   search?: string
+  surface_min?: number
+  surface_max?: number
+  built_year_min?: number
+  built_year_max?: number
 }

@@ -153,11 +153,15 @@ export function PropertyFilters({
                 <input
                   type="number"
                   placeholder="Min"
+                  value={filters.surface_min || ''}
+                  onChange={(e) => handleFilterChange('surface_min', e.target.value ? Number(e.target.value) : undefined)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                 />
                 <input
                   type="number"
                   placeholder="Max"
+                  value={filters.surface_max || ''}
+                  onChange={(e) => handleFilterChange('surface_max', e.target.value ? Number(e.target.value) : undefined)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                 />
               </div>
@@ -170,11 +174,15 @@ export function PropertyFilters({
                 <input
                   type="number"
                   placeholder="From"
+                  value={filters.built_year_min || ''}
+                  onChange={(e) => handleFilterChange('built_year_min', e.target.value ? Number(e.target.value) : undefined)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                 />
                 <input
                   type="number"
                   placeholder="To"
+                  value={filters.built_year_max || ''}
+                  onChange={(e) => handleFilterChange('built_year_max', e.target.value ? Number(e.target.value) : undefined)}
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                 />
               </div>
@@ -246,6 +254,50 @@ export function PropertyFilters({
                     <button
                       onClick={() => handleFilterChange('view_type', undefined)}
                       className="ml-2 text-indigo-600 hover:text-indigo-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.surface_min && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-teal-100 text-teal-800">
+                    Min Surface: {filters.surface_min}m²
+                    <button
+                      onClick={() => handleFilterChange('surface_min', undefined)}
+                      className="ml-2 text-teal-600 hover:text-teal-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.surface_max && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-teal-100 text-teal-800">
+                    Max Surface: {filters.surface_max}m²
+                    <button
+                      onClick={() => handleFilterChange('surface_max', undefined)}
+                      className="ml-2 text-teal-600 hover:text-teal-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.built_year_min && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-orange-100 text-orange-800">
+                    Built From: {filters.built_year_min}
+                    <button
+                      onClick={() => handleFilterChange('built_year_min', undefined)}
+                      className="ml-2 text-orange-600 hover:text-orange-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.built_year_max && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-orange-100 text-orange-800">
+                    Built To: {filters.built_year_max}
+                    <button
+                      onClick={() => handleFilterChange('built_year_max', undefined)}
+                      className="ml-2 text-orange-600 hover:text-orange-800"
                     >
                       <X className="h-4 w-4" />
                     </button>

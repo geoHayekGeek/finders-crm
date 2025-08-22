@@ -278,44 +278,68 @@ class Property {
     let valueIndex = 1;
 
     if (filters.status_id && filters.status_id !== 'All') {
-      query += ` AND status_id = $${valueIndex}`;
+      query += ` AND p.status_id = $${valueIndex}`;
       values.push(filters.status_id);
       valueIndex++;
     }
 
     if (filters.category_id && filters.category_id !== 'All') {
-      query += ` AND category_id = $${valueIndex}`;
+      query += ` AND p.category_id = $${valueIndex}`;
       values.push(filters.category_id);
       valueIndex++;
     }
 
     if (filters.agent_id) {
-      query += ` AND agent_id = $${valueIndex}`;
+      query += ` AND p.agent_id = $${valueIndex}`;
       values.push(filters.agent_id);
       valueIndex++;
     }
 
     if (filters.price_min) {
-      query += ` AND price >= $${valueIndex}`;
+      query += ` AND p.price >= $${valueIndex}`;
       values.push(filters.price_min);
       valueIndex++;
     }
 
     if (filters.price_max) {
-      query += ` AND price <= $${valueIndex}`;
+      query += ` AND p.price <= $${valueIndex}`;
       values.push(filters.price_max);
       valueIndex++;
     }
 
     if (filters.search) {
-      query += ` AND (reference_number ILIKE $${valueIndex} OR location ILIKE $${valueIndex} OR owner_name ILIKE $${valueIndex})`;
+      query += ` AND (p.reference_number ILIKE $${valueIndex} OR p.location ILIKE $${valueIndex} OR p.owner_name ILIKE $${valueIndex})`;
       values.push(`%${filters.search}%`);
       valueIndex++;
     }
 
     if (filters.view_type && filters.view_type !== 'All') {
-      query += ` AND view_type = $${valueIndex}`;
+      query += ` AND p.view_type = $${valueIndex}`;
       values.push(filters.view_type);
+      valueIndex++;
+    }
+
+    if (filters.surface_min) {
+      query += ` AND p.surface >= $${valueIndex}`;
+      values.push(filters.surface_min);
+      valueIndex++;
+    }
+
+    if (filters.surface_max) {
+      query += ` AND p.surface <= $${valueIndex}`;
+      values.push(filters.surface_max);
+      valueIndex++;
+    }
+
+    if (filters.built_year_min) {
+      query += ` AND p.built_year >= $${valueIndex}`;
+      values.push(filters.built_year_min);
+      valueIndex++;
+    }
+
+    if (filters.built_year_max) {
+      query += ` AND p.built_year <= $${valueIndex}`;
+      values.push(filters.built_year_max);
       valueIndex++;
     }
 

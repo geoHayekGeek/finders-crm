@@ -31,6 +31,7 @@ export default function PropertiesPage() {
   const [categories, setCategories] = useState<Category[]>([])
   const [statuses, setStatuses] = useState<Status[]>([])
   const [loading, setLoading] = useState(true)
+  const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
   // View and display state
@@ -74,7 +75,84 @@ export default function PropertiesPage() {
     }
   }, [isAuthenticated])
 
-  // Load all necessary data
+  // Reload data when filters change
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadPropertiesOnly()
+      setCurrentPage(1) // Reset to first page when filters change
+    }
+  }, [filters, isAuthenticated])
+
+  // Load only properties (for filtering)
+  const loadPropertiesOnly = async () => {
+    try {
+      setPropertiesLoading(true)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        setError('You must be logged in to view properties')
+        return
+      }
+      
+      // Build query parameters for filters
+      const hasFilters = Object.keys(filters).length > 0
+      const queryParams = new URLSearchParams()
+      
+      if (hasFilters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value.toString())
+          }
+        })
+      }
+      
+      const queryString = queryParams.toString()
+      const endpoint = hasFilters 
+        ? `http://localhost:10000/api/properties/filtered${queryString ? `?${queryString}` : ''}`
+        : 'http://localhost:10000/api/properties'
+      
+      console.log('🔍 Loading properties with endpoint:', endpoint)
+      
+      // Load properties from production API with authentication
+      const propertiesResponse = await fetch(endpoint, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!propertiesResponse.ok) {
+        if (propertiesResponse.status === 401) {
+          setError('Authentication required. Please log in again.')
+          return
+        }
+        throw new Error(`Failed to load properties: ${propertiesResponse.statusText}`)
+      }
+
+      const propertiesResponseData = await propertiesResponse.json()
+      const propertiesData: Property[] = propertiesResponseData.data || propertiesResponseData
+      console.log('✅ Loaded properties from production API:', propertiesData.length)
+      
+      // Add action handlers to properties
+      const propertiesWithActions = propertiesData.map((property: Property) => ({
+        ...property,
+        onView: handleViewProperty,
+        onEdit: handleEditProperty,
+        onDelete: handleDeleteProperty
+      }))
+      
+      setProperties(propertiesWithActions)
+      
+    } catch (error) {
+      setError('Failed to load properties data')
+      console.error('Error loading properties:', error)
+    } finally {
+      setPropertiesLoading(false)
+    }
+  }
+
+  // Load all necessary data (initial load)
   const loadData = async () => {
     try {
       setLoading(true)
@@ -86,8 +164,27 @@ export default function PropertiesPage() {
         return
       }
       
+      // Build query parameters for filters
+      const hasFilters = Object.keys(filters).length > 0
+      const queryParams = new URLSearchParams()
+      
+      if (hasFilters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            queryParams.append(key, value.toString())
+          }
+        })
+      }
+      
+      const queryString = queryParams.toString()
+      const endpoint = hasFilters 
+        ? `http://localhost:10000/api/properties/filtered${queryString ? `?${queryString}` : ''}`
+        : 'http://localhost:10000/api/properties'
+      
+      console.log('🔍 Loading properties with endpoint:', endpoint)
+      
       // Load properties from production API with authentication
-      const propertiesResponse = await fetch('http://localhost:10000/api/properties', {
+      const propertiesResponse = await fetch(endpoint, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -180,50 +277,8 @@ export default function PropertiesPage() {
     }
   }
 
-  // Filter properties based on current filters
-  const filteredProperties = useMemo(() => {
-    return properties.filter(property => {
-      // Search filter
-      if (filters.search) {
-        const searchTerm = filters.search.toLowerCase()
-        const searchableFields = [
-          property.reference_number,
-          property.location,
-          property.owner_name,
-          property.building_name
-        ].filter(Boolean).join(' ').toLowerCase()
-        
-        if (!searchableFields.includes(searchTerm)) {
-          return false
-        }
-      }
-      
-      // Status filter
-      if (filters.status_id && property.status_id !== filters.status_id) {
-        return false
-      }
-      
-      // Category filter
-      if (filters.category_id && property.category_id !== filters.category_id) {
-        return false
-      }
-      
-      // Price range filter
-      if (filters.price_min && property.price && property.price < filters.price_min) {
-        return false
-      }
-      if (filters.price_max && property.price && property.price > filters.price_max) {
-        return false
-      }
-      
-      // View type filter
-      if (filters.view_type && property.view_type !== filters.view_type) {
-        return false
-      }
-      
-      return true
-    })
-  }, [properties, filters])
+  // Since we're now filtering on the backend, filteredProperties is just properties
+  const filteredProperties = properties
 
   // Paginate properties
   const paginatedProperties = useMemo(() => {
@@ -492,6 +547,7 @@ export default function PropertiesPage() {
   const clearFilters = () => {
     setFilters({})
     setCurrentPage(1)
+    // The useEffect will trigger loadData when filters change
   }
 
   // Handle items per page change
@@ -651,11 +707,16 @@ export default function PropertiesPage() {
           </button>
           
           <button
-            onClick={loadData}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
-            title="Refresh data"
+            onClick={loadPropertiesOnly}
+            disabled={propertiesLoading}
+            className={`p-2 rounded-lg transition-colors ${
+              propertiesLoading 
+                ? 'text-gray-300 cursor-not-allowed' 
+                : 'text-gray-400 hover:text-gray-600'
+            }`}
+            title="Refresh properties"
           >
-            <RefreshCw className="h-5 w-5" />
+            <RefreshCw className={`h-5 w-5 ${propertiesLoading ? 'animate-spin' : ''}`} />
           </button>
         </div>
         
@@ -670,7 +731,15 @@ export default function PropertiesPage() {
       </div>
 
       {/* Content */}
-      {viewMode === 'grid' ? (
+      {propertiesLoading ? (
+        // Loading state for properties only
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-600">Loading properties...</p>
+          </div>
+        </div>
+      ) : viewMode === 'grid' ? (
         // Grid View
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {gridViewProperties.map((property) => (
