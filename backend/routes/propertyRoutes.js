@@ -11,7 +11,10 @@ const {
   canViewAgentPerformance
 } = require('../middlewares/permissions');
 
-// Apply authentication and role filtering to all routes
+// PUBLIC ENDPOINT FOR DEMO (no authentication required)
+router.get('/demo', propertyController.getDemoProperties);
+
+// Apply authentication and role filtering to all other routes
 router.use(authenticateToken);
 router.use(filterDataByRole);
 

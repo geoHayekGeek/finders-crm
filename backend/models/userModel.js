@@ -2,12 +2,12 @@
 const pool = require('../config/db');
 
 class User {
-  static async createUser({ name, email, password, role, location, phone }) {
+  static async createUser({ name, email, password, role, location, phone, dob, user_code }) {
     const result = await pool.query(
-      `INSERT INTO users (name, email, password, role, location, phone)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO users (name, email, password, role, location, phone, dob, user_code)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [name, email, password, role, location, phone]
+      [name, email, password, role, location, phone, dob, user_code]
     );
     return result.rows[0];
   }
@@ -48,14 +48,14 @@ class User {
 
   static async getAllUsers() {
     const result = await pool.query(
-      `SELECT id, name, email, role, location, phone, created_at, updated_at FROM users ORDER BY created_at DESC`
+      `SELECT id, name, email, role, location, phone, dob, user_code, created_at, updated_at FROM users ORDER BY created_at DESC`
     );
     return result.rows;
   }
 
   static async getUsersByRole(role) {
     const result = await pool.query(
-      `SELECT id, name, email, role, location, phone, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
+      `SELECT id, name, email, role, location, phone, dob, user_code, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
       [role]
     );
     return result.rows;
@@ -70,7 +70,7 @@ class User {
       UPDATE users 
       SET ${setClause}, updated_at = NOW()
       WHERE id = $1
-      RETURNING id, name, email, role, location, phone, created_at, updated_at
+      RETURNING id, name, email, role, location, phone, dob, user_code, created_at, updated_at
     `;
     
     const result = await pool.query(query, [id, ...values]);
@@ -83,6 +83,35 @@ class User {
       [id]
     );
     return result.rows[0];
+  }
+
+  static async findByUserCode(userCode) {
+    const result = await pool.query(
+      `SELECT * FROM users WHERE user_code = $1`,
+      [userCode]
+    );
+    return result.rows[0];
+  }
+
+  static async generateUniqueUserCode() {
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+      // Generate a random 6-character alphanumeric code
+      const userCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      
+      // Check if it already exists
+      const existing = await this.findByUserCode(userCode);
+      if (!existing) {
+        return userCode;
+      }
+      
+      attempts++;
+    }
+    
+    // Fallback: use timestamp-based code
+    return 'U' + Date.now().toString(36).toUpperCase();
   }
 }
 

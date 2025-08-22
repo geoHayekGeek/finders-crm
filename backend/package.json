@@ -7,7 +7,11 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "setup-calendar": "node setup-calendar-db.js"
+    "setup-calendar": "node setup-calendar-db.js",
+    "setup-properties": "node setup-properties-db.js",
+    "add-demo-properties": "node add-demo-properties.js",
+    "show-demo-data": "node show-demo-data.js",
+    "test-properties": "node test-properties-db.js"
   },
   "keywords": [],
   "author": "",

@@ -1,200 +1,370 @@
-const API_BASE_URL = 'http://localhost:10000/api'
+import { Property, Category, Status } from '@/types/property'
 
-export interface ApiResponse<T = any> {
-  success: boolean
-  data?: T
-  message?: string
-  error?: string
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message)
+    this.name = 'ApiError'
+  }
 }
 
-class ApiClient {
-  private baseURL: string
-
-  constructor(baseURL: string) {
-    this.baseURL = baseURL
-  }
-
-  private getHeaders(requireAuth: boolean = true): HeadersInit {
-    const headers: HeadersInit = {
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`
+  
+  const config: RequestInit = {
+    headers: {
       'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
+  }
+
+  try {
+    const response = await fetch(url, config)
+    
+    if (!response.ok) {
+      throw new ApiError(response.status, `HTTP error! status: ${response.status}`)
     }
-
-    if (requireAuth) {
-      const token = localStorage.getItem('token')
-      if (token) {
-        headers.Authorization = `Bearer ${token}`
-      }
+    
+    const data = await response.json()
+    return data
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error
     }
-
-    return headers
-  }
-
-  private async request<T>(
-    endpoint: string,
-    options: RequestInit = {},
-    requireAuth: boolean = true
-  ): Promise<ApiResponse<T>> {
-    try {
-      const url = `${this.baseURL}${endpoint}`
-      const response = await fetch(url, {
-        ...options,
-        headers: this.getHeaders(requireAuth),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return {
-          success: false,
-          message: data.message || 'Request failed',
-          error: data.error || 'Unknown error',
-        }
-      }
-
-      return {
-        success: true,
-        data,
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Network error',
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
-    }
-  }
-
-  // Auth endpoints
-  async login(email: string, password: string) {
-    return this.request('/users/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    })
-  }
-
-  async getCurrentUser() {
-    return this.request('/users/me')
-  }
-
-  // Password reset endpoints
-  async requestPasswordReset(email: string) {
-    return this.request('/password-reset/request', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }, false) // No auth required
-  }
-
-  async verifyResetCode(email: string, code: string) {
-    return this.request('/password-reset/verify', {
-      method: 'POST',
-      body: JSON.stringify({ email, code }),
-    }, false) // No auth required
-  }
-
-  async resetPassword(email: string, code: string, newPassword: string) {
-    return this.request('/password-reset/reset', {
-      method: 'POST',
-      body: JSON.stringify({ email, code, newPassword }),
-    }, false) // No auth required
-  }
-
-  async resendResetCode(email: string) {
-    return this.request('/password-reset/resend', {
-      method: 'POST',
-      body: JSON.stringify({ email }),
-    }, false) // No auth required
-  }
-
-  // Properties endpoints
-  async getProperties() {
-    return this.request('/properties')
-  }
-
-  async createProperty(propertyData: any) {
-    return this.request('/properties', {
-      method: 'POST',
-      body: JSON.stringify(propertyData),
-    })
-  }
-
-  async updateProperty(id: string, propertyData: any) {
-    return this.request(`/properties/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(propertyData),
-    })
-  }
-
-  async deleteProperty(id: string) {
-    return this.request(`/properties/${id}`, {
-      method: 'DELETE',
-    })
-  }
-
-  // Clients endpoints
-  async getClients() {
-    return this.request('/clients')
-  }
-
-  async createClient(clientData: any) {
-    return this.request('/clients', {
-      method: 'POST',
-      body: JSON.stringify(clientData),
-    })
-  }
-
-  async updateClient(id: string, clientData: any) {
-    return this.request(`/clients/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(clientData),
-    })
-  }
-
-  async deleteClient(id: string) {
-    return this.request(`/clients/${id}`, {
-      method: 'DELETE',
-    })
-  }
-
-  // Leads endpoints
-  async getLeads() {
-    return this.request('/leads')
-  }
-
-  async createLead(leadData: any) {
-    return this.request('/leads', {
-      method: 'POST',
-      body: JSON.stringify(leadData),
-    })
-  }
-
-  async updateLead(id: string, leadData: any) {
-    return this.request(`/leads/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(leadData),
-    })
-  }
-
-  async deleteLead(id: string) {
-    return this.request(`/leads/${id}`, {
-      method: 'DELETE',
-    })
-  }
-
-  // Analytics endpoints
-  async getAnalytics(timeRange: string = '6M') {
-    return this.request(`/analytics?timeRange=${timeRange}`)
-  }
-
-  async getDashboardStats() {
-    return this.request('/dashboard/stats')
+    throw new ApiError(500, `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
 }
 
-export const apiClient = new ApiClient(API_BASE_URL)
-export default apiClient
+// Properties API
+export const propertiesApi = {
+  // Get all properties (requires authentication)
+  getAll: () => apiRequest<{ success: boolean; data: any[] }>('/properties'),
+  
+  // Get properties for demo (no authentication required)
+  getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/properties/demo'),
+  
+  // Get properties with filters
+  getWithFilters: (filters: any) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    return apiRequest<{ success: boolean; data: any[] }>(`/properties/filtered?${params.toString()}`)
+  },
+  
+  // Get property by ID
+  getById: (id: number) => apiRequest<{ success: boolean; data: any }>(`/properties/${id}`),
+  
+  // Create property
+  create: (data: any) => apiRequest<{ success: boolean; data: any; message: string }>('/properties', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  
+  // Update property
+  update: (id: number, data: any) => apiRequest<{ success: boolean; data: any; message: string }>(`/properties/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  
+  // Delete property
+  delete: (id: number) => apiRequest<{ success: boolean; message: string }>(`/properties/${id}`, {
+    method: 'DELETE',
+  }),
+  
+  // Get property statistics
+  getStats: () => apiRequest<{ success: boolean; data: any }>('/properties/stats/overview'),
+}
 
-// Export individual functions for easier imports
-export const requestPasswordReset = (email: string) => apiClient.requestPasswordReset(email)
-export const verifyResetCode = (email: string, code: string) => apiClient.verifyResetCode(email, code)
-export const resetPassword = (email: string, code: string, newPassword: string) => apiClient.resetPassword(email, code, newPassword)
-export const resendResetCode = (email: string) => apiClient.resendResetCode(email)
+// Categories API
+export const categoriesApi = {
+  getAll: () => apiRequest<{ success: boolean; data: any[] }>('/categories'),
+  getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/categories/demo'),
+  getWithCount: () => apiRequest<{ success: boolean; data: any[] }>('/categories/with-count'),
+  search: (query: string) => apiRequest<{ success: boolean; data: any[] }>(`/categories/search?q=${encodeURIComponent(query)}`),
+}
+
+// Statuses API
+export const statusesApi = {
+  getAll: () => apiRequest<{ success: boolean; data: any[] }>('/statuses'),
+  getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/demo'),
+  getWithCount: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/with-count'),
+  getStats: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/stats'),
+  search: (query: string) => apiRequest<{ success: boolean; data: any[] }>(`/statuses/search?q=${encodeURIComponent(query)}`),
+}
+
+// Mock data for development (when backend is not available)
+export const mockProperties: Property[] = [
+  {
+    id: 1,
+    reference_number: 'FA2025587',
+    status_id: 1,
+    status_name: 'Active',
+    status_color: '#10B981',
+    location: 'Beirut Central District, Lebanon',
+    category_id: 1,
+    category_name: 'Apartment',
+    category_code: 'A',
+    building_name: 'Marina Towers',
+    owner_name: 'Ahmed Al-Masri',
+    phone_number: '+961 70 123 456',
+    surface: 150.5,
+    details: { floor: 8, balcony: true, parking: 2, cave: true },
+    interior_details: 'Fully furnished with modern appliances, marble floors, and sea view',
+    built_year: 2020,
+    view_type: 'sea view',
+    concierge: true,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 450000,
+    notes: 'Luxury apartment with stunning sea view, recently renovated',
+    referral_source: 'External referral from local real estate agent',
+    referral_dates: ['2025-01-15'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 2,
+    reference_number: 'FV2025856',
+    status_id: 1,
+    status_name: 'Active',
+    status_color: '#10B981',
+    location: 'Jounieh, Mount Lebanon',
+    category_id: 18,
+    category_name: 'Villa',
+    category_code: 'V',
+    building_name: 'Villa Paradise',
+    owner_name: 'Marie Dubois',
+    phone_number: '+961 71 987 654',
+    surface: 350.0,
+    details: { floor: 1, balcony: true, parking: 3, cave: true },
+    interior_details: 'Spacious villa with garden, swimming pool, and mountain view',
+    built_year: 2018,
+    view_type: 'mountain view',
+    concierge: false,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 1200000,
+    notes: 'Beautiful villa perfect for families, close to beaches and amenities',
+    referral_source: 'Internal referral from agent',
+    referral_dates: ['2025-01-10', '2025-01-18'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 3,
+    reference_number: 'FO2025923',
+    status_id: 1,
+    status_name: 'Active',
+    status_color: '#10B981',
+    location: 'Hamra, Beirut',
+    category_id: 3,
+    category_name: 'Office',
+    category_code: 'O',
+    building_name: 'Business Center',
+    owner_name: 'Samir Khoury',
+    phone_number: '+961 76 555 123',
+    surface: 200.0,
+    details: { floor: 5, balcony: false, parking: 5, cave: false },
+    interior_details: 'Modern office space with conference rooms and reception area',
+    built_year: 2022,
+    view_type: 'open view',
+    concierge: true,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 800000,
+    notes: 'Prime office location in Hamra district',
+    referral_source: 'Direct inquiry',
+    referral_dates: ['2025-01-12'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 4,
+    reference_number: 'FL2025478',
+    status_id: 1,
+    status_name: 'Active',
+    status_color: '#10B981',
+    location: 'Bhamdoun, Mount Lebanon',
+    category_id: 4,
+    category_name: 'Land',
+    category_code: 'L',
+    building_name: undefined,
+    owner_name: 'Elias Saba',
+    phone_number: '+961 78 999 888',
+    surface: 1000.0,
+    details: { floor: undefined, balcony: undefined, parking: undefined, cave: undefined },
+    interior_details: 'Beautiful mountain land with panoramic views',
+    built_year: undefined,
+    view_type: 'mountain view',
+    concierge: false,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 2500000,
+    notes: 'Development potential for residential or commercial use',
+    referral_source: 'Local real estate agent',
+    referral_dates: ['2025-01-08'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 5,
+    reference_number: 'FR2025567',
+    status_id: 1,
+    status_name: 'Active',
+    status_color: '#10B981',
+    location: 'Gemmayze, Beirut',
+    category_id: 5,
+    category_name: 'Restaurant',
+    category_code: 'R',
+    building_name: 'Gemmayze Plaza',
+    owner_name: 'Nadine Abou Khalil',
+    phone_number: '+961 79 777 666',
+    surface: 120.0,
+    details: { floor: 1, balcony: true, parking: 3, cave: true },
+    interior_details: 'Fully equipped restaurant with kitchen and dining area',
+    built_year: 2019,
+    view_type: 'open view',
+    concierge: false,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 650000,
+    notes: 'Perfect location for trendy restaurant in popular district',
+    referral_source: 'Direct inquiry',
+    referral_dates: ['2025-01-14'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 6,
+    reference_number: 'FW2025890',
+    status_id: 1,
+    status_name: 'Active',
+    status_color: '#10B981',
+    location: 'Dora, Beirut',
+    category_id: 6,
+    category_name: 'Warehouse',
+    category_code: 'W',
+    building_name: 'Industrial Zone Dora',
+    owner_name: 'Georges Haddad',
+    phone_number: '+961 81 444 333',
+    surface: 800.0,
+    details: { floor: 1, balcony: false, parking: 10, cave: false },
+    interior_details: 'Large warehouse with loading docks and office space',
+    built_year: 2017,
+    view_type: 'no view',
+    concierge: false,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 1800000,
+    notes: 'Industrial warehouse perfect for logistics and storage',
+    referral_source: 'Commercial real estate referral',
+    referral_dates: ['2025-01-16'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 7,
+    reference_number: 'FS2025123',
+    status_id: 2,
+    status_name: 'Sold',
+    status_color: '#EF4444',
+    location: 'Achrafieh, Beirut',
+    category_id: 1,
+    category_name: 'Apartment',
+    category_code: 'A',
+    building_name: 'Achrafieh Heights',
+    owner_name: 'Rita Mansour',
+    phone_number: '+961 70 111 222',
+    surface: 180.0,
+    details: { floor: 12, balcony: true, parking: 2, cave: true },
+    interior_details: 'Luxury apartment with city views and modern amenities',
+    built_year: 2021,
+    view_type: 'open view',
+    concierge: true,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 950000,
+    notes: 'Recently sold - luxury apartment in prime location',
+    referral_source: 'Internal referral',
+    referral_dates: ['2025-01-05'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  },
+  {
+    id: 8,
+    reference_number: 'FV2025456',
+    status_id: 3,
+    status_name: 'Rented',
+    status_color: '#8B5CF6',
+    location: 'Badaro, Beirut',
+    category_id: 18,
+    category_name: 'Villa',
+    category_code: 'V',
+    building_name: 'Badaro Gardens',
+    owner_name: 'Antoine Chahine',
+    phone_number: '+961 71 333 444',
+    surface: 280.0,
+    details: { floor: 2, balcony: true, parking: 3, cave: true },
+    interior_details: 'Family villa with garden and modern interior',
+    built_year: 2016,
+    view_type: 'open view',
+    concierge: false,
+    agent_id: undefined,
+    agent_name: undefined,
+    agent_role: undefined,
+    price: 850000,
+    notes: 'Currently rented - family villa in quiet neighborhood',
+    referral_source: 'External referral',
+    referral_dates: ['2025-01-03'],
+    created_at: '2025-01-20T10:00:00Z',
+    updated_at: '2025-01-20T10:00:00Z'
+  }
+]
+
+export const mockCategories: Category[] = [
+  { id: 1, name: 'Apartment', code: 'A', description: 'Residential apartment units', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 2, name: 'Villa', code: 'V', description: 'Luxury residential villas', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 3, name: 'Office', code: 'O', description: 'Commercial office spaces', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 4, name: 'Land', code: 'L', description: 'Vacant land for development', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 5, name: 'Restaurant', code: 'R', description: 'Dining establishments', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 6, name: 'Warehouse', code: 'W', description: 'Storage and logistics facilities', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 7, name: 'Chalet', code: 'C', description: 'Mountain chalets and cabins', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 8, name: 'Duplex', code: 'D', description: 'Two-story residential units', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 9, name: 'Factory', code: 'F', description: 'Industrial manufacturing facilities', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 10, name: 'Cloud Kitchen', code: 'CK', description: 'Commercial kitchen facilities', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 11, name: 'Polyclinic', code: 'P', description: 'Medical facilities', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 12, name: 'Project', code: 'PR', description: 'Development projects', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 13, name: 'Pub', code: 'PB', description: 'Entertainment venues', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 14, name: 'Rooftop', code: 'RT', description: 'Rooftop spaces and terraces', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 15, name: 'Shop', code: 'S', description: 'Retail spaces', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 16, name: 'Showroom', code: 'SR', description: 'Display and exhibition spaces', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 17, name: 'Studio', code: 'ST', description: 'Creative and work spaces', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 18, name: 'Industrial Building', code: 'IB', description: 'Industrial facilities', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 19, name: 'Pharmacy', code: 'PH', description: 'Pharmaceutical facilities', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 20, name: 'Bank', code: 'B', description: 'Financial institutions', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 21, name: 'Hangar', code: 'H', description: 'Aircraft and vehicle storage', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 22, name: 'Industrial Warehouse', code: 'IW', description: 'Specialized industrial storage', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
+]
+
+export const mockStatuses: Status[] = [
+  { id: 1, name: 'Active', code: 'active', description: 'Property is available for sale/rent', color: '#10B981', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 2, name: 'Sold', code: 'sold', description: 'Property has been sold', color: '#EF4444', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 3, name: 'Rented', code: 'rented', description: 'Property has been rented', color: '#8B5CF6', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 4, name: 'Under Contract', code: 'under_contract', description: 'Property is under contract', color: '#F59E0B', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 5, name: 'Pending', code: 'pending', description: 'Property is pending approval', color: '#3B82F6', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
+]

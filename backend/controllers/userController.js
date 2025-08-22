@@ -5,7 +5,7 @@ const jwtUtil = require('../utils/jwt');
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role, location, phone } = req.body;
+    const { name, email, password, role, location, phone, dob } = req.body;
 
     // Basic validation
     if (!name || !email || !password || !role) {
@@ -18,6 +18,9 @@ const registerUser = async (req, res) => {
       return res.status(409).json({ message: 'User already exists' });
     }
 
+    // Generate unique user code
+    const userCode = await userModel.generateUniqueUserCode();
+
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -29,6 +32,8 @@ const registerUser = async (req, res) => {
       role,
       location,
       phone,
+      dob,
+      user_code: userCode,
     });
 
     res.status(201).json({
@@ -134,7 +139,9 @@ const getAllUsers = async (req, res) => {
         email: user.email,
         role: user.role,
         location: user.location,
-        phone: user.phone
+        phone: user.phone,
+        dob: user.dob,
+        user_code: user.user_code
       }))
     });
   } catch (error) {
@@ -146,9 +153,54 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, role, location, phone, dob, user_code } = req.body;
+
+    // Check if user exists
+    const existingUser = await userModel.findById(id);
+    if (!existingUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // If updating user_code, check if it's already taken by another user
+    if (user_code && user_code !== existingUser.user_code) {
+      const userWithCode = await userModel.findByUserCode(user_code);
+      if (userWithCode && userWithCode.id !== parseInt(id)) {
+        return res.status(409).json({ message: 'User code already taken' });
+      }
+    }
+
+    // Update user
+    const updatedUser = await userModel.updateUser(id, {
+      name,
+      email,
+      role,
+      location,
+      phone,
+      dob,
+      user_code
+    });
+
+    res.json({
+      success: true,
+      message: 'User updated successfully',
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update user'
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   checkUserExists,
-  getAllUsers
+  getAllUsers,
+  updateUser
 };

@@ -2,6 +2,23 @@
 const Property = require('../models/propertyModel');
 const User = require('../models/userModel');
 
+// Get all properties for demo (no authentication required)
+const getDemoProperties = async (req, res) => {
+  try {
+    const properties = await Property.getAllProperties();
+    
+    res.json({
+      success: true,
+      data: properties,
+      total: properties.length,
+      message: 'Demo properties loaded successfully'
+    });
+  } catch (error) {
+    console.error('Error getting demo properties:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Get all properties with role-based filtering
 const getAllProperties = async (req, res) => {
   try {
@@ -94,22 +111,30 @@ const createProperty = async (req, res) => {
     }
 
     const {
-      title,
-      address,
-      price,
-      status,
-      type,
-      beds,
-      baths,
-      sqft,
+      status_id,
+      location,
+      category_id,
+      building_name,
+      owner_name,
+      phone_number,
+      surface,
+      details,
+      interior_details,
+      built_year,
+      view_type,
+      concierge,
       agent_id,
-      featured,
-      images
+      price,
+      notes,
+      referral_source,
+      referral_dates
     } = req.body;
 
     // Validate required fields
-    if (!title || !address || !price || !status || !type) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    if (!status_id || !location || !category_id || !owner_name || !price) {
+      return res.status(400).json({ 
+        message: 'Missing required fields: status_id, location, category_id, owner_name, and price are required' 
+      });
     }
 
     // If agent manager is creating property, they can assign it to any agent
@@ -130,17 +155,23 @@ const createProperty = async (req, res) => {
     }
 
     const newProperty = await Property.createProperty({
-      title,
-      address,
-      price,
-      status,
-      type,
-      beds: beds || 0,
-      baths: baths || 0,
-      sqft: sqft || 0,
+      status_id,
+      location,
+      category_id,
+      building_name,
+      owner_name,
+      phone_number,
+      surface,
+      details,
+      interior_details,
+      built_year,
+      view_type,
+      concierge: concierge || false,
       agent_id: finalAgentId,
-      featured: featured || false,
-      images: images || []
+      price,
+      notes,
+      referral_source,
+      referral_dates
     });
 
     res.status(201).json({
@@ -261,14 +292,20 @@ const getPropertyStats = async (req, res) => {
 
     const stats = await Property.getPropertyStats();
     const locationStats = await Property.getPropertiesByLocation();
-    const typeStats = await Property.getPropertiesByType();
+    const categoryStats = await Property.getPropertiesByCategory();
+    const statusStats = await Property.getPropertiesByStatus();
+    const viewStats = await Property.getPropertiesByView();
+    const priceRangeStats = await Property.getPropertiesByPriceRange();
 
     res.json({
       success: true,
       data: {
         overview: stats,
         byLocation: locationStats,
-        byType: typeStats
+        byCategory: categoryStats,
+        byStatus: statusStats,
+        byView: viewStats,
+        byPriceRange: priceRangeStats
       }
     });
   } catch (error) {
@@ -320,5 +357,6 @@ module.exports = {
   updateProperty,
   deleteProperty,
   getPropertyStats,
-  getPropertiesByAgent
+  getPropertiesByAgent,
+  getDemoProperties
 };

@@ -6,6 +6,8 @@ const passwordResetRoutes = require('./passwordResetRoutes');
 const propertyRoutes = require('./propertyRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
 const calendarRoutes = require('./calendarRoutes');
+const categoryRoutes = require('./categoryRoutes');
+const statusRoutes = require('./statusRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -23,5 +25,7 @@ router.use('/password-reset', passwordResetRoutes);
 router.use('/properties', propertyRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/calendar', calendarRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/statuses', statusRoutes);
 
 module.exports = router;

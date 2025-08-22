@@ -2,33 +2,64 @@
 const pool = require('../config/db');
 
 class Property {
-  static async createProperty({ title, address, price, status, type, beds, baths, sqft, agent_id, featured, images }) {
+  static async createProperty(propertyData) {
+    const {
+      status_id,
+      location,
+      category_id,
+      building_name,
+      owner_name,
+      phone_number,
+      surface,
+      details,
+      interior_details,
+      built_year,
+      view_type,
+      concierge,
+      agent_id,
+      price,
+      notes,
+      referral_source,
+      referral_dates
+    } = propertyData;
+
+    // Generate reference number
+    const category = await pool.query('SELECT code FROM categories WHERE id = $1', [category_id]);
+    if (!category.rows[0]) {
+      throw new Error('Invalid category');
+    }
+
+    const refNumber = await pool.query(
+      'SELECT generate_reference_number($1, $2)',
+      [category.rows[0].code, 'F'] // F for Finders
+    );
+
     const result = await pool.query(
-      `INSERT INTO properties (title, address, price, status, type, beds, baths, sqft, agent_id, featured, images, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
-       RETURNING *`,
-      [title, address, price, status, type, beds, baths, sqft, agent_id, featured, images]
+      `INSERT INTO properties (
+        reference_number, status_id, location, category_id, building_name, 
+        owner_name, phone_number, surface, details, interior_details, 
+        built_year, view_type, concierge, agent_id, price, notes, 
+        referral_source, referral_dates
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      RETURNING *`,
+      [
+        refNumber.rows[0].generate_reference_number, status_id, location, category_id, building_name,
+        owner_name, phone_number, surface, details, interior_details,
+        built_year, view_type, concierge, agent_id, price, notes,
+        referral_source, referral_dates
+      ]
     );
     return result.rows[0];
   }
 
   static async getAllProperties() {
-    const result = await pool.query(
-      `SELECT p.*, u.name as agent_name, u.role as agent_role
-       FROM properties p
-       LEFT JOIN users u ON p.agent_id = u.id
-       ORDER BY p.created_at DESC`
-    );
+    const result = await pool.query('SELECT * FROM get_properties_with_details()');
     return result.rows;
   }
 
   static async getPropertiesByAgent(agentId) {
     const result = await pool.query(
-      `SELECT p.*, u.name as agent_name, u.role as agent_role
-       FROM properties p
-       LEFT JOIN users u ON p.agent_id = u.id
-       WHERE p.agent_id = $1
-       ORDER BY p.created_at DESC`,
+      `SELECT * FROM get_properties_with_details() WHERE agent_id = $1`,
       [agentId]
     );
     return result.rows;
@@ -36,10 +67,7 @@ class Property {
 
   static async getPropertyById(id) {
     const result = await pool.query(
-      `SELECT p.*, u.name as agent_name, u.role as agent_role
-       FROM properties p
-       LEFT JOIN users u ON p.agent_id = u.id
-       WHERE p.id = $1`,
+      `SELECT * FROM get_properties_with_details() WHERE id = $1`,
       [id]
     );
     return result.rows[0];
@@ -71,52 +99,55 @@ class Property {
 
   static async getPropertiesWithFilters(filters = {}) {
     let query = `
-      SELECT p.*, u.name as agent_name, u.role as agent_role
-      FROM properties p
-      LEFT JOIN users u ON p.agent_id = u.id
-      WHERE 1=1
+      SELECT * FROM get_properties_with_details() WHERE 1=1
     `;
     
     const values = [];
     let valueIndex = 1;
 
-    if (filters.status && filters.status !== 'All') {
-      query += ` AND p.status = $${valueIndex}`;
-      values.push(filters.status);
+    if (filters.status_id && filters.status_id !== 'All') {
+      query += ` AND status_id = $${valueIndex}`;
+      values.push(filters.status_id);
       valueIndex++;
     }
 
-    if (filters.type && filters.type !== 'All') {
-      query += ` AND p.type = $${valueIndex}`;
-      values.push(filters.type);
+    if (filters.category_id && filters.category_id !== 'All') {
+      query += ` AND category_id = $${valueIndex}`;
+      values.push(filters.category_id);
       valueIndex++;
     }
 
     if (filters.agent_id) {
-      query += ` AND p.agent_id = $${valueIndex}`;
+      query += ` AND agent_id = $${valueIndex}`;
       values.push(filters.agent_id);
       valueIndex++;
     }
 
     if (filters.price_min) {
-      query += ` AND CAST(REPLACE(REPLACE(p.price, '$', ''), ',', '') AS INTEGER) >= $${valueIndex}`;
+      query += ` AND price >= $${valueIndex}`;
       values.push(filters.price_min);
       valueIndex++;
     }
 
     if (filters.price_max) {
-      query += ` AND CAST(REPLACE(REPLACE(p.price, '$', ''), ',', '') AS INTEGER) <= $${valueIndex}`;
+      query += ` AND price <= $${valueIndex}`;
       values.push(filters.price_max);
       valueIndex++;
     }
 
     if (filters.search) {
-      query += ` AND (p.title ILIKE $${valueIndex} OR p.address ILIKE $${valueIndex} OR u.name ILIKE $${valueIndex})`;
+      query += ` AND (reference_number ILIKE $${valueIndex} OR location ILIKE $${valueIndex} OR owner_name ILIKE $${valueIndex})`;
       values.push(`%${filters.search}%`);
       valueIndex++;
     }
 
-    query += ` ORDER BY p.created_at DESC`;
+    if (filters.view_type && filters.view_type !== 'All') {
+      query += ` AND view_type = $${valueIndex}`;
+      values.push(filters.view_type);
+      valueIndex++;
+    }
+
+    query += ` ORDER BY created_at DESC`;
 
     const result = await pool.query(query, values);
     return result.rows;
@@ -126,12 +157,13 @@ class Property {
     const result = await pool.query(`
       SELECT 
         COUNT(*) as total_properties,
-        COUNT(CASE WHEN status = 'For Sale' THEN 1 END) as for_sale,
-        COUNT(CASE WHEN status = 'For Rent' THEN 1 END) as for_rent,
-        COUNT(CASE WHEN status = 'Sold' THEN 1 END) as sold,
-        COUNT(CASE WHEN status = 'Rented' THEN 1 END) as rented,
-        COUNT(CASE WHEN featured = true THEN 1 END) as featured
-      FROM properties
+        COUNT(CASE WHEN s.code = 'active' THEN 1 END) as active,
+        COUNT(CASE WHEN s.code = 'inactive' THEN 1 END) as inactive,
+        COUNT(CASE WHEN s.code = 'sold' THEN 1 END) as sold,
+        COUNT(CASE WHEN s.code = 'rented' THEN 1 END) as rented,
+        COUNT(CASE WHEN s.code = 'under_contract' THEN 1 END) as under_contract
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id
     `);
     return result.rows[0];
   }
@@ -139,24 +171,81 @@ class Property {
   static async getPropertiesByLocation() {
     const result = await pool.query(`
       SELECT 
-        SPLIT_PART(address, ', ', 2) as location,
+        location,
         COUNT(*) as count
       FROM properties
-      WHERE SPLIT_PART(address, ', ', 2) IS NOT NULL
-      GROUP BY SPLIT_PART(address, ', ', 2)
+      GROUP BY location
+      ORDER BY count DESC
+      LIMIT 20
+    `);
+    return result.rows;
+  }
+
+  static async getPropertiesByCategory() {
+    const result = await pool.query(`
+      SELECT 
+        c.name as category_name,
+        c.code as category_code,
+        COUNT(p.id) as count
+      FROM categories c
+      LEFT JOIN properties p ON c.id = p.category_id
+      WHERE c.is_active = true
+      GROUP BY c.id, c.name, c.code
       ORDER BY count DESC
     `);
     return result.rows;
   }
 
-  static async getPropertiesByType() {
+  static async getPropertiesByStatus() {
     const result = await pool.query(`
       SELECT 
-        type,
+        s.name as status_name,
+        s.color as status_color,
+        COUNT(p.id) as count
+      FROM statuses s
+      LEFT JOIN properties p ON s.id = p.status_id
+      WHERE s.is_active = true
+      GROUP BY s.id, s.name, s.color
+      ORDER BY count DESC
+    `);
+    return result.rows;
+  }
+
+  static async getPropertiesByView() {
+    const result = await pool.query(`
+      SELECT 
+        view_type,
         COUNT(*) as count
       FROM properties
-      GROUP BY type
+      WHERE view_type IS NOT NULL
+      GROUP BY view_type
       ORDER BY count DESC
+    `);
+    return result.rows;
+  }
+
+  static async getPropertiesByPriceRange() {
+    const result = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN price < 100000 THEN 'Under $100k'
+          WHEN price < 500000 THEN '$100k - $500k'
+          WHEN price < 1000000 THEN '$500k - $1M'
+          WHEN price < 5000000 THEN '$1M - $5M'
+          ELSE 'Over $5M'
+        END as price_range,
+        COUNT(*) as count
+      FROM properties
+      WHERE price IS NOT NULL
+      GROUP BY price_range
+      ORDER BY 
+        CASE price_range
+          WHEN 'Under $100k' THEN 1
+          WHEN '$100k - $500k' THEN 2
+          WHEN '$500k - $1M' THEN 3
+          WHEN '$1M - $5M' THEN 4
+          ELSE 5
+        END
     `);
     return result.rows;
   }
