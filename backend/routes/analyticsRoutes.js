@@ -19,6 +19,9 @@ router.get('/', analyticsController.getAnalytics);
 // GET /api/analytics/dashboard - Get dashboard statistics (filtered by role)
 router.get('/dashboard', analyticsController.getDashboardStats);
 
+// GET /api/analytics/images - Get image analytics (admin, operations manager, operations, agent manager)
+router.get('/images', analyticsController.getImageAnalytics);
+
 // GET /api/analytics/financial - Get financial data (admin and operations manager only)
 router.get('/financial', canViewFinancialData, (req, res) => {
   // This endpoint would return detailed financial analytics

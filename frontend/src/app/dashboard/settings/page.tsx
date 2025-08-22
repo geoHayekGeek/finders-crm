@@ -67,69 +67,71 @@ export default function SettingsPage() {
             {/* Profile Settings */}
             {activeTab === 'profile' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">Profile Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Profile Information</h3>
+                  <p className="text-sm text-gray-500">Update your personal information and contact details.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Full Name</label>
                     <input
                       type="text"
                       defaultValue="John Doe"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Email
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Email</label>
                     <input
                       type="email"
                       defaultValue="john.doe@finderscrm.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
                     <input
                       type="tel"
                       defaultValue="+1 (555) 123-4567"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Role
-                    </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <label className="block text-sm font-medium text-gray-700">Role</label>
+                    <select className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="agent">Real Estate Agent</option>
                       <option value="broker">Broker</option>
                       <option value="manager">Property Manager</option>
                       <option value="admin">Administrator</option>
                     </select>
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Bio
-                    </label>
+                  
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-medium text-gray-700">Bio</label>
                     <textarea
                       rows={3}
                       defaultValue="Experienced real estate professional with over 10 years in the industry. Specializing in residential properties and helping families find their dream homes."
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Notification Settings */}
+            {/* Notifications Settings */}
             {activeTab === 'notifications' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">Notification Preferences</h3>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Notification Preferences</h3>
+                  <p className="text-sm text-gray-500">Choose how you want to receive notifications.</p>
+                </div>
+                
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-medium text-gray-900">Email Notifications</h4>
                       <p className="text-sm text-gray-500">Receive notifications via email</p>
@@ -145,10 +147,10 @@ export default function SettingsPage() {
                     </label>
                   </div>
                   
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-medium text-gray-900">SMS Notifications</h4>
-                      <p className="text-sm text-gray-500">Receive notifications via text message</p>
+                      <p className="text-sm text-gray-500">Receive notifications via SMS</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
@@ -161,32 +163,16 @@ export default function SettingsPage() {
                     </label>
                   </div>
                   
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-sm font-medium text-gray-900">Push Notifications</h4>
-                      <p className="text-sm text-gray-500">Receive notifications in the browser</p>
+                      <p className="text-sm text-gray-500">Receive push notifications in the app</p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
                         checked={notifications.push}
                         onChange={(e) => setNotifications({...notifications, push: e.target.checked})}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                    </label>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Marketing Communications</h4>
-                      <p className="text-sm text-gray-500">Receive marketing and promotional emails</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={notifications.marketing}
-                        onChange={(e) => setNotifications({...notifications, marketing: e.target.checked})}
                         className="sr-only peer"
                       />
                       <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -199,16 +185,18 @@ export default function SettingsPage() {
             {/* Security Settings */}
             {activeTab === 'security' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">Security Settings</h3>
-                <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Security Settings</h3>
+                  <p className="text-sm text-gray-500">Manage your account security and password.</p>
+                </div>
+                
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Current Password
-                    </label>
-                    <div className="relative">
+                    <label className="block text-sm font-medium text-gray-700">Current Password</label>
+                    <div className="mt-1 relative">
                       <input
-                        type={showPassword ? "text" : "password"}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10"
+                        type={showPassword ? 'text' : 'password'}
+                        className="block w-full border border-gray-300 rounded-md px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                       <button
                         type="button"
@@ -225,34 +213,26 @@ export default function SettingsPage() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      New Password
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">New Password</label>
                     <input
                       type="password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Confirm New Password
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Confirm New Password</label>
                     <input
                       type="password"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
-                  
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900">Two-Factor Authentication</h4>
-                      <p className="text-sm text-gray-500">Add an extra layer of security to your account</p>
-                    </div>
-                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                      Enable
-                    </button>
-                  </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                    Update Password
+                  </button>
                 </div>
               </div>
             )}
@@ -260,41 +240,29 @@ export default function SettingsPage() {
             {/* Appearance Settings */}
             {activeTab === 'appearance' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">Appearance Settings</h3>
-                <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Appearance</h3>
+                  <p className="text-sm text-gray-500">Customize the look and feel of your dashboard.</p>
+                </div>
+                
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Theme
-                    </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="light">Light</option>
-                      <option value="dark">Dark</option>
-                      <option value="system">System</option>
+                    <label className="block text-sm font-medium text-gray-700">Theme</label>
+                    <select className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                      <option>Light</option>
+                      <option>Dark</option>
+                      <option>System</option>
                     </select>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Language
-                    </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="en">English</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                      <option value="de">German</option>
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Time Zone
-                    </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                      <option value="utc-8">Pacific Time (UTC-8)</option>
-                      <option value="utc-7">Mountain Time (UTC-7)</option>
-                      <option value="utc-6">Central Time (UTC-6)</option>
-                      <option value="utc-5">Eastern Time (UTC-5)</option>
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700">Accent Color</label>
+                    <div className="mt-2 flex space-x-3">
+                      <button className="w-8 h-8 bg-blue-600 rounded-full border-2 border-transparent hover:border-gray-300"></button>
+                      <button className="w-8 h-8 bg-green-600 rounded-full border-2 border-transparent hover:border-gray-300"></button>
+                      <button className="w-8 h-8 bg-purple-600 rounded-full border-2 border-transparent hover:border-gray-300"></button>
+                      <button className="w-8 h-8 bg-red-600 rounded-full border-2 border-transparent hover:border-gray-300"></button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -303,69 +271,57 @@ export default function SettingsPage() {
             {/* Company Settings */}
             {activeTab === 'company' && (
               <div className="space-y-6">
-                <h3 className="text-lg font-medium text-gray-900">Company Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900">Company Information</h3>
+                  <p className="text-sm text-gray-500">Manage your company details and branding.</p>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Company Name
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Company Name</label>
                     <input
                       type="text"
-                      defaultValue="Finders Real Estate"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Finders Real Estate"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Industry
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Industry</label>
                     <input
                       type="text"
-                      defaultValue="Real Estate"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Real Estate"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Website
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Website</label>
                     <input
                       type="url"
-                      defaultValue="https://findersrealestate.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="https://finders.com"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
                     <input
                       type="tel"
-                      defaultValue="+1 (555) 123-4567"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Address
-                    </label>
-                    <textarea
-                      rows={2}
-                      defaultValue="123 Business Ave, Suite 100, Downtown, CA 90210"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="+1 (555) 123-4567"
+                      className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
                 </div>
+                
+                <div className="flex justify-end">
+                  <button className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 flex items-center space-x-2">
+                    <Save className="h-4 w-4" />
+                    <span>Save Company Info</span>
+                  </button>
+                </div>
               </div>
             )}
-
-            {/* Save button */}
-            <div className="pt-6 border-t border-gray-200">
-              <button className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-                <Save className="h-4 w-4" />
-                <span>Save Changes</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>

@@ -11,6 +11,19 @@ async function addDemoProperties() {
     
     console.log(`📋 Found ${categories.rows.length} categories and ${statuses.rows.length} statuses`);
     
+    // Sample base64 images (small, placeholder images)
+    // In production, these would be actual base64 encoded images
+    const sampleBase64Images = {
+      apartment: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      villa: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      office: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      land: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      studio: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      chalet: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      restaurant: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k=",
+      warehouse: "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
+    };
+    
     // Demo properties data
     const demoProperties = [
       {
@@ -21,7 +34,7 @@ async function addDemoProperties() {
         owner_name: "Ahmed Al-Masri",
         phone_number: "+961 70 123 456",
         surface: 150.5,
-        details: { floor: 8, balcony: true, parking: 2, cave: true },
+                 details: "Floor: 8, Balcony: Yes, Parking: 2 spaces, Cave: Yes",
         interior_details: "Fully furnished with modern appliances, marble floors, and sea view",
         built_year: 2020,
         view_type: "sea view",
@@ -30,7 +43,13 @@ async function addDemoProperties() {
         price: 450000,
         notes: "Luxury apartment with stunning sea view, recently renovated",
         referral_source: "External referral from local real estate agent",
-        referral_dates: ["2025-01-15"]
+        referral_dates: ["2025-01-15"],
+        main_image: sampleBase64Images.apartment,
+        image_gallery: [
+          sampleBase64Images.apartment,
+          sampleBase64Images.apartment,
+          sampleBase64Images.apartment
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'active').id,
@@ -40,7 +59,7 @@ async function addDemoProperties() {
         owner_name: "Marie Dubois",
         phone_number: "+961 71 987 654",
         surface: 350.0,
-        details: { floor: 1, balcony: true, parking: 3, cave: true },
+                 details: "Floor: 1, Balcony: Yes, Parking: 3 spaces, Cave: Yes",
         interior_details: "Spacious villa with garden, swimming pool, and mountain view",
         built_year: 2018,
         view_type: "mountain view",
@@ -49,7 +68,13 @@ async function addDemoProperties() {
         price: 1200000,
         notes: "Beautiful villa perfect for families, close to beaches and amenities",
         referral_source: "Internal referral from agent",
-        referral_dates: ["2025-01-10", "2025-01-18"]
+        referral_dates: ["2025-01-10", "2025-01-18"],
+        main_image: sampleBase64Images.villa,
+        image_gallery: [
+          sampleBase64Images.villa,
+          sampleBase64Images.villa,
+          sampleBase64Images.villa
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'active').id,
@@ -59,7 +84,7 @@ async function addDemoProperties() {
         owner_name: "Tech Solutions Ltd",
         phone_number: "+961 1 234 567",
         surface: 200.0,
-        details: { floor: 5, balcony: false, parking: 5, cave: false },
+                 details: "Floor: 5, Balcony: No, Parking: 5 spaces, Cave: No",
         interior_details: "Modern office space with meeting rooms and reception area",
         built_year: 2021,
         view_type: "open view",
@@ -68,7 +93,12 @@ async function addDemoProperties() {
         price: 800000,
         notes: "Prime office location in Hamra, perfect for tech companies",
         referral_source: "Direct inquiry",
-        referral_dates: ["2025-01-20"]
+        referral_dates: ["2025-01-20"],
+        main_image: sampleBase64Images.office,
+        image_gallery: [
+          sampleBase64Images.office,
+          sampleBase64Images.office
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'sold').id,
@@ -78,7 +108,7 @@ async function addDemoProperties() {
         owner_name: "Agricultural Cooperative",
         phone_number: "+961 8 765 432",
         surface: 2500.0,
-        details: { floor: 0, balcony: false, parking: 0, cave: false },
+                 details: "Floor: Ground level, Balcony: No, Parking: No, Cave: No",
         interior_details: "Agricultural land suitable for farming and development",
         built_year: null,
         view_type: "open view",
@@ -87,7 +117,11 @@ async function addDemoProperties() {
         price: 350000,
         notes: "Large plot of land with good soil quality, water access available",
         referral_source: "Local farmer referral",
-        referral_dates: ["2024-12-15"]
+        referral_dates: ["2024-12-15"],
+        main_image: sampleBase64Images.land,
+        image_gallery: [
+          sampleBase64Images.land
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'rented').id,
@@ -97,7 +131,7 @@ async function addDemoProperties() {
         owner_name: "Pierre Chamoun",
         phone_number: "+961 70 555 123",
         surface: 45.0,
-        details: { floor: 3, balcony: true, parking: 0, cave: false },
+                 details: "Floor: 3, Balcony: Yes, Parking: No, Cave: No",
         interior_details: "Cozy studio apartment with modern amenities",
         built_year: 2019,
         view_type: "open view",
@@ -106,7 +140,12 @@ async function addDemoProperties() {
         price: 1200,
         notes: "Perfect for young professionals, monthly rent, fully furnished",
         referral_source: "Online listing",
-        referral_dates: ["2024-11-20"]
+        referral_dates: ["2024-11-20"],
+        main_image: sampleBase64Images.studio,
+        image_gallery: [
+          sampleBase64Images.studio,
+          sampleBase64Images.studio
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'under_contract').id,
@@ -116,7 +155,7 @@ async function addDemoProperties() {
         owner_name: "Ski Lebanon Group",
         phone_number: "+961 4 123 456",
         surface: 180.0,
-        details: { floor: 2, balcony: true, parking: 2, cave: true },
+                 details: "Floor: 2, Balcony: Yes, Parking: 2 spaces, Cave: Yes",
         interior_details: "Charming chalet with fireplace, wooden interior, and ski access",
         built_year: 2015,
         view_type: "mountain view",
@@ -125,7 +164,13 @@ async function addDemoProperties() {
         price: 750000,
         notes: "Ski-in/ski-out chalet, perfect for winter sports enthusiasts",
         referral_source: "Ski resort partnership",
-        referral_dates: ["2025-01-05"]
+        referral_dates: ["2025-01-05"],
+        main_image: sampleBase64Images.chalet,
+        image_gallery: [
+          sampleBase64Images.chalet,
+          sampleBase64Images.chalet,
+          sampleBase64Images.chalet
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'active').id,
@@ -135,7 +180,7 @@ async function addDemoProperties() {
         owner_name: "Hassan Al-Saidi",
         phone_number: "+961 7 123 789",
         surface: 120.0,
-        details: { floor: 1, balcony: false, parking: 15, cave: true },
+                 details: "Floor: 1, Balcony: No, Parking: 15 spaces, Cave: Yes",
         interior_details: "Fully equipped restaurant kitchen with dining area and outdoor terrace",
         built_year: 2022,
         view_type: "sea view",
@@ -144,7 +189,12 @@ async function addDemoProperties() {
         price: 600000,
         notes: "Prime location on the corniche, established customer base",
         referral_source: "Local business network",
-        referral_dates: ["2025-01-12"]
+        referral_dates: ["2025-01-12"],
+        main_image: sampleBase64Images.restaurant,
+        image_gallery: [
+          sampleBase64Images.restaurant,
+          sampleBase64Images.restaurant
+        ]
       },
       {
         status_id: statuses.rows.find(s => s.code === 'pending').id,
@@ -154,7 +204,7 @@ async function addDemoProperties() {
         owner_name: "Industrial Development Corp",
         phone_number: "+961 6 987 123",
         surface: 800.0,
-        details: { floor: 1, balcony: false, parking: 20, cave: false },
+                 details: "Floor: 1, Balcony: No, Parking: 20 spaces, Cave: No",
         interior_details: "Large warehouse space with loading docks and office area",
         built_year: 2020,
         view_type: "no view",
@@ -163,7 +213,11 @@ async function addDemoProperties() {
         price: 950000,
         notes: "Strategic location near port, suitable for import/export businesses",
         referral_source: "Government development program",
-        referral_dates: ["2025-01-08"]
+        referral_dates: ["2025-01-08"],
+        main_image: sampleBase64Images.warehouse,
+        image_gallery: [
+          sampleBase64Images.warehouse
+        ]
       }
     ];
     
@@ -185,8 +239,8 @@ async function addDemoProperties() {
             reference_number, status_id, location, category_id, building_name, 
             owner_name, phone_number, surface, details, interior_details, 
             built_year, view_type, concierge, agent_id, price, notes, 
-            referral_source, referral_dates
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            referral_source, referral_dates, main_image, image_gallery
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
           RETURNING reference_number`,
           [
             refNumber.rows[0].generate_reference_number,
@@ -206,7 +260,9 @@ async function addDemoProperties() {
             property.price,
             property.notes,
             property.referral_source,
-            property.referral_dates
+            property.referral_dates,
+            property.main_image,
+            property.image_gallery
           ]
         );
         

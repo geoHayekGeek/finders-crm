@@ -1,6 +1,7 @@
 // controllers/propertyController.js
 const Property = require('../models/propertyModel');
 const User = require('../models/userModel');
+const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 
 // Get all properties for demo (no authentication required)
 const getDemoProperties = async (req, res) => {
@@ -21,6 +22,11 @@ const getDemoProperties = async (req, res) => {
 
 // Get all properties with role-based filtering
 const getAllProperties = async (req, res) => {
+  console.log('🚀 getAllProperties called');
+  console.log('📊 Request headers:', req.headers);
+  console.log('👤 User:', req.user);
+  console.log('🔑 Role filters:', req.roleFilters);
+  
   try {
     const { roleFilters } = req;
     let properties;
@@ -43,7 +49,16 @@ const getAllProperties = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting properties:', error);
-    res.status(500).json({ message: 'Server error' });
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code
+    });
+    res.status(500).json({ 
+      message: 'Server error',
+      error: error.message,
+      code: error.code
+    });
   }
 };
 
@@ -127,7 +142,9 @@ const createProperty = async (req, res) => {
       price,
       notes,
       referral_source,
-      referral_dates
+      referral_dates,
+      main_image,
+      image_gallery
     } = req.body;
 
     // Validate required fields
@@ -171,7 +188,9 @@ const createProperty = async (req, res) => {
       price,
       notes,
       referral_source,
-      referral_dates
+      referral_dates,
+      main_image: main_image || null, // Optional
+      image_gallery: image_gallery || [] // Optional
     });
 
     res.status(201).json({
@@ -181,6 +200,14 @@ const createProperty = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating property:', error);
+    
+    // Handle specific validation errors
+    if (error.message.includes('base64')) {
+      return res.status(400).json({ 
+        message: error.message 
+      });
+    }
+    
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -229,6 +256,14 @@ const updateProperty = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating property:', error);
+    
+    // Handle specific validation errors
+    if (error.message.includes('base64')) {
+      return res.status(400).json({ 
+        message: error.message 
+      });
+    }
+    
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -349,6 +384,259 @@ const getPropertiesByAgent = async (req, res) => {
   }
 };
 
+// New image management methods
+const updatePropertyImages = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    const { id } = req.params;
+    const { main_image, image_gallery } = req.body;
+    
+    if (!roleFilters.canManageProperties) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to update property images.' 
+      });
+    }
+
+    const property = await Property.getPropertyById(id);
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' });
+    }
+
+    // Check if agent can update this property
+    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+      return res.status(403).json({ 
+        message: 'Access denied. You can only update properties assigned to you.' 
+      });
+    }
+
+    const updatedProperty = await Property.updatePropertyImages(id, main_image, image_gallery);
+
+    res.json({
+      success: true,
+      message: 'Property images updated successfully',
+      data: updatedProperty
+    });
+  } catch (error) {
+    console.error('Error updating property images:', error);
+    
+    // Handle specific validation errors
+    if (error.message.includes('base64')) {
+      return res.status(400).json({ 
+        message: error.message 
+      });
+    }
+    
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const addImageToGallery = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    const { id } = req.params;
+    const { base64Image } = req.body;
+    
+    if (!roleFilters.canManageProperties) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to add images to properties.' 
+      });
+    }
+
+    if (!base64Image) {
+      return res.status(400).json({ message: 'Base64 image is required' });
+    }
+
+    const property = await Property.getPropertyById(id);
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' });
+    }
+
+    // Check if agent can update this property
+    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+      return res.status(403).json({ 
+        message: 'Access denied. You can only update properties assigned to you.' 
+      });
+    }
+
+    const updatedProperty = await Property.addImageToGallery(id, base64Image);
+
+    res.json({
+      success: true,
+      message: 'Image added to gallery successfully',
+      data: updatedProperty
+    });
+  } catch (error) {
+    console.error('Error adding image to gallery:', error);
+    
+    // Handle specific validation errors
+    if (error.message.includes('base64')) {
+      return res.status(400).json({ 
+        message: error.message 
+      });
+    }
+    
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const removeImageFromGallery = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    const { id } = req.params;
+    const { base64Image } = req.body;
+    
+    if (!roleFilters.canManageProperties) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to remove images from properties.' 
+      });
+    }
+
+    if (!base64Image) {
+      return res.status(400).json({ message: 'Base64 image is required' });
+    }
+
+    const property = await Property.getPropertyById(id);
+    if (!property) {
+      return res.status(404).json({ message: 'Property not found' });
+    }
+
+    // Check if agent can update this property
+    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+      return res.status(403).json({ 
+        message: 'Access denied. You can only update properties assigned to you.' 
+      });
+    }
+
+    const updatedProperty = await Property.removeImageFromGallery(id, base64Image);
+
+    res.json({
+      success: true,
+      message: 'Image removed from gallery successfully',
+      data: updatedProperty
+    });
+  } catch (error) {
+    console.error('Error removing image from gallery:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+const getPropertiesWithImages = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    
+    if (!roleFilters.canViewAll) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to view properties with images.' 
+      });
+    }
+
+    const properties = await Property.getPropertiesWithImages();
+
+    res.json({
+      success: true,
+      data: properties,
+      total: properties.length
+    });
+  } catch (error) {
+    console.error('Error getting properties with images:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Upload main property image
+const uploadMainImage = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    const { id } = req.params;
+    
+    if (!roleFilters.canManageProperties) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to upload images.' 
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'No image file provided' });
+    }
+
+    // Generate the file URL path
+    const imageUrl = `/assets/properties/${req.file.filename}`;
+    
+    // Update the property with the new main image
+    const updatedProperty = await Property.updateProperty(id, { main_image: imageUrl });
+    
+    res.json({
+      success: true,
+      data: updatedProperty,
+      message: 'Main image uploaded successfully'
+    });
+  } catch (error) {
+    console.error('Error uploading main image:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Upload gallery images
+const uploadGalleryImages = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    const { id } = req.params;
+    
+    if (!roleFilters.canManageProperties) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to upload images.' 
+      });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No image files provided' });
+    }
+
+    // Generate file URL paths for all uploaded images
+    const imageUrls = req.files.map(file => `/assets/properties/${file.filename}`);
+    
+    // Get current property to append to existing gallery
+    const property = await Property.getPropertyById(id);
+    const currentGallery = property.image_gallery || [];
+    const updatedGallery = [...currentGallery, ...imageUrls];
+    
+    // Update the property with the new gallery images
+    const updatedProperty = await Property.updateProperty(id, { image_gallery: updatedGallery });
+    
+    res.json({
+      success: true,
+      data: updatedProperty,
+      message: `${imageUrls.length} gallery images uploaded successfully`
+    });
+  } catch (error) {
+    console.error('Error uploading gallery images:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+// Get image statistics
+const getImageStats = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    
+    if (!roleFilters.canViewAll) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to view image statistics.' 
+      });
+    }
+
+    const imageStats = await Property.getImageStats();
+    
+    res.json({
+      success: true,
+      data: imageStats
+    });
+  } catch (error) {
+    console.error('Error getting image stats:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 module.exports = {
   getAllProperties,
   getPropertiesWithFilters,
@@ -358,5 +646,10 @@ module.exports = {
   deleteProperty,
   getPropertyStats,
   getPropertiesByAgent,
-  getDemoProperties
+  getDemoProperties,
+  uploadMainImage,
+  uploadGalleryImages,
+  removeImageFromGallery,
+  getPropertiesWithImages,
+  getImageStats
 };

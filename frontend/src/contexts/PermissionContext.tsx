@@ -1,110 +1,52 @@
 'use client'
 
-import { createContext, useContext, ReactNode } from 'react'
+import React, { createContext, useContext, ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 
-// Permission levels for different roles
-const PERMISSIONS = {
-  // Admin: Full access to everything
-  admin: {
-    properties: ['create', 'read', 'update', 'delete', 'view_all'],
-    clients: ['create', 'read', 'update', 'delete', 'view_all'],
-    leads: ['create', 'read', 'update', 'delete', 'view_all'],
-    analytics: ['view_all', 'view_financial', 'view_agent_performance'],
-    users: ['create', 'read', 'update', 'delete', 'view_all'],
-    settings: ['full_access'],
-    dashboard: ['full_access']
-  },
-  
-  // Operations Manager: Same as admin
-  'operations manager': {
-    properties: ['create', 'read', 'update', 'delete', 'view_all'],
-    clients: ['create', 'read', 'update', 'delete', 'view_all'],
-    leads: ['create', 'read', 'update', 'delete', 'view_all'],
-    analytics: ['view_all', 'view_financial', 'view_agent_performance'],
-    users: ['create', 'read', 'update', 'delete', 'view_all'],
-    settings: ['full_access'],
-    dashboard: ['full_access']
-  },
-  
-  // Operations: Everything except financial data and agent performance
-  operations: {
-    properties: ['create', 'read', 'update', 'delete', 'view_all'],
-    clients: ['create', 'read', 'update', 'delete', 'view_all'],
-    leads: ['create', 'read', 'update', 'delete', 'view_all'],
-    analytics: ['view_all'], // No financial or agent performance data
-    users: ['read', 'view_all'], // Can view but not modify
-    settings: ['read_only'],
-    dashboard: ['full_access']
-  },
-  
-  // Agent Manager: Can manage properties and view agent data
-  'agent manager': {
-    properties: ['create', 'read', 'update', 'delete', 'view_all'],
-    clients: ['create', 'read', 'update', 'delete', 'view_all'],
-    leads: ['create', 'read', 'update', 'delete', 'view_all'],
-    analytics: ['view_all', 'view_agent_performance'], // Can see agent performance
-    users: ['read', 'view_agents'], // Can view agents but not other roles
-    settings: ['read_only'],
-    dashboard: ['full_access']
-  },
-  
-  // Agent: Limited access - only view assigned properties
-  agent: {
-    properties: ['read', 'view_assigned'], // Only view properties they're connected to
-    clients: ['read', 'view_assigned'], // Only view their clients
-    leads: ['read', 'view_assigned'], // Only view their leads
-    analytics: ['view_basic'], // Only basic analytics, no financial data
-    users: ['read_self'], // Can only view their own profile
-    settings: ['read_self'],
-    dashboard: ['limited_access']
-  }
-}
-
 interface PermissionContextType {
-  hasPermission: (resource: string, action: string) => boolean
-  canViewFinancial: boolean
-  canViewAgentPerformance: boolean
+  role: string | null
   canManageProperties: boolean
   canManageUsers: boolean
-  canViewAllData: boolean
-  role: string | null
-  permissions: typeof PERMISSIONS[keyof typeof PERMISSIONS] | null
+  canViewFinancial: boolean
+  canViewAgentPerformance: boolean
+  hasPermission: (permission: string) => boolean
 }
 
 const PermissionContext = createContext<PermissionContextType | undefined>(undefined)
 
 export function PermissionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
+
+  // Permission logic based on user role
+  const role = user?.role || null
   
-  const hasPermission = (resource: string, action: string): boolean => {
-    if (!user || !user.role) return false
-    
-    const rolePermissions = PERMISSIONS[user.role as keyof typeof PERMISSIONS]
-    if (!rolePermissions) return false
-    
-    // Type-safe access to resource permissions
-    const resourcePermissions = rolePermissions[resource as keyof typeof rolePermissions]
-    if (!resourcePermissions) return false
-    
-    return resourcePermissions.includes(action)
+  const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canManageUsers = role === 'admin' || role === 'operations manager'
+  const canViewFinancial = role === 'admin' || role === 'operations manager'
+  const canViewAgentPerformance = role === 'admin' || role === 'operations manager' || role === 'agent manager'
+
+  const hasPermission = (permission: string): boolean => {
+    switch (permission) {
+      case 'canManageProperties':
+        return canManageProperties
+      case 'canManageUsers':
+        return canManageUsers
+      case 'canViewFinancial':
+        return canViewFinancial
+      case 'canViewAgentPerformance':
+        return canViewAgentPerformance
+      default:
+        return false
+    }
   }
 
-  const canViewFinancial = user ? ['admin', 'operations manager'].includes(user.role) : false
-  const canViewAgentPerformance = user ? ['admin', 'operations manager', 'agent manager'].includes(user.role) : false
-  const canManageProperties = user ? ['admin', 'operations manager', 'operations', 'agent manager'].includes(user.role) : false
-  const canManageUsers = user ? ['admin', 'operations manager'].includes(user.role) : false
-  const canViewAllData = user ? ['admin', 'operations manager', 'operations', 'agent manager'].includes(user.role) : false
-
   const value: PermissionContextType = {
-    hasPermission,
-    canViewFinancial,
-    canViewAgentPerformance,
+    role,
     canManageProperties,
     canManageUsers,
-    canViewAllData,
-    role: user?.role || null,
-    permissions: user ? PERMISSIONS[user.role as keyof typeof PERMISSIONS] : null
+    canViewFinancial,
+    canViewAgentPerformance,
+    hasPermission
   }
 
   return (
@@ -122,77 +64,18 @@ export function usePermissions() {
   return context
 }
 
-// Helper components for conditional rendering
-export function RequirePermission({ 
-  children, 
-  resource, 
-  action 
-}: { 
-  children: ReactNode
-  resource: string
-  action: string 
-}) {
-  const { hasPermission } = usePermissions()
-  
-  if (!hasPermission(resource, action)) {
-    return null
-  }
-  
-  return <>{children}</>
-}
-
-export function RequireRole({ 
-  children, 
-  roles 
-}: { 
-  children: ReactNode
-  roles: string[] 
-}) {
-  const { role } = usePermissions()
-  
-  if (!role || !roles.includes(role)) {
-    return null
-  }
-  
-  return <>{children}</>
-}
-
+// Permission wrapper components
 export function RequireFinancialAccess({ children }: { children: ReactNode }) {
   const { canViewFinancial } = usePermissions()
-  
-  if (!canViewFinancial) {
-    return null
-  }
-  
-  return <>{children}</>
-}
-
-export function RequireAgentPerformanceAccess({ children }: { children: ReactNode }) {
-  const { canViewAgentPerformance } = usePermissions()
-  
-  if (!canViewAgentPerformance) {
-    return null
-  }
-  
-  return <>{children}</>
+  return canViewFinancial ? <>{children}</> : null
 }
 
 export function RequirePropertyManagement({ children }: { children: ReactNode }) {
   const { canManageProperties } = usePermissions()
-  
-  if (!canManageProperties) {
-    return null
-  }
-  
-  return <>{children}</>
+  return canManageProperties ? <>{children}</> : null
 }
 
-export function RequireUserManagement({ children }: { children: ReactNode }) {
-  const { canManageUsers } = usePermissions()
-  
-  if (!canManageUsers) {
-    return null
-  }
-  
-  return <>{children}</>
+export function RequireAgentPerformanceAccess({ children }: { children: ReactNode }) {
+  const { canViewAgentPerformance } = usePermissions()
+  return canViewAgentPerformance ? <>{children}</> : null
 }

@@ -8,7 +8,7 @@ import {
   DollarSign, 
   Users, 
   Building2, 
-  Calendar,
+  Calendar, 
   Target,
   ArrowUpRight,
   ArrowDownRight

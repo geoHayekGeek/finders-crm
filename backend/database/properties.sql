@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS properties (
   owner_name VARCHAR(255) NOT NULL,
   phone_number VARCHAR(50),
   surface DECIMAL(10,2),
-  details JSONB, -- Floor, Balcony, Parking, Cave
+         details TEXT, -- Floor, Balcony, Parking, Cave details as text
   interior_details TEXT,
   built_year INTEGER,
   view_type VARCHAR(50) CHECK (view_type IN ('open view', 'sea view', 'mountain view', 'no view')),
@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS properties (
   notes TEXT,
   referral_source VARCHAR(100), -- referred from another agent or external
   referral_dates DATE[], -- dates of referrals (array of dates)
+  main_image TEXT, -- Base64 encoded main property image (optional)
+  image_gallery TEXT[], -- Array of base64 encoded additional property images (optional)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -112,6 +114,8 @@ RETURNS TABLE (
   notes TEXT,
   referral_source VARCHAR(100),
   referral_dates DATE[],
+  main_image TEXT,
+  image_gallery TEXT[],
   created_at TIMESTAMP WITH TIME ZONE,
   updated_at TIMESTAMP WITH TIME ZONE
 ) AS $$
@@ -140,6 +144,8 @@ BEGIN
     p.notes,
     p.referral_source,
     p.referral_dates,
+    p.main_image,
+    p.image_gallery,
     p.created_at,
     p.updated_at
   FROM properties p

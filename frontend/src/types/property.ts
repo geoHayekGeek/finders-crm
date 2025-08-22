@@ -12,12 +12,7 @@ export interface Property {
   owner_name: string
   phone_number?: string
   surface?: number
-  details?: {
-    floor?: number
-    balcony?: boolean
-    parking?: number
-    cave?: boolean
-  }
+  details?: string // Changed from object to string as per backend changes
   interior_details?: string
   built_year?: number
   view_type?: 'open view' | 'sea view' | 'mountain view' | 'no view'
@@ -29,6 +24,8 @@ export interface Property {
   notes?: string
   referral_source?: string
   referral_dates?: string[]
+  main_image?: string // Base64 encoded main image
+  image_gallery?: string[] // Array of base64 encoded gallery images
   created_at: string
   updated_at: string
   // Action handlers (optional, added at runtime)
@@ -38,6 +35,7 @@ export interface Property {
 }
 
 export interface EditFormData {
+  reference_number?: string
   status_id: number
   location: string
   category_id: number
@@ -45,12 +43,7 @@ export interface EditFormData {
   owner_name: string
   phone_number?: string
   surface?: number
-  details?: {
-    floor?: number
-    balcony?: boolean
-    parking?: number
-    cave?: boolean
-  }
+  details?: string // Changed from object to string
   interior_details?: string
   built_year?: number
   view_type?: 'open view' | 'sea view' | 'mountain view' | 'no view'
@@ -60,6 +53,8 @@ export interface EditFormData {
   notes?: string
   referral_source?: string
   referral_dates?: string[]
+  main_image?: string // Base64 encoded main image
+  image_gallery?: string[] // Array of base64 encoded gallery images
 }
 
 export interface Category {

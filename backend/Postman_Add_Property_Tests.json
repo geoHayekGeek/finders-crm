@@ -1,0 +1,485 @@
+{
+  "info": {
+    "name": "Add Property API Tests",
+    "description": "Comprehensive test collection for the Add Property feature",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Create Property - Valid Data (All Fields)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE",
+            "description": "Replace with actual JWT token from login"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Downtown Beirut\",\n  \"category_id\": 1,\n  \"building_name\": \"Marina Towers\",\n  \"owner_name\": \"Ahmed Al-Rashid\",\n  \"phone_number\": \"+961 70 123 456\",\n  \"surface\": 150.5,\n  \"details\": \"Floor: 8, Balcony: Yes, Parking: 2 spaces, Cave: Yes\",\n  \"interior_details\": \"Modern kitchen, marble floors, smart home system\",\n  \"built_year\": 2020,\n  \"view_type\": \"sea view\",\n  \"concierge\": true,\n  \"price\": 450000,\n  \"notes\": \"Premium location with sea view\",\n  \"referral_source\": \"Direct client\",\n  \"referral_dates\": [\"2024-01-15\"],\n  \"main_image\": \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\",\n  \"image_gallery\": [\n    \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\",\n    \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\"\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test creating a property with all fields filled"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "// Test response status",
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "// Test response structure",
+              "pm.test(\"Response has correct structure\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response).to.have.property('success', true);",
+              "    pm.expect(response).to.have.property('message');",
+              "    pm.expect(response).to.have.property('data');",
+              "});",
+              "",
+              "// Test created property data",
+              "pm.test(\"Created property has correct data\", function () {",
+              "    const response = pm.response.json();",
+              "    const property = response.data;",
+              "    ",
+              "    pm.expect(property.location).to.eql('Downtown Beirut');",
+              "    pm.expect(property.owner_name).to.eql('Ahmed Al-Rashid');",
+              "    pm.expect(property.price).to.eql(450000);",
+              "    pm.expect(property.concierge).to.eql(true);",
+              "    pm.expect(property.main_image).to.include('data:image/png;base64');",
+              "    pm.expect(property.image_gallery).to.be.an('array').with.length(2);",
+              "});",
+              "",
+              "// Store the created property ID for other tests",
+              "if (pm.response.code === 201) {",
+              "    const response = pm.response.json();",
+              "    pm.collectionVariables.set(\"created_property_id\", response.data.id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Create Property - Minimal Required Fields",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Hamra District\",\n  \"category_id\": 2,\n  \"owner_name\": \"Sarah Johnson\",\n  \"price\": 250000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test creating a property with only required fields"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "",
+              "pm.test(\"Minimal property created successfully\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.success).to.be.true;",
+              "    pm.expect(response.data.concierge).to.eql(false);",
+              "    pm.expect(response.data.main_image).to.be.null;",
+              "    pm.expect(response.data.image_gallery).to.be.an('array').with.length(0);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Create Property - Missing Required Fields",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Beirut\",\n  \"owner_name\": \"John Doe\"\n  // Missing: category_id and price\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test validation - missing required fields should return 400"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 for missing required fields\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error message indicates missing fields\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.message).to.include('Missing required fields');",
+              "    pm.expect(response.message).to.include('category_id');",
+              "    pm.expect(response.message).to.include('price');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Create Property - Invalid Data Types",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": \"invalid_status\",\n  \"location\": \"Beirut\",\n  \"category_id\": \"invalid_category\",\n  \"owner_name\": \"John Doe\",\n  \"price\": \"not_a_number\",\n  \"surface\": \"invalid_surface\",\n  \"built_year\": \"invalid_year\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test validation - invalid data types should return 400"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 for invalid data types\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error message indicates validation failure\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.message).to.exist;",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Create Property - Invalid Base64 Image",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Beirut\",\n  \"category_id\": 1,\n  \"owner_name\": \"John Doe\",\n  \"price\": 300000,\n  \"main_image\": \"invalid_base64_string\",\n  \"image_gallery\": [\"another_invalid_string\"]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test validation - invalid base64 images should return 400"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 400 for invalid base64 images\", function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test(\"Error message mentions base64 validation\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.message).to.include('base64');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Create Property - Large Base64 Image",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Beirut\",\n  \"category_id\": 1,\n  \"owner_name\": \"John Doe\",\n  \"price\": 300000,\n  \"main_image\": \"data:image/png;base64,\" + \"A\".repeat(10000000)\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test validation - very large base64 image should be handled gracefully"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Large image is handled gracefully\", function () {",
+              "    // Should either succeed (if compression works) or fail with appropriate error",
+              "    pm.expect(pm.response.code).to.be.oneOf([201, 400, 413]);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Create Property - No Authentication",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Beirut\",\n  \"category_id\": 1,\n  \"owner_name\": \"John Doe\",\n  \"price\": 300000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test authentication - no token should return 401"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 401 for no authentication\", function () {",
+              "    pm.response.to.have.status(401);",
+              "});",
+              "",
+              "pm.test(\"Error message indicates authentication required\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.message).to.include('Access token required');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Create Property - Invalid Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer invalid_token_here"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Beirut\",\n  \"category_id\": 1,\n  \"owner_name\": \"John Doe\",\n  \"price\": 300000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test authentication - invalid token should return 403"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 403 for invalid token\", function () {",
+              "    pm.response.to.have.status(403);",
+              "});",
+              "",
+              "pm.test(\"Error message indicates invalid token\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.message).to.include('Invalid or expired token');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Create Property - Insufficient Permissions",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer AGENT_TOKEN_HERE"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status_id\": 1,\n  \"location\": \"Beirut\",\n  \"category_id\": 1,\n  \"owner_name\": \"John Doe\",\n  \"price\": 300000\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/properties",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties"]
+        },
+        "description": "Test permissions - agent role should not be able to create properties"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 403 for insufficient permissions\", function () {",
+              "    pm.response.to.have.status(403);",
+              "});",
+              "",
+              "pm.test(\"Error message indicates permission denied\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.message).to.include('Access denied');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Verify Created Property",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer YOUR_JWT_TOKEN_HERE"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/properties/{{created_property_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "properties", "{{created_property_id}}"]
+        },
+        "description": "Verify the property was created correctly by fetching it"
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test(\"Property exists and has correct data\", function () {",
+              "    const response = pm.response.json();",
+              "    pm.expect(response.success).to.be.true;",
+              "    pm.expect(response.data.id).to.eql(parseInt(pm.collectionVariables.get(\"created_property_id\")));",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:10000",
+      "description": "Base URL for the API"
+    },
+    {
+      "key": "created_property_id",
+      "value": "",
+      "description": "Will be set automatically when property is created"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "YOUR_JWT_TOKEN_HERE",
+        "type": "string"
+      }
+    ]
+  }
+}

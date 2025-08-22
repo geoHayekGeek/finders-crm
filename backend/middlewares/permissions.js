@@ -71,18 +71,27 @@ const hasPermission = (userRole, resource, action) => {
 
 // Middleware to verify JWT token and extract user info
 const authenticateToken = (req, res, next) => {
+  console.log('🔐 authenticateToken middleware called');
+  console.log('📊 Request URL:', req.url);
+  console.log('📊 Request method:', req.method);
+  console.log('📊 Authorization header:', req.headers['authorization']);
+  
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
+    console.log('❌ No token provided');
     return res.status(401).json({ message: 'Access token required' });
   }
 
   try {
+    console.log('🔍 Verifying token...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('✅ Token verified, user:', decoded);
     req.user = decoded;
     next();
   } catch (error) {
+    console.log('❌ Token verification failed:', error.message);
     return res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
@@ -186,11 +195,16 @@ const canViewAllData = (req, res, next) => {
 
 // Middleware to filter data based on user role
 const filterDataByRole = (req, res, next) => {
+  console.log('🎭 filterDataByRole middleware called');
+  console.log('👤 User from request:', req.user);
+  
   if (!req.user || !req.user.role) {
+    console.log('❌ No user or role found');
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = req.user.role;
+  console.log('🔑 User role:', role);
   
   // Add role-based filters to request
   req.roleFilters = {
@@ -202,6 +216,7 @@ const filterDataByRole = (req, res, next) => {
     canManageUsers: ['admin', 'operations manager'].includes(role)
   };
 
+  console.log('✅ Role filters set:', req.roleFilters);
   next();
 };
 

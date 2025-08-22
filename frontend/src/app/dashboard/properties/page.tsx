@@ -17,10 +17,15 @@ import { PropertyFilters } from '@/components/PropertyFilters'
 import { PropertyModals } from '@/components/PropertyModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
 import { propertyColumns, propertyDetailedColumns } from '@/components/PropertyTableColumns'
-import { Property, Category, Status, PropertyFilters as PropertyFiltersType } from '@/types/property'
+import { Property, Category, Status, PropertyFilters as PropertyFiltersType, EditFormData } from '@/types/property'
 import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategories, mockStatuses } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 
 export default function PropertiesPage() {
+  const { user, token, isAuthenticated } = useAuth()
+  const { canManageProperties } = usePermissions()
+  
   // State management
   const [properties, setProperties] = useState<Property[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -30,7 +35,6 @@ export default function PropertiesPage() {
   
   // View and display state
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
-  const [showDetailedTable, setShowDetailedTable] = useState(false)
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   
   // Filters state
@@ -40,7 +44,21 @@ export default function PropertiesPage() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
+  const [deletingProperty, setDeletingProperty] = useState<Property | null>(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [editFormData, setEditFormData] = useState<EditFormData>({
+    status_id: 0,
+    location: '',
+    category_id: 0,
+    owner_name: '',
+    concierge: false
+  })
+  const [selectedImage, setSelectedImage] = useState('')
+  const [allImages, setAllImages] = useState<string[]>([])
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -51,8 +69,10 @@ export default function PropertiesPage() {
 
   // Load data on component mount
   useEffect(() => {
-    loadData()
-  }, [])
+    if (isAuthenticated) {
+      loadData()
+    }
+  }, [isAuthenticated])
 
   // Load all necessary data
   const loadData = async () => {
@@ -60,57 +80,88 @@ export default function PropertiesPage() {
       setLoading(true)
       setError(null)
       
-      // Try to load from backend first, fallback to mock data
-      let propertiesData: Property[] = []
-      let categoriesData: Category[] = []
-      let statusesData: Status[] = []
-      
-      try {
-        // Load properties from demo endpoint (no authentication required)
-        const propertiesResponse = await propertiesApi.getDemo()
-        if (propertiesResponse.success) {
-          propertiesData = propertiesResponse.data
-          console.log('✅ Loaded properties from backend:', propertiesData.length)
-        } else {
-          throw new Error('Failed to load properties from backend')
-        }
-        
-        // Load categories from demo endpoint (no authentication required)
-        const categoriesResponse = await categoriesApi.getDemo()
-        if (categoriesResponse.success) {
-          categoriesData = categoriesResponse.data
-          console.log('✅ Loaded categories from backend:', categoriesData.length)
-        } else {
-          throw new Error('Failed to load categories from backend')
-        }
-        
-        // Load statuses from demo endpoint (no authentication required)
-        const statusesResponse = await statusesApi.getDemo()
-        if (statusesResponse.success) {
-          statusesData = statusesResponse.data
-          console.log('✅ Loaded statuses from backend:', statusesData.length)
-        } else {
-          throw new Error('Failed to load statuses from backend')
-        }
-        
-        // Load statistics
-        try {
-          const statsResponse = await propertiesApi.getStats()
-          if (statsResponse.success) {
-            setStats(statsResponse.data)
-          }
-        } catch (statsError) {
-          console.warn('Could not load statistics:', statsError)
-        }
-        
-      } catch (apiError) {
-        console.error('Failed to load data from backend:', apiError)
-        setError('Failed to load data from backend. Please check your connection.')
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        setError('You must be logged in to view properties')
         return
       }
       
+      // Load properties from production API with authentication
+      const propertiesResponse = await fetch('http://localhost:10000/api/properties', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!propertiesResponse.ok) {
+        if (propertiesResponse.status === 401) {
+          setError('Authentication required. Please log in again.')
+          return
+        }
+        throw new Error(`Failed to load properties: ${propertiesResponse.statusText}`)
+      }
+
+      const propertiesResponseData = await propertiesResponse.json()
+      const propertiesData: Property[] = propertiesResponseData.data || propertiesResponseData
+      console.log('✅ Loaded properties from production API:', propertiesData.length)
+      
+      // Load categories from production API with authentication
+      const categoriesResponse = await fetch('http://localhost:10000/api/categories', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!categoriesResponse.ok) {
+        throw new Error(`Failed to load categories: ${categoriesResponse.statusText}`)
+      }
+
+      const categoriesResponseData = await categoriesResponse.json()
+      const categoriesData: Category[] = categoriesResponseData.data || categoriesResponseData
+      console.log('✅ Loaded categories from production API:', categoriesData.length)
+      
+      // Load statuses from production API with authentication
+      const statusesResponse = await fetch('http://localhost:10000/api/statuses', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!statusesResponse.ok) {
+        throw new Error(`Failed to load statuses: ${statusesResponse.statusText}`)
+      }
+
+      const statusesResponseData = await statusesResponse.json()
+      const statusesData: Status[] = statusesResponseData.data || statusesResponseData
+      console.log('✅ Loaded statuses from production API:', statusesData.length)
+      
+      // Load statistics from production API with authentication
+      try {
+        const statsResponse = await fetch('http://localhost:10000/api/properties/stats/overview', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (statsResponse.ok) {
+          const statsResponseData = await statsResponse.json()
+          const statsData = statsResponseData.data || statsResponseData
+          setStats(statsData)
+        }
+      } catch (statsError) {
+        console.warn('Could not load statistics:', statsError)
+      }
+      
       // Add action handlers to properties
-      const propertiesWithActions = propertiesData.map(property => ({
+      const propertiesWithActions = propertiesData.map((property: Property) => ({
         ...property,
         onView: handleViewProperty,
         onEdit: handleEditProperty,
@@ -192,112 +243,243 @@ export default function PropertiesPage() {
     setShowEditModal(true)
   }
 
+  // Handle add property
+  const handleAddProperty = async (propertyData: any) => {
+    try {
+      console.log('Adding new property:', propertyData)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        alert('You must be logged in to add properties')
+        return
+      }
+      
+      // Check permissions
+      if (!canManageProperties) {
+        alert('You do not have permission to add properties')
+        return
+      }
+      
+      // Validate required fields
+      const requiredFields = ['status_id', 'location', 'category_id', 'owner_name', 'price']
+      const missingFields = requiredFields.filter(field => !propertyData[field])
+      
+      if (missingFields.length > 0) {
+        alert(`Missing required fields: ${missingFields.join(', ')}`)
+        return
+      }
+
+      // Ensure numeric fields are properly formatted and exclude image data
+      const formattedData = {
+        status_id: parseInt(propertyData.status_id),
+        location: propertyData.location,
+        category_id: parseInt(propertyData.category_id),
+        building_name: propertyData.building_name || null,
+        owner_name: propertyData.owner_name,
+        phone_number: propertyData.phone_number || null,
+        surface: propertyData.surface ? parseFloat(propertyData.surface) : null,
+        details: propertyData.details || null,
+        interior_details: propertyData.interior_details || null,
+        built_year: propertyData.built_year ? parseInt(propertyData.built_year) : null,
+        view_type: propertyData.view_type || null,
+        concierge: Boolean(propertyData.concierge),
+        agent_id: propertyData.agent_id || null,
+        price: parseFloat(propertyData.price),
+        notes: propertyData.notes || null,
+        referral_source: propertyData.referral_source || null,
+        referral_dates: propertyData.referral_dates || null
+        // Note: main_image and image_gallery are excluded - they will be handled separately via file uploads
+      }
+      
+      console.log('Formatted data to send:', formattedData)
+      
+      // Call the production API with authentication
+      const response = await fetch('http://localhost:10000/api/properties', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formattedData),
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert('Authentication required. Please log in again.')
+          return
+        }
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `Failed to add property: ${response.statusText}`)
+      }
+
+      const newProperty = await response.json()
+      console.log('Property added successfully:', newProperty)
+
+      // Refresh the properties list
+      await loadData()
+      
+      // Close the modal
+      setShowAddModal(false)
+      
+      // Show success message
+      alert('Property added successfully!')
+      
+    } catch (error) {
+      console.error('Error adding property:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Error adding property: ${errorMessage}`)
+    }
+  }
+
+  // Handle delete property
   const handleDeleteProperty = async (property: Property) => {
-    if (confirm(`Are you sure you want to delete property ${property.reference_number}?`)) {
+    setDeletingProperty(property)
+    setShowDeleteModal(true)
+  }
+
+  // Handle confirm delete
+  const handleConfirmDelete = async () => {
+    if (deletingProperty && deleteConfirmation === deletingProperty.reference_number) {
       try {
-        // Try to delete from backend
-        try {
-          await propertiesApi.delete(property.id)
-        } catch (apiError) {
-          console.warn('Could not delete from backend:', apiError)
+        // Check authentication
+        if (!isAuthenticated || !token) {
+          alert('You must be logged in to delete properties')
+          return
         }
         
-        // Remove from local state
-        setProperties(prev => prev.filter(p => p.id !== property.id))
+        // Check permissions
+        if (!canManageProperties) {
+          alert('You do not have permission to delete properties')
+          return
+        }
+        
+        // Call the production API to delete the property
+        const response = await fetch(`http://localhost:10000/api/properties/${deletingProperty.id}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            alert('Authentication required. Please log in again.')
+            return
+          }
+          throw new Error(`Failed to delete property: ${response.statusText}`)
+        }
+        
+        console.log('Property deleted successfully!')
+        
+        // Refresh the properties list
+        await loadData()
+        
+        // Close modal and reset state
+        setShowDeleteModal(false)
+        setDeletingProperty(null)
+        setDeleteConfirmation('')
+        
+        // Show success message
+        alert('Property deleted successfully!')
+        
       } catch (error) {
         console.error('Error deleting property:', error)
-        alert('Failed to delete property')
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+        alert(`Error deleting property: ${errorMessage}`)
       }
     }
   }
 
-  const handleAddProperty = async (propertyData: any) => {
-    try {
-      // Try to create in backend
-      let newProperty: Property
-      try {
-        const response = await propertiesApi.create(propertyData)
-        if (response.success) {
-          newProperty = response.data
-        } else {
-          throw new Error(response.message || 'Failed to create property')
+  // Handle image navigation
+  const handleGoToPreviousImage = () => {
+    if (currentImageIndex > 0) {
+      setCurrentImageIndex(currentImageIndex - 1)
+      setSelectedImage(allImages[currentImageIndex - 1])
+    }
+  }
+
+  const handleGoToNextImage = () => {
+    if (currentImageIndex < allImages.length - 1) {
+      setCurrentImageIndex(currentImageIndex + 1)
+      setSelectedImage(allImages[currentImageIndex + 1])
+    }
+  }
+
+  // Handle image upload
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (files) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const base64Image = e.target?.result as string
+          // Handle the uploaded image
+          console.log('Image uploaded:', base64Image.substring(0, 50) + '...')
         }
-      } catch (apiError) {
-        console.warn('Could not create in backend:', apiError)
-        // Create mock property for demo
-        newProperty = {
-          id: Date.now(),
-          reference_number: `FA${new Date().getFullYear()}${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
-          status_id: propertyData.status_id,
-          status_name: statuses.find(s => s.id === propertyData.status_id)?.name || 'Active',
-          status_color: statuses.find(s => s.id === propertyData.status_id)?.color || '#10B981',
-          location: propertyData.location,
-          category_id: propertyData.category_id,
-          category_name: categories.find(c => c.id === propertyData.category_id)?.name || 'Unknown',
-          category_code: categories.find(c => c.id === propertyData.category_id)?.code || 'U',
-          building_name: propertyData.building_name,
-          owner_name: propertyData.owner_name,
-          phone_number: propertyData.phone_number,
-          surface: propertyData.surface,
-          details: propertyData.details,
-          interior_details: propertyData.interior_details,
-          built_year: propertyData.built_year,
-          view_type: propertyData.view_type,
-          concierge: propertyData.concierge,
-          agent_id: propertyData.agent_id,
-          agent_name: undefined,
-          agent_role: undefined,
-          price: propertyData.price,
-          notes: propertyData.notes,
-          referral_source: propertyData.referral_source,
-          referral_dates: propertyData.referral_dates,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }
-      }
-      
-      // Add action handlers to the property
-      const newPropertyWithActions = {
-        ...newProperty,
-        onView: handleViewProperty,
-        onEdit: handleEditProperty,
-        onDelete: handleDeleteProperty
-      }
-      
-      setProperties(prev => [newPropertyWithActions, ...prev])
-      setShowAddModal(false)
-    } catch (error) {
-      console.error('Error adding property:', error)
-      alert('Failed to add property')
+        reader.readAsDataURL(file)
+      })
+    }
+  }
+
+  // Handle remove gallery image
+  const handleRemoveGalleryImage = (index: number) => {
+    const newImages = allImages.filter((_, i) => i !== index)
+    setAllImages(newImages)
+    if (currentImageIndex >= newImages.length) {
+      setCurrentImageIndex(Math.max(0, newImages.length - 1))
     }
   }
 
   const handleUpdateProperty = async (id: number, propertyData: any) => {
     try {
-      // Try to update in backend
-      try {
-        const response = await propertiesApi.update(id, propertyData)
-        if (response.success) {
-          // Update local state with backend response
-          setProperties(prev => prev.map(p => 
-            p.id === id ? { ...response.data, onView: handleViewProperty, onEdit: handleEditProperty, onDelete: handleDeleteProperty } : p
-          ))
-        } else {
-          throw new Error(response.message || 'Failed to update property')
-        }
-      } catch (apiError) {
-        console.warn('Could not update in backend:', apiError)
-        // Update local state for demo
-        setProperties(prev => prev.map(p => 
-          p.id === id ? { ...p, ...propertyData, updated_at: new Date().toISOString() } : p
-        ))
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        alert('You must be logged in to update properties')
+        return
       }
+      
+      // Check permissions
+      if (!canManageProperties) {
+        alert('You do not have permission to update properties')
+        return
+      }
+      
+      // Call the production API to update the property
+      const response = await fetch(`http://localhost:10000/api/properties/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(propertyData),
+      })
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          alert('Authentication required. Please log in again.')
+          return
+        }
+        throw new Error(`Failed to update property: ${response.statusText}`)
+      }
+      
+      const updatedProperty = await response.json()
+      
+      // Update local state
+      setProperties(prev => prev.map(p => 
+        p.id === id ? { ...updatedProperty, onView: handleViewProperty, onEdit: handleEditProperty, onDelete: handleDeleteProperty } : p
+      ))
       
       setShowEditModal(false)
       setSelectedProperty(null)
+      
+      // Show success message
+      alert('Property updated successfully!')
+      
     } catch (error) {
       console.error('Error updating property:', error)
-      alert('Failed to update property')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Failed to update property: ${errorMessage}`)
     }
   }
 
@@ -350,7 +532,12 @@ export default function PropertiesPage() {
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            disabled={!isAuthenticated || !canManageProperties}
+            className={`px-4 py-3 rounded-lg transition-colors flex items-center space-x-2 ${
+              isAuthenticated && canManageProperties
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
           >
             <Plus className="h-5 w-5" />
             <span>Add Property</span>
@@ -408,7 +595,7 @@ export default function PropertiesPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${properties.reduce((sum, p) => sum + (p.price || 0), 0).toLocaleString()}
+                  ${properties.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -451,18 +638,13 @@ export default function PropertiesPage() {
             <List className="h-5 w-5" />
           </button>
           
-          {viewMode === 'table' && (
-            <button
-              onClick={() => setShowDetailedTable(!showDetailedTable)}
-              className={`ml-4 px-3 py-1 text-sm rounded-lg border transition-colors ${
-                showDetailedTable
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              {showDetailedTable ? 'Simple View' : 'Detailed View'}
-            </button>
-          )}
+          <button
+            onClick={loadData}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 transition-colors"
+            title="Refresh data"
+          >
+            <RefreshCw className="h-5 w-5" />
+          </button>
         </div>
         
         <div className="flex items-center space-x-3">
@@ -492,7 +674,7 @@ export default function PropertiesPage() {
       ) : (
         // Table View
         <DataTable
-          columns={showDetailedTable ? propertyDetailedColumns : propertyColumns}
+          columns={propertyColumns}
           data={paginatedProperties}
         />
       )}
@@ -520,28 +702,31 @@ export default function PropertiesPage() {
         setShowEditPropertyModal={setShowEditModal}
         showViewPropertyModal={showViewModal}
         setShowViewPropertyModal={setShowViewModal}
-        showDeletePropertyModal={false}
-        setShowDeletePropertyModal={() => {}}
+        showDeletePropertyModal={showDeleteModal}
+        setShowDeletePropertyModal={setShowDeleteModal}
         showImportModal={false}
         setShowImportModal={() => {}}
-        showImageModal={false}
-        setShowImageModal={() => {}}
+        showImageModal={showImageModal}
+        setShowImageModal={setShowImageModal}
         editingProperty={selectedProperty}
         viewingProperty={selectedProperty}
-        deletingProperty={null}
-        deleteConfirmation=""
-        setDeleteConfirmation={() => {}}
-        editFormData={{} as any}
-        setEditFormData={() => {}}
-        selectedImage=""
-        allImages={[]}
-        currentImageIndex={0}
+        deletingProperty={deletingProperty}
+        deleteConfirmation={deleteConfirmation}
+        setDeleteConfirmation={setDeleteConfirmation}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        selectedImage={selectedImage}
+        allImages={allImages}
+        currentImageIndex={currentImageIndex}
         onSaveEdit={() => {}}
-        onConfirmDelete={() => {}}
-        onImageUpload={() => {}}
-        onRemoveGalleryImage={() => {}}
-        onGoToPreviousImage={() => {}}
-        onGoToNextImage={() => {}}
+        onConfirmDelete={handleConfirmDelete}
+        onImageUpload={handleImageUpload}
+        onRemoveGalleryImage={handleRemoveGalleryImage}
+        onGoToPreviousImage={handleGoToPreviousImage}
+        onGoToNextImage={handleGoToNextImage}
+        onSaveAdd={handleAddProperty}
+        categories={categories}
+        statuses={statuses}
       />
     </div>
   )

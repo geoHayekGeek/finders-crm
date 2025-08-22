@@ -78,10 +78,22 @@ const getBasicAnalytics = async (timeRange) => {
     LIMIT 10
   `, [timeFilter]);
 
+  // Add image analytics
+  const imageStats = await pool.query(`
+    SELECT 
+      COUNT(CASE WHEN main_image IS NOT NULL THEN 1 END) as properties_with_main_image,
+      COUNT(CASE WHEN array_length(image_gallery, 1) > 0 THEN 1 END) as properties_with_gallery,
+      COUNT(CASE WHEN main_image IS NOT NULL AND array_length(image_gallery, 1) > 0 THEN 1 END) as properties_with_both,
+      COUNT(CASE WHEN main_image IS NULL AND (image_gallery IS NULL OR array_length(image_gallery, 1) = 0) THEN 1 END) as properties_without_images
+    FROM properties
+    WHERE created_at >= $1
+  `, [timeFilter]);
+
   return {
     overview: result.rows[0],
     propertyTypes: propertyTypes.rows,
-    locations: locationStats.rows
+    locations: locationStats.rows,
+    imageStats: imageStats.rows[0]
   };
 };
 
@@ -177,7 +189,9 @@ const getDashboardStats = async (req, res) => {
       totalProperties: 0,
       activeClients: 0,
       monthlyRevenue: 0,
-      conversionRate: 0
+      conversionRate: 0,
+      propertiesWithImages: 0,
+      propertiesWithoutImages: 0
     };
 
     // Basic stats available to all roles
@@ -185,6 +199,16 @@ const getDashboardStats = async (req, res) => {
       SELECT COUNT(*) as count FROM properties
     `);
     stats.totalProperties = parseInt(propertiesResult.rows[0].count);
+
+    // Image stats
+    const imageStatsResult = await pool.query(`
+      SELECT 
+        COUNT(CASE WHEN main_image IS NOT NULL OR array_length(image_gallery, 1) > 0 THEN 1 END) as with_images,
+        COUNT(CASE WHEN main_image IS NULL AND (image_gallery IS NULL OR array_length(image_gallery, 1) = 0) THEN 1 END) as without_images
+      FROM properties
+    `);
+    stats.propertiesWithImages = parseInt(imageStatsResult.rows[0].with_images);
+    stats.propertiesWithoutImages = parseInt(imageStatsResult.rows[0].without_images);
 
     // Financial stats only for admin and operations manager
     if (roleFilters.canViewFinancial) {
@@ -218,6 +242,68 @@ const getDashboardStats = async (req, res) => {
   }
 };
 
+// Get image analytics
+const getImageAnalytics = async (req, res) => {
+  try {
+    const { roleFilters } = req;
+    
+    if (!roleFilters.canViewAll) {
+      return res.status(403).json({ 
+        message: 'Access denied. You do not have permission to view image analytics.' 
+      });
+    }
+
+    // Get image statistics
+    const imageStats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_properties,
+        COUNT(CASE WHEN main_image IS NOT NULL THEN 1 END) as with_main_image,
+        COUNT(CASE WHEN array_length(image_gallery, 1) > 0 THEN 1 END) as with_gallery,
+        COUNT(CASE WHEN main_image IS NOT NULL AND array_length(image_gallery, 1) > 0 THEN 1 END) as with_both,
+        COUNT(CASE WHEN main_image IS NULL AND (image_gallery IS NULL OR array_length(image_gallery, 1) = 0) THEN 1 END) as without_images,
+        AVG(CASE WHEN array_length(image_gallery, 1) > 0 THEN array_length(image_gallery, 1) ELSE 0 END) as avg_gallery_size
+      FROM properties
+    `);
+
+    // Get properties by image status
+    const propertiesByImageStatus = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN main_image IS NOT NULL AND array_length(image_gallery, 1) > 0 THEN 'Complete'
+          WHEN main_image IS NOT NULL THEN 'Main Image Only'
+          WHEN array_length(image_gallery, 1) > 0 THEN 'Gallery Only'
+          ELSE 'No Images'
+        END as image_status,
+        COUNT(*) as count
+      FROM properties
+      GROUP BY image_status
+      ORDER BY count DESC
+    `);
+
+    // Get recent properties without images
+    const propertiesWithoutImages = await pool.query(`
+      SELECT 
+        id, reference_number, location, created_at
+      FROM properties
+      WHERE main_image IS NULL AND (image_gallery IS NULL OR array_length(image_gallery, 1) = 0)
+      ORDER BY created_at DESC
+      LIMIT 10
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        overview: imageStats.rows[0],
+        byImageStatus: propertiesByImageStatus.rows,
+        propertiesWithoutImages: propertiesWithoutImages.rows
+      }
+    });
+  } catch (error) {
+    console.error('Error getting image analytics:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
 // Helper function to get time filter based on timeRange
 const getTimeFilter = (timeRange) => {
   const now = new Date();
@@ -237,5 +323,6 @@ const getTimeFilter = (timeRange) => {
 
 module.exports = {
   getAnalytics,
-  getDashboardStats
+  getDashboardStats,
+  getImageAnalytics
 };
