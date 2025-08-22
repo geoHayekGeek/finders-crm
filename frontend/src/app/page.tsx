@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { apiClient } from '@/utils/api'
+import { useRouter } from 'next/navigation'
 import { 
   Building2, 
   Users, 
@@ -35,6 +36,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const { login } = useAuth()
+  const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,19 +44,30 @@ export default function HomePage() {
     setError('')
 
     try {
+      console.log('Attempting login...')
       const response = await apiClient.login(email, password)
+      console.log('Login response:', response)
 
-      if (response.success && response.data) {
-        const loginData = response.data as LoginResponse
+      // Backend returns: { message, token, user }
+      if (response.token && response.user) {
+        const loginData = response as LoginResponse
+        console.log('Login data:', loginData)
+        
         // Use the login function from auth context
         login(loginData.token, loginData.user)
+        console.log('User logged in, redirecting to dashboard...')
         
-        // Redirect to dashboard
-        window.location.href = '/dashboard'
+        // Add a small delay to ensure state is updated, then redirect
+        setTimeout(() => {
+          router.replace('/dashboard')
+          console.log('Router.replace called')
+        }, 100)
       } else {
+        console.log('Login failed:', response.message)
         setError(response.message || 'Login failed')
       }
     } catch (err) {
+      console.error('Login error:', err)
       setError('Network error. Please try again.')
     } finally {
       setIsLoading(false)

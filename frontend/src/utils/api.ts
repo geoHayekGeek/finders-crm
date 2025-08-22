@@ -40,6 +40,55 @@ async function apiRequest<T>(
   }
 }
 
+// Authentication API
+export const apiClient = {
+  // Login user
+  login: (email: string, password: string) => 
+    apiRequest<{ message: string; token: string; user: any }>('/users/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }),
+  
+  // Register user
+  register: (userData: any) => 
+    apiRequest<{ success: boolean; data: any; message: string }>('/users/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }),
+  
+  // Get current user profile
+  getProfile: () => 
+    apiRequest<{ success: boolean; data: any }>('/users/profile'),
+  
+  // Update user profile
+  updateProfile: (userData: any) => 
+    apiRequest<{ success: boolean; data: any; message: string }>('/users/profile', {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    }),
+  
+  // Change password
+  changePassword: (currentPassword: string, newPassword: string) => 
+    apiRequest<{ success: boolean; message: string }>('/users/change-password', {
+      method: 'PUT',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+  
+  // Request password reset
+  requestPasswordReset: (email: string) => 
+    apiRequest<{ success: boolean; message: string }>('/users/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  
+  // Reset password with token
+  resetPassword: (token: string, newPassword: string) => 
+    apiRequest<{ success: boolean; message: string }>('/users/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
+}
+
 // Properties API
 export const propertiesApi = {
   // Get all properties (requires authentication)

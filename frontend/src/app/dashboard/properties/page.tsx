@@ -466,13 +466,11 @@ export default function PropertiesPage() {
         </div>
         
         <div className="flex items-center space-x-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2">
+          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
             <Download className="h-4 w-4" />
-            <span>Export</span>
           </button>
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2">
+          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
             <Upload className="h-4 w-4" />
-            <span>Import</span>
           </button>
         </div>
       </div>
