@@ -379,16 +379,14 @@ export default function PropertiesPage() {
       // Refresh the properties list
       await loadData()
       
-      // Close the modal
-      setShowAddModal(false)
-      
-      // Show success message
-      alert('Property added successfully!')
+      // Return the created property data for image upload
+      return newProperty.data || newProperty
       
     } catch (error) {
       console.error('Error adding property:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       alert(`Error adding property: ${errorMessage}`)
+      throw error // Re-throw so the modal knows the creation failed
     }
   }
 

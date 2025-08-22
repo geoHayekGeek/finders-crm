@@ -17,8 +17,9 @@ CREATE TABLE IF NOT EXISTS properties (
   agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   price DECIMAL(15,2),
   notes TEXT,
-  referral_source VARCHAR(100), -- referred from another agent or external
-  referral_dates DATE[], -- dates of referrals (array of dates)
+  referral_sources JSONB, -- array of referral objects with source and date: [{"source": "John Doe", "date": "2024-01-15"}, {"source": "External Agency", "date": "2024-01-20"}]
+  referral_source VARCHAR(100), -- deprecated: keeping for backward compatibility
+  referral_dates DATE[], -- deprecated: keeping for backward compatibility
   main_image TEXT, -- Base64 encoded main property image (optional)
   image_gallery TEXT[], -- Array of base64 encoded additional property images (optional)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

@@ -143,6 +143,7 @@ const createProperty = async (req, res) => {
       notes,
       referral_source,
       referral_dates,
+      referral_sources, // New field for multiple referrals with dates
       main_image,
       image_gallery
     } = req.body;
@@ -187,6 +188,7 @@ const createProperty = async (req, res) => {
       agent_id: finalAgentId,
       price,
       notes,
+      referral_sources,
       referral_source,
       referral_dates,
       main_image: main_image || null, // Optional

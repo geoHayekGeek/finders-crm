@@ -197,10 +197,35 @@ const updateUser = async (req, res) => {
   }
 };
 
+const getAgents = async (req, res) => {
+  try {
+    const agents = await userModel.getUsersByRole('agent');
+    res.json({
+      success: true,
+      agents: agents.map(agent => ({
+        id: agent.id,
+        name: agent.name,
+        email: agent.email,
+        role: agent.role,
+        location: agent.location,
+        phone: agent.phone,
+        user_code: agent.user_code
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching agents:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch agents'
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   checkUserExists,
   getAllUsers,
-  updateUser
+  updateUser,
+  getAgents
 };

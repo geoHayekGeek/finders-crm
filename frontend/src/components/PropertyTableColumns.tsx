@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table'
 import { Property } from '@/types/property'
-import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar, DollarSign } from 'lucide-react'
+import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar } from 'lucide-react'
 
 export const propertyColumns: ColumnDef<Property>[] = [
   {
@@ -70,7 +70,6 @@ export const propertyColumns: ColumnDef<Property>[] = [
       if (!price) return <span className="text-gray-400">On request</span>
       return (
         <div className="flex items-center">
-          <DollarSign className="h-4 w-4 mr-1 text-green-500" />
           <span className="font-semibold text-green-600">
             {new Intl.NumberFormat('en-US', {
               style: 'currency',

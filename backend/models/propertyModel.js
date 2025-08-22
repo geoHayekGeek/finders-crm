@@ -21,6 +21,7 @@ class Property {
       notes,
       referral_source,
       referral_dates,
+      referral_sources, // New field for multiple referrals with dates
       main_image,
       image_gallery
     } = propertyData;
@@ -41,14 +42,14 @@ class Property {
         reference_number, status_id, location, category_id, building_name, 
         owner_name, phone_number, surface, details, interior_details, 
         built_year, view_type, concierge, agent_id, price, notes, 
-        referral_source, referral_dates, main_image, image_gallery
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        referral_sources, referral_source, referral_dates, main_image, image_gallery
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *`,
       [
         refNumber.rows[0].generate_reference_number, status_id, location, category_id, building_name,
         owner_name, phone_number, surface, details, interior_details,
         built_year, view_type, concierge, agent_id, price, notes,
-        referral_source, referral_dates, main_image, image_gallery
+        referral_sources ? JSON.stringify(referral_sources) : null, referral_source, referral_dates, main_image, image_gallery
       ]
     );
     return result.rows[0];
@@ -87,7 +88,10 @@ class Property {
           u.role as agent_role,
           p.price,
           p.notes,
-          p.referral_source,
+          p.referral_sources,
+          p.referral_sources,
+          p.referral_sources,
+        p.referral_source,
           p.referral_dates,
           p.main_image,
           p.image_gallery,
@@ -144,6 +148,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
+        p.referral_sources,
         p.referral_source,
         p.referral_dates,
         p.main_image,
@@ -191,6 +196,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
+        p.referral_sources,
         p.referral_source,
         p.referral_dates,
         p.main_image,
@@ -261,6 +267,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
+        p.referral_sources,
         p.referral_source,
         p.referral_dates,
         p.main_image,

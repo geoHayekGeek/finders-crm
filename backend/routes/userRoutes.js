@@ -23,6 +23,7 @@ router.post('/register', authLimiter, registerValidator, handleValidation, userC
 router.post('/login', authLimiter, loginValidator, handleValidation, userController.loginUser);
 router.post('/check-exists', userController.checkUserExists);
 router.get('/all', userController.getAllUsers);
+router.get('/agents', userController.getAgents);
 router.put('/:id', userController.updateUser);
 
 module.exports = router;
