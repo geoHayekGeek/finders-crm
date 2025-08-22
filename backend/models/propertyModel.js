@@ -62,36 +62,29 @@ class Property {
         SELECT 
           p.id,
           p.reference_number,
+          p.status_id,
           s.name as status_name,
           s.color as status_color,
           p.location,
+          p.category_id,
           c.name as category_name,
           c.code as category_code,
           p.building_name,
           p.owner_name,
           p.phone_number,
           p.surface,
-                  CASE 
-          WHEN p.details IS NULL THEN NULL 
-          WHEN p.details = '' THEN NULL
-          ELSE 
-            CASE 
-              WHEN p.details ~ '^[\\[\\{].*[\\]\\}]$' THEN p.details::jsonb
-              ELSE NULL
-            END
-        END as details,
+          p.details,
           p.interior_details,
           p.built_year,
           p.view_type,
           p.concierge,
+          p.agent_id,
           u.name as agent_name,
           u.role as agent_role,
           p.price,
           p.notes,
           p.referral_sources,
-          p.referral_sources,
-          p.referral_sources,
-        p.referral_source,
+          p.referral_source,
           p.referral_dates,
           p.main_image,
           p.image_gallery,
@@ -122,28 +115,23 @@ class Property {
       SELECT 
         p.id,
         p.reference_number,
+        p.status_id,
         s.name as status_name,
         s.color as status_color,
         p.location,
+        p.category_id,
         c.name as category_name,
         c.code as category_code,
         p.building_name,
         p.owner_name,
         p.phone_number,
         p.surface,
-        CASE 
-          WHEN p.details IS NULL THEN NULL 
-          WHEN p.details = '' THEN NULL
-          ELSE 
-            CASE 
-              WHEN p.details ~ '^[\\[\\{].*[\\]\\}]$' THEN p.details::jsonb
-              ELSE NULL
-            END
-        END as details,
+        p.details,
         p.interior_details,
         p.built_year,
         p.view_type,
         p.concierge,
+        p.agent_id,
         u.name as agent_name,
         u.role as agent_role,
         p.price,
@@ -170,28 +158,23 @@ class Property {
       SELECT 
         p.id,
         p.reference_number,
+        p.status_id,
         s.name as status_name,
         s.color as status_color,
         p.location,
+        p.category_id,
         c.name as category_name,
         c.code as category_code,
         p.building_name,
         p.owner_name,
         p.phone_number,
         p.surface,
-        CASE 
-          WHEN p.details IS NULL THEN NULL 
-          WHEN p.details = '' THEN NULL
-          ELSE 
-            CASE 
-              WHEN p.details ~ '^[\\[\\{].*[\\]\\}]$' THEN p.details::jsonb
-              ELSE NULL
-            END
-        END as details,
+        p.details,
         p.interior_details,
         p.built_year,
         p.view_type,
         p.concierge,
+        p.agent_id,
         u.name as agent_name,
         u.role as agent_role,
         p.price,
@@ -241,28 +224,23 @@ class Property {
       SELECT 
         p.id,
         p.reference_number,
+        p.status_id,
         s.name as status_name,
         s.color as status_color,
         p.location,
+        p.category_id,
         c.name as category_name,
         c.code as category_code,
         p.building_name,
         p.owner_name,
         p.phone_number,
         p.surface,
-        CASE 
-          WHEN p.details IS NULL THEN NULL 
-          WHEN p.details = '' THEN NULL
-          ELSE 
-            CASE 
-              WHEN p.details ~ '^[\\[\\{].*[\\]\\}]$' THEN p.details::jsonb
-              ELSE NULL
-            END
-        END as details,
+        p.details,
         p.interior_details,
         p.built_year,
         p.view_type,
         p.concierge,
+        p.agent_id,
         u.name as agent_name,
         u.role as agent_role,
         p.price,

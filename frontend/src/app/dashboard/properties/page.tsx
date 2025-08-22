@@ -67,6 +67,10 @@ export default function PropertiesPage() {
   
   // Statistics state
   const [stats, setStats] = useState<any>(null)
+  
+  // Loading states for refresh buttons
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
+  const [statusesLoading, setStatusesLoading] = useState(false)
 
   // Load data on component mount
   useEffect(() => {
@@ -302,6 +306,78 @@ export default function PropertiesPage() {
   const handleEditProperty = (property: Property) => {
     setSelectedProperty(property)
     setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      console.log('💾 Saving property edits:', editFormData)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        alert('You must be logged in to edit properties')
+        return
+      }
+      
+      // Check permissions
+      if (!canManageProperties) {
+        alert('You do not have permission to edit properties')
+        return
+      }
+
+      // Get the property ID from selectedProperty
+      if (!selectedProperty) {
+        alert('No property selected for editing')
+        return
+      }
+
+      // Validate required fields
+      const requiredFields = ['status_id', 'location', 'category_id', 'owner_name']
+      const missingFields = requiredFields.filter(field => !editFormData[field as keyof EditFormData])
+      
+      if (missingFields.length > 0) {
+        alert(`Please fill in all required fields: ${missingFields.join(', ')}`)
+        return
+      }
+
+      // Prepare update data
+      const updateData = {
+        ...editFormData,
+        id: selectedProperty.id
+      }
+
+      console.log('📡 Sending update request:', updateData)
+
+      // Send PUT request to update the property
+      const response = await fetch(`http://localhost:10000/api/properties/${selectedProperty.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData)
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Property updated successfully:', result)
+        
+        // Close the modal
+        setShowEditModal(false)
+        setSelectedProperty(null)
+        
+        // Refresh the properties list
+        await loadData()
+        
+        alert('Property updated successfully!')
+      } else {
+        const errorData = await response.json()
+        console.error('❌ Failed to update property:', errorData)
+        alert(`Failed to update property: ${errorData.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('❌ Error updating property:', error)
+      alert('An error occurred while updating the property. Please try again.')
+    }
   }
 
   // Handle add property
@@ -554,6 +630,70 @@ export default function PropertiesPage() {
     setCurrentPage(1) // Reset to first page when changing page size
   }
 
+  // Refresh categories
+  const refreshCategories = async () => {
+    setCategoriesLoading(true)
+    try {
+      if (!isAuthenticated || !token) {
+        console.error('Not authenticated')
+        return
+      }
+
+      const categoriesResponse = await fetch('http://localhost:10000/api/categories', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (categoriesResponse.ok) {
+        const categoriesResponseData = await categoriesResponse.json()
+        const categoriesData: Category[] = categoriesResponseData.data || categoriesResponseData
+        setCategories(categoriesData)
+        console.log('✅ Categories refreshed:', categoriesData.length)
+      } else {
+        console.error('Failed to refresh categories')
+      }
+    } catch (error) {
+      console.error('Error refreshing categories:', error)
+    } finally {
+      setCategoriesLoading(false)
+    }
+  }
+
+  // Refresh statuses
+  const refreshStatuses = async () => {
+    setStatusesLoading(true)
+    try {
+      if (!isAuthenticated || !token) {
+        console.error('Not authenticated')
+        return
+      }
+
+      const statusesResponse = await fetch('http://localhost:10000/api/statuses', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (statusesResponse.ok) {
+        const statusesResponseData = await statusesResponse.json()
+        const statusesData: Status[] = statusesResponseData.data || statusesResponseData
+        setStatuses(statusesData)
+        console.log('✅ Statuses refreshed:', statusesData.length)
+      } else {
+        console.error('Failed to refresh statuses')
+      }
+    } catch (error) {
+      console.error('Error refreshing statuses:', error)
+    } finally {
+      setStatusesLoading(false)
+    }
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -797,7 +937,7 @@ export default function PropertiesPage() {
         selectedImage={selectedImage}
         allImages={allImages}
         currentImageIndex={currentImageIndex}
-        onSaveEdit={() => {}}
+        onSaveEdit={handleSaveEdit}
         onConfirmDelete={handleConfirmDelete}
         onImageUpload={handleImageUpload}
         onRemoveGalleryImage={handleRemoveGalleryImage}
@@ -806,6 +946,8 @@ export default function PropertiesPage() {
         onSaveAdd={handleAddProperty}
         categories={categories}
         statuses={statuses}
+        onRefreshCategories={refreshCategories}
+        onRefreshStatuses={refreshStatuses}
       />
     </div>
   )

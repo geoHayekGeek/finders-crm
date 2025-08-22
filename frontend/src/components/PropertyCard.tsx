@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import { Building2, MapPin, DollarSign, Bed, Bath, Square, Star, Eye, Edit, Trash2, Calendar, Phone, User } from 'lucide-react'
 import { Property } from '@/types/property'
+import { getFullImageUrl } from '@/utils/imageUpload'
 
 interface PropertyCardProps {
   property: Property
@@ -11,6 +13,7 @@ interface PropertyCardProps {
 }
 
 export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCardProps) {
+  const [imageError, setImageError] = useState(false)
   const formatPrice = (price?: number) => {
     if (!price) return 'Price on request'
     return new Intl.NumberFormat('en-US', {
@@ -34,10 +37,19 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
       {/* Property header with status */}
       <div className="relative">
         <div className="w-full h-48 bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center overflow-hidden">
-          <div className="text-center">
-            <Building2 className="h-16 w-16 text-blue-400 mx-auto mb-2" />
-            <div className="text-sm text-blue-600 font-medium">{property.category_name}</div>
-          </div>
+          {property.main_image && !imageError ? (
+            <img
+              src={getFullImageUrl(property.main_image)}
+              alt={`Property ${property.reference_number}`}
+              className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
+            />
+          ) : (
+            <div className="text-center">
+              <Building2 className="h-16 w-16 text-blue-400 mx-auto mb-2" />
+              <div className="text-sm text-blue-600 font-medium">{property.category_name}</div>
+            </div>
+          )}
         </div>
         
         {/* Status badge */}
@@ -104,74 +116,6 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
             <span>{property.concierge ? 'Concierge' : 'No Concierge'}</span>
           </div>
         </div>
-        
-        {/* Details */}
-        {property.details && (
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-            <div className="text-xs text-gray-500 mb-2 font-medium">DETAILS</div>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {property.details.floor && (
-                <div>Floor: {property.details.floor}</div>
-              )}
-              {property.details.balcony !== undefined && (
-                <div>Balcony: {property.details.balcony ? 'Yes' : 'No'}</div>
-              )}
-              {property.details.parking !== undefined && (
-                <div>Parking: {property.details.parking}</div>
-              )}
-              {property.details.cave !== undefined && (
-                <div>Cave: {property.details.cave ? 'Yes' : 'No'}</div>
-              )}
-            </div>
-          </div>
-        )}
-        
-        {/* Owner info */}
-        <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-          <div className="text-xs text-blue-600 mb-2 font-medium">OWNER</div>
-          <div className="flex items-center mb-2">
-            <User className="h-4 w-4 mr-2 text-blue-500" />
-            <span className="text-sm font-medium">{property.owner_name}</span>
-          </div>
-          {property.phone_number && (
-            <div className="flex items-center text-sm text-blue-600">
-              <Phone className="h-4 w-4 mr-2" />
-              <span>{property.phone_number}</span>
-            </div>
-          )}
-        </div>
-        
-        {/* Agent info if assigned */}
-        {property.agent_name && (
-          <div className="mb-4 p-3 bg-green-50 rounded-lg">
-            <div className="text-xs text-green-600 mb-2 font-medium">AGENT</div>
-            <div className="text-sm font-medium text-green-800">{property.agent_name}</div>
-            {property.agent_role && (
-              <div className="text-xs text-green-600">{property.agent_role}</div>
-            )}
-          </div>
-        )}
-        
-        {/* Referral info if available */}
-        {property.referral_source && (
-          <div className="mb-4 p-3 bg-purple-50 rounded-lg">
-            <div className="text-xs text-purple-600 mb-2 font-medium">REFERRAL</div>
-            <div className="text-sm text-purple-800">{property.referral_source}</div>
-            {property.referral_dates && property.referral_dates.length > 0 && (
-              <div className="text-xs text-purple-600 mt-1">
-                {property.referral_dates.map(date => formatDate(date)).join(', ')}
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Notes if available */}
-        {property.notes && (
-          <div className="mb-4 p-3 bg-yellow-50 rounded-lg">
-            <div className="text-xs text-yellow-600 mb-2 font-medium">NOTES</div>
-            <div className="text-sm text-yellow-800">{property.notes}</div>
-          </div>
-        )}
         
         {/* Created date */}
         <div className="text-xs text-gray-400 mb-4">

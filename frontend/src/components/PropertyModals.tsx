@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useEffect } from 'react'
-import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload } from 'lucide-react'
+import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2 } from 'lucide-react'
 import { Property, Category, Status, EditFormData } from '@/types/property'
 import { compressAndConvertToBase64, getRecommendedCompressionOptions } from '@/utils/imageCompression'
 import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, validateImageFiles, createImagePreview, getFullImageUrl } from '@/utils/imageUpload'
@@ -55,6 +55,8 @@ interface PropertyModalsProps {
   onSaveAdd: (propertyData: any) => Promise<any>
   categories: Category[]
   statuses: Status[]
+  onRefreshCategories?: () => void
+  onRefreshStatuses?: () => void
 }
 
 export function PropertyModals({
@@ -88,7 +90,9 @@ export function PropertyModals({
   onGoToNextImage,
   onSaveAdd,
   categories,
-  statuses
+  statuses,
+  onRefreshCategories,
+  onRefreshStatuses
 }: PropertyModalsProps) {
   const [skipDuplicates, setSkipDuplicates] = useState(true)
   const [selectedImageState, setSelectedImageState] = useState<string>('')
@@ -133,12 +137,182 @@ export function PropertyModals({
     console.log('addFormData.main_image changed:', addFormData.main_image ? 'has image' : 'no image')
   }, [addFormData.main_image])
 
-  // Fetch agents when the add property modal opens
+  // Fetch agents when the add property modal or edit modal opens
   useEffect(() => {
-    if (showAddPropertyModal) {
+    if (showAddPropertyModal || showEditPropertyModal) {
       fetchAgents()
     }
-  }, [showAddPropertyModal])
+  }, [showAddPropertyModal, showEditPropertyModal])
+
+  // Fetch complete property details from backend when editing property changes
+  useEffect(() => {
+    const fetchPropertyDetails = async () => {
+      if (editingProperty && showEditPropertyModal) {
+        try {
+          console.log('🔧 Fetching complete property details for ID:', editingProperty.id)
+          
+          // Make API call to get complete property details
+          const response = await fetch(`http://localhost:10000/api/properties/${editingProperty.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          })
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+
+          const result = await response.json()
+          
+          if (result.success && result.data) {
+            const propertyData = result.data
+            console.log('✅ Property details fetched from backend:', propertyData)
+            console.log('🔍 Details field value:', propertyData.details)
+            console.log('🔍 Referral dates value:', propertyData.referral_dates)
+            
+            const formData = {
+              reference_number: propertyData.reference_number || '',
+              status_id: propertyData.status_id || 0,
+              location: propertyData.location || '',
+              category_id: propertyData.category_id || 0,
+              building_name: propertyData.building_name || '',
+              owner_name: propertyData.owner_name || '',
+              phone_number: propertyData.phone_number || '',
+              surface: propertyData.surface,
+              details: typeof propertyData.details === 'string' ? propertyData.details : (propertyData.details ? JSON.stringify(propertyData.details, null, 2) : ''),
+              interior_details: propertyData.interior_details || '',
+              built_year: propertyData.built_year,
+              view_type: propertyData.view_type,
+              concierge: propertyData.concierge || false,
+              agent_id: propertyData.agent_id,
+              price: propertyData.price,
+              notes: propertyData.notes || '',
+              referral_source: propertyData.referral_source || '',
+              referral_dates: (propertyData.referral_dates || []).map((date: string) => {
+                // Convert ISO date to YYYY-MM-DD format for the form
+                if (typeof date === 'string' && date.includes('T')) {
+                  return date.split('T')[0]
+                }
+                return date
+              }),
+              main_image: propertyData.main_image || '',
+              image_gallery: propertyData.image_gallery || []
+            }
+            
+            console.log('🎯 Setting editFormData:', formData)
+            setEditFormData(formData)
+          } else {
+            console.error('❌ Failed to fetch property details:', result.message)
+            // Fallback to existing property data
+            setEditFormData({
+              reference_number: editingProperty.reference_number || '',
+              status_id: editingProperty.status_id || 0,
+              location: editingProperty.location || '',
+              category_id: editingProperty.category_id || 0,
+              building_name: editingProperty.building_name || '',
+              owner_name: editingProperty.owner_name || '',
+              phone_number: editingProperty.phone_number || '',
+              surface: editingProperty.surface,
+              details: typeof editingProperty.details === 'string' ? editingProperty.details : (editingProperty.details ? JSON.stringify(editingProperty.details, null, 2) : ''),
+              interior_details: editingProperty.interior_details || '',
+              built_year: editingProperty.built_year,
+              view_type: editingProperty.view_type,
+              concierge: editingProperty.concierge || false,
+              agent_id: editingProperty.agent_id,
+              price: editingProperty.price,
+              notes: editingProperty.notes || '',
+              referral_source: editingProperty.referral_source || '',
+              referral_dates: (editingProperty.referral_dates || []).map((date: string) => {
+                // Convert ISO date to YYYY-MM-DD format for the form
+                if (typeof date === 'string' && date.includes('T')) {
+                  return date.split('T')[0]
+                }
+                return date
+              }),
+              main_image: editingProperty.main_image || '',
+              image_gallery: editingProperty.image_gallery || []
+            })
+          }
+        } catch (error) {
+          console.error('❌ Error fetching property details:', error)
+          // Fallback to existing property data
+          setEditFormData({
+            reference_number: editingProperty.reference_number || '',
+            status_id: editingProperty.status_id || 0,
+            location: editingProperty.location || '',
+            category_id: editingProperty.category_id || 0,
+            building_name: editingProperty.building_name || '',
+            owner_name: editingProperty.owner_name || '',
+            phone_number: editingProperty.phone_number || '',
+            surface: editingProperty.surface,
+            details: typeof editingProperty.details === 'string' ? editingProperty.details : (editingProperty.details ? JSON.stringify(editingProperty.details, null, 2) : ''),
+            interior_details: editingProperty.interior_details || '',
+            built_year: editingProperty.built_year,
+            view_type: editingProperty.view_type,
+            concierge: editingProperty.concierge || false,
+            agent_id: editingProperty.agent_id,
+            price: editingProperty.price,
+            notes: editingProperty.notes || '',
+            referral_source: editingProperty.referral_source || '',
+            referral_dates: (editingProperty.referral_dates || []).map(date => {
+              // Convert ISO date to YYYY-MM-DD format for the form
+              if (typeof date === 'string' && date.includes('T')) {
+                return date.split('T')[0]
+              }
+              return date
+            }),
+            main_image: editingProperty.main_image || '',
+            image_gallery: editingProperty.image_gallery || []
+          })
+        }
+      }
+    }
+
+    fetchPropertyDetails()
+  }, [editingProperty, showEditPropertyModal, setEditFormData])
+
+  // Fetch complete property details for view modal as well
+  const [viewPropertyData, setViewPropertyData] = useState<Property | null>(null)
+  
+  useEffect(() => {
+    const fetchViewPropertyDetails = async () => {
+      if (viewingProperty && showViewPropertyModal) {
+        try {
+          console.log('👁️ Fetching complete property details for viewing ID:', viewingProperty.id)
+          
+          // Make API call to get complete property details
+          const response = await fetch(`http://localhost:10000/api/properties/${viewingProperty.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json'
+            }
+          })
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`)
+          }
+
+          const result = await response.json()
+          
+          if (result.success && result.data) {
+            console.log('✅ View property details fetched from backend:', result.data)
+            setViewPropertyData(result.data)
+          } else {
+            console.error('❌ Failed to fetch view property details:', result.message)
+            setViewPropertyData(viewingProperty) // Fallback to existing data
+          }
+        } catch (error) {
+          console.error('❌ Error fetching view property details:', error)
+          setViewPropertyData(viewingProperty) // Fallback to existing data
+        }
+      } else {
+        setViewPropertyData(null)
+      }
+    }
+
+    fetchViewPropertyDetails()
+  }, [viewingProperty, showViewPropertyModal])
 
   // Function to fetch agents
   const fetchAgents = async () => {
@@ -645,12 +819,24 @@ export function PropertyModals({
 
                 {/* Property Details Form */}
                 <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Status <span className="text-red-500">*</span>
-                      </label>
-                      <select
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Status <span className="text-red-500">*</span>
+                        </label>
+                        {onRefreshStatuses && (
+                          <button
+                            type="button"
+                            onClick={onRefreshStatuses}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Refresh statuses list"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <select 
                         id="add-status"
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
@@ -664,10 +850,22 @@ export function PropertyModals({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Category <span className="text-red-500">*</span>
-                      </label>
-                      <select
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Category <span className="text-red-500">*</span>
+                        </label>
+                        {onRefreshCategories && (
+                          <button
+                            type="button"
+                            onClick={onRefreshCategories}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Refresh categories list"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                      <select 
                         id="add-category"
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
@@ -756,7 +954,18 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">Assigned Agent</label>
+                        <button
+                          type="button"
+                          onClick={fetchAgents}
+                          disabled={agentsLoading}
+                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Refresh agents list"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${agentsLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
                       <select
                         id="add-agent"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
@@ -983,10 +1192,65 @@ export function PropertyModals({
 
             {/* Modal Body */}
             <div className="p-6">
-              <div className="space-y-6">
-                {/* Property Information */}
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">Property Information</h4>
+              <form onSubmit={(e) => {
+                e.preventDefault()
+                onSaveEdit()
+              }}>
+                {/* Main Image Section - Top of Modal */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image</label>
+                  <div className="relative group">
+                    <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
+                      {editFormData.main_image ? (
+                        <img
+                          src={getFullImageUrl(editFormData.main_image)}
+                          alt="Main property image"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <div className="text-center">
+                            <Edit className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600">Click to upload main image</p>
+                            <p className="text-xs text-gray-400">Recommended: 16:9 aspect ratio</p>
+                          </div>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 bg-black bg-opacity-0 opacity-0 group-hover:opacity-100 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Create a file input element for main image
+                            const fileInput = document.createElement('input')
+                            fileInput.type = 'file'
+                            fileInput.accept = 'image/*'
+                            fileInput.onchange = (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = (event) => {
+                                  const base64 = event.target?.result as string
+                                  setEditFormData((prev: EditFormData) => ({
+                                    ...prev,
+                                    main_image: base64
+                                  }))
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }
+                            fileInput.click()
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white bg-opacity-90 p-2 rounded-full shadow-lg hover:bg-opacity-100"
+                        >
+                          <Edit className="h-5 w-5 text-gray-700" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Property Details Form */}
+                <div className="space-y-6">
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -1120,74 +1384,192 @@ export function PropertyModals({
                         <option value="no view">No View</option>
                       </select>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <label className="flex items-center">
-                        <input
-                          type="checkbox"
-                          checked={editFormData.concierge}
-                          onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, concierge: e.target.checked }))}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="ml-2 text-sm font-medium text-gray-700">Concierge Service</span>
-                      </label>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">Assigned Agent</label>
+                        <button
+                          type="button"
+                          onClick={fetchAgents}
+                          disabled={agentsLoading}
+                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Refresh agents list"
+                        >
+                          <RefreshCw className={`h-4 w-4 ${agentsLoading ? 'animate-spin' : ''}`} />
+                        </button>
+                      </div>
+                      <select
+                        value={editFormData.agent_id || ''}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: parseInt(e.target.value) || undefined }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      >
+                        <option value="">Select Agent (Optional)</option>
+                        {agentsLoading ? (
+                          <option value="" disabled>Loading agents...</option>
+                        ) : agentsError ? (
+                          <option value="" disabled>Error loading agents</option>
+                        ) : (
+                          agents.map(agent => (
+                            <option key={agent.id} value={agent.id}>
+                              {agent.name} - {agent.location || 'No location'}
+                            </option>
+                          ))
+                        )}
+                      </select>
+                      {agentsError && (
+                        <p className="text-xs text-red-500 mt-1">{agentsError}</p>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Main Image Section */}
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">Main Image</h4>
-                  <div className="relative group">
-                    <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300">
-                      {editFormData.main_image ? (
-                        <img
-                          src={editFormData.main_image}
-                          alt="Main property image"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          {/* Camera icon for placeholder */}
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera h-12 w-12 text-gray-400"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+                  <div className="flex items-center space-x-3">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={editFormData.concierge}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, concierge: e.target.checked }))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="ml-2 text-sm font-medium text-gray-700">Concierge Service</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Details</label>
+                    <textarea
+                      rows={3}
+                      value={typeof editFormData.details === 'string' ? editFormData.details : (editFormData.details ? JSON.stringify(editFormData.details, null, 2) : '')}
+                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, details: e.target.value }))}
+                      placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
+                    <textarea
+                      rows={3}
+                      value={editFormData.interior_details || ''}
+                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, interior_details: e.target.value }))}
+                      placeholder="Enter interior details and features"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <textarea
+                      rows={3}
+                      value={editFormData.notes || ''}
+                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Enter additional notes about the property"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <ReferralSelector
+                      referrals={(() => {
+                        // Create referral objects from the stored data
+                        if (editFormData.referral_dates && editFormData.referral_dates.length > 0) {
+                          return editFormData.referral_dates.map(date => ({
+                            source: editFormData.referral_source || '',
+                            date: date,
+                            isCustom: false
+                          }))
+                        }
+                        // If no dates but there's a source, create one entry
+                        if (editFormData.referral_source) {
+                          return [{
+                            source: editFormData.referral_source,
+                            date: new Date().toISOString().split('T')[0], // Today's date
+                            isCustom: false
+                          }]
+                        }
+                        return []
+                      })()}
+                      onReferralsChange={(referrals) => {
+                        const referralSource = referrals.length > 0 ? referrals[0].source : ''
+                        const referralDates = referrals.map(r => r.date)
+                        setEditFormData((prev: EditFormData) => ({ 
+                          ...prev, 
+                          referral_source: referralSource,
+                          referral_dates: referralDates
+                        }))
+                      }}
+                      placeholder="Click to edit referral sources..."
+                    />
+                  </div>
+
+                  {/* Image Gallery Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Image Gallery</label>
+                    <div className="space-y-4">
+                      {/* Gallery Images Display */}
+                      {editFormData.image_gallery && editFormData.image_gallery.length > 0 && (
+                        <div className="grid grid-cols-4 gap-3">
+                          {editFormData.image_gallery.map((image, index) => (
+                            <div key={index} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-300">
+                              <img
+                                src={getFullImageUrl(image)}
+                                alt={`Gallery image ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updatedGallery = editFormData.image_gallery?.filter((_, i) => i !== index)
+                                  setEditFormData((prev: EditFormData) => ({ ...prev, image_gallery: updatedGallery }))
+                                }}
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center">
-                        <button
-                          onClick={() => mainImageInputRef.current?.click()}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white bg-opacity-90 p-2 rounded-full shadow-lg hover:bg-opacity-100"
-                        >
-                          <Edit className="h-5 w-5 text-gray-700" />
-                        </button>
+
+                      {/* Add Gallery Images Button */}
+                      <div 
+                        className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
+                        onClick={() => {
+                          // Create a file input element
+                          const fileInput = document.createElement('input')
+                          fileInput.type = 'file'
+                          fileInput.multiple = true
+                          fileInput.accept = 'image/*'
+                          fileInput.onchange = (e) => {
+                            const files = (e.target as HTMLInputElement).files
+                            if (files) {
+                              // Handle multiple file selection
+                              Array.from(files).forEach(file => {
+                                const reader = new FileReader()
+                                reader.onload = (event) => {
+                                  const base64 = event.target?.result as string
+                                  setEditFormData((prev: EditFormData) => ({
+                                    ...prev,
+                                    image_gallery: [...(prev.image_gallery || []), base64]
+                                  }))
+                                }
+                                reader.readAsDataURL(file)
+                              })
+                            }
+                          }
+                          fileInput.click()
+                        }}
+                      >
+                        <div className="flex items-center justify-center space-x-2">
+                          <Plus className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                          <span className="text-sm text-gray-600 group-hover:text-blue-600 transition-colors">
+                            Add Gallery Images
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">Click to add multiple images</p>
                       </div>
                     </div>
                   </div>
-
-                  {editFormData.image_gallery && editFormData.image_gallery.length > 0 ? (
-                    <div className="grid grid-cols-4 gap-3">
-                      {editFormData.image_gallery.map((image, index) => (
-                        <div key={index} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
-                          <img
-                            src={image}
-                            alt={`Gallery image ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            onClick={() => {
-                              setEditFormData((prev: EditFormData) => ({
-                                ...prev,
-                                image_gallery: (prev.image_gallery || []).filter((_, i) => i !== index)
-                              }))
-                            }}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
                 </div>
-              </div>
+              </form>
             </div>
 
             {/* Modal Footer */}
@@ -1210,7 +1592,7 @@ export function PropertyModals({
       )}
 
       {/* View Property Modal */}
-      {showViewPropertyModal && viewingProperty && (
+      {showViewPropertyModal && viewPropertyData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
@@ -1236,118 +1618,234 @@ export function PropertyModals({
             {/* Modal Body */}
             <div className="p-6">
               <div className="space-y-6">
-                {/* Property Information */}
+                {/* Main Image Section - Top of Modal */}
                 <div>
-                  <h4 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">Property Information</h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.reference_number}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.location}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.category_name}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewingProperty.status_name === 'Active' ? 'bg-blue-100 text-blue-800' :
-                          viewingProperty.status_name === 'Sold' ? 'bg-green-100 text-green-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                          {viewingProperty.status_name}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-green-600 font-semibold">
-                        {viewingProperty.price ? `$${viewingProperty.price.toLocaleString()}` : 'N/A'}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Agent</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.agent_name || 'N/A'}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Surface Area</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.surface ? `${viewingProperty.surface} m²` : 'N/A'}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.built_year || 'N/A'}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewingProperty.view_type ? viewingProperty.view_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-6 mt-4">
-                    <div className="flex items-center">
-                      <span className="text-sm font-medium text-gray-700 mr-2">Concierge Service:</span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewingProperty.concierge ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                        {viewingProperty.concierge ? 'Yes' : 'No'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Main Image Section */}
-                <div>
-                  <h4 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">Main Image</h4>
-                  <div className="relative group">
-                    <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300">
-                      {viewingProperty.main_image ? (
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image</label>
+                  <div className="relative">
+                    <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-200">
+                      {viewPropertyData.main_image ? (
                         <img
-                          src={getFullImageUrl(viewingProperty.main_image)}
+                          src={getFullImageUrl(viewPropertyData.main_image)}
                           alt="Main property image"
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          {/* Building icon for placeholder */}
-                          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-building-2 h-16 w-16 text-gray-400"><path d="M3 21v-6a9 9 0 0 1 9-9h3a9 9 0 0 1 9 9v6" /><path d="M7 10V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v6" /><path d="M10 13a2 2 0 1 0 4 0 2 2 0 0 0-4 0" /><path d="M10 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0" /></svg>
+                          <div className="text-center">
+                            <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm text-gray-600">No main image</p>
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Image Gallery Section */}
-                {viewingProperty.image_gallery && viewingProperty.image_gallery.length > 0 && (
+                {/* Property Details */}
+                <div className="space-y-6">
+                  {/* Reference Number at the top */}
                   <div>
-                    <h4 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">Image Gallery</h4>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
+                    <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-semibold">
+                      {viewPropertyData.reference_number}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <span 
+                          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
+                          style={{ backgroundColor: viewPropertyData.status_color }}
+                        >
+                          {viewPropertyData.status_name}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.category_name}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.location}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.building_name || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Owner Name</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.owner_name || 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.phone_number || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Surface Area (m²)</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.surface ? `${viewPropertyData.surface} m²` : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.built_year || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.agent_name || 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.view_type ? viewPropertyData.view_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-green-600 font-semibold">
+                        {viewPropertyData.price ? `$${viewPropertyData.price.toLocaleString()}` : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-6">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium text-gray-700 mr-2">Concierge Service:</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewPropertyData.concierge ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                        {viewPropertyData.concierge ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Details and Notes Section */}
+                  {(viewPropertyData.details || viewPropertyData.interior_details || viewPropertyData.notes) && (
+                    <div className="space-y-4">
+                      {viewPropertyData.details && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Property Details</label>
+                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                            {typeof viewPropertyData.details === 'string' ? (
+                              <div className="whitespace-pre-wrap">{viewPropertyData.details}</div>
+                            ) : typeof viewPropertyData.details === 'object' && viewPropertyData.details !== null ? (
+                              <div className="grid grid-cols-2 gap-2">
+                                {(viewPropertyData.details as any).floor && (
+                                  <div><strong>Floor:</strong> {(viewPropertyData.details as any).floor}</div>
+                                )}
+                                {(viewPropertyData.details as any).balcony !== undefined && (
+                                  <div><strong>Balcony:</strong> {(viewPropertyData.details as any).balcony ? 'Yes' : 'No'}</div>
+                                )}
+                                {(viewPropertyData.details as any).parking !== undefined && (
+                                  <div><strong>Parking:</strong> {(viewPropertyData.details as any).parking}</div>
+                                )}
+                                {(viewPropertyData.details as any).cave !== undefined && (
+                                  <div><strong>Cave:</strong> {(viewPropertyData.details as any).cave ? 'Yes' : 'No'}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <div>Details unavailable</div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {viewPropertyData.interior_details && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
+                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 whitespace-pre-wrap">
+                            {viewPropertyData.interior_details}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {viewPropertyData.notes && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 whitespace-pre-wrap">
+                            {viewPropertyData.notes}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Referral Information */}
+                  {(viewPropertyData.referral_source || viewPropertyData.referral_dates) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Referral Information</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.referral_source && (
+                          <div className="mb-2">
+                            <strong>Source:</strong> {viewPropertyData.referral_source}
+                          </div>
+                        )}
+                        {viewPropertyData.referral_dates && viewPropertyData.referral_dates.length > 0 && (
+                          <div>
+                            <strong>Dates:</strong>
+                            <div className="flex flex-wrap gap-2 ms-1 inline-block">
+                              {viewPropertyData.referral_dates.map((date, index) => (
+                                <span 
+                                  key={index}
+                                  className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800"
+                                >
+                                  {new Date(date).toLocaleDateString()}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center space-x-6 mt-4">
+                    <div className="flex items-center">
+                      <span className="text-sm font-medium text-gray-700 mr-2">Concierge Service:</span>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewPropertyData.concierge ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                        {viewPropertyData.concierge ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Image Gallery Section */}
+                {viewPropertyData.image_gallery && viewPropertyData.image_gallery.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Gallery Images</label>
                     <div className="grid grid-cols-4 gap-3">
-                      {viewingProperty.image_gallery.map((image, index) => (
+                      {viewPropertyData.image_gallery.map((image, index) => (
                         <div key={index} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-gray-300 transition-colors">
                           <img
                             src={getFullImageUrl(image)}
@@ -1355,26 +1853,13 @@ export function PropertyModals({
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => {
                               setSelectedImageState(getFullImageUrl(image))
-                              setAllImagesState(viewingProperty.image_gallery?.map(img => getFullImageUrl(img)) || [])
+                              setAllImagesState(viewPropertyData.image_gallery?.map(img => getFullImageUrl(img)) || [])
                               setCurrentImageIndexState(index)
                               setShowImageModal(true)
                             }}
                           />
                         </div>
                       ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* No Gallery Images Message */}
-                {(!viewingProperty.image_gallery || viewingProperty.image_gallery.length === 0) && (
-                  <div>
-                    <h4 className="text-lg font-medium text-gray-900 border-b border-gray-200 pb-2 mb-4">Image Gallery</h4>
-                    <div className="text-center py-6 text-gray-500 border-2 border-dashed border-gray-200 rounded-lg">
-                      {/* Camera icon for placeholder */}
-                      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-camera h-8 w-8 text-gray-300 mb-2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
-                      <p className="text-sm">No additional images</p>
-                      <p className="text-xs text-gray-400">This property doesn't have additional gallery images</p>
                     </div>
                   </div>
                 )}
@@ -1392,8 +1877,9 @@ export function PropertyModals({
               <button
                 onClick={() => {
                   setShowViewPropertyModal(false)
-                  // This would typically open the edit modal
-                  // You might need to add a prop for this functionality
+                  if (viewingProperty) {
+                    setShowEditPropertyModal(true)
+                  }
                 }}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               >

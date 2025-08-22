@@ -12,7 +12,7 @@ export interface Property {
   owner_name: string
   phone_number?: string
   surface?: number
-  details?: string // Changed from object to string as per backend changes
+  details?: string | object // Can be either string or object (legacy support)
   interior_details?: string
   built_year?: number
   view_type?: 'open view' | 'sea view' | 'mountain view' | 'no view'
@@ -43,7 +43,7 @@ export interface EditFormData {
   owner_name: string
   phone_number?: string
   surface?: number
-  details?: string // Changed from object to string
+  details?: string | object // Can be either string or object (legacy support)
   interior_details?: string
   built_year?: number
   view_type?: 'open view' | 'sea view' | 'mountain view' | 'no view'
