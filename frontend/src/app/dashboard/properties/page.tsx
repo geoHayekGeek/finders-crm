@@ -62,7 +62,7 @@ export default function PropertiesPage() {
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(12)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
   
   // Statistics state
   const [stats, setStats] = useState<any>(null)
@@ -230,6 +230,12 @@ export default function PropertiesPage() {
     const startIndex = (currentPage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     return filteredProperties.slice(startIndex, endIndex)
+  }, [filteredProperties, currentPage, itemsPerPage])
+
+  // Grid view properties (accumulated for "load more" functionality)
+  const gridViewProperties = useMemo(() => {
+    const endIndex = currentPage * itemsPerPage
+    return filteredProperties.slice(0, endIndex)
   }, [filteredProperties, currentPage, itemsPerPage])
 
   // Action handlers
@@ -488,6 +494,12 @@ export default function PropertiesPage() {
     setCurrentPage(1)
   }
 
+  // Handle items per page change
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage)
+    setCurrentPage(1) // Reset to first page when changing page size
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -595,7 +607,7 @@ export default function PropertiesPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${properties.reduce((sum, p) => sum + (parseFloat(p.price) || 0), 0).toLocaleString()}
+                  ${properties.reduce((sum, p) => sum + (parseFloat(p.price?.toString() || '0') || 0), 0).toLocaleString()}
                 </p>
               </div>
             </div>
@@ -661,7 +673,7 @@ export default function PropertiesPage() {
       {viewMode === 'grid' ? (
         // Grid View
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {paginatedProperties.map((property) => (
+          {gridViewProperties.map((property) => (
             <PropertyCard
               key={property.id}
               property={property}
@@ -689,7 +701,7 @@ export default function PropertiesPage() {
           startIndex={(currentPage - 1) * itemsPerPage}
           endIndex={currentPage * itemsPerPage}
           onPageChange={setCurrentPage}
-          onItemsPerPageChange={() => {}}
+          onItemsPerPageChange={handleItemsPerPageChange}
           viewMode={viewMode}
         />
       )}
