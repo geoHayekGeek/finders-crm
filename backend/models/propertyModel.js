@@ -63,12 +63,12 @@ class Property {
           p.id,
           p.reference_number,
           p.status_id,
-          s.name as status_name,
-          s.color as status_color,
+          COALESCE(s.name, 'Uncategorized Status') as status_name,
+          COALESCE(s.color, '#6B7280') as status_color,
           p.location,
           p.category_id,
-          c.name as category_name,
-          c.code as category_code,
+          COALESCE(c.name, 'Uncategorized') as category_name,
+          COALESCE(c.code, 'UNCAT') as category_code,
           p.building_name,
           p.owner_name,
           p.phone_number,
@@ -91,8 +91,8 @@ class Property {
           p.created_at,
           p.updated_at
         FROM properties p
-        LEFT JOIN statuses s ON p.status_id = s.id
-        LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true AND s.is_active = true
+        LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true AND c.is_active = true
         LEFT JOIN users u ON p.agent_id = u.id
         ORDER BY p.created_at DESC
       `);
@@ -116,12 +116,12 @@ class Property {
         p.id,
         p.reference_number,
         p.status_id,
-        s.name as status_name,
-        s.color as status_color,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
         p.location,
         p.category_id,
-        c.name as category_name,
-        c.code as category_code,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
         p.owner_name,
         p.phone_number,
@@ -144,8 +144,8 @@ class Property {
         p.created_at,
         p.updated_at
       FROM properties p
-      LEFT JOIN statuses s ON p.status_id = s.id
-      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
@@ -159,12 +159,12 @@ class Property {
         p.id,
         p.reference_number,
         p.status_id,
-        s.name as status_name,
-        s.color as status_color,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
         p.location,
         p.category_id,
-        c.name as category_name,
-        c.code as category_code,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
         p.owner_name,
         p.phone_number,
@@ -187,8 +187,8 @@ class Property {
         p.created_at,
         p.updated_at
       FROM properties p
-      LEFT JOIN statuses s ON p.status_id = s.id
-      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       WHERE p.id = $1
     `, [id]);
@@ -225,12 +225,12 @@ class Property {
         p.id,
         p.reference_number,
         p.status_id,
-        s.name as status_name,
-        s.color as status_color,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
         p.location,
         p.category_id,
-        c.name as category_name,
-        c.code as category_code,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
         p.owner_name,
         p.phone_number,
@@ -253,8 +253,8 @@ class Property {
         p.created_at,
         p.updated_at
       FROM properties p
-      LEFT JOIN statuses s ON p.status_id = s.id
-      LEFT JOIN categories c ON p.category_id = c.id
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       WHERE 1=1
     `;
@@ -344,7 +344,7 @@ class Property {
         COUNT(CASE WHEN s.code = 'rented' THEN 1 END) as rented,
         COUNT(CASE WHEN s.code = 'under_contract' THEN 1 END) as under_contract
       FROM properties p
-      LEFT JOIN statuses s ON p.status_id = s.id
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
     `);
     return result.rows[0];
   }
@@ -365,8 +365,8 @@ class Property {
   static async getPropertiesByCategory() {
     const result = await pool.query(`
       SELECT 
-        c.name as category_name,
-        c.code as category_code,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
         COUNT(p.id) as count
       FROM categories c
       LEFT JOIN properties p ON c.id = p.category_id
@@ -380,8 +380,8 @@ class Property {
   static async getPropertiesByStatus() {
     const result = await pool.query(`
       SELECT 
-        s.name as status_name,
-        s.color as status_color,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
         COUNT(p.id) as count
       FROM statuses s
       LEFT JOIN properties p ON s.id = s.id

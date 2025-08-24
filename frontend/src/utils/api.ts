@@ -11,15 +11,22 @@ export class ApiError extends Error {
 
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  token?: string
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...options.headers as Record<string, string>,
+  }
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  
   const config: RequestInit = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
+    headers,
     ...options,
   }
 
@@ -134,19 +141,51 @@ export const propertiesApi = {
 
 // Categories API
 export const categoriesApi = {
-  getAll: () => apiRequest<{ success: boolean; data: any[] }>('/categories'),
+  getAll: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/categories', {}, token),
+  getAllForAdmin: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/categories/admin', {}, token),
   getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/categories/demo'),
-  getWithCount: () => apiRequest<{ success: boolean; data: any[] }>('/categories/with-count'),
-  search: (query: string) => apiRequest<{ success: boolean; data: any[] }>(`/categories/search?q=${encodeURIComponent(query)}`),
+  getWithCount: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/categories/with-count', {}, token),
+  search: (query: string, token?: string) => apiRequest<{ success: boolean; data: any[] }>(`/categories/search?q=${encodeURIComponent(query)}`, {}, token),
+  getById: (id: number, token?: string) => apiRequest<{ success: boolean; data: any }>(`/categories/${id}`, {}, token),
+  create: (data: { name: string; code: string; description?: string; is_active?: boolean }, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message: string }>('/categories', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+  update: (id: number, data: { name?: string; code?: string; description?: string; is_active?: boolean }, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message: string }>(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, token),
+  delete: (id: number, token?: string) => 
+    apiRequest<{ success: boolean; message: string }>(`/categories/${id}`, {
+      method: 'DELETE',
+    }, token),
 }
 
 // Statuses API
 export const statusesApi = {
-  getAll: () => apiRequest<{ success: boolean; data: any[] }>('/statuses'),
+  getAll: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses', {}, token),
+  getAllForAdmin: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses/admin', {}, token),
   getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/demo'),
-  getWithCount: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/with-count'),
-  getStats: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/stats'),
-  search: (query: string) => apiRequest<{ success: boolean; data: any[] }>(`/statuses/search?q=${encodeURIComponent(query)}`),
+  getWithCount: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses/with-count', {}, token),
+  getStats: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses/stats', {}, token),
+  search: (query: string, token?: string) => apiRequest<{ success: boolean; data: any[] }>(`/statuses/search?q=${encodeURIComponent(query)}`, {}, token),
+  getById: (id: number, token?: string) => apiRequest<{ success: boolean; data: any }>(`/statuses/${id}`, {}, token),
+  create: (data: { name: string; code: string; description?: string; color?: string; is_active?: boolean }, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message: string }>('/statuses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token),
+  update: (id: number, data: { name?: string; code?: string; description?: string; color?: string; is_active?: boolean }, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message: string }>(`/statuses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, token),
+  delete: (id: number, token?: string) => 
+    apiRequest<{ success: boolean; message: string }>(`/statuses/${id}`, {
+      method: 'DELETE',
+    }, token),
 }
 
 // Mock data for development (when backend is not available)

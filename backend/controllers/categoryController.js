@@ -2,7 +2,7 @@
 const Category = require('../models/categoryModel');
 
 class CategoryController {
-  // Get all categories
+  // Get all categories (active only)
   static async getAllCategories(req, res) {
     try {
       const categories = await Category.getAllCategories();
@@ -15,6 +15,24 @@ class CategoryController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve categories',
+        error: error.message
+      });
+    }
+  }
+
+  // Get all categories for admin (active and inactive)
+  static async getAllCategoriesForAdmin(req, res) {
+    try {
+      const categories = await Category.getAllCategoriesForAdmin();
+      res.json({
+        success: true,
+        data: categories
+      });
+    } catch (error) {
+      console.error('Error getting categories for admin:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve categories for admin',
         error: error.message
       });
     }
@@ -77,7 +95,7 @@ class CategoryController {
   // Create new category
   static async createCategory(req, res) {
     try {
-      const { name, code, description } = req.body;
+      const { name, code, description, is_active } = req.body;
 
       // Validation
       if (!name || !code) {
@@ -90,7 +108,8 @@ class CategoryController {
       const category = await Category.createCategory({
         name,
         code,
-        description
+        description,
+        is_active: is_active !== undefined ? is_active : true
       });
 
       res.status(201).json({

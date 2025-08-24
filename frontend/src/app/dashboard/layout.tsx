@@ -17,8 +17,28 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
-  Calendar
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Tag,
+  Circle,
+  LucideIcon
 } from 'lucide-react'
+
+interface NavigationSubmenuItem {
+  name: string
+  href: string
+  icon: LucideIcon
+}
+
+interface NavigationItem {
+  name: string
+  href: string
+  icon: LucideIcon
+  alwaysVisible: boolean
+  hasSubmenu?: boolean
+  submenu?: NavigationSubmenuItem[]
+}
 
 export default function DashboardLayout({
   children,
@@ -27,17 +47,29 @@ export default function DashboardLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
+  const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const { user, logout } = useAuth()
   const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance } = usePermissions()
 
   // Permission-based navigation
-  const getNavigation = () => {
-    const baseNavigation = [
+  const getNavigation = (): NavigationItem[] => {
+    const baseNavigation: NavigationItem[] = [
       { name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true }
     ]
 
-    // Properties - visible to all roles
-    baseNavigation.push({ name: 'Properties', href: '/dashboard/properties', icon: Building2, alwaysVisible: true })
+    // Properties - visible to all roles with sub-menu
+    baseNavigation.push({ 
+      name: 'Properties', 
+      href: '/dashboard/properties', 
+      icon: Building2, 
+      alwaysVisible: true,
+      hasSubmenu: true,
+      submenu: [
+        { name: 'All Properties', href: '/dashboard/properties', icon: Building2 },
+        { name: 'Categories', href: '/dashboard/properties/categories', icon: Tag },
+        { name: 'Statuses', href: '/dashboard/properties/statuses', icon: Circle }
+      ]
+    })
 
     // Clients - visible to all roles
     baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
@@ -86,14 +118,46 @@ export default function DashboardLayout({
             </div>
             <nav className="flex-1 space-y-1 px-2 py-4">
               {navigation.map((item) => (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                >
-                  <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
-                  {item.name}
-                </a>
+                <div key={item.name}>
+                  {item.hasSubmenu ? (
+                    <>
+                      <button
+                        onClick={() => setPropertiesMenuOpen(!propertiesMenuOpen)}
+                        className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                      >
+                        <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
+                        {item.name}
+                        {propertiesMenuOpen ? (
+                          <ChevronUp className="ml-auto h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="ml-auto h-4 w-4" />
+                        )}
+                      </button>
+                      {propertiesMenuOpen && (
+                        <div className="ml-6 space-y-1 mt-1">
+                          {item.submenu?.map((subItem) => (
+                            <a
+                              key={subItem.name}
+                              href={subItem.href}
+                              className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                            >
+                              <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
+                              {subItem.name}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <a
+                      href={item.href}
+                      className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                    >
+                      <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
+                      {item.name}
+                    </a>
+                  )}
+                </div>
               ))}
             </nav>
             <div className="border-t border-gray-200 p-4">
@@ -150,17 +214,54 @@ export default function DashboardLayout({
 
             <nav className="flex-1 space-y-1 px-2 py-4">
               {navigation.map((item) => (
-                <a
-                  key={item.name}
-                  href={item.href}
-                  className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                  title={!sidebarExpanded ? item.name : undefined}
-                >
-                  <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
-                  {sidebarExpanded && (
-                    <span className="ml-3 transition-opacity duration-300">{item.name}</span>
+                <div key={item.name}>
+                  {item.hasSubmenu ? (
+                    <>
+                      <button
+                        onClick={() => setPropertiesMenuOpen(!propertiesMenuOpen)}
+                        className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                        title={!sidebarExpanded ? item.name : undefined}
+                      >
+                        <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                        {sidebarExpanded && (
+                          <>
+                            <span className="ml-3 transition-opacity duration-300">{item.name}</span>
+                            {propertiesMenuOpen ? (
+                              <ChevronUp className="ml-auto h-4 w-4" />
+                            ) : (
+                              <ChevronDown className="ml-auto h-4 w-4" />
+                            )}
+                          </>
+                        )}
+                      </button>
+                      {propertiesMenuOpen && sidebarExpanded && (
+                        <div className="ml-6 space-y-1 mt-1">
+                          {item.submenu?.map((subItem) => (
+                            <a
+                              key={subItem.name}
+                              href={subItem.href}
+                              className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                            >
+                              <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
+                              {subItem.name}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <a
+                      href={item.href}
+                      className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                      title={!sidebarExpanded ? item.name : undefined}
+                    >
+                      <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                      {sidebarExpanded && (
+                        <span className="ml-3 transition-opacity duration-300">{item.name}</span>
+                      )}
+                    </a>
                   )}
-                </a>
+                </div>
               ))}
             </nav>
             

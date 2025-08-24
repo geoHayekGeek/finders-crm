@@ -2,7 +2,7 @@
 const Status = require('../models/statusModel');
 
 class StatusController {
-  // Get all statuses
+  // Get all statuses (active only)
   static async getAllStatuses(req, res) {
     try {
       const statuses = await Status.getAllStatuses();
@@ -15,6 +15,24 @@ class StatusController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve statuses',
+        error: error.message
+      });
+    }
+  }
+
+  // Get all statuses for admin (active and inactive)
+  static async getAllStatusesForAdmin(req, res) {
+    try {
+      const statuses = await Status.getAllStatusesForAdmin();
+      res.json({
+        success: true,
+        data: statuses
+      });
+    } catch (error) {
+      console.error('Error getting statuses for admin:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve statuses for admin',
         error: error.message
       });
     }
@@ -77,7 +95,7 @@ class StatusController {
   // Create new status
   static async createStatus(req, res) {
     try {
-      const { name, code, description, color } = req.body;
+      const { name, code, description, color, is_active } = req.body;
 
       // Validation
       if (!name || !code) {
@@ -91,7 +109,8 @@ class StatusController {
         name,
         code,
         description,
-        color: color || '#6B7280'
+        color: color || '#6B7280',
+        is_active: is_active !== undefined ? is_active : true
       });
 
       res.status(201).json({

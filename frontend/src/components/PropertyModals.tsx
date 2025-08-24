@@ -1275,7 +1275,21 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Category *</label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Category <span className="text-red-500">*</span>
+                        </label>
+                        {onRefreshCategories && (
+                          <button
+                            type="button"
+                            onClick={onRefreshCategories}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Refresh categories list"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                       <select
                         value={editFormData.category_id}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, category_id: parseInt(e.target.value) }))}
@@ -1290,7 +1304,21 @@ export function PropertyModals({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Status *</label>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Status <span className="text-red-500">*</span>
+                        </label>
+                        {onRefreshStatuses && (
+                          <button
+                            type="button"
+                            onClick={onRefreshStatuses}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Refresh statuses list"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                       <select
                         value={editFormData.status_id}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, status_id: parseInt(e.target.value) }))}

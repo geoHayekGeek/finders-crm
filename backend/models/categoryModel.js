@@ -9,6 +9,13 @@ class Category {
     return result.rows;
   }
 
+  static async getAllCategoriesForAdmin() {
+    const result = await pool.query(
+      `SELECT * FROM categories ORDER BY name ASC`
+    );
+    return result.rows;
+  }
+
   static async getCategoryById(id) {
     const result = await pool.query(
       `SELECT * FROM categories WHERE id = $1 AND is_active = true`,
@@ -26,13 +33,13 @@ class Category {
   }
 
   static async createCategory(categoryData) {
-    const { name, code, description } = categoryData;
+    const { name, code, description, is_active } = categoryData;
     
     const result = await pool.query(
-      `INSERT INTO categories (name, code, description) 
-       VALUES ($1, $2, $3) 
+      `INSERT INTO categories (name, code, description, is_active) 
+       VALUES ($1, $2, $3, $4) 
        RETURNING *`,
-      [name, code, description]
+      [name, code, description, is_active !== undefined ? is_active : true]
     );
     return result.rows[0];
   }

@@ -8,8 +8,11 @@ const { authenticateToken, filterDataByRole } = require('../middlewares/permissi
 router.use(authenticateToken);
 router.use(filterDataByRole);
 
-// GET /api/statuses - Get all statuses (filtered by role)
+// GET /api/statuses - Get all statuses (active only, filtered by role)
 router.get('/', statusController.getAllStatuses);
+
+// GET /api/statuses/admin - Get all statuses for admin (active and inactive)
+router.get('/admin', statusController.getAllStatusesForAdmin);
 
 // GET /api/statuses/:id - Get single status
 router.get('/:id', statusController.getStatusById);

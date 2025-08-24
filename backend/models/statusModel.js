@@ -9,6 +9,13 @@ class Status {
     return result.rows;
   }
 
+  static async getAllStatusesForAdmin() {
+    const result = await pool.query(
+      `SELECT * FROM statuses ORDER BY name ASC`
+    );
+    return result.rows;
+  }
+
   static async getStatusById(id) {
     const result = await pool.query(
       `SELECT * FROM statuses WHERE id = $1 AND is_active = true`,
@@ -26,13 +33,13 @@ class Status {
   }
 
   static async createStatus(statusData) {
-    const { name, code, description, color } = statusData;
+    const { name, code, description, color, is_active } = statusData;
     
     const result = await pool.query(
-      `INSERT INTO statuses (name, code, description, color) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO statuses (name, code, description, color, is_active) 
+       VALUES ($1, $2, $3, $4, $5) 
        RETURNING *`,
-      [name, code, description, color]
+      [name, code, description, color, is_active !== undefined ? is_active : true]
     );
     return result.rows[0];
   }

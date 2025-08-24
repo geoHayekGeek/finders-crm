@@ -8,8 +8,11 @@ const { authenticateToken, filterDataByRole } = require('../middlewares/permissi
 router.use(authenticateToken);
 router.use(filterDataByRole);
 
-// GET /api/categories - Get all categories (filtered by role)
+// GET /api/categories - Get all categories (active only, filtered by role)
 router.get('/', categoryController.getAllCategories);
+
+// GET /api/categories/admin - Get all categories for admin (active and inactive)
+router.get('/admin', categoryController.getAllCategoriesForAdmin);
 
 // GET /api/categories/:id - Get single category
 router.get('/:id', categoryController.getCategoryById);
