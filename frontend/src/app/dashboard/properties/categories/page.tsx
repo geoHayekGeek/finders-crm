@@ -51,7 +51,7 @@ export default function CategoriesPage() {
       }
       
       // Use the admin API client to get all categories (active and inactive)
-      const response = await categoriesApi.getAllForAdmin(token)
+      const response = await categoriesApi.getAllForAdmin(token || undefined)
       
       if (response.success) {
         setCategories(response.data || [])

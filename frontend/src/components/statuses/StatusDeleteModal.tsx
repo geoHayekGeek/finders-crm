@@ -29,7 +29,7 @@ export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }
       setLoading(true)
       setError(null)
 
-      const response = await statusesApi.delete(status.id, token)
+      const response = await statusesApi.delete(status.id, token || undefined)
 
       if (response.success) {
         onSuccess(status.id)

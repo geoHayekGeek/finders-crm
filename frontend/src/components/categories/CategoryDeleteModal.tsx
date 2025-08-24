@@ -29,7 +29,7 @@ export default function CategoryDeleteModal({ isOpen, onClose, onSuccess, catego
       setLoading(true)
       setError(null)
 
-      const response = await categoriesApi.delete(category.id, token)
+      const response = await categoriesApi.delete(category.id, token || undefined)
 
       if (response.success) {
         onSuccess(category.id)

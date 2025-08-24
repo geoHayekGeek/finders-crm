@@ -80,10 +80,10 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
       let response
       if (category) {
         // Update existing category
-        response = await categoriesApi.update(category.id, categoryData, token)
+        response = await categoriesApi.update(category.id, categoryData, token || undefined)
       } else {
         // Create new category
-        response = await categoriesApi.create(categoryData, token)
+        response = await categoriesApi.create(categoryData, token || undefined)
       }
 
       if (response.success) {

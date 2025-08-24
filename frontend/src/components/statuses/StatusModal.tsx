@@ -107,10 +107,10 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
       let response
       if (status) {
         // Update existing status
-        response = await statusesApi.update(status.id, statusData, token)
+        response = await statusesApi.update(status.id, statusData, token || undefined)
       } else {
         // Create new status
-        response = await statusesApi.create(statusData, token)
+        response = await statusesApi.create(statusData, token || undefined)
       }
 
       if (response.success) {

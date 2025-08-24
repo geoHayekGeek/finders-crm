@@ -51,7 +51,7 @@ export default function StatusesPage() {
       }
       
       // Use the admin API client to get all statuses (active and inactive)
-      const response = await statusesApi.getAllForAdmin(token)
+      const response = await statusesApi.getAllForAdmin(token || undefined)
       
       if (response.success) {
         setStatuses(response.data || [])
