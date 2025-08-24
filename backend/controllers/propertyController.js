@@ -35,8 +35,8 @@ const getAllProperties = async (req, res) => {
       // Admin, operations manager, operations, agent manager can see all properties
       properties = await Property.getAllProperties();
     } else if (roleFilters.role === 'agent') {
-      // Agents can only see properties assigned to them
-      properties = await Property.getPropertiesByAgent(req.user.id);
+      // Agents can only see properties assigned to them or referred by them
+      properties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
     } else {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -68,12 +68,67 @@ const getPropertiesWithFilters = async (req, res) => {
     const { roleFilters } = req;
     const filters = req.query;
 
-    // Add role-based filtering
+    // Add role-based filtering for agents - they should see assigned or referred properties
+    let properties;
     if (!roleFilters.canViewAll && roleFilters.role === 'agent') {
-      filters.agent_id = req.user.id;
+      // For agents, we need to use the special method that includes referrals
+      // We'll apply filters later if needed
+      properties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
+      
+      // Apply additional filters manually if provided
+      if (Object.keys(filters).length > 0) {
+        properties = properties.filter(property => {
+          let matches = true;
+          
+          if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
+            matches = false;
+          }
+          
+          if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
+            matches = false;
+          }
+          
+          if (filters.price_min && property.price < filters.price_min) {
+            matches = false;
+          }
+          
+          if (filters.price_max && property.price > filters.price_max) {
+            matches = false;
+          }
+          
+          if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
+              !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
+              !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
+            matches = false;
+          }
+          
+          if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
+            matches = false;
+          }
+          
+          if (filters.surface_min && property.surface < filters.surface_min) {
+            matches = false;
+          }
+          
+          if (filters.surface_max && property.surface > filters.surface_max) {
+            matches = false;
+          }
+          
+          if (filters.built_year_min && property.built_year < filters.built_year_min) {
+            matches = false;
+          }
+          
+          if (filters.built_year_max && property.built_year > filters.built_year_max) {
+            matches = false;
+          }
+          
+          return matches;
+        });
+      }
+    } else {
+      // For other roles, use the normal filtered method
+      properties = await Property.getPropertiesWithFilters(filters);
     }
-
-    const properties = await Property.getPropertiesWithFilters(filters);
 
     res.json({
       success: true,
@@ -98,9 +153,14 @@ const getPropertyById = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    // Check if agent can view this property
-    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
-      return res.status(403).json({ message: 'Access denied. You can only view properties assigned to you.' });
+    // Check if agent can view this property (assigned or referred)
+    if (roleFilters.role === 'agent') {
+      const agentProperties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
+      const canView = agentProperties.some(p => p.id === parseInt(id));
+      
+      if (!canView) {
+        return res.status(403).json({ message: 'Access denied. You can only view properties assigned to you or referred by you.' });
+      }
     }
 
     res.json({

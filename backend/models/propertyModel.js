@@ -153,6 +153,55 @@ class Property {
     return result.rows;
   }
 
+  // Get properties that are assigned to or referred by a specific agent
+  static async getPropertiesAssignedOrReferredByAgent(agentId) {
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.reference_number,
+        p.status_id,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
+        p.location,
+        p.category_id,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
+        p.building_name,
+        p.owner_name,
+        p.phone_number,
+        p.surface,
+        p.details,
+        p.interior_details,
+        p.built_year,
+        p.view_type,
+        p.concierge,
+        p.agent_id,
+        u.name as agent_name,
+        u.role as agent_role,
+        p.price,
+        p.notes,
+        p.referral_sources,
+        p.referral_source,
+        p.referral_dates,
+        p.main_image,
+        p.image_gallery,
+        p.created_at,
+        p.updated_at,
+        CASE 
+          WHEN p.agent_id = $1 THEN 'assigned'
+          ELSE 'referred'
+        END as agent_relationship
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
+      LEFT JOIN users u ON p.agent_id = u.id
+      WHERE p.agent_id = $1 
+         OR (p.referral_sources IS NOT NULL AND p.referral_sources::text LIKE '%' || (SELECT name FROM users WHERE id = $1) || '%')
+      ORDER BY p.created_at DESC
+    `, [agentId]);
+    return result.rows;
+  }
+
   static async getPropertyById(id) {
     const result = await pool.query(`
       SELECT 

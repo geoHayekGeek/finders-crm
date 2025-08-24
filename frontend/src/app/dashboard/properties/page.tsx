@@ -9,7 +9,10 @@ import {
   Download,
   Upload,
   RefreshCw,
-  BarChart3
+  BarChart3,
+  ChevronDown,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react'
 import { DataTable } from '@/components/DataTable'
 import { PropertyCard } from '@/components/PropertyCard'
@@ -71,6 +74,24 @@ export default function PropertiesPage() {
   // Loading states for refresh buttons
   const [categoriesLoading, setCategoriesLoading] = useState(false)
   const [statusesLoading, setStatusesLoading] = useState(false)
+  
+  // Export dropdown state
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (showExportDropdown && !target.closest('.export-dropdown')) {
+        setShowExportDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showExportDropdown])
 
   // Load data on component mount
   useEffect(() => {
@@ -694,6 +715,141 @@ export default function PropertiesPage() {
     }
   }
 
+  // Export functions
+  const exportToCSV = () => {
+    const currentData = viewMode === 'table' ? paginatedProperties : filteredProperties
+    
+    // Prepare CSV headers
+    const headers = [
+      'Reference Number',
+      'Location', 
+      'Category',
+      'Status',
+      'Owner Name',
+      'Phone Number',
+      'Surface (m²)',
+      'Built Year',
+      'View Type',
+      'Concierge',
+      'Agent',
+      'Price ($)',
+      'Notes'
+    ]
+    
+    // Prepare CSV data
+    const csvData = currentData.map(property => [
+      property.reference_number || '',
+      property.location || '',
+      property.category_name || '',
+      property.status_name || '',
+      property.owner_name || '',
+      property.phone_number || '',
+      property.surface || '',
+      property.built_year || '',
+      property.view_type || '',
+      property.concierge ? 'Yes' : 'No',
+      property.agent_name || '',
+      property.price || '',
+      property.notes || ''
+    ])
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
+            ? `"${cell.replace(/"/g, '""')}"` 
+            : cell
+        ).join(',')
+      )
+    ].join('\n')
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `properties_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    setShowExportDropdown(false)
+  }
+
+  const exportToExcel = () => {
+    const currentData = viewMode === 'table' ? paginatedProperties : filteredProperties
+    
+    // Prepare Excel-compatible CSV data with more detailed headers
+    const headers = [
+      'Reference Number',
+      'Location',
+      'Category', 
+      'Status',
+      'Building Name',
+      'Owner Name',
+      'Phone Number',
+      'Surface (m²)',
+      'Interior Details',
+      'Built Year',
+      'View Type',
+      'Concierge',
+      'Agent',
+      'Price ($)',
+      'Notes',
+      'Created Date'
+    ]
+    
+    // Prepare CSV data
+    const csvData = currentData.map(property => [
+      property.reference_number || '',
+      property.location || '',
+      property.category_name || '',
+      property.status_name || '',
+      property.building_name || '',
+      property.owner_name || '',
+      property.phone_number || '',
+      property.surface || '',
+      property.interior_details || '',
+      property.built_year || '',
+      property.view_type || '',
+      property.concierge ? 'Yes' : 'No',
+      property.agent_name || '',
+      property.price || '',
+      property.notes || '',
+      property.created_at ? new Date(property.created_at).toLocaleDateString() : ''
+    ])
+    
+    // Create CSV content (Excel-compatible)
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
+            ? `"${cell.replace(/"/g, '""')}"` 
+            : cell
+        ).join(',')
+      )
+    ].join('\n')
+    
+    // Download as CSV file (Excel will open it automatically)
+    const blob = new Blob([csvContent], { 
+      type: 'application/vnd.ms-excel' 
+    })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `properties_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    setShowExportDropdown(false)
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -859,9 +1015,38 @@ export default function PropertiesPage() {
         </div>
         
         <div className="flex items-center space-x-3">
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
-            <Download className="h-4 w-4" />
-          </button>
+          {/* Export Dropdown */}
+          <div className="relative export-dropdown">
+            <button
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600"
+            >
+              <Download className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            
+            {showExportDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                <div className="py-1">
+                  <button
+                    onClick={exportToCSV}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Export as CSV</span>
+                  </button>
+                  <button
+                    onClick={exportToExcel}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span>Export as Excel</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
           <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
             <Upload className="h-4 w-4" />
           </button>

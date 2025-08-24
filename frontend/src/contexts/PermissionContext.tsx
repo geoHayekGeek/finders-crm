@@ -9,6 +9,8 @@ interface PermissionContextType {
   canManageUsers: boolean
   canViewFinancial: boolean
   canViewAgentPerformance: boolean
+  canManageCategoriesAndStatuses: boolean
+  canViewCategoriesAndStatuses: boolean
   hasPermission: (permission: string) => boolean
 }
 
@@ -24,6 +26,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const canManageUsers = role === 'admin' || role === 'operations manager'
   const canViewFinancial = role === 'admin' || role === 'operations manager'
   const canViewAgentPerformance = role === 'admin' || role === 'operations manager' || role === 'agent manager'
+  const canManageCategoriesAndStatuses = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canViewCategoriesAndStatuses = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent'
 
   const hasPermission = (permission: string): boolean => {
     switch (permission) {
@@ -35,6 +39,10 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
         return canViewFinancial
       case 'canViewAgentPerformance':
         return canViewAgentPerformance
+      case 'canManageCategoriesAndStatuses':
+        return canManageCategoriesAndStatuses
+      case 'canViewCategoriesAndStatuses':
+        return canViewCategoriesAndStatuses
       default:
         return false
     }
@@ -46,6 +54,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     canManageUsers,
     canViewFinancial,
     canViewAgentPerformance,
+    canManageCategoriesAndStatuses,
+    canViewCategoriesAndStatuses,
     hasPermission
   }
 
@@ -78,4 +88,14 @@ export function RequirePropertyManagement({ children }: { children: ReactNode })
 export function RequireAgentPerformanceAccess({ children }: { children: ReactNode }) {
   const { canViewAgentPerformance } = usePermissions()
   return canViewAgentPerformance ? <>{children}</> : null
+}
+
+export function RequireCategoryStatusManagement({ children }: { children: ReactNode }) {
+  const { canManageCategoriesAndStatuses } = usePermissions()
+  return canManageCategoriesAndStatuses ? <>{children}</> : null
+}
+
+export function RequireCategoryStatusAccess({ children }: { children: ReactNode }) {
+  const { canManageCategoriesAndStatuses } = usePermissions()
+  return canManageCategoriesAndStatuses ? <>{children}</> : null
 }

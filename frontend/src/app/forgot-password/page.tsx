@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
-import { requestPasswordReset } from '@/utils/api';
+import { apiClient } from '@/utils/api';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage() {
     setError('');
 
     try {
-      const response = await requestPasswordReset(data.email);
+      const response = await apiClient.requestPasswordReset(data.email);
       if (response.success) {
         setIsEmailSent(true);
         setEmail(data.email);

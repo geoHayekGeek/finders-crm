@@ -83,16 +83,30 @@ export const apiClient = {
   
   // Request password reset
   requestPasswordReset: (email: string) => 
-    apiRequest<{ success: boolean; message: string }>('/users/forgot-password', {
+    apiRequest<{ success: boolean; message: string }>('/password-reset/request', {
       method: 'POST',
       body: JSON.stringify({ email }),
     }),
   
   // Reset password with token
-  resetPassword: (token: string, newPassword: string) => 
-    apiRequest<{ success: boolean; message: string }>('/users/reset-password', {
+  resetPassword: (email: string, code: string, newPassword: string) => 
+    apiRequest<{ success: boolean; message: string }>('/password-reset/reset', {
       method: 'POST',
-      body: JSON.stringify({ token, newPassword }),
+      body: JSON.stringify({ email, code, newPassword }),
+    }),
+  
+  // Verify reset code
+  verifyResetCode: (email: string, code: string) => 
+    apiRequest<{ success: boolean; message: string }>('/password-reset/verify', {
+      method: 'POST',
+      body: JSON.stringify({ email, code }),
+    }),
+  
+  // Resend reset code
+  resendResetCode: (email: string) => 
+    apiRequest<{ success: boolean; message: string }>('/password-reset/resend', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
     }),
 }
 

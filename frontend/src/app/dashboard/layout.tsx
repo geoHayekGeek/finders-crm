@@ -49,38 +49,59 @@ export default function DashboardLayout({
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance } = usePermissions()
+  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, role } = usePermissions()
 
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
-    const baseNavigation: NavigationItem[] = [
-      { name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true }
-    ]
+    const baseNavigation: NavigationItem[] = []
 
-    // Properties - visible to all roles with sub-menu
+    // For agents: only show dashboard and properties (without categories/statuses)
+    if (role === 'agent') {
+      baseNavigation.push({ name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true })
+      baseNavigation.push({ 
+        name: 'Properties', 
+        href: '/dashboard/properties', 
+        icon: Building2, 
+        alwaysVisible: true
+      })
+      return baseNavigation
+    }
+
+    // For all other roles (non-agents): show full navigation
+    baseNavigation.push({ name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true })
+
+    // Properties with submenu for management roles
+    const submenuItems = [
+      { name: 'All Properties', href: '/dashboard/properties', icon: Building2 }
+    ]
+    
+    // Add categories and statuses to submenu only if user can view them
+    if (canViewCategoriesAndStatuses) {
+      submenuItems.push(
+        { name: 'Categories', href: '/dashboard/properties/categories', icon: Tag },
+        { name: 'Statuses', href: '/dashboard/properties/statuses', icon: Circle }
+      )
+    }
+
     baseNavigation.push({ 
       name: 'Properties', 
       href: '/dashboard/properties', 
       icon: Building2, 
       alwaysVisible: true,
-      hasSubmenu: true,
-      submenu: [
-        { name: 'All Properties', href: '/dashboard/properties', icon: Building2 },
-        { name: 'Categories', href: '/dashboard/properties/categories', icon: Tag },
-        { name: 'Statuses', href: '/dashboard/properties/statuses', icon: Circle }
-      ]
+      hasSubmenu: submenuItems.length > 1,
+      submenu: submenuItems.length > 1 ? submenuItems : undefined
     })
 
-    // Clients - visible to all roles
+    // Clients - visible to management roles
     baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
 
-    // Leads - visible to all roles
+    // Leads - visible to management roles
     baseNavigation.push({ name: 'Leads', href: '/dashboard/leads', icon: FileText, alwaysVisible: true })
 
-    // Calendar - visible to all roles
+    // Calendar - visible to management roles
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
 
-    // Analytics - visible to all roles but content filtered by permissions
+    // Analytics - visible to management roles
     baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
 
     // Settings - only visible to admin and operations manager

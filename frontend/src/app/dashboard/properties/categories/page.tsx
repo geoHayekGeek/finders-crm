@@ -12,7 +12,7 @@ import {
 import { Category } from '@/types/property'
 import { categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { usePermissions } from '@/contexts/PermissionContext'
+import { usePermissions, RequireCategoryStatusAccess } from '@/contexts/PermissionContext'
 import CategoryTable from '@/components/categories/CategoryTable'
 import CategoryModal from '@/components/categories/CategoryModal'
 import CategoryDeleteModal from '@/components/categories/CategoryDeleteModal'
@@ -110,7 +110,8 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <RequireCategoryStatusAccess>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
@@ -137,7 +138,7 @@ export default function CategoriesPage() {
       {/* Search and Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
+          <div className="input-with-icon relative flex-1">
             <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
@@ -273,6 +274,7 @@ export default function CategoriesPage() {
           category={selectedCategory}
         />
       )}
-    </div>
+      </div>
+    </RequireCategoryStatusAccess>
   )
 }

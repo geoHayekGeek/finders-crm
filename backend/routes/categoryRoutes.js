@@ -2,28 +2,33 @@
 const express = require('express');
 const router = express.Router();
 const categoryController = require('../controllers/categoryController');
-const { authenticateToken, filterDataByRole } = require('../middlewares/permissions');
+const { 
+  authenticateToken, 
+  filterDataByRole, 
+  canManageCategoriesAndStatuses,
+  canViewCategoriesAndStatuses
+} = require('../middlewares/permissions');
 
 // Apply authentication and role filtering to all routes
 router.use(authenticateToken);
 router.use(filterDataByRole);
 
 // GET /api/categories - Get all categories (active only, filtered by role)
-router.get('/', categoryController.getAllCategories);
+router.get('/', canViewCategoriesAndStatuses, categoryController.getAllCategories);
 
-// GET /api/categories/admin - Get all categories for admin (active and inactive)
-router.get('/admin', categoryController.getAllCategoriesForAdmin);
+// GET /api/categories/admin - Get all categories for admin (active and inactive) - MANAGEMENT ONLY
+router.get('/admin', canManageCategoriesAndStatuses, categoryController.getAllCategoriesForAdmin);
 
-// GET /api/categories/:id - Get single category
-router.get('/:id', categoryController.getCategoryById);
+// GET /api/categories/:id - Get single category (agents can view for property functionality)
+router.get('/:id', canViewCategoriesAndStatuses, categoryController.getCategoryById);
 
-// POST /api/categories - Create new category (admin only)
-router.post('/', categoryController.createCategory);
+// POST /api/categories - Create new category (MANAGEMENT ONLY)
+router.post('/', canManageCategoriesAndStatuses, categoryController.createCategory);
 
-// PUT /api/categories/:id - Update category (admin only)
-router.put('/:id', categoryController.updateCategory);
+// PUT /api/categories/:id - Update category (MANAGEMENT ONLY)
+router.put('/:id', canManageCategoriesAndStatuses, categoryController.updateCategory);
 
-// DELETE /api/categories/:id - Delete category (admin only)
-router.delete('/:id', categoryController.deleteCategory);
+// DELETE /api/categories/:id - Delete category (MANAGEMENT ONLY)
+router.delete('/:id', canManageCategoriesAndStatuses, categoryController.deleteCategory);
 
 module.exports = router;

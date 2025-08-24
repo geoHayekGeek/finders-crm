@@ -12,7 +12,7 @@ import {
 import { Status } from '@/types/property'
 import { statusesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { usePermissions } from '@/contexts/PermissionContext'
+import { usePermissions, RequireCategoryStatusAccess } from '@/contexts/PermissionContext'
 import StatusTable from '@/components/statuses/StatusTable'
 import StatusModal from '@/components/statuses/StatusModal'
 import StatusDeleteModal from '@/components/statuses/StatusDeleteModal'
@@ -110,7 +110,8 @@ export default function StatusesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <RequireCategoryStatusAccess>
+      <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
@@ -137,7 +138,7 @@ export default function StatusesPage() {
       {/* Search and Filters */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="relative flex-1">
+          <div className="input-with-icon relative flex-1">
             <Search className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
             <input
               type="text"
@@ -273,6 +274,7 @@ export default function StatusesPage() {
           status={selectedStatus}
         />
       )}
-    </div>
+      </div>
+    </RequireCategoryStatusAccess>
   )
 }

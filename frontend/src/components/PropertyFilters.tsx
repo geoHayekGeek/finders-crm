@@ -37,14 +37,14 @@ export function PropertyFilters({
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Search Bar */}
           <div className="flex-1">
-            <div className="relative">
+            <div className="input-with-icon relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search reference number, location, owner name..."
                 value={filters.search || ''}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
-                className="input-with-icon w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
               />
             </div>
           </div>

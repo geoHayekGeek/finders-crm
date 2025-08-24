@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { ArrowLeft, Lock, Eye, EyeOff, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { resetPassword } from '@/utils/api';
+import { apiClient } from '@/utils/api';
 
 const newPasswordSchema = z.object({
   newPassword: z
@@ -53,7 +53,7 @@ export default function NewPasswordPage() {
     setError('');
 
     try {
-      const response = await resetPassword(email, code, data.newPassword);
+      const response = await apiClient.resetPassword(email, code, data.newPassword);
       if (response.success) {
         setIsPasswordReset(true);
         // Redirect to login page after a delay

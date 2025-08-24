@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { ArrowLeft, Lock, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { verifyResetCode, resendResetCode } from '@/utils/api';
+import { apiClient } from '@/utils/api';
 
 const resetCodeSchema = z.object({
   code: z.string().length(6, 'Verification code must be 6 digits'),
@@ -63,7 +63,7 @@ export default function ResetPasswordPage() {
     setError('');
 
     try {
-      const response = await verifyResetCode(email, data.code);
+      const response = await apiClient.verifyResetCode(email, data.code);
       if (response.success) {
         setIsCodeVerified(true);
         setSuccess('Code verified successfully!');
@@ -89,7 +89,7 @@ export default function ResetPasswordPage() {
     setSuccess('');
 
     try {
-      const response = await resendResetCode(email);
+      const response = await apiClient.resendResetCode(email);
       if (response.success) {
         setSuccess('New verification code sent successfully!');
         setResendCooldown(60); // 1 minute cooldown

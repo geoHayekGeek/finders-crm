@@ -11,7 +11,9 @@ const PERMISSIONS = {
     analytics: ['view_all', 'view_financial', 'view_agent_performance'],
     users: ['create', 'read', 'update', 'delete', 'view_all'],
     settings: ['full_access'],
-    dashboard: ['full_access']
+    dashboard: ['full_access'],
+    categories: ['create', 'read', 'update', 'delete', 'view_all'],
+    statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
   // Operations Manager: Same as admin
@@ -22,7 +24,9 @@ const PERMISSIONS = {
     analytics: ['view_all', 'view_financial', 'view_agent_performance'],
     users: ['create', 'read', 'update', 'delete', 'view_all'],
     settings: ['full_access'],
-    dashboard: ['full_access']
+    dashboard: ['full_access'],
+    categories: ['create', 'read', 'update', 'delete', 'view_all'],
+    statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
   // Operations: Everything except financial data and agent performance
@@ -33,7 +37,9 @@ const PERMISSIONS = {
     analytics: ['view_all'], // No financial or agent performance data
     users: ['read', 'view_all'], // Can view but not modify
     settings: ['read_only'],
-    dashboard: ['full_access']
+    dashboard: ['full_access'],
+    categories: ['create', 'read', 'update', 'delete', 'view_all'],
+    statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
   // Agent Manager: Can manage properties and view agent data
@@ -44,18 +50,35 @@ const PERMISSIONS = {
     analytics: ['view_all', 'view_agent_performance'], // Can see agent performance
     users: ['read', 'view_agents'], // Can view agents but not other roles
     settings: ['read_only'],
-    dashboard: ['full_access']
+    dashboard: ['full_access'],
+    categories: ['create', 'read', 'update', 'delete', 'view_all'],
+    statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
   // Agent: Limited access - only view assigned properties
   agent: {
-    properties: ['read', 'view_assigned'], // Only view properties they're connected to
-    clients: ['read', 'view_assigned'], // Only view their clients
-    leads: ['read', 'view_assigned'], // Only view their leads
+    properties: ['read', 'view_assigned'], // Only view properties they're connected to (assigned or referred)
+    clients: [], // No access to clients
+    leads: [], // No access to leads
+    analytics: [], // No access to analytics
+    users: ['read_self'], // Can only view their own profile
+    settings: ['read_self'],
+    dashboard: ['limited_access'],
+    categories: ['read'], // Can view categories (needed for properties page functionality)
+    statuses: ['read'] // Can view statuses (needed for properties page functionality)
+  },
+  
+  // Accountant: No access to properties, categories, or statuses
+  accountant: {
+    properties: [], // No access to properties
+    clients: ['read', 'view_assigned'], // Only view their assigned clients
+    leads: ['read', 'view_assigned'], // Only view their assigned leads
     analytics: ['view_basic'], // Only basic analytics, no financial data
     users: ['read_self'], // Can only view their own profile
     settings: ['read_self'],
-    dashboard: ['limited_access']
+    dashboard: ['limited_access'],
+    categories: [], // No access to categories
+    statuses: [] // No access to statuses
   }
 };
 
@@ -177,6 +200,38 @@ const canManageUsers = (req, res, next) => {
   }
 };
 
+// Middleware to check if user can manage categories and statuses
+const canManageCategoriesAndStatuses = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Category and status management restricted to admin, operations manager, operations, and agent manager only.' 
+    });
+  }
+};
+
+// Middleware to check if user can view categories and statuses
+const canViewCategoriesAndStatuses = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Category and status viewing restricted to roles with property access.' 
+    });
+  }
+};
+
 // Middleware to check if user can view all data (not just assigned)
 const canViewAllData = (req, res, next) => {
   if (!req.user || !req.user.role) {
@@ -213,7 +268,9 @@ const filterDataByRole = (req, res, next) => {
     canViewFinancial: ['admin', 'operations manager'].includes(role),
     canViewAgentPerformance: ['admin', 'operations manager', 'agent manager'].includes(role),
     canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canManageUsers: ['admin', 'operations manager'].includes(role)
+    canManageUsers: ['admin', 'operations manager'].includes(role),
+    canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
+    canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent'].includes(role)
   };
 
   console.log('✅ Role filters set:', req.roleFilters);
@@ -227,6 +284,8 @@ module.exports = {
   canViewAgentPerformance,
   canManageProperties,
   canManageUsers,
+  canManageCategoriesAndStatuses,
+  canViewCategoriesAndStatuses,
   canViewAllData,
   filterDataByRole,
   hasPermission,
