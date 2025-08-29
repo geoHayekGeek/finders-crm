@@ -5,13 +5,12 @@ import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, Refresh
 import { Property, Category, Status, EditFormData } from '@/types/property'
 import { compressAndConvertToBase64, getRecommendedCompressionOptions } from '@/utils/imageCompression'
 import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, validateImageFiles, createImagePreview, getFullImageUrl } from '@/utils/imageUpload'
-import { ReferralSelector } from './ReferralSelector'
 
-interface ReferralItem {
-  source: string
-  date: string
-  isCustom: boolean
-}
+import { CategorySelector } from './CategorySelector'
+import { PropertyStatusSelector } from './PropertyStatusSelector'
+import { AgentSelector } from './AgentSelector'
+
+
 
 interface Agent {
   id: number
@@ -100,10 +99,7 @@ export function PropertyModals({
   const [currentImageIndexState, setCurrentImageIndexState] = useState<number>(0)
   const [updateExisting, setUpdateExisting] = useState(false)
 
-  // State for agents
-  const [agents, setAgents] = useState<Agent[]>([])
-  const [agentsLoading, setAgentsLoading] = useState(false)
-  const [agentsError, setAgentsError] = useState('')
+
 
   // Local state for add property modal
   const [addFormData, setAddFormData] = useState({
@@ -122,8 +118,6 @@ export function PropertyModals({
     agent_id: 0, // Add agent_id field
     price: '',
     notes: '',
-    referral_source: '',
-    referrals: [] as ReferralItem[],
     main_image: '',
     main_image_file: null as File | null, // New: File object for upload
     main_image_preview: '', // New: Preview URL for display
@@ -137,12 +131,7 @@ export function PropertyModals({
     console.log('addFormData.main_image changed:', addFormData.main_image ? 'has image' : 'no image')
   }, [addFormData.main_image])
 
-  // Fetch agents when the add property modal or edit modal opens
-  useEffect(() => {
-    if (showAddPropertyModal || showEditPropertyModal) {
-      fetchAgents()
-    }
-  }, [showAddPropertyModal, showEditPropertyModal])
+
 
   // Fetch complete property details from backend when editing property changes
   useEffect(() => {
@@ -314,29 +303,7 @@ export function PropertyModals({
     fetchViewPropertyDetails()
   }, [viewingProperty, showViewPropertyModal])
 
-  // Function to fetch agents
-  const fetchAgents = async () => {
-    setAgentsLoading(true)
-    setAgentsError('')
-    try {
-      const response = await fetch('http://localhost:10000/api/users/agents')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setAgents(data.agents)
-        } else {
-          setAgentsError('Failed to fetch agents')
-        }
-      } else {
-        setAgentsError('Failed to fetch agents')
-      }
-    } catch (err) {
-      setAgentsError('Failed to fetch agents')
-      console.error('Error fetching agents:', err)
-    } finally {
-      setAgentsLoading(false)
-    }
-  }
+
 
   // Refs for file inputs
   const mainImageInputRef = useRef<HTMLInputElement>(null)
@@ -821,62 +788,26 @@ export function PropertyModals({
                 <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          Status <span className="text-red-500">*</span>
-                        </label>
-                        {onRefreshStatuses && (
-                          <button
-                            type="button"
-                            onClick={onRefreshStatuses}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Refresh statuses list"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      <select 
-                        id="add-status"
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value="">Select Status</option>
-                        {statuses.map((status) => (
-                          <option key={status.id} value={status.id}>
-                            {status.name}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status <span className="text-red-500">*</span>
+                      </label>
+                      <PropertyStatusSelector
+                        selectedStatusId={addFormData.status_id}
+                        onStatusChange={(statusId) => setAddFormData(prev => ({ ...prev, status_id: statusId }))}
+                        placeholder="Select status..."
+                        required={true}
+                      />
                     </div>
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          Category <span className="text-red-500">*</span>
-                        </label>
-                        {onRefreshCategories && (
-                          <button
-                            type="button"
-                            onClick={onRefreshCategories}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Refresh categories list"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      <select 
-                        id="add-category"
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value="">Select Category</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Category <span className="text-red-500">*</span>
+                      </label>
+                      <CategorySelector
+                        selectedCategoryId={addFormData.category_id}
+                        onCategoryChange={(categoryId) => setAddFormData(prev => ({ ...prev, category_id: categoryId }))}
+                        placeholder="Select category..."
+                        required={true}
+                      />
                     </div>
                   </div>
 
@@ -954,38 +885,12 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">Assigned Agent</label>
-                        <button
-                          type="button"
-                          onClick={fetchAgents}
-                          disabled={agentsLoading}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Refresh agents list"
-                        >
-                          <RefreshCw className={`h-4 w-4 ${agentsLoading ? 'animate-spin' : ''}`} />
-                        </button>
-                      </div>
-                      <select
-                        id="add-agent"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value="">Select Agent (Optional)</option>
-                        {agentsLoading ? (
-                          <option value="" disabled>Loading agents...</option>
-                        ) : agentsError ? (
-                          <option value="" disabled>Error loading agents</option>
-                        ) : (
-                          agents.map(agent => (
-                            <option key={agent.id} value={agent.id}>
-                              {agent.name} - {agent.location || 'No location'}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                      {agentsError && (
-                        <p className="text-xs text-red-500 mt-1">{agentsError}</p>
-                      )}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
+                      <AgentSelector
+                        selectedAgentId={addFormData.agent_id}
+                        onAgentChange={(agent) => setAddFormData(prev => ({ ...prev, agent_id: agent?.id }))}
+                        placeholder="Select agent (optional)..."
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
@@ -1275,62 +1180,26 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          Category <span className="text-red-500">*</span>
-                        </label>
-                        {onRefreshCategories && (
-                          <button
-                            type="button"
-                            onClick={onRefreshCategories}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Refresh categories list"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      <select
-                        value={editFormData.category_id}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, category_id: parseInt(e.target.value) }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value="">Select Category</option>
-                        {categories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Category <span className="text-red-500">*</span>
+                      </label>
+                      <CategorySelector
+                        selectedCategoryId={editFormData.category_id}
+                        onCategoryChange={(categoryId) => setEditFormData((prev: EditFormData) => ({ ...prev, category_id: categoryId }))}
+                        placeholder="Select category..."
+                        required={true}
+                      />
                     </div>
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">
-                          Status <span className="text-red-500">*</span>
-                        </label>
-                        {onRefreshStatuses && (
-                          <button
-                            type="button"
-                            onClick={onRefreshStatuses}
-                            className="p-1 text-gray-400 hover:text-gray-600"
-                            title="Refresh statuses list"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                      <select
-                        value={editFormData.status_id}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, status_id: parseInt(e.target.value) }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value="">Select Status</option>
-                        {statuses.map((status) => (
-                          <option key={status.id} value={status.id}>
-                            {status.name}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status <span className="text-red-500">*</span>
+                      </label>
+                      <PropertyStatusSelector
+                        selectedStatusId={editFormData.status_id}
+                        onStatusChange={(statusId) => setEditFormData((prev: EditFormData) => ({ ...prev, status_id: statusId }))}
+                        placeholder="Select status..."
+                        required={true}
+                      />
                     </div>
                   </div>
 
@@ -1413,39 +1282,12 @@ export function PropertyModals({
                       </select>
                     </div>
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="block text-sm font-medium text-gray-700">Assigned Agent</label>
-                        <button
-                          type="button"
-                          onClick={fetchAgents}
-                          disabled={agentsLoading}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                          title="Refresh agents list"
-                        >
-                          <RefreshCw className={`h-4 w-4 ${agentsLoading ? 'animate-spin' : ''}`} />
-                        </button>
-                      </div>
-                      <select
-                        value={editFormData.agent_id || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: parseInt(e.target.value) || undefined }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      >
-                        <option value="">Select Agent (Optional)</option>
-                        {agentsLoading ? (
-                          <option value="" disabled>Loading agents...</option>
-                        ) : agentsError ? (
-                          <option value="" disabled>Error loading agents</option>
-                        ) : (
-                          agents.map(agent => (
-                            <option key={agent.id} value={agent.id}>
-                              {agent.name} - {agent.location || 'No location'}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                      {agentsError && (
-                        <p className="text-xs text-red-500 mt-1">{agentsError}</p>
-                      )}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
+                      <AgentSelector
+                        selectedAgentId={editFormData.agent_id}
+                        onAgentChange={(agent) => setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: agent?.id }))}
+                        placeholder="Select agent (optional)..."
+                      />
                     </div>
                   </div>
 

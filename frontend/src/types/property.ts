@@ -22,8 +22,6 @@ export interface Property {
   agent_role?: string
   price?: number
   notes?: string
-  referral_source?: string
-  referral_dates?: string[]
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of base64 encoded gallery images
   created_at: string
@@ -51,8 +49,6 @@ export interface EditFormData {
   agent_id?: number
   price?: number
   notes?: string
-  referral_source?: string
-  referral_dates?: string[]
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of base64 encoded gallery images
 }

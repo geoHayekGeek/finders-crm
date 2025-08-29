@@ -4,10 +4,12 @@ const pool = require('../config/db');
 const userRoutes = require('./userRoutes');
 const passwordResetRoutes = require('./passwordResetRoutes');
 const propertyRoutes = require('./propertyRoutes');
+const leadsRoutes = require('./leadsRoutes');
 const analyticsRoutes = require('./analyticsRoutes');
 const calendarRoutes = require('./calendarRoutes');
 const categoryRoutes = require('./categoryRoutes');
 const statusRoutes = require('./statusRoutes');
+const leadStatusRoutes = require('./leadStatusRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -23,9 +25,11 @@ router.get('/', async (req, res) => {
 router.use('/users', userRoutes);
 router.use('/password-reset', passwordResetRoutes);
 router.use('/properties', propertyRoutes);
+router.use('/leads', leadsRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/statuses', statusRoutes);
+router.use('/lead-statuses', leadStatusRoutes);
 
 module.exports = router;

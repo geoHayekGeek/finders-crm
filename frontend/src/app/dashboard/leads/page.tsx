@@ -1,345 +1,811 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { 
-  FileText, 
-  Search, 
-  Filter, 
-  Plus, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Phone, 
-  Mail, 
-  MapPin,
-  Building2,
-  Calendar,
-  Target,
-  TrendingUp,
-  Clock,
-  CheckCircle
+  Users, 
+  Plus,
+  Grid3X3,
+  List,
+  Download,
+  Upload,
+  RefreshCw,
+  BarChart3,
+  ChevronDown,
+  FileText,
+  FileSpreadsheet
 } from 'lucide-react'
-
-const leads = [
-  {
-    id: 1,
-    name: 'Alex Thompson',
-    email: 'alex.thompson@email.com',
-    phone: '+1 (555) 111-2222',
-    source: 'Website',
-    status: 'New',
-    priority: 'High',
-    interest: 'Buying',
-    budget: '$600,000 - $800,000',
-    location: 'Downtown',
-    assignedTo: 'Sarah Johnson',
-    lastContact: 'Never',
-    nextFollowUp: 'Today',
-    notes: 'Interested in modern apartments, first-time buyer',
-  },
-  {
-    id: 2,
-    name: 'Maria Garcia',
-    email: 'maria.garcia@email.com',
-    phone: '+1 (555) 333-4444',
-    source: 'Referral',
-    status: 'Contacted',
-    priority: 'Medium',
-    interest: 'Renting',
-    budget: '$2,500 - $3,500/month',
-    location: 'Suburbs',
-    assignedTo: 'Mike Chen',
-    lastContact: '2 days ago',
-    nextFollowUp: 'Tomorrow',
-    notes: 'Looking for family home, relocating from out of state',
-  },
-  {
-    id: 3,
-    name: 'David Kim',
-    email: 'david.kim@email.com',
-    phone: '+1 (555) 555-6666',
-    source: 'Social Media',
-    status: 'Qualified',
-    priority: 'High',
-    interest: 'Buying',
-    budget: '$400,000 - $600,000',
-    location: 'Midtown',
-    assignedTo: 'Lisa Rodriguez',
-    lastContact: '1 week ago',
-    nextFollowUp: 'Next week',
-    notes: 'Interested in investment properties, has cash ready',
-  },
-  {
-    id: 4,
-    name: 'Jennifer Lee',
-    email: 'jennifer.lee@email.com',
-    phone: '+1 (555) 777-8888',
-    source: 'Cold Call',
-    status: 'Proposal',
-    priority: 'Medium',
-    interest: 'Selling',
-    budget: 'N/A',
-    location: 'Waterfront',
-    assignedTo: 'David Wilson',
-    lastContact: '3 days ago',
-    nextFollowUp: 'Friday',
-    notes: 'Selling waterfront property, needs market analysis',
-  },
-  {
-    id: 5,
-    name: 'Robert Brown',
-    email: 'robert.brown@email.com',
-    phone: '+1 (555) 999-0000',
-    source: 'Website',
-    status: 'Negotiation',
-    priority: 'High',
-    interest: 'Buying',
-    budget: '$750,000 - $1,000,000',
-    location: 'Suburbs',
-    assignedTo: 'Sarah Johnson',
-    lastContact: 'Yesterday',
-    nextFollowUp: 'Today',
-    notes: 'Ready to make offer, needs property tour',
-  },
-  {
-    id: 6,
-    name: 'Amanda Wilson',
-    email: 'amanda.wilson@email.com',
-    phone: '+1 (555) 123-7890',
-    source: 'Referral',
-    status: 'Closed',
-    priority: 'Low',
-    interest: 'Renting',
-    budget: '$1,800 - $2,200/month',
-    location: 'Business District',
-    assignedTo: 'Mike Chen',
-    lastContact: '1 month ago',
-    nextFollowUp: 'N/A',
-    notes: 'Successfully closed rental agreement',
-  },
-]
-
-const statuses = ['All', 'New', 'Contacted', 'Qualified', 'Proposal', 'Negotiation', 'Closed']
-const priorities = ['All', 'High', 'Medium', 'Low']
-const sources = ['All', 'Website', 'Referral', 'Social Media', 'Cold Call', 'Other']
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'New': return 'bg-blue-100 text-blue-800'
-    case 'Contacted': return 'bg-yellow-100 text-yellow-800'
-    case 'Qualified': return 'bg-purple-100 text-purple-800'
-    case 'Proposal': return 'bg-indigo-100 text-indigo-800'
-    case 'Negotiation': return 'bg-orange-100 text-orange-800'
-    case 'Closed': return 'bg-green-100 text-green-800'
-    default: return 'bg-gray-100 text-gray-800'
-  }
-}
-
-const getPriorityColor = (priority: string) => {
-  switch (priority) {
-    case 'High': return 'bg-red-100 text-red-800'
-    case 'Medium': return 'bg-yellow-100 text-yellow-800'
-    case 'Low': return 'bg-green-100 text-green-800'
-    default: return 'bg-gray-100 text-gray-800'
-  }
-}
+import { DataTable } from '@/components/DataTable'
+import { LeadsCard } from '@/components/LeadsCard'
+import { LeadsFilters } from '@/components/LeadsFilters'
+import { LeadsModals } from '@/components/LeadsModals'
+import { PropertyPagination } from '@/components/PropertyPagination'
+import { leadsColumns, leadsDetailedColumns } from '@/components/LeadsTableColumns'
+import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData } from '@/types/leads'
+import { leadsApi } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 
 export default function LeadsPage() {
-  const [searchTerm, setSearchTerm] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState('All')
-  const [selectedPriority, setSelectedPriority] = useState('All')
-  const [selectedSource, setSelectedSource] = useState('All')
-
-  const filteredLeads = leads.filter(lead => {
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         lead.email.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = selectedStatus === 'All' || lead.status === selectedStatus
-    const matchesPriority = selectedPriority === 'All' || lead.priority === selectedPriority
-    const matchesSource = selectedSource === 'All' || lead.source === selectedSource
-    
-    return matchesSearch && matchesStatus && matchesPriority && matchesSource
+  const { user, token, isAuthenticated } = useAuth()
+  const { canManageProperties } = usePermissions() // Reusing this permission for leads
+  
+  // State management
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loading, setLoading] = useState(true)
+  const [leadsLoading, setLeadsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  
+  // View and display state
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+  
+  // Filters state
+  const [filters, setFilters] = useState<LeadFiltersType>({})
+  
+  // Modal state
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
+  const [deletingLead, setDeletingLead] = useState<Lead | null>(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [editFormData, setEditFormData] = useState<EditLeadFormData>({
+    date: '',
+    customer_name: '',
+    phone_number: '',
+    agent_id: undefined,
+    agent_name: '',
+    reference_source_id: undefined,
+    operations_id: undefined,
+    notes: '',
+    status: 'active'
   })
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(10)
+  
+  // Statistics state
+  const [stats, setStats] = useState<any>(null)
+  
+  // Export dropdown state
+  const [showExportDropdown, setShowExportDropdown] = useState(false)
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element
+      if (showExportDropdown && !target.closest('.export-dropdown')) {
+        setShowExportDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showExportDropdown])
+
+  // Load data on component mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData()
+    }
+  }, [isAuthenticated])
+
+  // Reload data when filters change
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadLeadsOnly()
+      setCurrentPage(1) // Reset to first page when filters change
+    }
+  }, [filters, isAuthenticated])
+
+  // Load only leads (for filtering)
+  const loadLeadsOnly = async () => {
+    try {
+      setLeadsLoading(true)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        setError('You must be logged in to view leads')
+        return
+      }
+      
+      console.log('🔍 Loading leads with filters:', filters)
+      
+      let leadsData: Lead[]
+      
+      // Build query parameters for filters
+      const hasFilters = Object.keys(filters).length > 0
+      
+      if (hasFilters) {
+        const response = await leadsApi.getWithFilters(filters, token)
+        console.log('🔍 Filtered response:', response)
+        console.log('🔍 Filtered response.data:', response.data)
+        console.log('🔍 Filtered response.data type:', typeof response.data)
+        console.log('🔍 Filtered response.data length:', response.data?.length)
+        leadsData = response.data
+      } else {
+        const response = await leadsApi.getAll(token)
+        console.log('🔍 All leads response:', response)
+        console.log('🔍 All leads response.data:', response.data)
+        console.log('🔍 All leads response.data type:', typeof response.data)
+        console.log('🔍 All leads response.data length:', response.data?.length)
+        leadsData = response.data
+      }
+      
+      console.log('✅ Loaded leads:', leadsData.length, leadsData)
+      
+      // Add action handlers to leads
+      const leadsWithActions = leadsData.map((lead: Lead) => ({
+        ...lead,
+        onView: handleViewLead,
+        onEdit: handleEditLead,
+        onDelete: handleDeleteLead
+      }))
+      
+      setLeads(leadsWithActions)
+      
+    } catch (error) {
+      console.error('❌ Error loading leads:', error)
+      if (error instanceof Error) {
+        setError(`Failed to load leads: ${error.message}`)
+      } else {
+        setError('Failed to load leads data')
+      }
+    } finally {
+      setLeadsLoading(false)
+    }
+  }
+
+  // Load all necessary data (initial load)
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        setError('You must be logged in to view leads')
+        return
+      }
+      
+      console.log('🔍 Loading leads data...')
+      
+      // Load leads
+      const leadsResponse = await leadsApi.getAll(token)
+      console.log('🔍 Leads response:', leadsResponse)
+      console.log('🔍 Leads response.data:', leadsResponse.data)
+      console.log('🔍 Leads response.data type:', typeof leadsResponse.data)
+      console.log('🔍 Leads response.data length:', leadsResponse.data?.length)
+      console.log('🔍 First lead item:', leadsResponse.data?.[0])
+      console.log('🔍 First lead keys:', leadsResponse.data?.[0] ? Object.keys(leadsResponse.data[0]) : 'No data')
+      
+      const leadsData: Lead[] = leadsResponse.data
+      console.log('✅ Loaded leads:', leadsData.length, leadsData)
+      
+      // Load statistics
+      try {
+        const statsResponse = await leadsApi.getStats(token)
+        setStats(statsResponse.data)
+        console.log('✅ Loaded stats:', statsResponse.data)
+      } catch (statsError) {
+        console.warn('Could not load statistics:', statsError)
+      }
+      
+      // Add action handlers to leads
+      const leadsWithActions = leadsData.map((lead: Lead) => ({
+        ...lead,
+        onView: handleViewLead,
+        onEdit: handleEditLead,
+        onDelete: handleDeleteLead
+      }))
+      
+      setLeads(leadsWithActions)
+      
+    } catch (error) {
+      console.error('❌ Error loading data:', error)
+      if (error instanceof Error) {
+        setError(`Failed to load leads: ${error.message}`)
+      } else {
+        setError('Failed to load leads data')
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Since we're filtering on the backend, filteredLeads is just leads
+  const filteredLeads = leads
+
+  // Paginate leads with action handlers
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return filteredLeads.slice(startIndex, endIndex).map(lead => ({
+      ...lead,
+      onView: handleViewLead,
+      onEdit: handleEditLead,
+      onDelete: handleDeleteLead
+    }))
+  }, [filteredLeads, currentPage, itemsPerPage])
+
+  // Grid view leads (accumulated for "load more" functionality)
+  const gridViewLeads = useMemo(() => {
+    const endIndex = currentPage * itemsPerPage
+    return filteredLeads.slice(0, endIndex)
+  }, [filteredLeads, currentPage, itemsPerPage])
+
+  // Action handlers
+  const handleViewLead = (lead: Lead) => {
+    setSelectedLead(lead)
+    setShowViewModal(true)
+  }
+
+  const handleEditLead = (lead: Lead) => {
+    setSelectedLead(lead)
+    setEditFormData({
+      date: lead.date,
+      customer_name: lead.customer_name,
+      phone_number: lead.phone_number || '',
+      agent_id: lead.agent_id,
+      agent_name: lead.agent_name || '',
+      reference_source_id: lead.reference_source_id,
+      operations_id: lead.operations_id,
+      notes: lead.notes || '',
+      status: lead.status
+    })
+    setShowEditModal(true)
+  }
+
+  const handleSaveEdit = async () => {
+    try {
+      console.log('💾 Saving lead edits:', editFormData)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        alert('You must be logged in to edit leads')
+        return
+      }
+      
+      // Check permissions
+      if (!canManageProperties) {
+        alert('You do not have permission to edit leads')
+        return
+      }
+
+      // Get the lead ID from selectedLead
+      if (!selectedLead) {
+        alert('No lead selected for editing')
+        return
+      }
+
+      // Validate required fields
+      if (!editFormData.customer_name.trim()) {
+        alert('Customer name is required')
+        return
+      }
+
+      console.log('📡 Sending update request for lead:', selectedLead.id)
+
+      // Send PUT request to update the lead
+      await leadsApi.update(selectedLead.id, editFormData, token)
+      
+      console.log('✅ Lead updated successfully')
+      
+      // Close the modal
+      setShowEditModal(false)
+      setSelectedLead(null)
+      
+      // Refresh the leads list
+      await loadData()
+      
+      alert('Lead updated successfully!')
+    } catch (error) {
+      console.error('❌ Error updating lead:', error)
+      alert('An error occurred while updating the lead. Please try again.')
+    }
+  }
+
+  // Handle add lead
+  const handleAddLead = async (leadData: CreateLeadFormData) => {
+    try {
+      console.log('Adding new lead:', leadData)
+      
+      // Check authentication
+      if (!isAuthenticated || !token) {
+        alert('You must be logged in to add leads')
+        return
+      }
+      
+      // Check permissions
+      if (!canManageProperties) {
+        alert('You do not have permission to add leads')
+        return
+      }
+      
+      // Validate required fields
+      if (!leadData.customer_name.trim()) {
+        alert('Customer name is required')
+        return
+      }
+
+      console.log('📡 Sending create request:', leadData)
+      
+      // Call the API to create the lead
+      const response = await leadsApi.create(leadData, token)
+      
+      console.log('✅ Lead created successfully:', response.data)
+
+      // Refresh the leads list
+      await loadData()
+      
+      // Return the created lead data
+      return response.data
+      
+    } catch (error) {
+      console.error('Error adding lead:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+      alert(`Error adding lead: ${errorMessage}`)
+      throw error // Re-throw so the modal knows the creation failed
+    }
+  }
+
+  // Handle delete lead
+  const handleDeleteLead = async (lead: Lead) => {
+    setDeletingLead(lead)
+    setShowDeleteModal(true)
+  }
+
+  // Handle confirm delete
+  const handleConfirmDelete = async () => {
+    if (deletingLead && deleteConfirmation === deletingLead.customer_name) {
+      try {
+        // Check authentication
+        if (!isAuthenticated || !token) {
+          alert('You must be logged in to delete leads')
+          return
+        }
+        
+        console.log('🗑️ Deleting lead:', deletingLead.id)
+        
+        // Call the API to delete the lead
+        await leadsApi.delete(deletingLead.id, token)
+        
+        console.log('✅ Lead deleted successfully!')
+        
+        // Refresh the leads list
+        await loadData()
+        
+        // Close modal and reset state
+        setShowDeleteModal(false)
+        setDeletingLead(null)
+        setDeleteConfirmation('')
+        
+        // Show success message
+        alert('Lead deleted successfully!')
+        
+      } catch (error) {
+        console.error('Error deleting lead:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
+        alert(`Error deleting lead: ${errorMessage}`)
+      }
+    }
+  }
+
+  const clearFilters = () => {
+    setFilters({})
+    setCurrentPage(1)
+    // The useEffect will trigger loadData when filters change
+  }
+
+  // Handle items per page change
+  const handleItemsPerPageChange = (newItemsPerPage: number) => {
+    setItemsPerPage(newItemsPerPage)
+    setCurrentPage(1) // Reset to first page when changing page size
+  }
+
+  // Export functions
+  const exportToCSV = () => {
+    const currentData = viewMode === 'table' ? paginatedLeads : filteredLeads
+    
+    // Prepare CSV headers
+    const headers = [
+      'Date',
+      'Customer Name', 
+      'Phone Number',
+      'Agent Name',
+      'Status',
+      'Reference Source',
+      'Operations',
+      'Referral Sources',
+      'Notes',
+      'Created Date'
+    ]
+    
+    // Prepare CSV data
+    const csvData = currentData.map(lead => [
+      lead.date || '',
+      lead.customer_name || '',
+      lead.phone_number || '',
+      lead.assigned_agent_name || lead.agent_name || '',
+      lead.status || '',
+      lead.reference_source_name || '',
+      lead.operations_name || '',
+      lead.referral_sources?.map(r => r.source).join('; ') || lead.referral_source || '',
+      lead.notes || '',
+      lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''
+    ])
+    
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
+            ? `"${cell.replace(/"/g, '""')}"` 
+            : cell
+        ).join(',')
+      )
+    ].join('\n')
+    
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `leads_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    setShowExportDropdown(false)
+  }
+
+  const exportToExcel = () => {
+    const currentData = viewMode === 'table' ? paginatedLeads : filteredLeads
+    
+    // Prepare Excel-compatible CSV data with more detailed headers
+    const headers = [
+      'Date',
+      'Customer Name',
+      'Phone Number',
+      'Agent Name',
+      'Agent Role',
+      'Status',
+      'Reference Source',
+      'Operations',
+      'Operations Role',
+      'Referral Sources',
+      'Notes',
+      'Created Date',
+      'Updated Date'
+    ]
+    
+    // Prepare CSV data
+    const csvData = currentData.map(lead => [
+      lead.date || '',
+      lead.customer_name || '',
+      lead.phone_number || '',
+      lead.assigned_agent_name || lead.agent_name || '',
+      lead.agent_role || '',
+      lead.status || '',
+      lead.reference_source_name || '',
+      lead.operations_name || '',
+      lead.operations_role || '',
+      lead.referral_sources?.map(r => `${r.source} (${r.date})`).join('; ') || lead.referral_source || '',
+      lead.notes || '',
+      lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
+      lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : ''
+    ])
+    
+    // Create CSV content (Excel-compatible)
+    const csvContent = [
+      headers.join(','),
+      ...csvData.map(row => 
+        row.map(cell => 
+          typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
+            ? `"${cell.replace(/"/g, '""')}"` 
+            : cell
+        ).join(',')
+      )
+    ].join('\n')
+    
+    // Download as CSV file (Excel will open it automatically)
+    const blob = new Blob([csvContent], { 
+      type: 'application/vnd.ms-excel' 
+    })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `leads_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    setShowExportDropdown(false)
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+          <p className="text-gray-600">Loading leads...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">⚠️</div>
+          <p className="text-red-600 mb-4">{error}</p>
+          <button
+            onClick={loadData}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex justify-between items-center">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-          <p className="text-gray-600">Track and manage your sales pipeline and lead conversion</p>
+          <p className="text-gray-600 mt-1">
+            Manage your leads pipeline ({filteredLeads.length} leads)
+          </p>
         </div>
-        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-          <Plus className="h-4 w-4" />
-          <span>Add Lead</span>
-        </button>
-      </div>
-
-      {/* Pipeline overview */}
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow text-center">
-          <div className="text-2xl font-bold text-blue-600">{leads.filter(l => l.status === 'New').length}</div>
-          <div className="text-sm text-gray-600">New</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow text-center">
-          <div className="text-2xl font-bold text-yellow-600">{leads.filter(l => l.status === 'Contacted').length}</div>
-          <div className="text-sm text-gray-600">Contacted</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow text-center">
-          <div className="text-2xl font-bold text-purple-600">{leads.filter(l => l.status === 'Qualified').length}</div>
-          <div className="text-sm text-gray-600">Qualified</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow text-center">
-          <div className="text-2xl font-bold text-indigo-600">{leads.filter(l => l.status === 'Proposal').length}</div>
-          <div className="text-sm text-gray-600">Proposal</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow text-center">
-          <div className="text-2xl font-bold text-orange-600">{leads.filter(l => l.status === 'Negotiation').length}</div>
-          <div className="text-sm text-gray-600">Negotiation</div>
-        </div>
-        <div className="bg-white p-4 rounded-lg shadow text-center">
-          <div className="text-2xl font-bold text-green-600">{leads.filter(l => l.status === 'Closed').length}</div>
-          <div className="text-sm text-gray-600">Closed</div>
-        </div>
-      </div>
-
-      {/* Search and filters */}
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search leads..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-          
-          <select
-            value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        
+        <div className="flex items-center space-x-3 mt-4 sm:mt-0">
+          <button
+            onClick={() => setShowAddModal(true)}
+            disabled={!isAuthenticated || !canManageProperties}
+            className={`px-4 py-3 rounded-lg transition-colors flex items-center space-x-2 ${
+              isAuthenticated && canManageProperties
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
           >
-            {statuses.map(status => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-          
-          <select
-            value={selectedPriority}
-            onChange={(e) => setSelectedPriority(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {priorities.map(priority => (
-              <option key={priority} value={priority}>{priority}</option>
-            ))}
-          </select>
-          
-          <select
-            value={selectedSource}
-            onChange={(e) => setSelectedSource(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            {sources.map(source => (
-              <option key={source} value={source}>{source}</option>
-            ))}
-          </select>
-          
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2">
-            <Filter className="h-4 w-4" />
-            <span>More</span>
+            <Plus className="h-5 w-5" />
+            <span>Add Lead</span>
           </button>
         </div>
       </div>
 
-      {/* Leads table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-medium text-gray-900">Lead Management</h3>
+      {/* Statistics Cards */}
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Users className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Leads</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.overview?.total_leads || leads.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <BarChart3 className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Active</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.overview?.active || leads.filter(l => l.status === 'active').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Users className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Qualified</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.overview?.qualified || leads.filter(l => l.status === 'qualified').length}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <div className="flex items-center">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <BarChart3 className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Converted</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {stats.overview?.converted || leads.filter(l => l.status === 'converted').length}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lead</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned To</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Follow-up</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-blue-600" />
-                        </div>
-                      </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{lead.name}</div>
-                        <div className="text-sm text-gray-500">{lead.email}</div>
-                        <div className="text-sm text-gray-500">{lead.phone}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(lead.status)}`}>
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(lead.priority)}`}>
-                      {lead.priority}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{lead.source}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{lead.assignedTo}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center text-sm text-gray-900">
-                      {lead.nextFollowUp === 'Today' ? (
-                        <Clock className="h-4 w-4 text-yellow-500 mr-1" />
-                      ) : lead.nextFollowUp === 'N/A' ? (
-                        <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
-                      ) : (
-                        <Calendar className="h-4 w-4 text-gray-400 mr-1" />
-                      )}
-                      {lead.nextFollowUp}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
-                        <Eye className="h-4 w-4" />
-                      </button>
-                      <button className="text-indigo-600 hover:text-indigo-900">
-                        <Edit className="h-4 w-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      )}
+
+      {/* Filters */}
+      <LeadsFilters
+        filters={filters}
+        setFilters={setFilters}
+        showAdvancedFilters={showAdvancedFilters}
+        setShowAdvancedFilters={setShowAdvancedFilters}
+        onClearFilters={clearFilters}
+      />
+
+      {/* View Toggle and Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setViewMode('grid')}
+            className={`p-2 rounded-lg transition-colors ${
+              viewMode === 'grid' 
+                ? 'bg-blue-100 text-blue-600' 
+                : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            <Grid3X3 className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            className={`p-2 rounded-lg transition-colors ${
+              viewMode === 'table' 
+                ? 'bg-blue-100 text-blue-600' 
+                : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            <List className="h-5 w-5" />
+          </button>
+          
+          <button
+            onClick={loadLeadsOnly}
+            disabled={leadsLoading}
+            className={`p-2 rounded-lg transition-colors ${
+              leadsLoading 
+                ? 'text-gray-300 cursor-not-allowed' 
+                : 'text-gray-400 hover:text-gray-600'
+            }`}
+            title="Refresh leads"
+          >
+            <RefreshCw className={`h-5 w-5 ${leadsLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          {/* Export Dropdown */}
+          <div className="relative export-dropdown">
+            <button
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600"
+            >
+              <Download className="h-4 w-4" />
+              <ChevronDown className="h-4 w-4" />
+            </button>
+            
+            {showExportDropdown && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                <div className="py-1">
+                  <button
+                    onClick={exportToCSV}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span>Export as CSV</span>
+                  </button>
+                  <button
+                    onClick={exportToExcel}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                    <span>Export as Excel</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
+            <Upload className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
-      {/* Empty state */}
-      {filteredLeads.length === 0 && (
-        <div className="text-center py-12">
-          <FileText className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No leads found</h3>
-          <p className="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
+      {/* Content */}
+      {leadsLoading ? (
+        // Loading state for leads only
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-600">Loading leads...</p>
+          </div>
         </div>
+      ) : viewMode === 'grid' ? (
+        // Grid View
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {gridViewLeads.map((lead) => (
+            <LeadsCard
+              key={lead.id}
+              lead={lead}
+              onView={handleViewLead}
+              onEdit={handleEditLead}
+              onDelete={handleDeleteLead}
+            />
+          ))}
+        </div>
+      ) : (
+        // Table View
+        <>
+          {console.log('🔍 Table data debug:', {
+            paginatedLeads,
+            leadsLength: paginatedLeads.length,
+            firstLead: paginatedLeads[0],
+            allLeads: leads
+          })}
+          <DataTable
+            columns={leadsColumns}
+            data={paginatedLeads}
+          />
+        </>
       )}
+
+      {/* Pagination */}
+      {filteredLeads.length > itemsPerPage && (
+        <PropertyPagination
+          currentPage={currentPage}
+          totalPages={Math.ceil(filteredLeads.length / itemsPerPage)}
+          itemsPerPage={itemsPerPage}
+          totalItems={filteredLeads.length}
+          startIndex={(currentPage - 1) * itemsPerPage}
+          endIndex={currentPage * itemsPerPage}
+          onPageChange={setCurrentPage}
+          onItemsPerPageChange={handleItemsPerPageChange}
+          viewMode={viewMode}
+        />
+      )}
+
+      {/* Modals */}
+      <LeadsModals
+        showAddLeadModal={showAddModal}
+        setShowAddLeadModal={setShowAddModal}
+        onSaveAdd={handleAddLead}
+        showEditLeadModal={showEditModal}
+        setShowEditLeadModal={setShowEditModal}
+        editingLead={selectedLead}
+        editFormData={editFormData}
+        setEditFormData={setEditFormData}
+        onSaveEdit={handleSaveEdit}
+        showViewLeadModal={showViewModal}
+        setShowViewLeadModal={setShowViewModal}
+        viewingLead={selectedLead}
+        showDeleteLeadModal={showDeleteModal}
+        setShowDeleteLeadModal={setShowDeleteModal}
+        deletingLead={deletingLead}
+        deleteConfirmation={deleteConfirmation}
+        setDeleteConfirmation={setDeleteConfirmation}
+        onConfirmDelete={handleConfirmDelete}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { Property, Category, Status } from '@/types/property'
+import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData } from '@/types/leads'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -151,6 +152,49 @@ export const propertiesApi = {
   
   // Get property statistics
   getStats: () => apiRequest<{ success: boolean; data: any }>('/properties/stats/overview'),
+}
+
+// Leads API
+export const leadsApi = {
+  // Get all leads (requires authentication)
+  getAll: (token?: string) => apiRequest<LeadsResponse>('/leads', {}, token),
+  
+  // Get leads with filters
+  getWithFilters: (filters: LeadFilters, token?: string) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    return apiRequest<LeadsResponse>(`/leads/filtered?${params.toString()}`, {}, token)
+  },
+  
+  // Get lead by ID
+  getById: (id: number, token?: string) => apiRequest<LeadResponse>(`/leads/${id}`, {}, token),
+  
+  // Create lead
+  create: (data: CreateLeadFormData, token?: string) => apiRequest<LeadResponse>('/leads', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }, token),
+  
+  // Update lead
+  update: (id: number, data: Partial<CreateLeadFormData>, token?: string) => apiRequest<LeadResponse>(`/leads/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }, token),
+  
+  // Delete lead
+  delete: (id: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/leads/${id}`, {
+    method: 'DELETE',
+  }, token),
+  
+  // Get leads by agent
+  getByAgent: (agentId: number, token?: string) => apiRequest<LeadsResponse>(`/leads/agent/${agentId}`, {}, token),
+  
+  // Get lead statistics
+  getStats: (token?: string) => apiRequest<LeadStatsApiResponse>('/leads/stats/overview', {}, token),
 }
 
 // Categories API
