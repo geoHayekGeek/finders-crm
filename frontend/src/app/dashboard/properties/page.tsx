@@ -54,11 +54,26 @@ export default function PropertiesPage() {
   const [deletingProperty, setDeletingProperty] = useState<Property | null>(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [editFormData, setEditFormData] = useState<EditFormData>({
+    reference_number: '',
     status_id: 0,
+    property_type: 'sale',
     location: '',
     category_id: 0,
+    building_name: '',
     owner_name: '',
-    concierge: false
+    phone_number: '',
+    surface: 0,
+    details: '',
+    interior_details: '',
+    built_year: 0,
+    view_type: 'no view',
+    concierge: false,
+    agent_id: 0,
+    price: 0,
+    notes: '',
+    main_image: '',
+    image_gallery: [],
+    referrals: []
   })
   const [selectedImage, setSelectedImage] = useState('')
   const [allImages, setAllImages] = useState<string[]>([])
@@ -74,6 +89,8 @@ export default function PropertiesPage() {
   // Loading states for refresh buttons
   const [categoriesLoading, setCategoriesLoading] = useState(false)
   const [statusesLoading, setStatusesLoading] = useState(false)
+
+
   
   // Export dropdown state
   const [showExportDropdown, setShowExportDropdown] = useState(false)
@@ -367,34 +384,26 @@ export default function PropertiesPage() {
       }
 
       console.log('📡 Sending update request:', updateData)
-
-      // Send PUT request to update the property
-      const response = await fetch(`http://localhost:10000/api/properties/${selectedProperty.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData)
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        console.log('✅ Property updated successfully:', result)
-        
-        // Close the modal
-        setShowEditModal(false)
-        setSelectedProperty(null)
-        
-        // Refresh the properties list
-        await loadData()
-        
-        alert('Property updated successfully!')
-      } else {
-        const errorData = await response.json()
-        console.error('❌ Failed to update property:', errorData)
-        alert(`Failed to update property: ${errorData.message || 'Unknown error'}`)
+      console.log('📡 Referrals in updateData:', updateData.referrals)
+      if (updateData.referrals && updateData.referrals.length > 0) {
+        console.log('📡 First referral details:', updateData.referrals[0])
+        console.log('📡 First referral date:', updateData.referrals[0].date)
+        console.log('📡 First referral date type:', typeof updateData.referrals[0].date)
       }
+
+      // Use the handleUpdateProperty function which handles CSRF tokens
+      await handleUpdateProperty(selectedProperty.id, updateData)
+      
+      // Close the modal
+      setShowEditModal(false)
+      setSelectedProperty(null)
+      
+      // Refresh the properties list
+      await loadData()
+      
+      // Refresh categories and statuses to ensure they're up to date
+      await refreshCategories()
+      await refreshStatuses()
     } catch (error) {
       console.error('❌ Error updating property:', error)
       alert('An error occurred while updating the property. Please try again.')
@@ -428,30 +437,45 @@ export default function PropertiesPage() {
       }
 
       // Ensure numeric fields are properly formatted and exclude image data
-      const formattedData = {
-        status_id: parseInt(propertyData.status_id),
-        location: propertyData.location,
-        category_id: parseInt(propertyData.category_id),
-        building_name: propertyData.building_name || null,
-        owner_name: propertyData.owner_name,
-        phone_number: propertyData.phone_number || null,
-        surface: propertyData.surface ? parseFloat(propertyData.surface) : null,
-        details: propertyData.details || null,
-        interior_details: propertyData.interior_details || null,
-        built_year: propertyData.built_year ? parseInt(propertyData.built_year) : null,
-        view_type: propertyData.view_type || null,
-        concierge: Boolean(propertyData.concierge),
-        agent_id: propertyData.agent_id || null,
-        price: parseFloat(propertyData.price),
-        notes: propertyData.notes || null,
-        referral_source: propertyData.referral_source || null,
-        referral_dates: propertyData.referral_dates || null
-        // Note: main_image and image_gallery are excluded - they will be handled separately via file uploads
-      }
+              const formattedData = {
+          status_id: parseInt(propertyData.status_id),
+          property_type: propertyData.property_type || 'sale',
+          location: propertyData.location,
+          category_id: parseInt(propertyData.category_id),
+          building_name: propertyData.building_name || null,
+          owner_name: propertyData.owner_name,
+          phone_number: propertyData.phone_number || null,
+          surface: propertyData.surface ? parseFloat(propertyData.surface) : null,
+          details: propertyData.details || null,
+          interior_details: propertyData.interior_details || null,
+          built_year: propertyData.built_year ? parseInt(propertyData.built_year) : null,
+          view_type: propertyData.view_type || null,
+          concierge: Boolean(propertyData.concierge),
+          agent_id: propertyData.agent_id || null,
+          price: parseFloat(propertyData.price),
+          notes: propertyData.notes || null,
+          referrals: propertyData.referrals || null
+          // Note: main_image and image_gallery are excluded - they will be handled separately via file uploads
+        }
       
-      console.log('Formatted data to send:', formattedData)
-      
-      // Call the production API with authentication
+              console.log('Formatted data to send:', formattedData)
+        console.log('📤 Referrals in formattedData:', formattedData.referrals)
+        if (formattedData.referrals && formattedData.referrals.length > 0) {
+          console.log('📤 First referral details:', formattedData.referrals[0])
+          console.log('📤 First referral date:', formattedData.referrals[0].date)
+          console.log('📤 First referral date type:', typeof formattedData.referrals[0].date)
+        }
+        
+        // Additional validation after formatting
+        if (isNaN(formattedData.status_id) || isNaN(formattedData.category_id) || isNaN(formattedData.price)) {
+          alert('Invalid numeric values detected. Please check Status, Category, and Price fields.')
+          return
+        }
+        
+        // Debug: Log the exact JSON being sent
+        console.log('📤 JSON payload being sent:', JSON.stringify(formattedData, null, 2))
+        
+        // Call the production API with authentication
       const response = await fetch('http://localhost:10000/api/properties', {
         method: 'POST',
         headers: {
@@ -473,11 +497,15 @@ export default function PropertiesPage() {
       const newProperty = await response.json()
       console.log('Property added successfully:', newProperty)
 
-      // Refresh the properties list
-      await loadData()
-      
-      // Return the created property data for image upload
-      return newProperty.data || newProperty
+              // Refresh the properties list
+        await loadData()
+        
+        // Refresh categories and statuses to ensure they're up to date
+        await refreshCategories()
+        await refreshStatuses()
+        
+        // Return the created property data for image upload
+        return newProperty.data || newProperty
       
     } catch (error) {
       console.error('Error adding property:', error)
@@ -509,6 +537,14 @@ export default function PropertiesPage() {
           return
         }
         
+        // Debug: Log the property being deleted
+        console.log('🔍 Deleting property:', {
+          id: deletingProperty.id,
+          type: typeof deletingProperty.id,
+          reference_number: deletingProperty.reference_number,
+          location: deletingProperty.location
+        })
+        
         // Call the production API to delete the property
         const response = await fetch(`http://localhost:10000/api/properties/${deletingProperty.id}`, {
           method: 'DELETE',
@@ -523,13 +559,26 @@ export default function PropertiesPage() {
             alert('Authentication required. Please log in again.')
             return
           }
-          throw new Error(`Failed to delete property: ${response.statusText}`)
+          
+          // Get the error response body
+          const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+          console.error('❌ Delete property error response:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorData
+          })
+          
+          throw new Error(`Failed to delete property: ${errorData.message || response.statusText}`)
         }
         
-        console.log('Property deleted successfully!')
+        console.log('✅ Property deleted successfully!')
         
         // Refresh the properties list
         await loadData()
+        
+        // Refresh categories and statuses to ensure they're up to date
+        await refreshCategories()
+        await refreshStatuses()
         
         // Close modal and reset state
         setShowDeleteModal(false)
@@ -540,7 +589,7 @@ export default function PropertiesPage() {
         alert('Property deleted successfully!')
         
       } catch (error) {
-        console.error('Error deleting property:', error)
+        console.error('❌ Error deleting property:', error)
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
         alert(`Error deleting property: ${errorMessage}`)
       }
@@ -601,20 +650,48 @@ export default function PropertiesPage() {
         return
       }
       
-      // Call the production API to update the property
-      const response = await fetch(`http://localhost:10000/api/properties/${id}`, {
-        method: 'PUT',
+      // Step 1: Get CSRF token by making a GET request to the property endpoint
+      console.log('🔐 Getting CSRF token for property:', id)
+      const csrfResponse = await fetch(`http://localhost:10000/api/properties/${id}`, {
+        method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(propertyData),
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       })
+
+      if (!csrfResponse.ok) {
+        throw new Error(`Failed to get CSRF token: ${csrfResponse.statusText}`)
+      }
+
+      // Extract CSRF token from response headers
+      const csrfToken = csrfResponse.headers.get('X-CSRF-Token')
+      console.log('🔐 CSRF token received:', csrfToken ? 'Yes' : 'No')
+      console.log('🔐 All response headers:', Array.from(csrfResponse.headers.entries()))
+      
+      if (!csrfToken) {
+        throw new Error('CSRF token not received from server')
+      }
+      
+              // Step 2: Update the property with CSRF token
+        const response = await fetch(`http://localhost:10000/api/properties/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+            'X-CSRF-Token': csrfToken
+          },
+          body: JSON.stringify(propertyData),
+        })
       
       if (!response.ok) {
         if (response.status === 401) {
           alert('Authentication required. Please log in again.')
           return
+        }
+        if (response.status === 403) {
+          const errorData = await response.json()
+          throw new Error(`CSRF Error: ${errorData.message}`)
         }
         throw new Error(`Failed to update property: ${response.statusText}`)
       }

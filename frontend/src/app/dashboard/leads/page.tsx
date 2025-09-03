@@ -227,6 +227,7 @@ export default function LeadsPage() {
     return filteredLeads.slice(startIndex, endIndex).map(lead => ({
       ...lead,
       onView: handleViewLead,
+    
       onEdit: handleEditLead,
       onDelete: handleDeleteLead
     }))

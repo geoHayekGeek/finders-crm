@@ -32,7 +32,7 @@ export function PropertyStatusSelector({
     try {
       console.log('🔍 Fetching statuses...')
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/statuses', {
+      const response = await fetch('http://localhost:10000/api/statuses', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

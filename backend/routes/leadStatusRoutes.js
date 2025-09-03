@@ -1,11 +1,11 @@
 // routes/leadStatusRoutes.js
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middlewares/authMiddleware');
+const { authenticateToken } = require('../middlewares/permissions');
 const LeadStatusController = require('../controllers/leadStatusController');
 
 // Apply authentication to all routes
-router.use(authMiddleware);
+router.use(authenticateToken);
 
 // GET /api/lead-statuses - Get all lead statuses
 router.get('/', LeadStatusController.getAllStatuses);

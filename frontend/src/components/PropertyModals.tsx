@@ -1,14 +1,15 @@
 'use client'
 
 import React, { useRef, useState, useEffect } from 'react'
-import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2 } from 'lucide-react'
-import { Property, Category, Status, EditFormData } from '@/types/property'
+import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2, User, Calendar } from 'lucide-react'
+import { Property, Category, Status, EditFormData, Referral } from '@/types/property'
 import { compressAndConvertToBase64, getRecommendedCompressionOptions } from '@/utils/imageCompression'
 import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, validateImageFiles, createImagePreview, getFullImageUrl } from '@/utils/imageUpload'
 
 import { CategorySelector } from './CategorySelector'
 import { PropertyStatusSelector } from './PropertyStatusSelector'
 import { AgentSelector } from './AgentSelector'
+import { ReferralSelector } from './ReferralSelector'
 
 
 
@@ -98,14 +99,17 @@ export function PropertyModals({
   const [allImagesState, setAllImagesState] = useState<string[]>([])
   const [currentImageIndexState, setCurrentImageIndexState] = useState<number>(0)
   const [updateExisting, setUpdateExisting] = useState(false)
+  const [employees, setEmployees] = useState<Agent[]>([])
+  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null)
 
 
 
   // Local state for add property modal
   const [addFormData, setAddFormData] = useState({
-    status_id: 0,
+    status_id: undefined as number | undefined,
+    property_type: 'sale' as 'sale' | 'rent',
     location: '',
-    category_id: 0,
+    category_id: undefined as number | undefined,
     building_name: '',
     owner_name: '',
     phone_number: '',
@@ -115,7 +119,7 @@ export function PropertyModals({
     built_year: '',
     view_type: '',
     concierge: false,
-    agent_id: 0, // Add agent_id field
+    agent_id: undefined as number | undefined, // Add agent_id field
     price: '',
     notes: '',
     main_image: '',
@@ -123,13 +127,135 @@ export function PropertyModals({
     main_image_preview: '', // New: Preview URL for display
     image_gallery: [] as string[],
     gallery_files: [] as File[], // New: File objects for upload
-    gallery_previews: [] as string[] // New: Preview URLs for display
+    gallery_previews: [] as string[], // New: Preview URLs for display
+    referrals: [] as Referral[]
   })
 
   // Debug useEffect to monitor main_image changes
   useEffect(() => {
     console.log('addFormData.main_image changed:', addFormData.main_image ? 'has image' : 'no image')
   }, [addFormData.main_image])
+
+  // Fetch employees for referral selection
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        console.log('🔍 Fetching employees for referrals...')
+        const response = await fetch('http://localhost:10000/api/users/all')
+        console.log('📡 Response status:', response.status)
+
+        if (response.ok) {
+          const data = await response.json()
+          console.log('📊 Response data:', data)
+
+          if (data.success) {
+            console.log('✅ Employees fetched successfully:', data.users)
+            setEmployees(data.users)
+          } else {
+            console.error('❌ API returned success: false:', data.message)
+          }
+        } else {
+          console.error('❌ HTTP error:', response.status, response.statusText)
+        }
+      } catch (error) {
+        console.error('❌ Error fetching employees:', error)
+      }
+    }
+
+    fetchEmployees()
+  }, [])
+
+  // Simple validation function
+  const isFieldValid = (fieldName: string, value: any) => {
+    switch (fieldName) {
+      case 'status_id':
+        return value !== undefined && value !== null && value !== 0
+      case 'category_id':
+        return value !== undefined && value !== null && value !== 0
+      case 'location':
+        return value && value.trim() !== ''
+      case 'owner_name':
+        return value && value.trim() !== ''
+      case 'phone_number':
+        return value && value.trim() !== ''
+      case 'surface':
+        return value && value.trim() !== ''
+      case 'view_type':
+        return value && value.trim() !== ''
+      case 'price':
+        return value && value.trim() !== ''
+      case 'concierge':
+        return value !== undefined && value !== null
+      case 'details':
+        return value && value.trim() !== ''
+      case 'interior_details':
+        return value && value.trim() !== ''
+      default:
+        return true
+    }
+  }
+
+  // Get detailed validation errors
+  const getValidationErrors = () => {
+    const errors: string[] = [];
+    
+    if (!isFieldValid('status_id', addFormData.status_id)) {
+      errors.push('Status is required and must be a valid selection');
+    }
+    if (!isFieldValid('category_id', addFormData.category_id)) {
+      errors.push('Category is required and must be a valid selection');
+    }
+    if (!isFieldValid('location', addFormData.location)) {
+      errors.push('Location is required');
+    }
+    if (!isFieldValid('owner_name', addFormData.owner_name)) {
+      errors.push('Owner name is required');
+    }
+    if (!isFieldValid('phone_number', addFormData.phone_number)) {
+      errors.push('Phone number is required');
+    }
+    if (!isFieldValid('surface', addFormData.surface)) {
+      errors.push('Surface area is required');
+    }
+    if (!isFieldValid('view_type', addFormData.view_type)) {
+      errors.push('View type is required');
+    }
+    if (!isFieldValid('price', addFormData.price)) {
+      errors.push('Price is required');
+    }
+    if (!isFieldValid('concierge', addFormData.concierge)) {
+      errors.push('Concierge service status is required');
+    }
+    if (!isFieldValid('details', addFormData.details)) {
+      errors.push('Property details are required');
+    }
+    if (!isFieldValid('interior_details', addFormData.interior_details)) {
+      errors.push('Interior details are required');
+    }
+    
+    return errors;
+  };
+
+  // Check if form is valid
+  const isFormValid =
+    isFieldValid('status_id', addFormData.status_id) &&
+    isFieldValid('category_id', addFormData.category_id) &&
+    isFieldValid('location', addFormData.location) &&
+    isFieldValid('owner_name', addFormData.owner_name) &&
+    isFieldValid('phone_number', addFormData.phone_number) &&
+    isFieldValid('surface', addFormData.surface) &&
+    isFieldValid('view_type', addFormData.view_type) &&
+    isFieldValid('price', addFormData.price) &&
+    isFieldValid('concierge', addFormData.concierge) &&
+    isFieldValid('details', addFormData.details) &&
+    isFieldValid('interior_details', addFormData.interior_details)
+
+  // Function to show toast messages (only for major events)
+  const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
+    setToastMessage({ type, message })
+    // Auto-hide after 5 seconds
+    setTimeout(() => setToastMessage(null), 5000)
+  }
 
 
 
@@ -139,7 +265,7 @@ export function PropertyModals({
       if (editingProperty && showEditPropertyModal) {
         try {
           console.log('🔧 Fetching complete property details for ID:', editingProperty.id)
-          
+
           // Make API call to get complete property details
           const response = await fetch(`http://localhost:10000/api/properties/${editingProperty.id}`, {
             headers: {
@@ -153,13 +279,16 @@ export function PropertyModals({
           }
 
           const result = await response.json()
-          
+
           if (result.success && result.data) {
             const propertyData = result.data
             console.log('✅ Property details fetched from backend:', propertyData)
             console.log('🔍 Details field value:', propertyData.details)
-            console.log('🔍 Referral dates value:', propertyData.referral_dates)
-            
+            console.log('🔍 Interior details field value:', propertyData.interior_details)
+            console.log('🔍 Notes field value:', propertyData.notes)
+            console.log('🔍 Referrals field value:', propertyData.referrals)
+
+
             const formData = {
               reference_number: propertyData.reference_number || '',
               status_id: propertyData.status_id || 0,
@@ -177,18 +306,12 @@ export function PropertyModals({
               agent_id: propertyData.agent_id,
               price: propertyData.price,
               notes: propertyData.notes || '',
-              referral_source: propertyData.referral_source || '',
-              referral_dates: (propertyData.referral_dates || []).map((date: string) => {
-                // Convert ISO date to YYYY-MM-DD format for the form
-                if (typeof date === 'string' && date.includes('T')) {
-                  return date.split('T')[0]
-                }
-                return date
-              }),
+              referrals: propertyData.referrals || [],
+
               main_image: propertyData.main_image || '',
               image_gallery: propertyData.image_gallery || []
             }
-            
+
             console.log('🎯 Setting editFormData:', formData)
             setEditFormData(formData)
           } else {
@@ -211,14 +334,8 @@ export function PropertyModals({
               agent_id: editingProperty.agent_id,
               price: editingProperty.price,
               notes: editingProperty.notes || '',
-              referral_source: editingProperty.referral_source || '',
-              referral_dates: (editingProperty.referral_dates || []).map((date: string) => {
-                // Convert ISO date to YYYY-MM-DD format for the form
-                if (typeof date === 'string' && date.includes('T')) {
-                  return date.split('T')[0]
-                }
-                return date
-              }),
+              referrals: editingProperty.referrals || [],
+
               main_image: editingProperty.main_image || '',
               image_gallery: editingProperty.image_gallery || []
             })
@@ -243,14 +360,8 @@ export function PropertyModals({
             agent_id: editingProperty.agent_id,
             price: editingProperty.price,
             notes: editingProperty.notes || '',
-            referral_source: editingProperty.referral_source || '',
-            referral_dates: (editingProperty.referral_dates || []).map(date => {
-              // Convert ISO date to YYYY-MM-DD format for the form
-              if (typeof date === 'string' && date.includes('T')) {
-                return date.split('T')[0]
-              }
-              return date
-            }),
+            referrals: editingProperty.referrals || [],
+
             main_image: editingProperty.main_image || '',
             image_gallery: editingProperty.image_gallery || []
           })
@@ -263,13 +374,13 @@ export function PropertyModals({
 
   // Fetch complete property details for view modal as well
   const [viewPropertyData, setViewPropertyData] = useState<Property | null>(null)
-  
+
   useEffect(() => {
     const fetchViewPropertyDetails = async () => {
       if (viewingProperty && showViewPropertyModal) {
         try {
           console.log('👁️ Fetching complete property details for viewing ID:', viewingProperty.id)
-          
+
           // Make API call to get complete property details
           const response = await fetch(`http://localhost:10000/api/properties/${viewingProperty.id}`, {
             headers: {
@@ -283,7 +394,7 @@ export function PropertyModals({
           }
 
           const result = await response.json()
-          
+
           if (result.success && result.data) {
             console.log('✅ View property details fetched from backend:', result.data)
             setViewPropertyData(result.data)
@@ -402,9 +513,10 @@ export function PropertyModals({
   // Reset add form data
   const resetAddFormData = () => {
     setAddFormData({
-      status_id: 0,
+      status_id: undefined as number | undefined,
+      property_type: 'sale' as 'sale' | 'rent',
       location: '',
-      category_id: 0,
+      category_id: undefined as number | undefined,
       building_name: '',
       owner_name: '',
       phone_number: '',
@@ -414,17 +526,17 @@ export function PropertyModals({
       built_year: '',
       view_type: '',
       concierge: false,
-      agent_id: 0, // Reset agent_id
+      agent_id: undefined as number | undefined, // Reset agent_id
       price: '',
       notes: '',
-      referral_source: '',
-      referrals: [] as ReferralItem[],
+
       main_image: '',
       main_image_file: null as File | null,
       main_image_preview: '',
       image_gallery: [],
       gallery_files: [] as File[],
-      gallery_previews: [] as string[]
+      gallery_previews: [] as string[],
+      referrals: [] as Referral[]
     })
   }
 
@@ -485,6 +597,8 @@ export function PropertyModals({
       }
     }
   }
+
+
 
   return (
     <>
@@ -653,29 +767,63 @@ export function PropertyModals({
                 e.preventDefault()
 
                 try {
+                  // Debug: Log the form data being sent
+                  console.log('🔍 Form data being submitted:', addFormData)
+                  console.log('🔍 Required fields check:')
+                  console.log('  - status_id:', addFormData.status_id, typeof addFormData.status_id)
+                  console.log('  - property_type:', addFormData.property_type, typeof addFormData.property_type)
+                  console.log('  - location:', addFormData.location, typeof addFormData.location)
+                  console.log('  - category_id:', addFormData.category_id, typeof addFormData.category_id)
+                  console.log('  - owner_name:', addFormData.owner_name, typeof addFormData.owner_name)
+                  console.log('  - phone_number:', addFormData.phone_number, typeof addFormData.phone_number)
+                  console.log('  - surface:', addFormData.surface, typeof addFormData.surface)
+                  console.log('  - view_type:', addFormData.view_type, typeof addFormData.view_type)
+                  console.log('  - price:', addFormData.price, typeof addFormData.price)
+                  console.log('  - concierge:', addFormData.concierge, typeof addFormData.concierge)
+                  console.log('  - details:', addFormData.details, typeof addFormData.details)
+                  console.log('  - interior_details:', addFormData.interior_details, typeof addFormData.interior_details)
+
                   // Create property data object (WITHOUT IMAGES)
                   const propertyData = {
-                    status_id: parseInt((document.getElementById('add-status') as HTMLSelectElement).value),
-                    location: (document.getElementById('add-location') as HTMLInputElement).value,
-                    category_id: parseInt((document.getElementById('add-category') as HTMLSelectElement).value),
-                    building_name: (document.getElementById('add-building-name') as HTMLInputElement).value || undefined,
-                    owner_name: (document.getElementById('add-owner-name') as HTMLInputElement).value,
-                    phone_number: (document.getElementById('add-phone') as HTMLInputElement).value || undefined,
-                    surface: parseFloat((document.getElementById('add-surface') as HTMLInputElement).value) || undefined,
-                    details: (document.getElementById('add-details') as HTMLTextAreaElement).value || undefined,
-                    interior_details: (document.getElementById('add-interior-details') as HTMLTextAreaElement).value || undefined,
-                    built_year: parseInt((document.getElementById('add-built-year') as HTMLInputElement).value) || undefined,
-                    view_type: (document.getElementById('add-view-type') as HTMLSelectElement).value || undefined,
-                    concierge: (document.getElementById('add-concierge') as HTMLInputElement).checked,
-                    agent_id: parseInt((document.getElementById('add-agent') as HTMLSelectElement).value) || undefined, // Add agent_id
-                    price: parseFloat((document.getElementById('add-price') as HTMLInputElement).value) || undefined,
-                    notes: (document.getElementById('add-notes') as HTMLTextAreaElement).value || undefined,
-                    referral_source: addFormData.referrals.length > 0 ? addFormData.referrals[0].source : undefined, // For backward compatibility
-                    referral_dates: addFormData.referrals.map(r => r.date), // For backward compatibility
-                    referral_sources: addFormData.referrals, // New structure
+                    status_id: addFormData.status_id,
+                    property_type: addFormData.property_type,
+                    location: addFormData.location,
+                    category_id: addFormData.category_id,
+                    building_name: addFormData.building_name || undefined,
+                    owner_name: addFormData.owner_name,
+                    phone_number: addFormData.phone_number,
+                    surface: parseFloat(addFormData.surface),
+                    details: addFormData.details,
+                    interior_details: addFormData.interior_details,
+                    built_year: addFormData.built_year ? parseInt(addFormData.built_year) : undefined,
+                    view_type: addFormData.view_type,
+                    concierge: addFormData.concierge,
+                    agent_id: addFormData.agent_id || undefined,
+                    price: parseFloat(addFormData.price),
+                    notes: addFormData.notes || undefined,
+                    referrals: addFormData.referrals.length > 0 ? addFormData.referrals : undefined,
+
                     // Note: Images will be uploaded separately after property creation
                     hasImages: addFormData.main_image_file || addFormData.gallery_files.length > 0 // Flag to indicate if we need to upload images
                   }
+
+                  // Debug: Log the exact data being sent
+                  console.log('🚀 Property data to be sent:', JSON.stringify(propertyData, null, 2))
+                  console.log('🔍 Data types:', {
+                    status_id: typeof propertyData.status_id,
+                    category_id: typeof propertyData.category_id,
+                    location: typeof propertyData.location,
+                    owner_name: typeof propertyData.owner_name,
+                    phone_number: typeof propertyData.phone_number,
+                    surface: typeof propertyData.surface,
+                    view_type: typeof propertyData.view_type,
+                    price: typeof propertyData.price,
+                    concierge: typeof propertyData.concierge,
+                    details: typeof propertyData.details,
+                    interior_details: typeof propertyData.interior_details
+                  })
+
+                  console.log('🚀 Final property data being sent to backend:', propertyData)
 
                   // Step 1: Create the property without images
                   console.log('Step 1: Creating property without images...')
@@ -720,20 +868,21 @@ export function PropertyModals({
 
                   setShowAddPropertyModal(false)
                   resetAddFormData()
+                  showToast('success', 'Property created successfully!')
 
                 } catch (error) {
                   console.error('Error in property creation process:', error)
-                  alert('Error creating property: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                  showToast('error', 'Error creating property: ' + (error instanceof Error ? error.message : 'Unknown error'))
                 }
               }}>
 
                 {/* Main Image Section - Top of Modal */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
                   <div className="relative group">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
                       {addFormData.main_image_preview || addFormData.main_image ? (
-                        <div className="w-full h-full flex items-center justify-center relative z-300">
+                        <div className="relative w-full h-full flex items-center justify-center z-300">
                           <img
                             key={(addFormData.main_image_preview || addFormData.main_image).substring(0, 100)} // Force re-render when image changes
                             src={addFormData.main_image_preview || addFormData.main_image}
@@ -753,6 +902,20 @@ export function PropertyModals({
                               }))
                             }}
                           />
+                          {/* Remove Image Button */}
+                          <button
+                            type="button"
+                            onClick={() => setAddFormData((prev) => ({
+                              ...prev,
+                              main_image_preview: '',
+                              main_image: '',
+                              main_image_file: null
+                            }))}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg z-30"
+                            title="Remove main image"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center relative z-10">
@@ -786,28 +949,51 @@ export function PropertyModals({
 
                 {/* Property Details Form */}
                 <div className="space-y-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Status <span className="text-red-500">*</span>
                       </label>
-                      <PropertyStatusSelector
-                        selectedStatusId={addFormData.status_id}
-                        onStatusChange={(statusId) => setAddFormData(prev => ({ ...prev, status_id: statusId }))}
-                        placeholder="Select status..."
-                        required={true}
-                      />
+                      <div>
+                        <PropertyStatusSelector
+                          selectedStatusId={addFormData.status_id}
+                          onStatusChange={(statusId) => setAddFormData(prev => ({ ...prev, status_id: statusId }))}
+                          placeholder="Select status..."
+                          required={true}
+                        />
+                      </div>
+
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Property Type <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        id="add-property-type"
+                        value={addFormData.property_type}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, property_type: e.target.value as 'sale' | 'rent' }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      >
+                        <option value="sale">Sale</option>
+                        <option value="rent">Rent</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Category <span className="text-red-500">*</span>
                       </label>
-                      <CategorySelector
-                        selectedCategoryId={addFormData.category_id}
-                        onCategoryChange={(categoryId) => setAddFormData(prev => ({ ...prev, category_id: categoryId }))}
-                        placeholder="Select category..."
-                        required={true}
-                      />
+                      <div>
+                        <CategorySelector
+                          selectedCategoryId={addFormData.category_id}
+                          onCategoryChange={(categoryId) => setAddFormData(prev => ({ ...prev, category_id: categoryId }))}
+                          placeholder="Select category..."
+                          required={true}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -819,16 +1005,20 @@ export function PropertyModals({
                       <input
                         id="add-location"
                         type="text"
+                        value={addFormData.location}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, location: e.target.value }))}
                         required
                         placeholder="Enter property location"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name (Optional)</label>
                       <input
                         id="add-building-name"
                         type="text"
+                        value={addFormData.building_name}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, building_name: e.target.value }))}
                         placeholder="Enter building name (optional)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
@@ -843,17 +1033,24 @@ export function PropertyModals({
                       <input
                         id="add-owner-name"
                         type="text"
+                        value={addFormData.owner_name}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, owner_name: e.target.value }))}
                         required
                         placeholder="Enter owner name"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number <span className="text-red-500">*</span>
+                      </label>
                       <input
                         id="add-phone"
                         type="tel"
-                        placeholder="Enter phone number (optional)"
+                        value={addFormData.phone_number}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, phone_number: e.target.value }))}
+                        required
+                        placeholder="Enter phone number"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
@@ -861,23 +1058,30 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Surface Area (m²)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Surface Area (m²) <span className="text-red-500">*</span>
+                      </label>
                       <input
                         id="add-surface"
                         type="number"
                         step="0.01"
+                        value={addFormData.surface}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, surface: e.target.value }))}
+                        required
                         placeholder="Enter surface area"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year (Optional)</label>
                       <input
                         id="add-built-year"
                         type="number"
                         min="1800"
                         max={new Date().getFullYear()}
-                        placeholder="Enter built year"
+                        value={addFormData.built_year}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, built_year: e.target.value }))}
+                        placeholder="Enter built year (optional)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
@@ -885,7 +1089,7 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent (Optional)</label>
                       <AgentSelector
                         selectedAgentId={addFormData.agent_id}
                         onAgentChange={(agent) => setAddFormData(prev => ({ ...prev, agent_id: agent?.id }))}
@@ -893,9 +1097,14 @@ export function PropertyModals({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        View Type <span className="text-red-500">*</span>
+                      </label>
                       <select
                         id="add-view-type"
+                        value={addFormData.view_type}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, view_type: e.target.value }))}
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       >
                         <option value="">Select View Type</option>
@@ -916,6 +1125,8 @@ export function PropertyModals({
                         id="add-price"
                         type="number"
                         step="0.01"
+                        value={addFormData.price}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, price: e.target.value }))}
                         required
                         placeholder="Enter price"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
@@ -928,52 +1139,73 @@ export function PropertyModals({
                       <input
                         id="add-concierge"
                         type="checkbox"
+                        checked={addFormData.concierge}
+                        onChange={(e) => setAddFormData(prev => ({ ...prev, concierge: e.target.checked }))}
+                        required
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2 text-sm font-medium text-gray-700">Concierge Service</span>
+                      <span className="ml-2 text-sm font-medium text-gray-700">
+                        Concierge Service <span className="text-red-500">*</span>
+                      </span>
                     </label>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Details</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Details <span className="text-red-500">*</span>
+                    </label>
                     <textarea
                       id="add-details"
                       rows={3}
+                      value={addFormData.details}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, details: e.target.value }))}
+                      required
                       placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Interior Details <span className="text-red-500">*</span>
+                    </label>
                     <textarea
                       id="add-interior-details"
                       rows={3}
+                      value={addFormData.interior_details}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, interior_details: e.target.value }))}
+                      required
                       placeholder="Enter interior details and features"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
                     <textarea
                       id="add-notes"
                       rows={3}
-                      placeholder="Enter additional notes about the property"
+                      value={addFormData.notes}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Enter additional notes about the property (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Referrals (Optional)</label>
                     <ReferralSelector
                       referrals={addFormData.referrals}
                       onReferralsChange={(referrals) => setAddFormData(prev => ({ ...prev, referrals }))}
-                      placeholder="Click to add referral sources..."
+                      employees={employees}
+                      placeholder="Add property referrals (optional)..."
                     />
                   </div>
 
+
+
                   {/* Image Gallery Section */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Image Gallery</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Image Gallery (Optional)</label>
                     <div className="space-y-4">
                       {/* Gallery Images Display (NEW FILE-BASED APPROACH) */}
                       {(addFormData.gallery_previews.length > 0 || addFormData.image_gallery.length > 0) && (
@@ -1048,7 +1280,24 @@ export function PropertyModals({
                 </div>
 
                 {/* Form Actions */}
+
+                {/* Validation Errors Display */}
+                {!isFormValid && (
+                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <h4 className="text-sm font-medium text-red-800 mb-2">Please fix the following errors:</h4>
+                    <ul className="text-sm text-red-700 space-y-1">
+                      {getValidationErrors().map((error: string, index: number) => (
+                        <li key={index} className="flex items-start">
+                          <span className="text-red-500 mr-2">•</span>
+                          {error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
+                  
                   <button
                     type="button"
                     onClick={() => {
@@ -1061,7 +1310,11 @@ export function PropertyModals({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                    disabled={!isFormValid}
+                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isFormValid
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      }`}
                   >
                     Add Property
                   </button>
@@ -1103,15 +1356,26 @@ export function PropertyModals({
               }}>
                 {/* Main Image Section - Top of Modal */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
                   <div className="relative group">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
                       {editFormData.main_image ? (
-                        <img
-                          src={getFullImageUrl(editFormData.main_image)}
-                          alt="Main property image"
-                          className="w-full h-full object-cover"
-                        />
+                        <div className="relative w-full h-full">
+                          <img
+                            src={getFullImageUrl(editFormData.main_image)}
+                            alt="Main property image"
+                            className="w-full h-full object-cover"
+                          />
+                          {/* Remove Image Button */}
+                          <button
+                            type="button"
+                            onClick={() => setEditFormData((prev: EditFormData) => ({ ...prev, main_image: '' }))}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg"
+                            title="Remove main image"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
                           <div className="text-center">
@@ -1226,20 +1490,26 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Phone Number <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="text"
                         value={editFormData.phone_number || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, phone_number: e.target.value }))}
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Surface Area (m²)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Surface Area (m²) <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="number"
                         value={editFormData.surface || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, surface: parseFloat(e.target.value) || undefined }))}
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
@@ -1256,11 +1526,14 @@ export function PropertyModals({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Price</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Price <span className="text-red-500">*</span>
+                      </label>
                       <input
                         type="number"
                         value={editFormData.price || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, price: parseFloat(e.target.value) || undefined }))}
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
@@ -1268,10 +1541,13 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        View Type <span className="text-red-500">*</span>
+                      </label>
                       <select
                         value={editFormData.view_type || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, view_type: e.target.value as any }))}
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       >
                         <option value="">Select View Type</option>
@@ -1297,82 +1573,69 @@ export function PropertyModals({
                         type="checkbox"
                         checked={editFormData.concierge}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, concierge: e.target.checked }))}
+                        required
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2 text-sm font-medium text-gray-700">Concierge Service</span>
+                      <span className="ml-2 text-sm font-medium text-gray-700">
+                        Concierge Service <span className="text-red-500">*</span>
+                      </span>
                     </label>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Details</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Details <span className="text-red-500">*</span>
+                    </label>
                     <textarea
                       rows={3}
                       value={typeof editFormData.details === 'string' ? editFormData.details : (editFormData.details ? JSON.stringify(editFormData.details, null, 2) : '')}
                       onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, details: e.target.value }))}
+                      required
                       placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Interior Details <span className="text-red-500">*</span>
+                    </label>
                     <textarea
                       rows={3}
                       value={editFormData.interior_details || ''}
                       onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, interior_details: e.target.value }))}
+                      required
                       placeholder="Enter interior details and features"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
                     <textarea
                       rows={3}
                       value={editFormData.notes || ''}
                       onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Enter additional notes about the property"
+                      placeholder="Enter additional notes about the property (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Referrals (Optional)</label>
                     <ReferralSelector
-                      referrals={(() => {
-                        // Create referral objects from the stored data
-                        if (editFormData.referral_dates && editFormData.referral_dates.length > 0) {
-                          return editFormData.referral_dates.map(date => ({
-                            source: editFormData.referral_source || '',
-                            date: date,
-                            isCustom: false
-                          }))
-                        }
-                        // If no dates but there's a source, create one entry
-                        if (editFormData.referral_source) {
-                          return [{
-                            source: editFormData.referral_source,
-                            date: new Date().toISOString().split('T')[0], // Today's date
-                            isCustom: false
-                          }]
-                        }
-                        return []
-                      })()}
-                      onReferralsChange={(referrals) => {
-                        const referralSource = referrals.length > 0 ? referrals[0].source : ''
-                        const referralDates = referrals.map(r => r.date)
-                        setEditFormData((prev: EditFormData) => ({ 
-                          ...prev, 
-                          referral_source: referralSource,
-                          referral_dates: referralDates
-                        }))
-                      }}
-                      placeholder="Click to edit referral sources..."
+                      referrals={editFormData.referrals || []}
+                      onReferralsChange={(referrals) => setEditFormData((prev: EditFormData) => ({ ...prev, referrals }))}
+                      employees={employees}
+                      placeholder="Add property referrals (optional)..."
                     />
                   </div>
 
+
+
                   {/* Image Gallery Section */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Image Gallery</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Image Gallery (Optional)</label>
                     <div className="space-y-4">
                       {/* Gallery Images Display */}
                       {editFormData.image_gallery && editFormData.image_gallery.length > 0 && (
@@ -1400,7 +1663,7 @@ export function PropertyModals({
                       )}
 
                       {/* Add Gallery Images Button */}
-                      <div 
+                      <div
                         className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
                         onClick={() => {
                           // Create a file input element
@@ -1490,7 +1753,7 @@ export function PropertyModals({
               <div className="space-y-6">
                 {/* Main Image Section - Top of Modal */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
                   <div className="relative">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-200">
                       {viewPropertyData.main_image ? (
@@ -1525,7 +1788,7 @@ export function PropertyModals({
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                        <span 
+                        <span
                           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
                           style={{ backgroundColor: viewPropertyData.status_color }}
                         >
@@ -1619,93 +1882,97 @@ export function PropertyModals({
                     </div>
                   </div>
 
-                  {/* Details and Notes Section */}
-                  {(viewPropertyData.details || viewPropertyData.interior_details || viewPropertyData.notes) && (
-                    <div className="space-y-4">
-                      {viewPropertyData.details && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Property Details</label>
-                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                            {typeof viewPropertyData.details === 'string' ? (
-                              <div className="whitespace-pre-wrap">{viewPropertyData.details}</div>
-                            ) : typeof viewPropertyData.details === 'object' && viewPropertyData.details !== null ? (
-                              <div className="grid grid-cols-2 gap-2">
-                                {(viewPropertyData.details as any).floor && (
-                                  <div><strong>Floor:</strong> {(viewPropertyData.details as any).floor}</div>
-                                )}
-                                {(viewPropertyData.details as any).balcony !== undefined && (
-                                  <div><strong>Balcony:</strong> {(viewPropertyData.details as any).balcony ? 'Yes' : 'No'}</div>
-                                )}
-                                {(viewPropertyData.details as any).parking !== undefined && (
-                                  <div><strong>Parking:</strong> {(viewPropertyData.details as any).parking}</div>
-                                )}
-                                {(viewPropertyData.details as any).cave !== undefined && (
-                                  <div><strong>Cave:</strong> {(viewPropertyData.details as any).cave ? 'Yes' : 'No'}</div>
-                                )}
-                              </div>
-                            ) : (
-                              <div>Details unavailable</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {viewPropertyData.interior_details && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
-                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 whitespace-pre-wrap">
-                            {viewPropertyData.interior_details}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {viewPropertyData.notes && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900 whitespace-pre-wrap">
-                            {viewPropertyData.notes}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Referral Information */}
-                  {(viewPropertyData.referral_source || viewPropertyData.referral_dates) && (
+                  {/* Details, Interior Details, Notes, and Referrals Section */}
+                  <div className="space-y-4">
+                    {/* Property Details */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Referral Information</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Property Details</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewPropertyData.referral_source && (
-                          <div className="mb-2">
-                            <strong>Source:</strong> {viewPropertyData.referral_source}
-                          </div>
-                        )}
-                        {viewPropertyData.referral_dates && viewPropertyData.referral_dates.length > 0 && (
-                          <div>
-                            <strong>Dates:</strong>
-                            <div className="flex flex-wrap gap-2 ms-1 inline-block">
-                              {viewPropertyData.referral_dates.map((date, index) => (
-                                <span 
-                                  key={index}
-                                  className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-800"
-                                >
-                                  {new Date(date).toLocaleDateString()}
-                                </span>
-                              ))}
+                        {viewPropertyData.details ? (
+                          typeof viewPropertyData.details === 'string' ? (
+                            <div className="whitespace-pre-wrap">{viewPropertyData.details}</div>
+                          ) : typeof viewPropertyData.details === 'object' && viewPropertyData.details !== null ? (
+                            <div className="grid grid-cols-2 gap-2">
+                              {(viewPropertyData.details as any).floor && (
+                                <div><strong>Floor:</strong> {(viewPropertyData.details as any).floor}</div>
+                              )}
+                              {(viewPropertyData.details as any).balcony !== undefined && (
+                                <div><strong>Balcony:</strong> {(viewPropertyData.details as any).balcony ? 'Yes' : 'No'}</div>
+                              )}
+                              {(viewPropertyData.details as any).parking !== undefined && (
+                                <div><strong>Parking:</strong> {(viewPropertyData.details as any).parking}</div>
+                              )}
+                              {(viewPropertyData.details as any).cave !== undefined && (
+                                <div><strong>Cave:</strong> {(viewPropertyData.details as any).cave ? 'Yes' : 'No'}</div>
+                              )}
                             </div>
-                          </div>
+                          ) : (
+                            <div>Details unavailable</div>
+                          )
+                        ) : (
+                          <div className="text-gray-500">No details provided</div>
                         )}
                       </div>
                     </div>
-                  )}
 
-                  <div className="flex items-center space-x-6 mt-4">
-                    <div className="flex items-center">
-                      <span className="text-sm font-medium text-gray-700 mr-2">Concierge Service:</span>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${viewPropertyData.concierge ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                        {viewPropertyData.concierge ? 'Yes' : 'No'}
-                      </span>
+                    {/* Interior Details */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.interior_details ? (
+                          <div className="whitespace-pre-wrap">{viewPropertyData.interior_details}</div>
+                        ) : (
+                          <div className="text-gray-500">No interior details provided</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.notes ? (
+                          <div className="whitespace-pre-wrap">{viewPropertyData.notes}</div>
+                        ) : (
+                          <div className="text-gray-500">No notes provided</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Referrals Section */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Referrals</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        {viewPropertyData.referrals && viewPropertyData.referrals.length > 0 ? (
+                          <div className="space-y-2">
+                            {viewPropertyData.referrals.map((referral, index) => (
+                              <div key={index} className="px-3 py-2 bg-white border border-gray-200 rounded-lg">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2">
+                                    <div className={`p-1 rounded-full ${referral.type === 'employee' ? 'bg-blue-100' : 'bg-green-100'
+                                      }`}>
+                                      <User className={`h-3 w-3 ${referral.type === 'employee' ? 'text-blue-600' : 'text-green-600'
+                                        }`} />
+                                    </div>
+                                    <span className="text-sm font-medium text-gray-900">
+                                      {referral.name}
+                                    </span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-black">
+                                      {referral.type === 'employee' ? 'Employee' : 'Custom'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1 text-xs text-gray-500">
+                                    <Calendar className="h-3 w-3" />
+                                    <span>{new Date(referral.date).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-gray-500">No referrals provided</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1713,7 +1980,7 @@ export function PropertyModals({
                 {/* Image Gallery Section */}
                 {viewPropertyData.image_gallery && viewPropertyData.image_gallery.length > 0 && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Gallery Images</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Gallery Images (Optional)</label>
                     <div className="grid grid-cols-4 gap-3">
                       {viewPropertyData.image_gallery.map((image, index) => (
                         <div key={index} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-200 hover:border-gray-300 transition-colors">

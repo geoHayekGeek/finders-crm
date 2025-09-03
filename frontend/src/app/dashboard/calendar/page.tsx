@@ -38,7 +38,7 @@ export default function CalendarPage() {
         setIsLoading(true)
         setError(null)
         
-        const response = await fetch('/api/calendar')
+        const response = await fetch('http://localhost:10000/api/calendar')
         if (response.ok) {
           const data = await response.json()
           if (data.success) {
@@ -67,7 +67,7 @@ export default function CalendarPage() {
 
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
     try {
-      const response = await fetch('/api/calendar', {
+      const response = await fetch('http://localhost:10000/api/calendar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Users, RefreshCw, User } from 'lucide-react'
+import { usersApi } from '@/utils/api'
 
 interface Agent {
   id: number
@@ -37,24 +38,22 @@ export function AgentSelector({
     setError('')
     try {
       console.log('🔍 Fetching agents...')
-      const response = await fetch('/api/users/agents')
-      console.log('👥 Agents response status:', response.status)
+      const data = await usersApi.getAgents()
+      console.log('👥 Agents data:', data)
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('👥 Agents data:', data)
-        if (data.success) {
-          setAgents(data.agents)
-          console.log('✅ Agents loaded:', data.agents.length)
-        } else {
-          setError(data.message || 'Failed to load agents')
-        }
+      if (data.success) {
+        setAgents(data.agents)
+        console.log('✅ Agents loaded:', data.agents.length)
       } else {
-        setError(`HTTP ${response.status}: ${response.statusText}`)
+        setError(data.message || 'Failed to load agents')
       }
     } catch (error) {
       console.error('❌ Error fetching agents:', error)
-      setError(error instanceof Error ? error.message : 'Unknown error')
+      if (error instanceof Error) {
+        setError(error.message)
+      } else {
+        setError('Unknown error occurred')
+      }
     } finally {
       setIsLoading(false)
     }

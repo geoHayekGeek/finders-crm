@@ -1,0 +1,1 @@
+[2025-08-31T20:25:32.976Z] CSRF_VIOLATION: {"endpoint":"/65","method":"PUT","ip":"::1","userId":5}

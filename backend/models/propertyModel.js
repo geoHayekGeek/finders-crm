@@ -5,6 +5,7 @@ class Property {
   static async createProperty(propertyData) {
     const {
       status_id,
+      property_type,
       location,
       category_id,
       building_name,
@@ -19,9 +20,7 @@ class Property {
       agent_id,
       price,
       notes,
-      referral_source,
-      referral_dates,
-      referral_sources, // New field for multiple referrals with dates
+      referrals,
       main_image,
       image_gallery
     } = propertyData;
@@ -34,25 +33,66 @@ class Property {
 
     const refNumber = await pool.query(
       'SELECT generate_reference_number($1, $2)',
-      [category.rows[0].code, 'F'] // F for Finders
+      [category.rows[0].code, property_type] // Pass category code and property_type
     );
 
-    const result = await pool.query(
-      `INSERT INTO properties (
-        reference_number, status_id, location, category_id, building_name, 
-        owner_name, phone_number, surface, details, interior_details, 
-        built_year, view_type, concierge, agent_id, price, notes, 
-        referral_sources, referral_source, referral_dates, main_image, image_gallery
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-      RETURNING *`,
-      [
-        refNumber.rows[0].generate_reference_number, status_id, location, category_id, building_name,
-        owner_name, phone_number, surface, details, interior_details,
-        built_year, view_type, concierge, agent_id, price, notes,
-        referral_sources ? JSON.stringify(referral_sources) : null, referral_source, referral_dates, main_image, image_gallery
-      ]
-    );
-    return result.rows[0];
+    // Use a transaction to insert property and referrals
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Insert the property
+      const result = await client.query(
+        `INSERT INTO properties (
+          reference_number, status_id, property_type, location, category_id, building_name, 
+          owner_name, phone_number, surface, details, interior_details, 
+          built_year, view_type, concierge, agent_id, price, notes, 
+          main_image, image_gallery
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        RETURNING *`,
+        [
+          refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
+          owner_name, phone_number, surface, details, interior_details,
+          built_year, view_type, concierge, agent_id, price, notes,
+          main_image, image_gallery
+        ]
+      );
+      
+      const newProperty = result.rows[0];
+      
+      // Insert referrals if provided
+      if (referrals && referrals.length > 0) {
+        for (const referral of referrals) {
+          await client.query(
+            `INSERT INTO referrals (property_id, name, type, employee_id, date) 
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              newProperty.id,
+              referral.name,
+              referral.type,
+              referral.employee_id || null,
+              referral.date
+            ]
+          );
+        }
+        
+        // Update referrals count
+        await client.query(
+          `UPDATE properties SET referrals_count = $1 WHERE id = $2`,
+          [referrals.length, newProperty.id]
+        );
+      }
+      
+      await client.query('COMMIT');
+      return newProperty;
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   static async getAllProperties() {
@@ -65,6 +105,7 @@ class Property {
           p.status_id,
           COALESCE(s.name, 'Uncategorized Status') as status_name,
           COALESCE(s.color, '#6B7280') as status_color,
+          p.property_type,
           p.location,
           p.category_id,
           COALESCE(c.name, 'Uncategorized') as category_name,
@@ -83,21 +124,31 @@ class Property {
           u.role as agent_role,
           p.price,
           p.notes,
-          p.referral_sources,
-          p.referral_source,
-          p.referral_dates,
           p.main_image,
           p.image_gallery,
           p.created_at,
           p.updated_at
         FROM properties p
-        LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true AND s.is_active = true
-        LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true AND c.is_active = true
+        LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+        LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
         LEFT JOIN users u ON p.agent_id = u.id
         ORDER BY p.created_at DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
-      return result.rows;
+      
+      // Fetch referrals for each property
+      const propertiesWithReferrals = await Promise.all(
+        result.rows.map(async (property) => {
+          const referralsResult = await pool.query(
+            `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+            [property.id]
+          );
+          property.referrals = referralsResult.rows;
+          return property;
+        })
+      );
+      
+      return propertiesWithReferrals;
     } catch (error) {
       console.error('❌ Error in getAllProperties:', error);
       console.error('Error details:', {
@@ -118,6 +169,7 @@ class Property {
         p.status_id,
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
         p.location,
         p.category_id,
         COALESCE(c.name, 'Uncategorized') as category_name,
@@ -136,9 +188,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-        p.referral_sources,
-        p.referral_source,
-        p.referral_dates,
+
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -162,6 +212,7 @@ class Property {
         p.status_id,
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
         p.location,
         p.category_id,
         COALESCE(c.name, 'Uncategorized') as category_name,
@@ -180,9 +231,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-        p.referral_sources,
-        p.referral_source,
-        p.referral_dates,
+
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -195,14 +244,22 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
-      WHERE p.agent_id = $1 
-         OR (p.referral_sources IS NOT NULL AND p.referral_sources::text LIKE '%' || (SELECT name FROM users WHERE id = $1) || '%')
+      WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
     return result.rows;
   }
 
   static async getPropertyById(id) {
+    console.log('🔍 getPropertyById called with ID:', id, 'Type:', typeof id);
+    
+    // Ensure ID is a number
+    const propertyId = parseInt(id, 10);
+    if (isNaN(propertyId)) {
+      console.log('❌ Invalid property ID:', id);
+      return null;
+    }
+    
     const result = await pool.query(`
       SELECT 
         p.id,
@@ -210,6 +267,7 @@ class Property {
         p.status_id,
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
         p.location,
         p.category_id,
         COALESCE(c.name, 'Uncategorized') as category_name,
@@ -228,9 +286,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-        p.referral_sources,
-        p.referral_source,
-        p.referral_dates,
+
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -240,24 +296,118 @@ class Property {
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       WHERE p.id = $1
-    `, [id]);
-    return result.rows[0];
+    `, [propertyId]);
+    
+    console.log('🔍 Database query result:', {
+      rowsReturned: result.rows.length,
+      firstRow: result.rows[0] ? { id: result.rows[0].id, reference_number: result.rows[0].reference_number } : null
+    });
+    
+    if (result.rows.length === 0) {
+      console.log('❌ No property found with ID:', id);
+      return null;
+    }
+    
+    const property = result.rows[0];
+    
+    // Fetch referrals for this property
+    const referralsResult = await pool.query(
+      `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+      [propertyId]
+    );
+    console.log('🔍 Referrals fetched for property', propertyId, ':', referralsResult.rows);
+    property.referrals = referralsResult.rows;
+    
+    return property;
   }
 
   static async updateProperty(id, updates) {
-    const fields = Object.keys(updates);
-    const values = Object.values(updates);
+    const client = await pool.connect();
     
-    const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
-    const query = `
-      UPDATE properties 
-      SET ${setClause}, updated_at = NOW()
-      WHERE id = $1
-      RETURNING *
-    `;
-    
-    const result = await pool.query(query, [id, ...values]);
-    return result.rows[0];
+    try {
+      await client.query('BEGIN');
+      
+      // Extract referrals from updates and remove them from property updates
+      const { referrals, ...propertyUpdates } = updates;
+      console.log('🔍 Extracted referrals:', referrals);
+      console.log('🔍 Property updates (without referrals):', propertyUpdates);
+      
+      // Update property fields (excluding referrals)
+      if (Object.keys(propertyUpdates).length > 0) {
+        const fields = Object.keys(propertyUpdates);
+        const values = Object.values(propertyUpdates);
+        
+        const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+        const query = `
+          UPDATE properties 
+          SET ${setClause}, updated_at = NOW()
+          WHERE id = $1
+          RETURNING *
+        `;
+        
+        const result = await client.query(query, [id, ...values]);
+        if (result.rows.length === 0) {
+          throw new Error('Property not found');
+        }
+      }
+      
+      // Handle referrals if provided
+      if (referrals !== undefined) {
+        console.log('🔍 Handling referrals for property ID:', id);
+        console.log('🔍 Referrals to insert:', referrals);
+        
+        // Delete existing referrals for this property
+        await client.query('DELETE FROM referrals WHERE property_id = $1', [id]);
+        console.log('🔍 Deleted existing referrals');
+        
+        // Insert new referrals if any
+        if (referrals && referrals.length > 0) {
+          console.log('🔍 Inserting', referrals.length, 'referrals');
+          for (const referral of referrals) {
+            console.log('🔍 Inserting referral:', referral);
+            console.log('🔍 Referral date value:', referral.date);
+            console.log('🔍 Referral date type:', typeof referral.date);
+            const result = await client.query(`
+              INSERT INTO referrals (property_id, name, type, employee_id, date)
+              VALUES ($1, $2, $3, $4, $5)
+              RETURNING id
+            `, [id, referral.name, referral.type, referral.employee_id, referral.date]);
+            console.log('🔍 Referral inserted with ID:', result.rows[0].id);
+          }
+        }
+        
+        // Update referrals_count in properties table
+        const referralsCount = referrals ? referrals.length : 0;
+        await client.query(
+          'UPDATE properties SET referrals_count = $1 WHERE id = $2',
+          [referralsCount, id]
+        );
+      }
+      
+      await client.query('COMMIT');
+      
+      // Return the updated property with referrals
+      const propertyResult = await client.query(
+        'SELECT * FROM properties WHERE id = $1',
+        [id]
+      );
+      
+      const referralsResult = await client.query(
+        'SELECT * FROM referrals WHERE property_id = $1 ORDER BY date',
+        [id]
+      );
+      
+      const property = propertyResult.rows[0];
+      property.referrals = referralsResult.rows;
+      
+      return property;
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   static async deleteProperty(id) {
@@ -276,6 +426,7 @@ class Property {
         p.status_id,
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
         p.location,
         p.category_id,
         COALESCE(c.name, 'Uncategorized') as category_name,
@@ -294,9 +445,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-        p.referral_sources,
-        p.referral_source,
-        p.referral_dates,
+
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -380,7 +529,20 @@ class Property {
     query += ` ORDER BY created_at DESC`;
 
     const result = await pool.query(query, values);
-    return result.rows;
+    
+    // Fetch referrals for each property
+    const propertiesWithReferrals = await Promise.all(
+      result.rows.map(async (property) => {
+        const referralsResult = await pool.query(
+          `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+          [property.id]
+        );
+        property.referrals = referralsResult.rows;
+        return property;
+      })
+    );
+    
+    return propertiesWithReferrals;
   }
 
   static async getPropertyStats() {

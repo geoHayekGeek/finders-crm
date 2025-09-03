@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Search, Filter, X, ChevronDown, Calendar, Users, Tag } from 'lucide-react'
 import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
+import { usersApi } from '@/utils/api'
 
 interface User {
   id: number
@@ -39,18 +40,9 @@ export function LeadsFilters({
     const fetchAgents = async () => {
       setLoading(true)
       try {
-        const token = localStorage.getItem('token')
-        const response = await fetch('/api/users/agents', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success) {
-            setUsers(data.agents)
-          }
+        const data = await usersApi.getAgents()
+        if (data.success) {
+          setUsers(data.agents)
         }
       } catch (error) {
         console.error('Error fetching agents:', error)
@@ -68,7 +60,7 @@ export function LeadsFilters({
       setLoadingRefSources(true)
       try {
         const token = localStorage.getItem('token')
-        const response = await fetch('/api/leads/reference-sources', {
+        const response = await fetch('http://localhost:10000/api/leads/reference-sources', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

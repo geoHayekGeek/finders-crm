@@ -4,11 +4,19 @@ const cors = require('cors');
 require('dotenv').config();
 
 const indexRoutes = require('./routes/index');
+const securityHeaders = require('./middlewares/securityHeaders');
+const { errorLoggingMiddleware, errorHandler } = require('./middlewares/errorLogging');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.set('trust proxy', 1);
+
+// Apply security headers to all routes
+app.use(securityHeaders);
+
+// Apply error logging middleware
+app.use(errorLoggingMiddleware);
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -26,19 +34,7 @@ app.use('/assets', express.static('public/assets'));
 app.use('/api', indexRoutes);
 
 // Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('❌ Unhandled error:', error);
-  console.error('📊 Request details:', {
-    method: req.method,
-    url: req.url,
-    headers: req.headers,
-    body: req.body
-  });
-  res.status(500).json({ 
-    message: 'Internal server error',
-    error: error.message 
-  });
-});
+app.use(errorHandler);
 
 // 404 handler
 app.use('*', (req, res) => {

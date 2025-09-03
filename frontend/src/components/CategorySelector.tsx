@@ -32,7 +32,7 @@ export function CategorySelector({
     try {
       console.log('🔍 Fetching categories...')
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/categories', {
+      const response = await fetch('http://localhost:10000/api/categories', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

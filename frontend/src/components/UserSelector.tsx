@@ -39,7 +39,7 @@ export function UserSelector({
       setIsLoading(true)
       setError('')
       try {
-        const response = await fetch('/api/users/all')
+        const response = await fetch('http://localhost:10000/api/users/all')
         if (response.ok) {
           const data = await response.json()
           if (data.success) {

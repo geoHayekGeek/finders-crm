@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Flag, RefreshCw } from 'lucide-react'
 import { LeadStatusOption } from '@/types/leads'
+import { leadStatusesApi } from '@/utils/api'
 
 interface StatusSelectorProps {
   selectedStatus: string
@@ -29,30 +30,22 @@ export function StatusSelector({
     setError('')
     try {
       console.log('🔍 Fetching lead statuses...')
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/lead-statuses', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      console.log('🏳️ Lead statuses response status:', response.status)
+      const data = await leadStatusesApi.getAll()
+      console.log('🏳️ Lead statuses data:', data)
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🏳️ Lead statuses data:', data)
-        if (data.success) {
-          setStatuses(data.data || [])
-          console.log('✅ Lead statuses loaded:', data.data?.length || 0)
-        } else {
-          setError(data.message || 'Failed to load lead statuses')
-        }
+      if (data.success) {
+        setStatuses(data.data || [])
+        console.log('✅ Lead statuses loaded:', data.data?.length || 0)
       } else {
-        setError(`HTTP ${response.status}: ${response.statusText}`)
+        setError(data.message || 'Failed to load lead statuses')
       }
     } catch (error) {
       console.error('❌ Error fetching lead statuses:', error)
-      setError(error instanceof Error ? error.message : 'Unknown error')
+      if (error instanceof Error) {
+        setError(error.message)
+      } else {
+        setError('Unknown error occurred')
+      }
     } finally {
       setIsLoading(false)
     }

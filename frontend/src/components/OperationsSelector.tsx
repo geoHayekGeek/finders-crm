@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Settings, RefreshCw } from 'lucide-react'
 import { OperationsUser } from '@/types/leads'
+import { leadsApi } from '@/utils/api'
 
 interface OperationsSelectorProps {
   selectedOperationsId?: number
@@ -29,30 +30,22 @@ export function OperationsSelector({
     setError('')
     try {
       console.log('🔍 Fetching operations users...')
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/leads/operations-users', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      console.log('⚙️ Operations users response status:', response.status)
+      const data = await leadsApi.getOperationsUsers()
+      console.log('⚙️ Operations users data:', data)
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('⚙️ Operations users data:', data)
-        if (data.success) {
-          setOperationsUsers(data.data)
-          console.log('✅ Operations users loaded:', data.data.length)
-        } else {
-          setError(data.message || 'Failed to load operations users')
-        }
+      if (data.success) {
+        setOperationsUsers(data.data)
+        console.log('✅ Operations users loaded:', data.data.length)
       } else {
-        setError(`HTTP ${response.status}: ${response.statusText}`)
+        setError(data.message || 'Failed to load operations users')
       }
     } catch (error) {
       console.error('❌ Error fetching operations users:', error)
-      setError(error instanceof Error ? error.message : 'Unknown error')
+      if (error instanceof Error) {
+        setError(error.message)
+      } else {
+        setError('Unknown error occurred')
+      }
     } finally {
       setIsLoading(false)
     }

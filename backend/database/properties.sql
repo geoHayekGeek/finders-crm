@@ -2,21 +2,22 @@
 CREATE TABLE IF NOT EXISTS properties (
   id SERIAL PRIMARY KEY,
   reference_number VARCHAR(20) UNIQUE NOT NULL,
-  status_id INTEGER REFERENCES statuses(id) ON DELETE RESTRICT,
+  status_id INTEGER REFERENCES statuses(id) ON DELETE RESTRICT NOT NULL,
+  property_type VARCHAR(20) CHECK (property_type IN ('sale', 'rent')) NOT NULL,
   location TEXT NOT NULL,
-  category_id INTEGER REFERENCES categories(id) ON DELETE RESTRICT,
-  building_name VARCHAR(255),
+  category_id INTEGER REFERENCES categories(id) ON DELETE RESTRICT NOT NULL,
+  building_name VARCHAR(255), -- Optional
   owner_name VARCHAR(255) NOT NULL,
-  phone_number VARCHAR(50),
-  surface DECIMAL(10,2),
-         details TEXT, -- Floor, Balcony, Parking, Cave details as text
-  interior_details TEXT,
-  built_year INTEGER,
-  view_type VARCHAR(50) CHECK (view_type IN ('open view', 'sea view', 'mountain view', 'no view')),
-  concierge BOOLEAN DEFAULT FALSE,
-  agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  price DECIMAL(15,2),
-  notes TEXT,
+  phone_number VARCHAR(50) NOT NULL,
+  surface DECIMAL(10,2) NOT NULL,
+         details TEXT NOT NULL, -- Floor, Balcony, Parking, Cave details as text
+  interior_details TEXT NOT NULL,
+  built_year INTEGER, -- Optional
+  view_type VARCHAR(50) CHECK (view_type IN ('open view', 'sea view', 'mountain view', 'no view')) NOT NULL,
+  concierge BOOLEAN DEFAULT FALSE NOT NULL,
+  agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL NOT NULL,
+  price DECIMAL(15,2) NOT NULL,
+  notes TEXT, -- Optional
   referral_sources JSONB, -- array of referral objects with source and date: [{"source": "John Doe", "date": "2024-01-15"}, {"source": "External Agency", "date": "2024-01-20"}]
   referral_source VARCHAR(100), -- deprecated: keeping for backward compatibility
   referral_dates DATE[], -- deprecated: keeping for backward compatibility
@@ -42,23 +43,36 @@ CREATE INDEX IF NOT EXISTS idx_properties_agent_status ON properties(agent_id, s
 -- Function to generate reference number
 CREATE OR REPLACE FUNCTION generate_reference_number(
   p_category_code VARCHAR(10),
-  p_type VARCHAR(10) -- 'F' for Finders, 'S' for Sale, 'R' for Rent
+  p_property_type VARCHAR(20) -- 'sale' or 'rent'
 )
 RETURNS VARCHAR(20) AS $$
 DECLARE
-  year_part VARCHAR(4);
+  year_part VARCHAR(2);
   random_part VARCHAR(3);
   ref_number VARCHAR(20);
   counter INTEGER := 0;
+  type_part VARCHAR(1);
 BEGIN
-  year_part := EXTRACT(YEAR FROM CURRENT_DATE)::VARCHAR(4);
+  -- Extract last 2 digits of current year
+  year_part := RIGHT(EXTRACT(YEAR FROM CURRENT_DATE)::VARCHAR(4), 2);
+  
+  -- Determine type based on property_type
+  -- F = Finders (always), S = Sale, R = Rent
+  IF p_property_type = 'sale' THEN
+    type_part := 'S';
+  ELSIF p_property_type = 'rent' THEN
+    type_part := 'R';
+  ELSE
+    type_part := 'F'; -- Default to Finders
+  END IF;
   
   LOOP
     -- Generate 3 random digits
     random_part := LPAD(FLOOR(RANDOM() * 1000)::TEXT, 3, '0');
     
-    -- Construct reference number: F/S/R + Category + Year + Random
-    ref_number := p_type || p_category_code || year_part || random_part;
+    -- Construct reference number: F + Category + S/R + Year + Random
+    -- Example: FRA25111 (Finders Apartment Rent 2025 111)
+    ref_number := 'F' || p_category_code || type_part || year_part || random_part;
     
     -- Check if this reference number already exists
     IF NOT EXISTS (SELECT 1 FROM properties WHERE reference_number = ref_number) THEN
@@ -97,6 +111,7 @@ RETURNS TABLE (
   reference_number VARCHAR(20),
   status_name VARCHAR(50),
   status_color VARCHAR(20),
+  property_type VARCHAR(20),
   location TEXT,
   category_name VARCHAR(100),
   category_code VARCHAR(10),
@@ -127,6 +142,7 @@ BEGIN
     p.reference_number,
     s.name as status_name,
     s.color as status_color,
+    p.property_type,
     p.location,
     c.name as category_name,
     c.code as category_code,

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { apiClient } from '@/utils/api'
+import { apiClient, ApiError } from '@/utils/api'
 import { useRouter } from 'next/navigation'
 import { 
   Building2, 
@@ -68,7 +68,14 @@ export default function HomePage() {
       }
     } catch (err) {
       console.error('Login error:', err)
-      setError('Network error. Please try again.')
+      // Check if it's an ApiError with a specific message
+      if (err instanceof ApiError) {
+        setError(err.message)
+      } else if (err instanceof Error && err.message) {
+        setError(err.message)
+      } else {
+        setError('Network error. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }

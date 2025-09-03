@@ -22,8 +22,10 @@ async function apiRequest<T>(
     ...options.headers as Record<string, string>,
   }
   
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+  // Auto-get token from localStorage if not provided
+  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null)
+  if (authToken) {
+    headers['Authorization'] = `Bearer ${authToken}`
   }
   
   const config: RequestInit = {
@@ -35,7 +37,18 @@ async function apiRequest<T>(
     const response = await fetch(url, config)
     
     if (!response.ok) {
-      throw new ApiError(response.status, `HTTP error! status: ${response.status}`)
+      // Try to extract error message from response body
+      let errorMessage = `HTTP error! status: ${response.status}`
+      try {
+        const errorData = await response.json()
+        if (errorData.message) {
+          errorMessage = errorData.message
+        }
+      } catch (parseError) {
+        // If we can't parse the response, use the default message
+        console.warn('Could not parse error response:', parseError)
+      }
+      throw new ApiError(response.status, errorMessage)
     }
     
     const data = await response.json()
@@ -111,6 +124,18 @@ export const apiClient = {
     }),
 }
 
+// Users API
+export const usersApi = {
+  // Get all agents
+  getAgents: () => apiRequest<{ success: boolean; agents: any[]; message?: string }>('/users/agents'),
+  
+  // Get user by ID
+  getById: (id: number) => apiRequest<{ success: boolean; data: any }>(`/users/${id}`),
+  
+  // Get users by role
+  getByRole: (role: string) => apiRequest<{ success: boolean; data: any[] }>(`/users/role/${role}`),
+}
+
 // Properties API
 export const propertiesApi = {
   // Get all properties (requires authentication)
@@ -158,6 +183,12 @@ export const propertiesApi = {
 export const leadsApi = {
   // Get all leads (requires authentication)
   getAll: (token?: string) => apiRequest<LeadsResponse>('/leads', {}, token),
+  
+  // Get reference sources
+  getReferenceSources: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/leads/reference-sources'),
+  
+  // Get operations users
+  getOperationsUsers: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/leads/operations-users'),
   
   // Get leads with filters
   getWithFilters: (filters: LeadFilters, token?: string) => {
@@ -244,6 +275,12 @@ export const statusesApi = {
     apiRequest<{ success: boolean; message: string }>(`/statuses/${id}`, {
       method: 'DELETE',
     }, token),
+}
+
+// Lead Statuses API
+export const leadStatusesApi = {
+  // Get all lead statuses (requires authentication)
+  getAll: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/lead-statuses'),
 }
 
 // Mock data for development (when backend is not available)

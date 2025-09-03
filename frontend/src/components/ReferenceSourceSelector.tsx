@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Globe, RefreshCw } from 'lucide-react'
 import { ReferenceSource } from '@/types/leads'
+import { leadsApi } from '@/utils/api'
 
 interface ReferenceSourceSelectorProps {
   selectedReferenceSourceId?: number
@@ -29,30 +30,22 @@ export function ReferenceSourceSelector({
     setError('')
     try {
       console.log('🔍 Fetching reference sources...')
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/leads/reference-sources', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      console.log('🌐 Reference sources response status:', response.status)
+      const data = await leadsApi.getReferenceSources()
+      console.log('🌐 Reference sources data:', data)
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🌐 Reference sources data:', data)
-        if (data.success) {
-          setReferenceSources(data.data)
-          console.log('✅ Reference sources loaded:', data.data.length)
-        } else {
-          setError(data.message || 'Failed to load reference sources')
-        }
+      if (data.success) {
+        setReferenceSources(data.data)
+        console.log('✅ Reference sources loaded:', data.data.length)
       } else {
-        setError(`HTTP ${response.status}: ${response.statusText}`)
+        setError(data.message || 'Failed to load reference sources')
       }
     } catch (error) {
       console.error('❌ Error fetching reference sources:', error)
-      setError(error instanceof Error ? error.message : 'Unknown error')
+      if (error instanceof Error) {
+        setError(error.message)
+      } else {
+        setError('Unknown error occurred')
+      }
     } finally {
       setIsLoading(false)
     }

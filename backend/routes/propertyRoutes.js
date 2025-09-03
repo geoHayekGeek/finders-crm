@@ -11,10 +11,20 @@ const {
   canViewAgentPerformance
 } = require('../middlewares/permissions');
 const { handleUploadError, uploadSingle, uploadMultiple } = require('../middlewares/fileUpload');
+const { 
+  validatePropertyUpdate, 
+  handleValidationErrors, 
+  sanitizeRequestBody, 
+  propertyUpdateRateLimit 
+} = require('../middlewares/propertyValidation');
+const { csrfProtection } = require('../middlewares/csrfProtection');
+const { xssProtection } = require('../middlewares/xssProtection');
 
 // Apply authentication and role filtering to all routes
 router.use(authenticateToken);
 router.use(filterDataByRole);
+
+
 
 // GET /api/properties - Get all properties (filtered by role)
 router.get('/', propertyController.getAllProperties);
@@ -45,13 +55,26 @@ router.get('/images/all', canViewAllData, propertyController.getPropertiesWithIm
 router.get('/images/stats', canViewAllData, propertyController.getImageStats);
 
 // GET /api/properties/:id - Get single property (filtered by role) - MUST BE LAST
-router.get('/:id', propertyController.getPropertyById);
+router.get('/:id', csrfProtection, propertyController.getPropertyById);
 
 // POST /api/properties - Create new property (admin, operations manager, operations, agent manager)
-router.post('/', canManageProperties, propertyController.createProperty);
+router.post('/', 
+  canManageProperties, 
+  xssProtection,
+  propertyController.createProperty
+);
 
 // PUT /api/properties/:id - Update property (admin, operations manager, operations, agent manager)
-router.put('/:id', canManageProperties, propertyController.updateProperty);
+router.put('/:id', 
+  canManageProperties, 
+  xssProtection,
+  csrfProtection,
+  propertyUpdateRateLimit,
+  sanitizeRequestBody,
+  validatePropertyUpdate,
+  handleValidationErrors,
+  propertyController.updateProperty
+);
 
 // DELETE /api/properties/:id - Delete property (admin, operations manager, operations, agent manager)
 router.delete('/:id', canManageProperties, propertyController.deleteProperty);

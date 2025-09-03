@@ -1,15 +1,24 @@
+export interface Referral {
+  id?: number
+  name: string
+  type: 'employee' | 'custom'
+  employee_id?: number
+  date: string
+}
+
 export interface Property {
   id: number
   reference_number: string
   status_id: number
   status_name: string
   status_color: string
+  property_type: 'sale' | 'rent'
   location: string
   category_id: number
   category_name: string
   category_code: string
   building_name?: string
-  owner_name: string
+  owner_name?: string
   phone_number?: string
   surface?: number
   details?: string | object // Can be either string or object (legacy support)
@@ -26,6 +35,7 @@ export interface Property {
   image_gallery?: string[] // Array of base64 encoded gallery images
   created_at: string
   updated_at: string
+  referrals?: Referral[]
   // Action handlers (optional, added at runtime)
   onView?: (property: Property) => void
   onEdit?: (property: Property) => void
@@ -33,12 +43,13 @@ export interface Property {
 }
 
 export interface EditFormData {
-  reference_number?: string
+  reference_number: string
   status_id: number
+  property_type: 'sale' | 'rent'
   location: string
   category_id: number
   building_name?: string
-  owner_name: string
+  owner_name?: string
   phone_number?: string
   surface?: number
   details?: string | object // Can be either string or object (legacy support)
@@ -51,6 +62,7 @@ export interface EditFormData {
   notes?: string
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of base64 encoded gallery images
+  referrals?: Referral[]
 }
 
 export interface Category {

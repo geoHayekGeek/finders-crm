@@ -187,6 +187,7 @@ const createProperty = async (req, res) => {
 
     const {
       status_id,
+      property_type,
       location,
       category_id,
       building_name,
@@ -201,17 +202,16 @@ const createProperty = async (req, res) => {
       agent_id,
       price,
       notes,
-      referral_source,
-      referral_dates,
-      referral_sources, // New field for multiple referrals with dates
+      referrals,
+
       main_image,
       image_gallery
     } = req.body;
 
     // Validate required fields
-    if (!status_id || !location || !category_id || !owner_name || !price) {
+    if (!status_id || !property_type || !location || !category_id || !owner_name || !price) {
       return res.status(400).json({ 
-        message: 'Missing required fields: status_id, location, category_id, owner_name, and price are required' 
+        message: 'Missing required fields: status_id, property_type, location, category_id, owner_name, and price are required' 
       });
     }
 
@@ -234,6 +234,7 @@ const createProperty = async (req, res) => {
 
     const newProperty = await Property.createProperty({
       status_id,
+      property_type,
       location,
       category_id,
       building_name,
@@ -248,9 +249,8 @@ const createProperty = async (req, res) => {
       agent_id: finalAgentId,
       price,
       notes,
-      referral_sources,
-      referral_source,
-      referral_dates,
+      referrals: referrals || [],
+
       main_image: main_image || null, // Optional
       image_gallery: image_gallery || [] // Optional
     });
@@ -309,7 +309,11 @@ const updateProperty = async (req, res) => {
     }
 
     const updates = req.body;
+    console.log('🔍 Updates being sent to updateProperty:', JSON.stringify(updates, null, 2));
+    console.log('🔍 Referrals in updates:', updates.referrals);
+    
     const updatedProperty = await Property.updateProperty(id, updates);
+    console.log('🔍 Updated property returned:', JSON.stringify(updatedProperty, null, 2));
 
     res.json({
       success: true,
@@ -336,13 +340,29 @@ const deleteProperty = async (req, res) => {
     const { roleFilters } = req;
     const { id } = req.params;
     
+    // Ensure ID is a number
+    const propertyId = parseInt(id, 10);
+    if (isNaN(propertyId)) {
+      return res.status(400).json({ message: 'Invalid property ID' });
+    }
+    
+    console.log('🔍 Delete property request:', {
+      originalId: id,
+      parsedId: propertyId,
+      type: typeof propertyId,
+      roleFilters: roleFilters,
+      user: req.user
+    });
+    
     if (!roleFilters.canManageProperties) {
       return res.status(403).json({ 
         message: 'Access denied. You do not have permission to delete properties.' 
       });
     }
 
-    const property = await Property.getPropertyById(id);
+    const property = await Property.getPropertyById(propertyId);
+    console.log('🔍 Property lookup result:', property ? 'Found' : 'Not found', { propertyId: propertyId });
+    
     if (!property) {
       return res.status(404).json({ message: 'Property not found' });
     }
