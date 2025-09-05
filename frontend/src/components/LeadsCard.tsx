@@ -2,6 +2,7 @@
 
 import { Lead, LEAD_STATUSES } from '@/types/leads'
 import { Eye, Edit3, Trash2, Phone, Calendar, User, MessageSquare, Users } from 'lucide-react'
+import { formatDateForDisplay } from '@/utils/dateUtils'
 
 interface LeadsCardProps {
   lead: Lead
@@ -22,7 +23,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete }: LeadsCardProps) {
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-gray-400" />
           <span className="text-sm font-medium text-gray-600">
-            {new Date(lead.date).toLocaleDateString()}
+            {formatDateForDisplay(lead.date)}
           </span>
         </div>
         <span 
@@ -74,29 +75,11 @@ export function LeadsCard({ lead, onView, onEdit, onDelete }: LeadsCardProps) {
         </div>
       </div>
 
-      {/* Referral Sources */}
-      {(lead.referral_sources?.length || lead.referral_source) && (
+      {/* Reference Source */}
+      {lead.reference_source_name && (
         <div className="mb-4">
-          <div className="text-xs font-medium text-gray-500 mb-1">Referral Sources</div>
-          <div className="space-y-1">
-            {lead.referral_sources && lead.referral_sources.length > 0 ? (
-              lead.referral_sources.map((referral, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">{referral.source}</span>
-                  {referral.isCustom && (
-                    <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">
-                      Custom
-                    </span>
-                  )}
-                  <span className="text-xs text-gray-500">
-                    {new Date(referral.date).toLocaleDateString()}
-                  </span>
-                </div>
-              ))
-            ) : lead.referral_source ? (
-              <div className="text-sm text-gray-700">{lead.referral_source}</div>
-            ) : null}
-          </div>
+          <div className="text-xs font-medium text-gray-500 mb-1">Reference Source</div>
+          <div className="text-sm text-gray-700">{lead.reference_source_name}</div>
         </div>
       )}
 
@@ -112,7 +95,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete }: LeadsCardProps) {
 
       {/* Created Date */}
       <div className="text-xs text-gray-400 mb-4">
-        Created {new Date(lead.created_at).toLocaleDateString()}
+        Created {formatDateForDisplay(lead.created_at)}
       </div>
 
       {/* Action Buttons */}

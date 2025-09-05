@@ -86,12 +86,11 @@ export function LeadsFilters({
     setFilters({
       ...filters,
       [key]: value === '' ? undefined : value
-    })
+    });
   }
 
-  const hasActiveFilters = Object.keys(filters).some(key => 
-    filters[key as keyof LeadFilters] !== undefined && 
-    filters[key as keyof LeadFilters] !== ''
+  const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
+    value !== undefined && value !== null && value !== ''
   )
 
   return (
@@ -294,11 +293,11 @@ export function LeadsFilters({
                     </button>
                   </span>
                 )}
-                {filters.referral_source && (
+                {filters.reference_source_id && (
                   <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    Referral: "{filters.referral_source}"
+                    Reference Source: {referenceSources.find(rs => rs.id === filters.reference_source_id)?.source_name}
                     <button
-                      onClick={() => handleFilterChange('referral_source', undefined)}
+                      onClick={() => handleFilterChange('reference_source_id', undefined)}
                       className="hover:text-blue-900"
                     >
                       <X className="h-3 w-3" />

@@ -18,7 +18,11 @@ app.use(securityHeaders);
 // Apply error logging middleware
 app.use(errorLoggingMiddleware);
 
-app.use(cors());
+app.use(cors({
+  origin: true, // Allow all origins for development
+  credentials: true,
+  exposedHeaders: ['X-CSRF-Token'] // Expose CSRF token header to frontend
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 

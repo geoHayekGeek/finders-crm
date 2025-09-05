@@ -9,6 +9,7 @@ class Lead {
       phone_number,
       agent_id,
       agent_name,
+      price,
       reference_source_id,
       operations_id,
       notes,
@@ -18,8 +19,8 @@ class Lead {
     const result = await pool.query(
       `INSERT INTO leads (
         date, customer_name, phone_number, agent_id, agent_name,
-        reference_source_id, operations_id, notes, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        price, reference_source_id, operations_id, notes, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
         date || new Date().toISOString().split('T')[0],
@@ -27,10 +28,11 @@ class Lead {
         phone_number,
         agent_id,
         agent_name,
+        price,
         reference_source_id,
         operations_id,
         notes,
-        status || 'active'
+        status || 'Active'
       ]
     );
     return result.rows[0];
@@ -49,6 +51,7 @@ class Lead {
           l.agent_name,
           u.name as assigned_agent_name,
           u.role as agent_role,
+          l.price,
           l.reference_source_id,
           rs.source_name as reference_source_name,
           l.operations_id,
@@ -204,6 +207,7 @@ class Lead {
         l.agent_name,
         u.name as assigned_agent_name,
         u.role as agent_role,
+        l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
         l.operations_id,
@@ -258,8 +262,6 @@ class Lead {
       values.push(`%${filters.search}%`);
       valueIndex++;
     }
-
-
 
     query += ` ORDER BY l.created_at DESC`;
 
@@ -322,11 +324,42 @@ class Lead {
     return result.rows;
   }
 
+  // Get leads assigned to a specific operations user
+  static async getLeadsByOperations(operationsId) {
+    const result = await pool.query(`
+      SELECT 
+        l.id,
+        l.date,
+        l.customer_name,
+        l.phone_number,
+        l.agent_id,
+        l.agent_name,
+        u.name as assigned_agent_name,
+        u.role as agent_role,
+        l.reference_source_id,
+        rs.source_name as reference_source_name,
+        l.operations_id,
+        op.name as operations_name,
+        op.role as operations_role,
+        l.notes,
+        l.status,
+        l.created_at,
+        l.updated_at
+      FROM leads l
+      LEFT JOIN users u ON l.agent_id = u.id
+      LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
+      LEFT JOIN users op ON l.operations_id = op.id
+      WHERE l.operations_id = $1
+      ORDER BY l.created_at DESC
+    `, [operationsId]);
+    return result.rows;
+  }
+
   // Get leads for a specific agent based on role permissions
   static async getLeadsForAgent(agentId, userRole) {
-    // Operations employees only see their own leads
+    // Operations employees only see leads where they are assigned as operations
     if (userRole === 'operations') {
-      return this.getLeadsByAgent(agentId);
+      return this.getLeadsByOperations(agentId);
     }
     
     // Agents see leads assigned to them or that they referred

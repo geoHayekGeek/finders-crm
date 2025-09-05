@@ -3,6 +3,7 @@
 import { Lead, LEAD_STATUSES } from '@/types/leads'
 import { Eye, Edit3, Trash2, Phone, Calendar, User } from 'lucide-react'
 import { ColumnDef } from '@tanstack/react-table'
+import { formatDateForDisplay } from '@/utils/dateUtils'
 
 export const leadsColumns: ColumnDef<Lead>[] = [
   {
@@ -10,25 +11,11 @@ export const leadsColumns: ColumnDef<Lead>[] = [
     header: 'Date',
     cell: ({ row }) => {
       const lead = row.original
-      let displayDate = '-'
-      
-      if (lead.date) {
-        try {
-          // Handle both ISO strings and date strings
-          const dateObj = new Date(lead.date)
-          if (!isNaN(dateObj.getTime())) {
-            displayDate = dateObj.toLocaleDateString()
-          }
-        } catch (error) {
-          console.warn('Error parsing date:', lead.date, error)
-        }
-      }
-      
       return (
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4 text-gray-400" />
           <span className="text-sm font-medium">
-            {displayDate}
+            {formatDateForDisplay(lead.date)}
           </span>
         </div>
       )
@@ -131,22 +118,9 @@ export const leadsColumns: ColumnDef<Lead>[] = [
     header: 'Created',
     cell: ({ row }) => {
       const lead = row.original
-      let displayDate = '-'
-      
-      if (lead.created_at) {
-        try {
-          const dateObj = new Date(lead.created_at)
-          if (!isNaN(dateObj.getTime())) {
-            displayDate = dateObj.toLocaleDateString()
-          }
-        } catch (error) {
-          console.warn('Error parsing created_at:', lead.created_at, error)
-        }
-      }
-      
       return (
         <span className="text-sm text-gray-500">
-          {displayDate}
+          {formatDateForDisplay(lead.created_at)}
         </span>
       )
     }

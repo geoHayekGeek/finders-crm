@@ -20,6 +20,7 @@ class Property {
       agent_id,
       price,
       notes,
+      property_url,
       referrals,
       main_image,
       image_gallery
@@ -47,14 +48,14 @@ class Property {
         `INSERT INTO properties (
           reference_number, status_id, property_type, location, category_id, building_name, 
           owner_name, phone_number, surface, details, interior_details, 
-          built_year, view_type, concierge, agent_id, price, notes, 
+          built_year, view_type, concierge, agent_id, price, notes, property_url,
           main_image, image_gallery
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING *`,
         [
           refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
           owner_name, phone_number, surface, details, interior_details,
-          built_year, view_type, concierge, agent_id, price, notes,
+          built_year, view_type, concierge, agent_id, price, notes, property_url,
           main_image, image_gallery
         ]
       );
@@ -124,6 +125,7 @@ class Property {
           u.role as agent_role,
           p.price,
           p.notes,
+          p.property_url,
           p.main_image,
           p.image_gallery,
           p.created_at,
@@ -188,7 +190,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-
+        p.property_url,
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -231,7 +233,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-
+        p.property_url,
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -286,7 +288,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-
+        p.property_url,
         p.main_image,
         p.image_gallery,
         p.created_at,
@@ -445,7 +447,7 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-
+        p.property_url,
         p.main_image,
         p.image_gallery,
         p.created_at,

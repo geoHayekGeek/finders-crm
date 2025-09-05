@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Phone, Calendar, Users, MessageSquare, Tag, Globe, Settings, RefreshCw } from 'lucide-react'
+import { X, User, Phone, Calendar, Users, MessageSquare, Tag, Globe, Settings, RefreshCw, Calculator } from 'lucide-react'
 import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser } from '@/types/leads'
 import { AgentSelector } from './AgentSelector'
 import { StatusSelector } from './StatusSelector'
 import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { OperationsSelector } from './OperationsSelector'
+import { formatDateForDisplay } from '@/utils/dateUtils'
 
 interface User {
   id: number
@@ -71,10 +72,11 @@ export function LeadsModals({
     phone_number: '',
     agent_id: undefined,
     agent_name: '',
+    price: undefined,
     reference_source_id: undefined,
     operations_id: undefined,
     notes: '',
-    status: 'active'
+    status: 'Active'
   })
 
   const [saving, setSaving] = useState(false)
@@ -82,8 +84,22 @@ export function LeadsModals({
   // Handle add form submission
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
     if (!addFormData.customer_name.trim()) {
       alert('Customer name is required')
+      return
+    }
+    if (!addFormData.phone_number.trim()) {
+      alert('Phone number is required')
+      return
+    }
+    if (!addFormData.reference_source_id) {
+      alert('Reference source is required')
+      return
+    }
+    if (!addFormData.operations_id) {
+      alert('Operations staff assignment is required')
       return
     }
 
@@ -98,10 +114,11 @@ export function LeadsModals({
         phone_number: '',
         agent_id: undefined,
         agent_name: '',
+        price: undefined,
         reference_source_id: undefined,
         operations_id: undefined,
         notes: '',
-        status: 'active'
+        status: 'Active'
       })
     } catch (error) {
       console.error('Error saving lead:', error)
@@ -113,8 +130,22 @@ export function LeadsModals({
   // Handle edit form submission
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
     if (!editFormData.customer_name.trim()) {
       alert('Customer name is required')
+      return
+    }
+    if (!editFormData.phone_number.trim()) {
+      alert('Phone number is required')
+      return
+    }
+    if (!editFormData.reference_source_id) {
+      alert('Reference source is required')
+      return
+    }
+    if (!editFormData.operations_id) {
+      alert('Operations staff assignment is required')
       return
     }
 
@@ -199,10 +230,11 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Phone className="inline h-4 w-4 mr-1" />
-                    Phone Number
+                    Phone Number *
                   </label>
                   <input
                     type="tel"
+                    required
                     value={addFormData.phone_number}
                     onChange={(e) => setAddFormData({ ...addFormData, phone_number: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -214,7 +246,7 @@ export function LeadsModals({
                  <div>
                    <label className="block text-sm font-medium text-gray-700 mb-2">
                      <Users className="inline h-4 w-4 mr-1" />
-                     Assigned Agent
+                     Assigned Agent <span className="text-gray-400 text-xs">(optional)</span>
                    </label>
                    <AgentSelector
                      selectedAgentId={addFormData.agent_id}
@@ -227,11 +259,28 @@ export function LeadsModals({
                    />
                  </div>
 
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Calculator className="inline h-4 w-4 mr-1" />
+                    Price <span className="text-gray-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={addFormData.price || ''}
+                    onChange={(e) => setAddFormData({ ...addFormData, price: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter price/value (optional)"
+                  />
+                </div>
+
                 {/* Reference Source */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Globe className="inline h-4 w-4 mr-1" />
-                    Reference Source
+                    Reference Source *
                   </label>
                   <ReferenceSourceSelector
                     selectedReferenceSourceId={addFormData.reference_source_id}
@@ -247,7 +296,7 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Settings className="inline h-4 w-4 mr-1" />
-                    Operations
+                    Operations *
                   </label>
                   <OperationsSelector
                     selectedOperationsId={addFormData.operations_id}
@@ -281,7 +330,7 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <MessageSquare className="inline h-4 w-4 mr-1" />
-                    Notes
+                    Notes <span className="text-gray-400 text-xs">(optional)</span>
                   </label>
                   <textarea
                     value={addFormData.notes}
@@ -366,10 +415,11 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Phone className="inline h-4 w-4 mr-1" />
-                    Phone Number
+                    Phone Number *
                   </label>
                   <input
                     type="tel"
+                    required
                     value={editFormData.phone_number}
                     onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -381,7 +431,7 @@ export function LeadsModals({
                  <div>
                    <label className="block text-sm font-medium text-gray-700 mb-2">
                      <Users className="inline h-4 w-4 mr-1" />
-                     Assigned Agent
+                     Assigned Agent <span className="text-gray-400 text-xs">(optional)</span>
                    </label>
                    <AgentSelector
                      selectedAgentId={editFormData.agent_id}
@@ -394,11 +444,28 @@ export function LeadsModals({
                    />
                  </div>
 
+                {/* Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Calculator className="inline h-4 w-4 mr-1" />
+                    Price <span className="text-gray-400 text-xs">(optional)</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editFormData.price || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, price: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter price/value (optional)"
+                  />
+                </div>
+
                 {/* Reference Source */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Globe className="inline h-4 w-4 mr-1" />
-                    Reference Source
+                    Reference Source *
                   </label>
                   <ReferenceSourceSelector
                     selectedReferenceSourceId={editFormData.reference_source_id}
@@ -414,7 +481,7 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Settings className="inline h-4 w-4 mr-1" />
-                    Operations
+                    Operations *
                   </label>
                   <OperationsSelector
                     selectedOperationsId={editFormData.operations_id}
@@ -448,7 +515,7 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <MessageSquare className="inline h-4 w-4 mr-1" />
-                    Notes
+                    Notes <span className="text-gray-400 text-xs">(optional)</span>
                   </label>
                   <textarea
                     value={editFormData.notes}
@@ -502,7 +569,7 @@ export function LeadsModals({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                    <p className="text-gray-900">{new Date(viewingLead.date).toLocaleDateString()}</p>
+                    <p className="text-gray-900">{formatDateForDisplay(viewingLead.date)}</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
@@ -522,56 +589,53 @@ export function LeadsModals({
                   <p className="text-gray-900 text-lg font-medium">{viewingLead.customer_name}</p>
                 </div>
 
-                {viewingLead.phone_number && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                    <p className="text-gray-900">{viewingLead.phone_number}</p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                  <p className="text-gray-900">{viewingLead.phone_number || 'Not provided'}</p>
+                </div>
 
-                {(viewingLead.assigned_agent_name || viewingLead.agent_name) && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Agent</label>
-                    <p className="text-gray-900">
-                      {viewingLead.assigned_agent_name || viewingLead.agent_name}
-                      {viewingLead.agent_role && (
-                        <span className="text-gray-500 ml-1 capitalize">
-                          ({viewingLead.agent_role.replace('_', ' ')})
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                  <p className="text-gray-900">
+                    {viewingLead.price ? `$${viewingLead.price.toLocaleString()}` : 'Not specified'}
+                  </p>
+                </div>
 
-                {viewingLead.reference_source_name && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>
-                    <p className="text-gray-900">{viewingLead.reference_source_name}</p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Agent</label>
+                  <p className="text-gray-900">
+                    {viewingLead.assigned_agent_name || viewingLead.agent_name || 'Not assigned'}
+                    {viewingLead.agent_role && (
+                      <span className="text-gray-500 ml-1 capitalize">
+                        ({viewingLead.agent_role.replace('_', ' ')})
+                      </span>
+                    )}
+                  </p>
+                </div>
 
-                {viewingLead.operations_name && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Operations</label>
-                    <p className="text-gray-900">
-                      {viewingLead.operations_name}
-                      {viewingLead.operations_role && (
-                        <span className="text-gray-500 ml-1 capitalize">
-                          ({viewingLead.operations_role.replace('_', ' ')})
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>
+                  <p className="text-gray-900">{viewingLead.reference_source_name || 'Not assigned'}</p>
+                </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Operations</label>
+                  <p className="text-gray-900">
+                    {viewingLead.operations_name || 'Not assigned'}
+                    {viewingLead.operations_role && (
+                      <span className="text-gray-500 ml-1 capitalize">
+                        ({viewingLead.operations_role.replace('_', ' ')})
+                      </span>
+                    )}
+                  </p>
+                </div>
 
 
-                {viewingLead.notes && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                    <p className="text-gray-900 whitespace-pre-wrap">{viewingLead.notes}</p>
-                  </div>
-                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <p className="text-gray-900 whitespace-pre-wrap">{viewingLead.notes || 'No notes'}</p>
+                </div>
 
                 {/* Timestamps */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
@@ -621,7 +685,7 @@ export function LeadsModals({
                 </p>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="font-medium text-gray-900">{deletingLead.customer_name}</p>
-                  <p className="text-gray-600">{new Date(deletingLead.date).toLocaleDateString()}</p>
+                  <p className="text-gray-600">{formatDateForDisplay(deletingLead.date)}</p>
                 </div>
               </div>
 

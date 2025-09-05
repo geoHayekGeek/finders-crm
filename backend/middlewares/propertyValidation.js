@@ -14,40 +14,21 @@ const sanitizeInput = (input) => {
     .trim();
 };
 
-// Validation rules for property updates
-const validatePropertyUpdate = [
+// Validation rules for property operations (create and update)
+const validateProperty = [
   // Required fields validation
-  body('title')
-    .notEmpty()
-    .withMessage('Title is required')
-    .isLength({ min: 3, max: 255 })
-    .withMessage('Title must be between 3 and 255 characters')
-    .custom((value) => {
-      if (value && (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload='))) {
-        return Promise.reject(new Error('Title contains potentially malicious content'));
-      }
-      return Promise.resolve(true);
-    })
-    .customSanitizer(sanitizeInput),
-    
-  body('description')
-    .notEmpty()
-    .withMessage('Description is required')
-    .isLength({ min: 10, max: 2000 })
-    .withMessage('Description must be between 10 and 2,000 characters')
-    .custom((value) => {
-      if (value && (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload='))) {
-        return Promise.reject(new Error('Description contains potentially malicious content'));
-      }
-      return Promise.resolve(true);
-    })
-    .customSanitizer(sanitizeInput),
     
   body('status_id')
     .notEmpty()
     .withMessage('Status ID is required')
     .isInt({ min: 1 })
     .withMessage('Status ID must be a positive integer'),
+    
+  body('property_type')
+    .notEmpty()
+    .withMessage('Property type is required')
+    .isIn(['sale', 'rent'])
+    .withMessage('Property type must be either "sale" or "rent"'),
     
   body('location')
     .notEmpty()
@@ -130,26 +111,33 @@ const validatePropertyUpdate = [
     
   // Optional fields validation
   body('building_name')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isLength({ max: 255 })
     .withMessage('Building name cannot exceed 255 characters')
     .customSanitizer(sanitizeInput),
     
   body('built_year')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isInt({ min: 1800, max: new Date().getFullYear() })
     .withMessage(`Built year must be between 1800 and ${new Date().getFullYear()}`),
     
   body('agent_id')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isInt({ min: 1 })
     .withMessage('Agent ID must be a positive integer'),
     
   body('notes')
-    .optional()
+    .optional({ nullable: true, checkFalsy: true })
     .isLength({ max: 5000 })
     .withMessage('Notes cannot exceed 5,000 characters')
     .customSanitizer(sanitizeInput),
+    
+  body('property_url')
+    .optional({ nullable: true, checkFalsy: true })
+    .isURL({ protocols: ['http', 'https'], require_protocol: true })
+    .withMessage('Property URL must be a valid URL starting with http:// or https://')
+    .isLength({ max: 500 })
+    .withMessage('Property URL must not exceed 500 characters'),
     
   body('main_image')
     .optional()
@@ -267,7 +255,8 @@ const propertyUpdateRateLimit = (req, res, next) => {
 };
 
 module.exports = {
-  validatePropertyUpdate,
+  validateProperty,
+  validatePropertyUpdate: validateProperty, // Backward compatibility alias
   handleValidationErrors,
   sanitizeRequestBody,
   propertyUpdateRateLimit,

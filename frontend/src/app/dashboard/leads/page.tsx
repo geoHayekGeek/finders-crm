@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { 
   Users, 
   Plus,
@@ -12,7 +12,9 @@ import {
   BarChart3,
   ChevronDown,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Calendar,
+  TrendingUp
 } from 'lucide-react'
 import { DataTable } from '@/components/DataTable'
 import { LeadsCard } from '@/components/LeadsCard'
@@ -20,10 +22,11 @@ import { LeadsFilters } from '@/components/LeadsFilters'
 import { LeadsModals } from '@/components/LeadsModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
 import { leadsColumns, leadsDetailedColumns } from '@/components/LeadsTableColumns'
-import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData } from '@/types/leads'
+import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData, LeadStatsData } from '@/types/leads'
 import { leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { formatDateForInput } from '@/utils/dateUtils'
 
 export default function LeadsPage() {
   const { user, token, isAuthenticated } = useAuth()
@@ -34,6 +37,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true)
   const [leadsLoading, setLeadsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [stats, setStats] = useState<LeadStatsData | null>(null)
   
   // View and display state
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
@@ -56,10 +60,11 @@ export default function LeadsPage() {
     phone_number: '',
     agent_id: undefined,
     agent_name: '',
-    reference_source_id: undefined,
-    operations_id: undefined,
+    price: undefined,
+    reference_source_id: 0,
+    operations_id: 0,
     notes: '',
-    status: 'active'
+    status: 'Active'
   })
   
   // Pagination state
@@ -67,8 +72,6 @@ export default function LeadsPage() {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   
   // Statistics state
-  const [stats, setStats] = useState<any>(null)
-  
   // Export dropdown state
   const [showExportDropdown, setShowExportDropdown] = useState(false)
 
@@ -87,25 +90,11 @@ export default function LeadsPage() {
     }
   }, [showExportDropdown])
 
-  // Load data on component mount
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadData()
-    }
-  }, [isAuthenticated])
-
-  // Reload data when filters change
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadLeadsOnly()
-      setCurrentPage(1) // Reset to first page when filters change
-    }
-  }, [filters, isAuthenticated])
-
-  // Load only leads (for filtering)
-  const loadLeadsOnly = async () => {
+  // Load leads data
+  const loadLeads = async () => {
     try {
       setLeadsLoading(true)
+      setError(null)
       
       // Check authentication
       if (!isAuthenticated || !token) {
@@ -113,50 +102,66 @@ export default function LeadsPage() {
         return
       }
       
-      console.log('🔍 Loading leads with filters:', filters)
+      // Check if we have any active filters
+      const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
+        value !== undefined && value !== null && value !== '' && value !== 'All'
+      )
       
-      let leadsData: Lead[]
-      
-      // Build query parameters for filters
-      const hasFilters = Object.keys(filters).length > 0
-      
-      if (hasFilters) {
-        const response = await leadsApi.getWithFilters(filters, token)
-        console.log('🔍 Filtered response:', response)
-        console.log('🔍 Filtered response.data:', response.data)
-        console.log('🔍 Filtered response.data type:', typeof response.data)
-        console.log('🔍 Filtered response.data length:', response.data?.length)
-        leadsData = response.data
+      let response
+      if (hasActiveFilters) {
+        response = await leadsApi.getWithFilters(filters, token)
       } else {
-        const response = await leadsApi.getAll(token)
-        console.log('🔍 All leads response:', response)
-        console.log('🔍 All leads response.data:', response.data)
-        console.log('🔍 All leads response.data type:', typeof response.data)
-        console.log('🔍 All leads response.data length:', response.data?.length)
-        leadsData = response.data
+        response = await leadsApi.getAll(token)
       }
       
-      console.log('✅ Loaded leads:', leadsData.length, leadsData)
-      
-      // Add action handlers to leads
-      const leadsWithActions = leadsData.map((lead: Lead) => ({
-        ...lead,
-        onView: handleViewLead,
-        onEdit: handleEditLead,
-        onDelete: handleDeleteLead
-      }))
-      
-      setLeads(leadsWithActions)
+      if (response.success) {
+        setLeads(response.data || [])
+      } else {
+        setError(response.message || 'Failed to load leads')
+      }
       
     } catch (error) {
-      console.error('❌ Error loading leads:', error)
-      if (error instanceof Error) {
-        setError(`Failed to load leads: ${error.message}`)
-      } else {
-        setError('Failed to load leads data')
-      }
+      console.error('Error loading leads:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load leads')
     } finally {
       setLeadsLoading(false)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData()
+    }
+  }, [isAuthenticated])
+
+  // Reload leads when filters change
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadLeads()
+      setCurrentPage(1) // Reset to first page when filters change
+    }
+  }, [filters, isAuthenticated, token])
+
+  // Format currency with K, M, B suffixes
+  const formatCurrency = (amount: number): string => {
+    if (amount === 0) return '$0'
+    
+    const absAmount = Math.abs(amount)
+    const sign = amount < 0 ? '-' : ''
+    
+    if (absAmount >= 1000000000) {
+      // Billions
+      return `${sign}$${(absAmount / 1000000000).toFixed(1).replace('.0', '')}B`
+    } else if (absAmount >= 1000000) {
+      // Millions
+      return `${sign}$${(absAmount / 1000000).toFixed(1).replace('.0', '')}M`
+    } else if (absAmount >= 1000) {
+      // Thousands
+      return `${sign}$${(absAmount / 1000).toFixed(1).replace('.0', '')}K`
+    } else {
+      // Less than 1000
+      return `${sign}$${absAmount.toFixed(0)}`
     }
   }
 
@@ -172,74 +177,35 @@ export default function LeadsPage() {
         return
       }
       
-      console.log('🔍 Loading leads data...')
+      // Load leads and statistics
+      const [leadsResponse, statsResponse] = await Promise.allSettled([
+        leadsApi.getAll(token),
+        leadsApi.getStats(token)
+      ])
       
-      // Load leads
-      const leadsResponse = await leadsApi.getAll(token)
-      console.log('🔍 Leads response:', leadsResponse)
-      console.log('🔍 Leads response.data:', leadsResponse.data)
-      console.log('🔍 Leads response.data type:', typeof leadsResponse.data)
-      console.log('🔍 Leads response.data length:', leadsResponse.data?.length)
-      console.log('🔍 First lead item:', leadsResponse.data?.[0])
-      console.log('🔍 First lead keys:', leadsResponse.data?.[0] ? Object.keys(leadsResponse.data[0]) : 'No data')
-      
-      const leadsData: Lead[] = leadsResponse.data
-      console.log('✅ Loaded leads:', leadsData.length, leadsData)
-      
-      // Load statistics
-      try {
-        const statsResponse = await leadsApi.getStats(token)
-        setStats(statsResponse.data)
-        console.log('✅ Loaded stats:', statsResponse.data)
-      } catch (statsError) {
-        console.warn('Could not load statistics:', statsError)
+      // Handle leads response
+      if (leadsResponse.status === 'fulfilled' && leadsResponse.value.success) {
+        setLeads(leadsResponse.value.data || [])
+      } else {
+        const error = leadsResponse.status === 'rejected' ? leadsResponse.reason : leadsResponse.value
+        setError('Failed to load leads: ' + (error?.message || 'Unknown error'))
       }
       
-      // Add action handlers to leads
-      const leadsWithActions = leadsData.map((lead: Lead) => ({
-        ...lead,
-        onView: handleViewLead,
-        onEdit: handleEditLead,
-        onDelete: handleDeleteLead
-      }))
-      
-      setLeads(leadsWithActions)
+      // Handle stats response
+      if (statsResponse.status === 'fulfilled' && statsResponse.value.success) {
+        setStats(statsResponse.value.data)
+      }
       
     } catch (error) {
-      console.error('❌ Error loading data:', error)
-      if (error instanceof Error) {
-        setError(`Failed to load leads: ${error.message}`)
-      } else {
-        setError('Failed to load leads data')
-      }
+      console.error('Error loading data:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
   }
 
-  // Since we're filtering on the backend, filteredLeads is just leads
-  const filteredLeads = leads
 
-  // Paginate leads with action handlers
-  const paginatedLeads = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return filteredLeads.slice(startIndex, endIndex).map(lead => ({
-      ...lead,
-      onView: handleViewLead,
-    
-      onEdit: handleEditLead,
-      onDelete: handleDeleteLead
-    }))
-  }, [filteredLeads, currentPage, itemsPerPage])
-
-  // Grid view leads (accumulated for "load more" functionality)
-  const gridViewLeads = useMemo(() => {
-    const endIndex = currentPage * itemsPerPage
-    return filteredLeads.slice(0, endIndex)
-  }, [filteredLeads, currentPage, itemsPerPage])
-
-  // Action handlers
+  // Action handlers (defined before useMemo to avoid initialization issues)
   const handleViewLead = (lead: Lead) => {
     setSelectedLead(lead)
     setShowViewModal(true)
@@ -247,19 +213,57 @@ export default function LeadsPage() {
 
   const handleEditLead = (lead: Lead) => {
     setSelectedLead(lead)
+    
+    // Format date properly - ensure it's in YYYY-MM-DD format for date input
+    const formattedDate = formatDateForInput(lead.date)
+    
+    // Use assigned_agent_name if agent_name is not available
+    const agentName = lead.agent_name || lead.assigned_agent_name || ''
+    
     setEditFormData({
-      date: lead.date,
+      date: formattedDate,
       customer_name: lead.customer_name,
       phone_number: lead.phone_number || '',
       agent_id: lead.agent_id,
-      agent_name: lead.agent_name || '',
-      reference_source_id: lead.reference_source_id,
-      operations_id: lead.operations_id,
+      agent_name: agentName,
+      price: lead.price ? parseFloat(lead.price.toString()) : undefined,
+      reference_source_id: lead.reference_source_id || 0,
+      operations_id: lead.operations_id || 0,
       notes: lead.notes || '',
       status: lead.status
     })
     setShowEditModal(true)
   }
+
+  const handleDeleteLead = (lead: Lead) => {
+    setDeletingLead(lead)
+    setDeleteConfirmation('')
+    setShowDeleteModal(true)
+  }
+
+  // Clear all filters
+  const handleClearFilters = () => {
+    setFilters({})
+  }
+
+  // Paginated leads for table view (with action handlers)
+  const paginatedLeads = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    const endIndex = startIndex + itemsPerPage
+    return leads.slice(startIndex, endIndex).map(lead => ({
+      ...lead,
+      onView: handleViewLead,
+      onEdit: handleEditLead,
+      onDelete: handleDeleteLead
+    }))
+  }, [leads, currentPage, itemsPerPage, handleViewLead, handleEditLead, handleDeleteLead])
+
+  // Grid view leads (accumulated for "load more" functionality)
+  const gridViewLeads = useMemo(() => {
+    const endIndex = currentPage * itemsPerPage
+    return leads.slice(0, endIndex)
+  }, [leads, currentPage, itemsPerPage])
+
 
   const handleSaveEdit = async () => {
     try {
@@ -354,11 +358,6 @@ export default function LeadsPage() {
     }
   }
 
-  // Handle delete lead
-  const handleDeleteLead = async (lead: Lead) => {
-    setDeletingLead(lead)
-    setShowDeleteModal(true)
-  }
 
   // Handle confirm delete
   const handleConfirmDelete = async () => {
@@ -410,7 +409,7 @@ export default function LeadsPage() {
 
   // Export functions
   const exportToCSV = () => {
-    const currentData = viewMode === 'table' ? paginatedLeads : filteredLeads
+    const currentData = viewMode === 'table' ? paginatedLeads : leads
     
     // Prepare CSV headers
     const headers = [
@@ -427,7 +426,7 @@ export default function LeadsPage() {
     ]
     
     // Prepare CSV data
-    const csvData = currentData.map(lead => [
+    const csvData = currentData.map((lead: Lead) => [
       lead.date || '',
       lead.customer_name || '',
       lead.phone_number || '',
@@ -435,7 +434,7 @@ export default function LeadsPage() {
       lead.status || '',
       lead.reference_source_name || '',
       lead.operations_name || '',
-      lead.referral_sources?.map(r => r.source).join('; ') || lead.referral_source || '',
+      lead.reference_source_name || '',
       lead.notes || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''
     ])
@@ -443,8 +442,8 @@ export default function LeadsPage() {
     // Create CSV content
     const csvContent = [
       headers.join(','),
-      ...csvData.map(row => 
-        row.map(cell => 
+      ...csvData.map((row: any[]) => 
+        row.map((cell: any) => 
           typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
             ? `"${cell.replace(/"/g, '""')}"` 
             : cell
@@ -467,7 +466,7 @@ export default function LeadsPage() {
   }
 
   const exportToExcel = () => {
-    const currentData = viewMode === 'table' ? paginatedLeads : filteredLeads
+    const currentData = viewMode === 'table' ? paginatedLeads : leads
     
     // Prepare Excel-compatible CSV data with more detailed headers
     const headers = [
@@ -487,7 +486,7 @@ export default function LeadsPage() {
     ]
     
     // Prepare CSV data
-    const csvData = currentData.map(lead => [
+    const csvData = currentData.map((lead: Lead) => [
       lead.date || '',
       lead.customer_name || '',
       lead.phone_number || '',
@@ -497,7 +496,7 @@ export default function LeadsPage() {
       lead.reference_source_name || '',
       lead.operations_name || '',
       lead.operations_role || '',
-      lead.referral_sources?.map(r => `${r.source} (${r.date})`).join('; ') || lead.referral_source || '',
+      lead.reference_source_name || '',
       lead.notes || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
       lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : ''
@@ -506,8 +505,8 @@ export default function LeadsPage() {
     // Create CSV content (Excel-compatible)
     const csvContent = [
       headers.join(','),
-      ...csvData.map(row => 
-        row.map(cell => 
+      ...csvData.map((row: any[]) => 
+        row.map((cell: any) => 
           typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
             ? `"${cell.replace(/"/g, '""')}"` 
             : cell
@@ -568,7 +567,7 @@ export default function LeadsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <p className="text-gray-600 mt-1">
-            Manage your leads pipeline ({filteredLeads.length} leads)
+            Manage your leads pipeline ({leads.length} leads)
           </p>
         </div>
         
@@ -598,7 +597,7 @@ export default function LeadsPage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.overview?.total_leads || leads.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
               </div>
             </div>
           </div>
@@ -606,13 +605,11 @@ export default function LeadsPage() {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-green-600" />
+                <Calendar className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {stats.overview?.active || leads.filter(l => l.status === 'active').length}
-                </p>
+                <p className="text-sm font-medium text-gray-600">New (7 Days)</p>
+                <p className="text-2xl font-bold text-gray-900">{stats.recentActivity.newLeads7Days}</p>
               </div>
             </div>
           </div>
@@ -620,12 +617,12 @@ export default function LeadsPage() {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 rounded-lg">
-                <Users className="h-6 w-6 text-purple-600" />
+                <BarChart3 className="h-6 w-6 text-purple-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Qualified</p>
+                <p className="text-sm font-medium text-gray-600">Avg. Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {stats.overview?.qualified || leads.filter(l => l.status === 'qualified').length}
+                  {formatCurrency(stats.pricing.averagePrice)}
                 </p>
               </div>
             </div>
@@ -634,12 +631,12 @@ export default function LeadsPage() {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
               <div className="p-2 bg-orange-100 rounded-lg">
-                <BarChart3 className="h-6 w-6 text-orange-600" />
+                <TrendingUp className="h-6 w-6 text-orange-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Converted</p>
+                <p className="text-sm font-medium text-gray-600">Total Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {stats.overview?.converted || leads.filter(l => l.status === 'converted').length}
+                  {formatCurrency(stats.pricing.totalValue)}
                 </p>
               </div>
             </div>
@@ -653,7 +650,7 @@ export default function LeadsPage() {
         setFilters={setFilters}
         showAdvancedFilters={showAdvancedFilters}
         setShowAdvancedFilters={setShowAdvancedFilters}
-        onClearFilters={clearFilters}
+        onClearFilters={handleClearFilters}
       />
 
       {/* View Toggle and Actions */}
@@ -681,7 +678,7 @@ export default function LeadsPage() {
           </button>
           
           <button
-            onClick={loadLeadsOnly}
+            onClick={loadLeads}
             disabled={leadsLoading}
             className={`p-2 rounded-lg transition-colors ${
               leadsLoading 
@@ -757,29 +754,21 @@ export default function LeadsPage() {
         </div>
       ) : (
         // Table View
-        <>
-          {console.log('🔍 Table data debug:', {
-            paginatedLeads,
-            leadsLength: paginatedLeads.length,
-            firstLead: paginatedLeads[0],
-            allLeads: leads
-          })}
-          <DataTable
-            columns={leadsColumns}
-            data={paginatedLeads}
-          />
-        </>
+        <DataTable
+          columns={leadsColumns}
+          data={paginatedLeads}
+        />
       )}
 
       {/* Pagination */}
-      {filteredLeads.length > itemsPerPage && (
+      {leads.length > itemsPerPage && (
         <PropertyPagination
           currentPage={currentPage}
-          totalPages={Math.ceil(filteredLeads.length / itemsPerPage)}
+          totalPages={Math.ceil(leads.length / itemsPerPage)}
           itemsPerPage={itemsPerPage}
-          totalItems={filteredLeads.length}
+          totalItems={leads.length}
           startIndex={(currentPage - 1) * itemsPerPage}
-          endIndex={currentPage * itemsPerPage}
+          endIndex={Math.min(currentPage * itemsPerPage, leads.length)}
           onPageChange={setCurrentPage}
           onItemsPerPageChange={handleItemsPerPageChange}
           viewMode={viewMode}

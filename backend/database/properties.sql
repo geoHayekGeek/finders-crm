@@ -15,9 +15,10 @@ CREATE TABLE IF NOT EXISTS properties (
   built_year INTEGER, -- Optional
   view_type VARCHAR(50) CHECK (view_type IN ('open view', 'sea view', 'mountain view', 'no view')) NOT NULL,
   concierge BOOLEAN DEFAULT FALSE NOT NULL,
-  agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL NOT NULL,
+  agent_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   price DECIMAL(15,2) NOT NULL,
   notes TEXT, -- Optional
+  property_url TEXT, -- Optional property URL (e.g., listing URL from external sites)
   referral_sources JSONB, -- array of referral objects with source and date: [{"source": "John Doe", "date": "2024-01-15"}, {"source": "External Agency", "date": "2024-01-20"}]
   referral_source VARCHAR(100), -- deprecated: keeping for backward compatibility
   referral_dates DATE[], -- deprecated: keeping for backward compatibility

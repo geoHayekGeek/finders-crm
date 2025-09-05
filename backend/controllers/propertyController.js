@@ -202,18 +202,16 @@ const createProperty = async (req, res) => {
       agent_id,
       price,
       notes,
+      property_url,
       referrals,
 
       main_image,
       image_gallery
     } = req.body;
 
-    // Validate required fields
-    if (!status_id || !property_type || !location || !category_id || !owner_name || !price) {
-      return res.status(400).json({ 
-        message: 'Missing required fields: status_id, property_type, location, category_id, owner_name, and price are required' 
-      });
-    }
+    // Validation is now handled by middleware
+    // Basic type conversions for safety
+    const processedConcierge = concierge === true || concierge === 'true' || concierge === 1;
 
     // If agent manager is creating property, they can assign it to any agent
     // If operations/operations manager is creating property, they can assign it to any agent
@@ -245,10 +243,11 @@ const createProperty = async (req, res) => {
       interior_details,
       built_year,
       view_type,
-      concierge: concierge || false,
+      concierge: processedConcierge,
       agent_id: finalAgentId,
       price,
       notes,
+      property_url: property_url || null, // Optional
       referrals: referrals || [],
 
       main_image: main_image || null, // Optional

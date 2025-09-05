@@ -122,6 +122,7 @@ export function PropertyModals({
     agent_id: undefined as number | undefined, // Add agent_id field
     price: '',
     notes: '',
+    property_url: '',
     main_image: '',
     main_image_file: null as File | null, // New: File object for upload
     main_image_preview: '', // New: Preview URL for display
@@ -292,6 +293,7 @@ export function PropertyModals({
             const formData = {
               reference_number: propertyData.reference_number || '',
               status_id: propertyData.status_id || 0,
+              property_type: propertyData.property_type || 'sale',
               location: propertyData.location || '',
               category_id: propertyData.category_id || 0,
               building_name: propertyData.building_name || '',
@@ -306,6 +308,7 @@ export function PropertyModals({
               agent_id: propertyData.agent_id,
               price: propertyData.price,
               notes: propertyData.notes || '',
+              property_url: propertyData.property_url || '',
               referrals: propertyData.referrals || [],
 
               main_image: propertyData.main_image || '',
@@ -320,6 +323,7 @@ export function PropertyModals({
             setEditFormData({
               reference_number: editingProperty.reference_number || '',
               status_id: editingProperty.status_id || 0,
+              property_type: editingProperty.property_type || 'sale',
               location: editingProperty.location || '',
               category_id: editingProperty.category_id || 0,
               building_name: editingProperty.building_name || '',
@@ -334,6 +338,7 @@ export function PropertyModals({
               agent_id: editingProperty.agent_id,
               price: editingProperty.price,
               notes: editingProperty.notes || '',
+              property_url: editingProperty.property_url || '',
               referrals: editingProperty.referrals || [],
 
               main_image: editingProperty.main_image || '',
@@ -346,6 +351,7 @@ export function PropertyModals({
           setEditFormData({
             reference_number: editingProperty.reference_number || '',
             status_id: editingProperty.status_id || 0,
+            property_type: editingProperty.property_type || 'sale',
             location: editingProperty.location || '',
             category_id: editingProperty.category_id || 0,
             building_name: editingProperty.building_name || '',
@@ -360,6 +366,7 @@ export function PropertyModals({
             agent_id: editingProperty.agent_id,
             price: editingProperty.price,
             notes: editingProperty.notes || '',
+            property_url: editingProperty.property_url || '',
             referrals: editingProperty.referrals || [],
 
             main_image: editingProperty.main_image || '',
@@ -529,6 +536,7 @@ export function PropertyModals({
       agent_id: undefined as number | undefined, // Reset agent_id
       price: '',
       notes: '',
+      property_url: '',
 
       main_image: '',
       main_image_file: null as File | null,
@@ -801,6 +809,7 @@ export function PropertyModals({
                     agent_id: addFormData.agent_id || undefined,
                     price: parseFloat(addFormData.price),
                     notes: addFormData.notes || undefined,
+                    property_url: addFormData.property_url || undefined,
                     referrals: addFormData.referrals.length > 0 ? addFormData.referrals : undefined,
 
                     // Note: Images will be uploaded separately after property creation
@@ -994,6 +1003,15 @@ export function PropertyModals({
                           required={true}
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
+                      <input
+                        type="text"
+                        value="Auto-generated"
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                      />
                     </div>
                   </div>
 
@@ -1192,6 +1210,19 @@ export function PropertyModals({
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Property URL (Optional)</label>
+                    <input
+                      type="url"
+                      id="add-property-url"
+                      value={addFormData.property_url}
+                      onChange={(e) => setAddFormData(prev => ({ ...prev, property_url: e.target.value }))}
+                      placeholder="https://example.com/property-listing"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Enter the URL of the property listing (e.g., from external real estate sites)</p>
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Referrals (Optional)</label>
                     <ReferralSelector
                       referrals={addFormData.referrals}
@@ -1281,21 +1312,6 @@ export function PropertyModals({
 
                 {/* Form Actions */}
 
-                {/* Validation Errors Display */}
-                {!isFormValid && (
-                  <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <h4 className="text-sm font-medium text-red-800 mb-2">Please fix the following errors:</h4>
-                    <ul className="text-sm text-red-700 space-y-1">
-                      {getValidationErrors().map((error: string, index: number) => (
-                        <li key={index} className="flex items-start">
-                          <span className="text-red-500 mr-2">•</span>
-                          {error}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
                 <div className="flex items-center justify-end space-x-3 pt-6 border-t border-gray-200">
                   
                   <button
@@ -1369,8 +1385,12 @@ export function PropertyModals({
                           {/* Remove Image Button */}
                           <button
                             type="button"
-                            onClick={() => setEditFormData((prev: EditFormData) => ({ ...prev, main_image: '' }))}
-                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setEditFormData((prev: EditFormData) => ({ ...prev, main_image: '' }));
+                            }}
+                            className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg z-10"
                             title="Remove main image"
                           >
                             <X className="h-4 w-4" />
@@ -1423,22 +1443,29 @@ export function PropertyModals({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
-                      <input
-                        type="text"
-                        value={editFormData.reference_number || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, reference_number: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Status <span className="text-red-500">*</span>
+                      </label>
+                      <PropertyStatusSelector
+                        selectedStatusId={editFormData.status_id}
+                        onStatusChange={(statusId) => setEditFormData((prev: EditFormData) => ({ ...prev, status_id: statusId }))}
+                        placeholder="Select status..."
+                        required={true}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Location *</label>
-                      <input
-                        type="text"
-                        value={editFormData.location}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, location: e.target.value }))}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Property Type <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={editFormData.property_type}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, property_type: e.target.value as 'sale' | 'rent' }))}
+                        required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
+                      >
+                        <option value="sale">Sale</option>
+                        <option value="rent">Rent</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1455,98 +1482,112 @@ export function PropertyModals({
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Status <span className="text-red-500">*</span>
-                      </label>
-                      <PropertyStatusSelector
-                        selectedStatusId={editFormData.status_id}
-                        onStatusChange={(statusId) => setEditFormData((prev: EditFormData) => ({ ...prev, status_id: statusId }))}
-                        placeholder="Select status..."
-                        required={true}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
+                      <input
+                        type="text"
+                        value={editFormData.reference_number || ''}
+                        disabled
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Location <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.location}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, location: e.target.value }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name (Optional)</label>
                       <input
                         type="text"
                         value={editFormData.building_name || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, building_name: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Owner Name *</label>
-                      <input
-                        type="text"
-                        value={editFormData.owner_name}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, owner_name: e.target.value }))}
+                        placeholder="Enter building name (optional)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Owner Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={editFormData.owner_name}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, owner_name: e.target.value }))}
+                        required
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Phone Number <span className="text-red-500">*</span>
                       </label>
                       <input
-                        type="text"
+                        type="tel"
                         value={editFormData.phone_number || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, phone_number: e.target.value }))}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Surface Area (m²) <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
+                        step="0.01"
                         value={editFormData.surface || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, surface: parseFloat(e.target.value) || undefined }))}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year (Optional)</label>
                       <input
                         type="number"
+                        min="1800"
+                        max={new Date().getFullYear()}
                         value={editFormData.built_year || ''}
                         onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, built_year: parseInt(e.target.value) || undefined }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Price <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={editFormData.price || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, price: parseFloat(e.target.value) || undefined }))}
-                        required
+                        placeholder="Enter built year (optional)"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent (Optional)</label>
+                      <AgentSelector
+                        selectedAgentId={editFormData.agent_id}
+                        onAgentChange={(agent) => setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: agent?.id }))}
+                        placeholder="Select agent (optional)..."
+                      />
+                    </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         View Type <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={editFormData.view_type || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, view_type: e.target.value as any }))}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, view_type: e.target.value as 'open view' | 'sea view' | 'mountain view' | 'no view' }))}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       >
@@ -1557,12 +1598,21 @@ export function PropertyModals({
                         <option value="no view">No View</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
-                      <AgentSelector
-                        selectedAgentId={editFormData.agent_id}
-                        onAgentChange={(agent) => setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: agent?.id }))}
-                        placeholder="Select agent (optional)..."
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Price <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={editFormData.price || ''}
+                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, price: parseFloat(e.target.value) || undefined }))}
+                        required
+                        placeholder="Enter price"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
                     </div>
                   </div>
@@ -1581,6 +1631,7 @@ export function PropertyModals({
                       </span>
                     </label>
                   </div>
+
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1606,6 +1657,17 @@ export function PropertyModals({
                       onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, interior_details: e.target.value }))}
                       required
                       placeholder="Enter interior details and features"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Property URL (Optional)</label>
+                    <input
+                      type="url"
+                      value={editFormData.property_url || ''}
+                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, property_url: e.target.value }))}
+                      placeholder="Enter property URL (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
@@ -1776,13 +1838,6 @@ export function PropertyModals({
 
                 {/* Property Details */}
                 <div className="space-y-6">
-                  {/* Reference Number at the top */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
-                    <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-semibold">
-                      {viewPropertyData.reference_number}
-                    </div>
-                  </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -1797,9 +1852,26 @@ export function PropertyModals({
                       </div>
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Property Type</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {viewPropertyData.property_type === 'sale' ? 'Sale' : 'Rent'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
                         {viewPropertyData.category_name}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
+                      <div className="px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-semibold">
+                        {viewPropertyData.reference_number}
                       </div>
                     </div>
                   </div>
@@ -1935,6 +2007,25 @@ export function PropertyModals({
                           <div className="whitespace-pre-wrap">{viewPropertyData.notes}</div>
                         ) : (
                           <div className="text-gray-500">No notes provided</div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Property URL */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Property URL</label>
+                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                        {viewPropertyData.property_url ? (
+                          <a 
+                            href={viewPropertyData.property_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 underline break-all"
+                          >
+                            {viewPropertyData.property_url}
+                          </a>
+                        ) : (
+                          <div className="text-gray-500">No URL provided</div>
                         )}
                       </div>
                     </div>

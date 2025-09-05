@@ -12,6 +12,7 @@ const {
 } = require('../middlewares/permissions');
 const { handleUploadError, uploadSingle, uploadMultiple } = require('../middlewares/fileUpload');
 const { 
+  validateProperty,
   validatePropertyUpdate, 
   handleValidationErrors, 
   sanitizeRequestBody, 
@@ -61,6 +62,9 @@ router.get('/:id', csrfProtection, propertyController.getPropertyById);
 router.post('/', 
   canManageProperties, 
   xssProtection,
+  sanitizeRequestBody,
+  validateProperty,
+  handleValidationErrors,
   propertyController.createProperty
 );
 

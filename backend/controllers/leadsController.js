@@ -29,30 +29,40 @@ class LeadsController {
   static async getLeadsWithFilters(req, res) {
     try {
       console.log('🔍 Getting filtered leads for user:', req.user?.name, 'Filters:', req.query);
+      console.log('🔍 User role:', req.user?.role, 'User ID:', req.user?.id);
       
       let leads;
       const userRole = req.user.role;
       const userId = req.user.id;
       
       if (userRole === 'operations') {
+        console.log('🔍 Operations user - adding agent_id filter');
         // Operations employees only see their own leads, even with filters
         const filters = { ...req.query, agent_id: userId };
+        console.log('🔍 Final filters for operations:', filters);
         leads = await Lead.getLeadsWithFilters(filters);
       } else if (userRole === 'agent') {
+        console.log('🔍 Agent user - complex filtering logic');
         // Agents see leads assigned to them or that they referred, with filters
         leads = await Lead.getLeadsAssignedOrReferredByAgent(userId);
+        console.log('🔍 Agent leads before filtering:', leads.length);
         // Apply additional filters if provided
         if (Object.keys(req.query).length > 0) {
           const filteredLeads = await Lead.getLeadsWithFilters(req.query);
+          console.log('🔍 Filtered leads from query:', filteredLeads.length);
           // Filter the agent's leads by the query results
           leads = leads.filter(lead => 
             filteredLeads.some(filtered => filtered.id === lead.id)
           );
+          console.log('🔍 Final agent leads after filtering:', leads.length);
         }
       } else {
+        console.log('🔍 Admin/Manager user - direct filtering');
         // Admins, operations managers, and agent managers see all leads with filters
         leads = await Lead.getLeadsWithFilters(req.query);
       }
+      
+      console.log('🔍 Final leads count:', leads.length);
       
       res.json({
         success: true,
@@ -116,21 +126,11 @@ class LeadsController {
     try {
       console.log('➕ Creating new lead:', req.body);
       
-      // Validate required fields
-      const { customer_name } = req.body;
-      
-      if (!customer_name) {
-        return res.status(400).json({
-          success: false,
-          message: 'Customer name is required'
-        });
-      }
-
-      // If user is operations role, set them as the default agent
+      // All validation is now handled by middleware
+      // If user is operations role, set them as the default operations_id
       let leadData = { ...req.body };
-      if (req.user.role === 'operations') {
-        leadData.agent_id = req.user.id;
-        leadData.agent_name = req.user.name;
+      if (req.user.role === 'operations' && !leadData.operations_id) {
+        leadData.operations_id = req.user.id;
       }
 
       const newLead = await Lead.createLead(leadData);

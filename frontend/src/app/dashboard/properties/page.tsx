@@ -194,6 +194,28 @@ export default function PropertiesPage() {
     }
   }
 
+  // Format currency with K, M, B suffixes
+  const formatCurrency = (amount: number): string => {
+    if (amount === 0) return '$0'
+    
+    const absAmount = Math.abs(amount)
+    const sign = amount < 0 ? '-' : ''
+    
+    if (absAmount >= 1000000000) {
+      // Billions
+      return `${sign}$${(absAmount / 1000000000).toFixed(1).replace('.0', '')}B`
+    } else if (absAmount >= 1000000) {
+      // Millions
+      return `${sign}$${(absAmount / 1000000).toFixed(1).replace('.0', '')}M`
+    } else if (absAmount >= 1000) {
+      // Thousands
+      return `${sign}$${(absAmount / 1000).toFixed(1).replace('.0', '')}K`
+    } else {
+      // Less than 1000
+      return `${sign}$${absAmount.toFixed(0)}`
+    }
+  }
+
   // Load all necessary data (initial load)
   const loadData = async () => {
     try {
@@ -1034,7 +1056,7 @@ export default function PropertiesPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Value</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  ${properties.reduce((sum, p) => sum + (parseFloat(p.price?.toString() || '0') || 0), 0).toLocaleString()}
+                  {formatCurrency(properties.reduce((sum, p) => sum + (parseFloat(p.price?.toString() || '0') || 0), 0))}
                 </p>
               </div>
             </div>

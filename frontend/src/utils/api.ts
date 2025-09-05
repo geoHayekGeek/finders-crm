@@ -225,7 +225,7 @@ export const leadsApi = {
   getByAgent: (agentId: number, token?: string) => apiRequest<LeadsResponse>(`/leads/agent/${agentId}`, {}, token),
   
   // Get lead statistics
-  getStats: (token?: string) => apiRequest<LeadStatsApiResponse>('/leads/stats/overview', {}, token),
+  getStats: (token?: string) => apiRequest<LeadStatsApiResponse>('/leads/stats', {}, token),
 }
 
 // Categories API

@@ -4,14 +4,15 @@ export interface Lead {
   id: number
   date: string
   customer_name: string
-  phone_number?: string
+  phone_number: string  // Now required
   agent_id?: number
   agent_name?: string
   assigned_agent_name?: string
   agent_role?: string
-  reference_source_id?: number
+  price?: number  // New optional field
+  reference_source_id: number  // Now required
   reference_source_name?: string
-  operations_id?: number
+  operations_id: number  // Now required
   operations_name?: string
   operations_role?: string
   notes?: string
@@ -60,11 +61,12 @@ export interface LeadFilters {
 export interface EditLeadFormData {
   date: string
   customer_name: string
-  phone_number?: string
+  phone_number: string  // Now required
   agent_id?: number
   agent_name?: string
-  reference_source_id?: number
-  operations_id?: number
+  price?: number  // New optional field
+  reference_source_id: number  // Now required
+  operations_id: number  // Now required
   notes?: string
   status: string
 }
@@ -72,11 +74,12 @@ export interface EditLeadFormData {
 export interface CreateLeadFormData {
   date: string
   customer_name: string
-  phone_number?: string
+  phone_number: string  // Now required
   agent_id?: number
   agent_name?: string
-  reference_source_id?: number
-  operations_id?: number
+  price?: number  // New optional field
+  reference_source_id: number  // Now required
+  operations_id: number  // Now required
   notes?: string
   status?: string
 }
@@ -106,13 +109,13 @@ export interface LeadStatsResponse {
   }>
 }
 
-// Lead status options
+// Lead status options (matching database values)
 export const LEAD_STATUSES = [
-  { value: 'active', label: 'Active', color: '#10B981' },
-  { value: 'contacted', label: 'Contacted', color: '#3B82F6' },
-  { value: 'qualified', label: 'Qualified', color: '#8B5CF6' },
-  { value: 'converted', label: 'Converted', color: '#059669' },
-  { value: 'closed', label: 'Closed', color: '#6B7280' }
+  { value: 'Active', label: 'Active', color: '#10B981' },
+  { value: 'Contacted', label: 'Contacted', color: '#3B82F6' },
+  { value: 'Qualified', label: 'Qualified', color: '#8B5CF6' },
+  { value: 'Converted', label: 'Converted', color: '#059669' },
+  { value: 'Closed', label: 'Closed', color: '#6B7280' }
 ] as const
 
 export type LeadStatus = typeof LEAD_STATUSES[number]['value']
@@ -130,8 +133,26 @@ export interface LeadResponse {
   message?: string
 }
 
+export interface LeadStatsData {
+  total: number
+  byStatus: { status: string; count: number }[]
+  pricing: {
+    withPrice: number
+    averagePrice: number
+    totalValue: number
+    minPrice: number
+    maxPrice: number
+  }
+  topSources: { name: string; count: number }[]
+  recentActivity: {
+    newLeads7Days: number
+  }
+  topAgents: { name: string; count: number }[]
+  monthlyTrends: { month: string; count: number }[]
+}
+
 export interface LeadStatsApiResponse {
   success: boolean
-  data: LeadStatsResponse
+  data: LeadStatsData
   message?: string
 }

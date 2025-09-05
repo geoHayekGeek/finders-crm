@@ -18,19 +18,20 @@ export interface Property {
   category_name: string
   category_code: string
   building_name?: string
-  owner_name?: string
-  phone_number?: string
-  surface?: number
-  details?: string | object // Can be either string or object (legacy support)
-  interior_details?: string
+  owner_name: string
+  phone_number: string
+  surface: number
+  details: string | object // Can be either string or object (legacy support)
+  interior_details: string
   built_year?: number
-  view_type?: 'open view' | 'sea view' | 'mountain view' | 'no view'
+  view_type: 'open view' | 'sea view' | 'mountain view' | 'no view'
   concierge: boolean
   agent_id?: number
   agent_name?: string
   agent_role?: string
-  price?: number
+  price: number
   notes?: string
+  property_url?: string // Optional property URL (e.g., listing URL from external sites)
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of base64 encoded gallery images
   created_at: string
@@ -49,17 +50,18 @@ export interface EditFormData {
   location: string
   category_id: number
   building_name?: string
-  owner_name?: string
-  phone_number?: string
-  surface?: number
-  details?: string | object // Can be either string or object (legacy support)
-  interior_details?: string
+  owner_name: string
+  phone_number: string
+  surface: number
+  details: string | object // Can be either string or object (legacy support)
+  interior_details: string
   built_year?: number
-  view_type?: 'open view' | 'sea view' | 'mountain view' | 'no view'
+  view_type: 'open view' | 'sea view' | 'mountain view' | 'no view'
   concierge: boolean
   agent_id?: number
-  price?: number
+  price: number
   notes?: string
+  property_url?: string // Optional property URL (e.g., listing URL from external sites)
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of base64 encoded gallery images
   referrals?: Referral[]
