@@ -97,6 +97,7 @@ export function SingleUserSelector({
             <UserIcon className="h-4 w-4" />
             <span>{selectedUser.name}</span>
             <button
+              type="button"
               onClick={handleClearSelection}
               className="ml-1 hover:bg-blue-200 rounded-full p-0.5 transition-colors"
             >
@@ -162,6 +163,7 @@ export function SingleUserSelector({
               {filteredUsers.map(user => (
                 <button
                   key={user.id}
+                  type="button"
                   onClick={() => handleUserSelect(user)}
                   className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
                 >

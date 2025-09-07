@@ -117,6 +117,7 @@ export function OperationsSelector({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClearUser}
             className="p-1 text-purple-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
             title="Clear operations staff"

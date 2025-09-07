@@ -76,7 +76,7 @@ export function LeadsModals({
     reference_source_id: undefined,
     operations_id: undefined,
     notes: '',
-    status: 'Active'
+    status: ''
   })
 
   const [saving, setSaving] = useState(false)
@@ -102,6 +102,10 @@ export function LeadsModals({
       alert('Operations staff assignment is required')
       return
     }
+    if (!addFormData.status || !addFormData.status.trim()) {
+      alert('Status is required')
+      return
+    }
 
     setSaving(true)
     try {
@@ -118,7 +122,7 @@ export function LeadsModals({
         reference_source_id: undefined,
         operations_id: undefined,
         notes: '',
-        status: 'Active'
+        status: ''
       })
     } catch (error) {
       console.error('Error saving lead:', error)
@@ -146,6 +150,10 @@ export function LeadsModals({
     }
     if (!editFormData.operations_id) {
       alert('Operations staff assignment is required')
+      return
+    }
+    if (!editFormData.status || !editFormData.status.trim()) {
+      alert('Status is required')
       return
     }
 
@@ -312,10 +320,10 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Tag className="inline h-4 w-4 mr-1" />
-                    Status
+                    Status <span className="text-red-500">*</span>
                   </label>
                   <StatusSelector
-                    selectedStatus={addFormData.status || 'active'}
+                    selectedStatus={addFormData.status}
                     onStatusChange={(status) => setAddFormData({ 
                       ...addFormData, 
                       status: status 
@@ -497,7 +505,7 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Tag className="inline h-4 w-4 mr-1" />
-                    Status
+                    Status <span className="text-red-500">*</span>
                   </label>
                   <StatusSelector
                     selectedStatus={editFormData.status}

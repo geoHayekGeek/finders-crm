@@ -81,7 +81,7 @@ export interface CreateLeadFormData {
   reference_source_id: number  // Now required
   operations_id: number  // Now required
   notes?: string
-  status?: string
+  status: string
 }
 
 export interface LeadStats {

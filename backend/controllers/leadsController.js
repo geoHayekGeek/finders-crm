@@ -35,13 +35,7 @@ class LeadsController {
       const userRole = req.user.role;
       const userId = req.user.id;
       
-      if (userRole === 'operations') {
-        console.log('🔍 Operations user - adding agent_id filter');
-        // Operations employees only see their own leads, even with filters
-        const filters = { ...req.query, agent_id: userId };
-        console.log('🔍 Final filters for operations:', filters);
-        leads = await Lead.getLeadsWithFilters(filters);
-      } else if (userRole === 'agent') {
+      if (userRole === 'agent') {
         console.log('🔍 Agent user - complex filtering logic');
         // Agents see leads assigned to them or that they referred, with filters
         leads = await Lead.getLeadsAssignedOrReferredByAgent(userId);
@@ -57,8 +51,8 @@ class LeadsController {
           console.log('🔍 Final agent leads after filtering:', leads.length);
         }
       } else {
-        console.log('🔍 Admin/Manager user - direct filtering');
-        // Admins, operations managers, and agent managers see all leads with filters
+        console.log('🔍 Admin/Manager/Operations user - direct filtering');
+        // Admins, operations managers, operations, and agent managers see all leads with filters
         leads = await Lead.getLeadsWithFilters(req.query);
       }
       
@@ -97,7 +91,7 @@ class LeadsController {
       const userId = req.user.id;
       
       // Admin, operations, operations manager, and agent manager have full access
-      if (['admin', 'operations', 'operations manager', 'agent manager'].includes(userRole)) {
+      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
         // Full access - no restrictions
       } else if (userRole === 'agent' && lead.agent_id !== userId) {
         // Agents can only view leads they're assigned to
@@ -172,7 +166,7 @@ class LeadsController {
       const userId = req.user.id;
       
       // Admin, operations, operations manager, and agent manager have full access
-      if (['admin', 'operations', 'operations manager', 'agent manager'].includes(userRole)) {
+      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
         // Full access - no restrictions
       } else if (userRole === 'agent' && existingLead.agent_id !== userId) {
         // Agents can only update leads they're assigned to
@@ -225,7 +219,7 @@ class LeadsController {
 
       // Check permissions - only admins, operations, operations managers, and agent managers can delete leads
       const userRole = req.user.role;
-      if (!['admin', 'operations', 'operations manager', 'agent manager'].includes(userRole)) {
+      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete leads'

@@ -5,7 +5,8 @@ import { Eye, Edit3, Trash2, Phone, Calendar, User } from 'lucide-react'
 import { ColumnDef } from '@tanstack/react-table'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
-export const leadsColumns: ColumnDef<Lead>[] = [
+// Function to generate columns with permission-based actions
+export const getLeadsColumns = (canManageLeads: boolean = true): ColumnDef<Lead>[] => [
   {
     accessorKey: 'date',
     header: 'Date',
@@ -139,43 +140,54 @@ export const leadsColumns: ColumnDef<Lead>[] = [
           >
             <Eye className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => lead.onEdit?.(lead)}
-            className="p-1 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded transition-colors"
-            title="Edit lead"
-          >
-            <Edit3 className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => lead.onDelete?.(lead)}
-            className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-            title="Delete lead"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canManageLeads && (
+            <button
+              onClick={() => lead.onEdit?.(lead)}
+              className="p-1 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded transition-colors"
+              title="Edit lead"
+            >
+              <Edit3 className="h-4 w-4" />
+            </button>
+          )}
+          {canManageLeads && (
+            <button
+              onClick={() => lead.onDelete?.(lead)}
+              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+              title="Delete lead"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       )
     }
   }
 ]
 
-export const leadsDetailedColumns: ColumnDef<Lead>[] = [
-  ...leadsColumns.slice(0, -1), // All columns except actions
-  {
-    accessorKey: 'notes',
-    header: 'Notes',
-    cell: ({ row }) => {
-      const lead = row.original
-      return (
-        <div className="text-sm text-gray-600 max-w-xs">
-          {lead.notes ? (
-            <span className="line-clamp-2">{lead.notes}</span>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
-        </div>
-      )
-    }
-  },
-  leadsColumns[leadsColumns.length - 1] // Actions column
-]
+export const getLeadsDetailedColumns = (canManageLeads: boolean = true): ColumnDef<Lead>[] => {
+  const columns = getLeadsColumns(canManageLeads)
+  return [
+    ...columns.slice(0, -1), // All columns except actions
+    {
+      accessorKey: 'notes',
+      header: 'Notes',
+      cell: ({ row }) => {
+        const lead = row.original
+        return (
+          <div className="text-sm text-gray-600 max-w-xs">
+            {lead.notes ? (
+              <span className="line-clamp-2">{lead.notes}</span>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </div>
+        )
+      }
+    },
+    columns[columns.length - 1] // Actions column
+  ]
+}
+
+// Export default columns for backward compatibility
+export const leadsColumns = getLeadsColumns(true)
+export const leadsDetailedColumns = getLeadsDetailedColumns(true)

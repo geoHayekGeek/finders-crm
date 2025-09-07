@@ -9,9 +9,10 @@ interface LeadsCardProps {
   onView: (lead: Lead) => void
   onEdit: (lead: Lead) => void
   onDelete: (lead: Lead) => void
+  canManageLeads?: boolean
 }
 
-export function LeadsCard({ lead, onView, onEdit, onDelete }: LeadsCardProps) {
+export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true }: LeadsCardProps) {
   const statusConfig = LEAD_STATUSES.find(s => s.value === lead.status)
   const statusColor = statusConfig?.color || '#6B7280'
   const statusLabel = statusConfig?.label || lead.status
@@ -108,22 +109,26 @@ export function LeadsCard({ lead, onView, onEdit, onDelete }: LeadsCardProps) {
           <Eye className="h-4 w-4" />
           <span>View</span>
         </button>
-        <button
-          onClick={() => onEdit(lead)}
-          className="flex items-center gap-1 px-3 py-1.5 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded transition-colors text-sm"
-          title="Edit lead"
-        >
-          <Edit3 className="h-4 w-4" />
-          <span>Edit</span>
-        </button>
-        <button
-          onClick={() => onDelete(lead)}
-          className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors text-sm"
-          title="Delete lead"
-        >
-          <Trash2 className="h-4 w-4" />
-          <span>Delete</span>
-        </button>
+        {canManageLeads && (
+          <button
+            onClick={() => onEdit(lead)}
+            className="flex items-center gap-1 px-3 py-1.5 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded transition-colors text-sm"
+            title="Edit lead"
+          >
+            <Edit3 className="h-4 w-4" />
+            <span>Edit</span>
+          </button>
+        )}
+        {canManageLeads && (
+          <button
+            onClick={() => onDelete(lead)}
+            className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors text-sm"
+            title="Delete lead"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span>Delete</span>
+          </button>
+        )}
       </div>
     </div>
   )

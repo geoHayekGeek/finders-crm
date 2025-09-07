@@ -134,6 +134,7 @@ export function AgentSelector({
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClearAgent}
             className="p-1 text-blue-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
             title="Clear agent"

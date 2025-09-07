@@ -357,17 +357,12 @@ class Lead {
 
   // Get leads for a specific agent based on role permissions
   static async getLeadsForAgent(agentId, userRole) {
-    // Operations employees only see leads where they are assigned as operations
-    if (userRole === 'operations') {
-      return this.getLeadsByOperations(agentId);
-    }
-    
     // Agents see leads assigned to them or that they referred
     if (userRole === 'agent') {
       return this.getLeadsAssignedOrReferredByAgent(agentId);
     }
     
-    // Admins, operations managers, and agent managers see all leads
+    // Admins, operations managers, operations, and agent managers see all leads
     return this.getAllLeads();
   }
 

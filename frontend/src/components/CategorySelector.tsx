@@ -112,6 +112,7 @@ export function CategorySelector({
           </div>
           {!required && (
             <button
+              type="button"
               onClick={handleClearCategory}
               className="p-1 text-purple-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Clear category"

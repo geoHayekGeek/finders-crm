@@ -21,7 +21,7 @@ import { LeadsCard } from '@/components/LeadsCard'
 import { LeadsFilters } from '@/components/LeadsFilters'
 import { LeadsModals } from '@/components/LeadsModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
-import { leadsColumns, leadsDetailedColumns } from '@/components/LeadsTableColumns'
+import { getLeadsColumns, getLeadsDetailedColumns } from '@/components/LeadsTableColumns'
 import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData, LeadStatsData } from '@/types/leads'
 import { leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -30,7 +30,7 @@ import { formatDateForInput } from '@/utils/dateUtils'
 
 export default function LeadsPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageProperties } = usePermissions() // Reusing this permission for leads
+  const { canManageLeads, canViewLeads } = usePermissions()
   
   // State management
   const [leads, setLeads] = useState<Lead[]>([])
@@ -99,6 +99,12 @@ export default function LeadsPage() {
       // Check authentication
       if (!isAuthenticated || !token) {
         setError('You must be logged in to view leads')
+        return
+      }
+      
+      // Check permissions
+      if (!canViewLeads) {
+        setError('You do not have permission to view leads')
         return
       }
       
@@ -174,6 +180,12 @@ export default function LeadsPage() {
       // Check authentication
       if (!isAuthenticated || !token) {
         setError('You must be logged in to view leads')
+        return
+      }
+      
+      // Check permissions
+      if (!canViewLeads) {
+        setError('You do not have permission to view leads')
         return
       }
       
@@ -276,7 +288,7 @@ export default function LeadsPage() {
       }
       
       // Check permissions
-      if (!canManageProperties) {
+      if (!canManageLeads) {
         alert('You do not have permission to edit leads')
         return
       }
@@ -326,7 +338,7 @@ export default function LeadsPage() {
       }
       
       // Check permissions
-      if (!canManageProperties) {
+      if (!canManageLeads) {
         alert('You do not have permission to add leads')
         return
       }
@@ -366,6 +378,12 @@ export default function LeadsPage() {
         // Check authentication
         if (!isAuthenticated || !token) {
           alert('You must be logged in to delete leads')
+          return
+        }
+        
+        // Check permissions
+        if (!canManageLeads) {
+          alert('You do not have permission to delete leads')
           return
         }
         
@@ -574,9 +592,9 @@ export default function LeadsPage() {
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
           <button
             onClick={() => setShowAddModal(true)}
-            disabled={!isAuthenticated || !canManageProperties}
+            disabled={!isAuthenticated || !canManageLeads}
             className={`px-4 py-3 rounded-lg transition-colors flex items-center space-x-2 ${
-              isAuthenticated && canManageProperties
+              isAuthenticated && canManageLeads
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
@@ -749,13 +767,14 @@ export default function LeadsPage() {
               onView={handleViewLead}
               onEdit={handleEditLead}
               onDelete={handleDeleteLead}
+              canManageLeads={canManageLeads}
             />
           ))}
         </div>
       ) : (
         // Table View
         <DataTable
-          columns={leadsColumns}
+          columns={getLeadsColumns(canManageLeads)}
           data={paginatedLeads}
         />
       )}

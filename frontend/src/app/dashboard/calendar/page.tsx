@@ -100,7 +100,7 @@ export default function CalendarPage() {
 
   const handleUpdateEvent = async (event: CalendarEvent) => {
     try {
-      const response = await fetch(`/api/calendar/${event.id}`, {
+      const response = await fetch(`http://localhost:10000/api/calendar/${event.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ export default function CalendarPage() {
 
   const handleDeleteEvent = async (eventId: string) => {
     try {
-      const response = await fetch(`/api/calendar/${eventId}`, {
+      const response = await fetch(`http://localhost:10000/api/calendar/${eventId}`, {
         method: 'DELETE'
       })
 

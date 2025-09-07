@@ -3,6 +3,9 @@ const express = require('express');
 const router = express.Router();
 const calendarController = require('../controllers/calendarController');
 
+// Default route - Get all events (for backward compatibility)
+router.get('/', calendarController.getAllEvents);
+
 // Get all events
 router.get('/all', calendarController.getAllEvents);
 
@@ -18,6 +21,9 @@ router.get('/week', calendarController.getEventsByWeek);
 // Get events by day
 router.get('/day', calendarController.getEventsByDay);
 
+// Search events (must come before /:id route)
+router.get('/search', calendarController.searchEvents);
+
 // Get event by ID
 router.get('/:id', calendarController.getEventById);
 
@@ -29,8 +35,5 @@ router.put('/:id', calendarController.updateEvent);
 
 // Delete event
 router.delete('/:id', calendarController.deleteEvent);
-
-// Search events
-router.get('/search', calendarController.searchEvents);
 
 module.exports = router;

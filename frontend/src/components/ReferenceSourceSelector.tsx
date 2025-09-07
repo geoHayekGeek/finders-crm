@@ -97,6 +97,7 @@ export function ReferenceSourceSelector({
             </span>
           </div>
           <button
+            type="button"
             onClick={handleClearSource}
             className="p-1 text-green-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
             title="Clear reference source"

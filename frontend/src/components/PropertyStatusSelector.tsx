@@ -129,6 +129,7 @@ export function PropertyStatusSelector({
           </div>
           {!required && (
             <button
+              type="button"
               onClick={handleClearStatus}
               className="p-1 text-green-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
               title="Clear status"
