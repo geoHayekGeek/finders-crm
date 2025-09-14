@@ -23,7 +23,7 @@ import { LeadsModals } from '@/components/LeadsModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
 import { getLeadsColumns, getLeadsDetailedColumns } from '@/components/LeadsTableColumns'
 import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData, LeadStatsData } from '@/types/leads'
-import { leadsApi } from '@/utils/api'
+import { leadsApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { formatDateForInput } from '@/utils/dateUtils'
@@ -66,6 +66,7 @@ export default function LeadsPage() {
     notes: '',
     status: 'Active'
   })
+  const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -224,6 +225,7 @@ export default function LeadsPage() {
   }
 
   const handleEditLead = (lead: Lead) => {
+    console.log('🔍 Opening edit modal for lead:', lead)
     setSelectedLead(lead)
     
     // Format date properly - ensure it's in YYYY-MM-DD format for date input
@@ -232,7 +234,7 @@ export default function LeadsPage() {
     // Use assigned_agent_name if agent_name is not available
     const agentName = lead.agent_name || lead.assigned_agent_name || ''
     
-    setEditFormData({
+    const formData = {
       date: formattedDate,
       customer_name: lead.customer_name,
       phone_number: lead.phone_number || '',
@@ -243,7 +245,11 @@ export default function LeadsPage() {
       operations_id: lead.operations_id || 0,
       notes: lead.notes || '',
       status: lead.status
-    })
+    }
+    
+    console.log('📝 Setting edit form data:', formData)
+    setEditFormData(formData)
+    setEditValidationErrors({}) // Clear any previous validation errors
     setShowEditModal(true)
   }
 
@@ -280,43 +286,110 @@ export default function LeadsPage() {
   const handleSaveEdit = async () => {
     try {
       console.log('💾 Saving lead edits:', editFormData)
+      console.log('🔍 Selected lead ID:', selectedLead?.id)
       
       // Check authentication
       if (!isAuthenticated || !token) {
+        console.log('❌ Not authenticated or no token')
         return
       }
       
       // Check permissions
       if (!canManageLeads) {
+        console.log('❌ No permission to manage leads')
         return
       }
 
       // Get the lead ID from selectedLead
       if (!selectedLead) {
+        console.log('❌ No selected lead')
         return
       }
 
       // Validate required fields
       if (!editFormData.customer_name.trim()) {
+        console.log('❌ Customer name is required')
         return
       }
 
-      console.log('📡 Sending update request for lead:', selectedLead.id)
+      console.log('📡 [LeadsPage] Sending update request for lead:', selectedLead.id)
+      console.log('📡 [LeadsPage] Raw update data:', editFormData)
+      console.log('📡 [LeadsPage] Status field specifically:', editFormData.status)
+
+      // Filter out undefined values and prepare clean update data
+      const cleanUpdateData = Object.fromEntries(
+        Object.entries(editFormData).filter(([_, value]) => value !== undefined)
+      )
+      
+      console.log('📡 [LeadsPage] After filtering undefined values:', cleanUpdateData)
+      console.log('📡 [LeadsPage] Status after filtering:', cleanUpdateData.status)
+      
+      // Handle agent removal - if agent_id is undefined, set it to null
+      if (cleanUpdateData.agent_id === undefined) {
+        cleanUpdateData.agent_id = null
+        cleanUpdateData.agent_name = null
+        console.log('📡 [LeadsPage] Agent removed, set to null')
+      }
+      
+      console.log('📡 [LeadsPage] Final clean update data:', cleanUpdateData)
+      console.log('📡 [LeadsPage] Final status value:', cleanUpdateData.status)
 
       // Send PUT request to update the lead
-      await leadsApi.update(selectedLead.id, editFormData, token)
+      console.log('📡 [LeadsPage] Calling leadsApi.update with:', {
+        leadId: selectedLead.id,
+        updateData: cleanUpdateData,
+        hasToken: !!token
+      })
       
-      console.log('✅ Lead updated successfully')
+      const response = await leadsApi.update(selectedLead.id, cleanUpdateData, token)
+      console.log('📡 [LeadsPage] Update response:', response)
       
-      // Close the modal
-      setShowEditModal(false)
-      setSelectedLead(null)
-      
-      // Refresh the leads list
-      await loadData()
+      if (response.success) {
+        console.log('✅ [LeadsPage] Lead updated successfully')
+        console.log('✅ [LeadsPage] Updated lead data:', response.data)
+        
+        // Close the modal only on success
+        setShowEditModal(false)
+        setSelectedLead(null)
+        
+        // Refresh the leads list
+        await loadData()
+      } else {
+        console.error('❌ [LeadsPage] Update failed:', response.message)
+        
+        // Handle other types of errors
+        console.error('❌ [LeadsPage] Update error:', response.message)
+        // You could show a toast notification here
+      }
       
     } catch (error) {
       console.error('❌ Error updating lead:', error)
+      
+      // Handle ApiError with validation errors
+      if (error instanceof ApiError) {
+        if (error.errors && Array.isArray(error.errors)) {
+          console.log('🚫 [LeadsPage] Processing validation errors:', error.errors.length, 'errors')
+          
+          // Set validation errors for each field
+          const newValidationErrors: Record<string, string> = {}
+          error.errors.forEach((validationError: any) => {
+            // If there are multiple errors for the same field, combine them
+            if (newValidationErrors[validationError.field]) {
+              newValidationErrors[validationError.field] += `; ${validationError.message}`
+            } else {
+              newValidationErrors[validationError.field] = validationError.message
+            }
+          })
+          
+          setEditValidationErrors(newValidationErrors)
+          
+          // Throw the error so the modal knows the operation failed
+          throw error
+        }
+      }
+      
+      // Re-throw any other errors
+      throw error
     }
   }
 
@@ -790,6 +863,8 @@ export default function LeadsPage() {
         editingLead={selectedLead}
         editFormData={editFormData}
         setEditFormData={setEditFormData}
+        editValidationErrors={editValidationErrors}
+        setEditValidationErrors={setEditValidationErrors}
         onSaveEdit={handleSaveEdit}
         showViewLeadModal={showViewModal}
         setShowViewLeadModal={setShowViewModal}

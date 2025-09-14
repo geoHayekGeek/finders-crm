@@ -173,8 +173,28 @@ class Lead {
   }
 
   static async updateLead(id, updates) {
-    const fields = Object.keys(updates);
-    const values = Object.values(updates);
+    console.log('🔧 [Backend] Updating lead:', id);
+    console.log('🔧 [Backend] Raw updates:', updates);
+    
+    // Filter out undefined values and handle null values properly
+    const cleanUpdates = {};
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    });
+    
+    console.log('🔧 [Backend] Clean updates:', cleanUpdates);
+    console.log('🔧 [Backend] Status field specifically:', cleanUpdates.status);
+    
+    const fields = Object.keys(cleanUpdates);
+    const values = Object.values(cleanUpdates);
+    
+    if (fields.length === 0) {
+      console.log('🔧 [Backend] No fields to update, returning current lead');
+      // No fields to update, just return the current lead
+      return await Lead.getLeadById(id);
+    }
     
     const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
     const query = `
@@ -184,7 +204,12 @@ class Lead {
       RETURNING *
     `;
     
+    console.log('🔧 [Backend] SQL query:', query);
+    console.log('🔧 [Backend] Query values:', [id, ...values]);
+    
     const result = await pool.query(query, [id, ...values]);
+    console.log('🔧 [Backend] Update result:', result.rows[0]);
+    
     return result.rows[0];
   }
 

@@ -4,7 +4,7 @@ import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, C
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public errors?: any[]) {
     super(message)
     this.name = 'ApiError'
   }
@@ -65,6 +65,16 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   
+  // Add debugging for lead updates
+  if (endpoint.includes('/leads/') && options.method === 'PUT') {
+    console.log('🌐 [API] Lead update request:', {
+      url,
+      method: options.method,
+      body: options.body,
+      hasToken: !!token
+    })
+  }
+  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...options.headers as Record<string, string>,
@@ -92,42 +102,81 @@ async function apiRequest<T>(
   try {
     const response = await fetch(url, config)
     
+    // Add debugging for lead updates
+    if (endpoint.includes('/leads/') && options.method === 'PUT') {
+      console.log('🌐 [API] Lead update response:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+    }
+    
     if (!response.ok) {
       // Try to extract error message from response body
       let errorMessage = `HTTP error! status: ${response.status}`
+      let validationErrors: any[] = []
+      
       try {
         const errorData = await response.json()
+        
         if (errorData.message) {
           errorMessage = errorData.message
-          
-          // If CSRF token is invalid, try to get a new one and retry once
-          if ((errorData.message === 'Invalid CSRF token' || errorData.message.includes('CSRF')) && options.method && options.method !== 'GET') {
-            console.log('🔐 CSRF token invalid, getting new token and retrying...')
-            clearCSRFToken() // Clear cached token
-            const newCsrf = await getCSRFToken(true) // Force refresh
-            if (newCsrf) {
-              const retryHeaders = { ...headers, 'X-CSRF-Token': newCsrf }
-              const retryConfig = { ...config, headers: retryHeaders }
-              const retryResponse = await fetch(url, retryConfig)
-              
-              if (retryResponse.ok) {
-                const retryData = await retryResponse.json()
-                console.log('🔐 Retry successful with new CSRF token')
-                return retryData
-              } else {
-                console.log('🔐 Retry failed with new CSRF token, status:', retryResponse.status)
-              }
+        }
+        
+        // Extract validation errors if they exist
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          validationErrors = errorData.errors
+        }
+        
+        // Add debugging for lead update errors
+        if (endpoint.includes('/leads/') && options.method === 'PUT') {
+          console.log('🌐 [API] Lead update validation errors:', validationErrors.length, 'errors')
+        }
+        
+        // If CSRF token is invalid, try to get a new one and retry once
+        if ((errorData.message === 'Invalid CSRF token' || errorData.message.includes('CSRF')) && options.method && options.method !== 'GET') {
+          console.log('🔐 CSRF token invalid, getting new token and retrying...')
+          clearCSRFToken() // Clear cached token
+          const newCsrf = await getCSRFToken(true) // Force refresh
+          if (newCsrf) {
+            const retryHeaders = { ...headers, 'X-CSRF-Token': newCsrf }
+            const retryConfig = { ...config, headers: retryHeaders }
+            const retryResponse = await fetch(url, retryConfig)
+            
+            if (retryResponse.ok) {
+              const retryData = await retryResponse.json()
+              console.log('🔐 Retry successful with new CSRF token')
+              return retryData
+            } else {
+              console.log('🔐 Retry failed with new CSRF token, status:', retryResponse.status)
             }
           }
         }
       } catch (parseError) {
         // If we can't parse the response, use the default message
         console.warn('Could not parse error response:', parseError)
+        console.warn('Response status:', response.status)
+        console.warn('Response statusText:', response.statusText)
+        
+        // Try to get response as text to see what we're actually getting
+        try {
+          const responseText = await response.text()
+          console.warn('Raw response text:', responseText)
+        } catch (textError) {
+          console.warn('Could not get response as text:', textError)
+        }
       }
-      throw new ApiError(response.status, errorMessage)
+      throw new ApiError(response.status, errorMessage, validationErrors)
     }
     
     const data = await response.json()
+    
+    // Add debugging for successful lead updates
+    if (endpoint.includes('/leads/') && options.method === 'PUT') {
+      console.log('🌐 [API] Lead update success response:', data)
+    }
+    
     return data
   } catch (error) {
     if (error instanceof ApiError) {
@@ -385,6 +434,40 @@ export const statusesApi = {
 export const leadStatusesApi = {
   // Get all lead statuses (requires authentication)
   getAll: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/lead-statuses'),
+  
+  // Get lead status by ID
+  getById: (id: number) => apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`),
+  
+  // Create new lead status
+  create: (data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message?: string }>('/lead-statuses', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: JSON.stringify(data)
+    }),
+  
+  // Update lead status
+  update: (id: number, data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
+      body: JSON.stringify(data)
+    }),
+  
+  // Delete lead status
+  delete: (id: number, token?: string) => 
+    apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`, {
+      method: 'DELETE',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      }
+    })
 }
 
 // Mock data for development (when backend is not available)
@@ -395,6 +478,7 @@ export const mockProperties: Property[] = [
     status_id: 1,
     status_name: 'Active',
     status_color: '#10B981',
+    property_type: 'sale' as const,
     location: 'Beirut Central District, Lebanon',
     category_id: 1,
     category_name: 'Apartment',
@@ -413,8 +497,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 450000,
     notes: 'Luxury apartment with stunning sea view, recently renovated',
-    referral_source: 'External referral from local real estate agent',
-    referral_dates: ['2025-01-15'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -424,6 +506,7 @@ export const mockProperties: Property[] = [
     status_id: 1,
     status_name: 'Active',
     status_color: '#10B981',
+    property_type: 'sale' as const,
     location: 'Jounieh, Mount Lebanon',
     category_id: 18,
     category_name: 'Villa',
@@ -442,8 +525,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 1200000,
     notes: 'Beautiful villa perfect for families, close to beaches and amenities',
-    referral_source: 'Internal referral from agent',
-    referral_dates: ['2025-01-10', '2025-01-18'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -453,6 +534,7 @@ export const mockProperties: Property[] = [
     status_id: 1,
     status_name: 'Active',
     status_color: '#10B981',
+    property_type: 'rent' as const,
     location: 'Hamra, Beirut',
     category_id: 3,
     category_name: 'Office',
@@ -471,8 +553,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 800000,
     notes: 'Prime office location in Hamra district',
-    referral_source: 'Direct inquiry',
-    referral_dates: ['2025-01-12'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -482,6 +562,7 @@ export const mockProperties: Property[] = [
     status_id: 1,
     status_name: 'Active',
     status_color: '#10B981',
+    property_type: 'sale' as const,
     location: 'Bhamdoun, Mount Lebanon',
     category_id: 4,
     category_name: 'Land',
@@ -500,8 +581,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 2500000,
     notes: 'Development potential for residential or commercial use',
-    referral_source: 'Local real estate agent',
-    referral_dates: ['2025-01-08'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -511,6 +590,7 @@ export const mockProperties: Property[] = [
     status_id: 1,
     status_name: 'Active',
     status_color: '#10B981',
+    property_type: 'rent' as const,
     location: 'Gemmayze, Beirut',
     category_id: 5,
     category_name: 'Restaurant',
@@ -529,8 +609,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 650000,
     notes: 'Perfect location for trendy restaurant in popular district',
-    referral_source: 'Direct inquiry',
-    referral_dates: ['2025-01-14'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -540,6 +618,7 @@ export const mockProperties: Property[] = [
     status_id: 1,
     status_name: 'Active',
     status_color: '#10B981',
+    property_type: 'sale' as const,
     location: 'Dora, Beirut',
     category_id: 6,
     category_name: 'Warehouse',
@@ -558,8 +637,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 1800000,
     notes: 'Industrial warehouse perfect for logistics and storage',
-    referral_source: 'Commercial real estate referral',
-    referral_dates: ['2025-01-16'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -569,6 +646,7 @@ export const mockProperties: Property[] = [
     status_id: 2,
     status_name: 'Sold',
     status_color: '#EF4444',
+    property_type: 'sale' as const,
     location: 'Achrafieh, Beirut',
     category_id: 1,
     category_name: 'Apartment',
@@ -587,8 +665,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 950000,
     notes: 'Recently sold - luxury apartment in prime location',
-    referral_source: 'Internal referral',
-    referral_dates: ['2025-01-05'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   },
@@ -598,6 +674,7 @@ export const mockProperties: Property[] = [
     status_id: 3,
     status_name: 'Rented',
     status_color: '#8B5CF6',
+    property_type: 'rent' as const,
     location: 'Badaro, Beirut',
     category_id: 18,
     category_name: 'Villa',
@@ -616,8 +693,6 @@ export const mockProperties: Property[] = [
     agent_role: undefined,
     price: 850000,
     notes: 'Currently rented - family villa in quiet neighborhood',
-    referral_source: 'External referral',
-    referral_dates: ['2025-01-03'],
     created_at: '2025-01-20T10:00:00Z',
     updated_at: '2025-01-20T10:00:00Z'
   }

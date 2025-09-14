@@ -5,11 +5,21 @@ import { Plus, RefreshCw, Search, Filter } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
-import { Status } from '@/types/property'
-import { statusesApi } from '@/utils/api'
-import StatusTable from '@/components/statuses/StatusTable'
-import StatusModal from '@/components/statuses/StatusModal'
-import StatusDeleteModal from '@/components/statuses/StatusDeleteModal'
+import { leadStatusesApi } from '@/utils/api'
+import LeadStatusTable from '@/components/leadStatuses/LeadStatusTable'
+import LeadStatusModal from '@/components/leadStatuses/LeadStatusModal'
+import LeadStatusDeleteModal from '@/components/leadStatuses/LeadStatusDeleteModal'
+
+interface LeadStatus {
+  id: number
+  status_name: string
+  code: string
+  color: string
+  description: string
+  is_active: boolean
+  created_at: string
+  modified_at: string
+}
 
 export default function LeadStatusesPage() {
   const { token, isAuthenticated } = useAuth()
@@ -17,18 +27,17 @@ export default function LeadStatusesPage() {
   const { showSuccess, showError } = useToast()
   
   // State management
-  const [statuses, setStatuses] = useState<Status[]>([])
+  const [statuses, setStatuses] = useState<LeadStatus[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('all')
   
   // Modal state
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [selectedStatus, setSelectedStatus] = useState<Status | null>(null)
-  const [deletingStatus, setDeletingStatus] = useState<Status | null>(null)
+  const [selectedStatus, setSelectedStatus] = useState<LeadStatus | null>(null)
+  const [deletingStatus, setDeletingStatus] = useState<LeadStatus | null>(null)
 
   // Load statuses
   const loadStatuses = async () => {
@@ -46,12 +55,12 @@ export default function LeadStatusesPage() {
         return
       }
 
-      const response = await statusesApi.getAllForAdmin(token)
+      const response = await leadStatusesApi.getAll()
       
       if (response.success) {
         setStatuses(response.data || [])
       } else {
-        setError(response.message || 'Failed to load statuses')
+        setError('Failed to load statuses')
       }
     } catch (err) {
       console.error('Error loading statuses:', err)
@@ -66,17 +75,11 @@ export default function LeadStatusesPage() {
     loadStatuses()
   }, [isAuthenticated, token, canManageCategoriesAndStatuses])
 
-  // Filter statuses based on search and active filter
+  // Filter statuses based on search
   const filteredStatuses = statuses.filter(status => {
-    const matchesSearch = status.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         status.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (status.description && status.description.toLowerCase().includes(searchTerm.toLowerCase()))
+    const matchesSearch = status.status_name.toLowerCase().includes(searchTerm.toLowerCase())
     
-    const matchesFilter = filterActive === 'all' || 
-                         (filterActive === 'active' && status.is_active) ||
-                         (filterActive === 'inactive' && !status.is_active)
-    
-    return matchesSearch && matchesFilter
+    return matchesSearch
   })
 
   // Handle add status
@@ -86,19 +89,19 @@ export default function LeadStatusesPage() {
   }
 
   // Handle edit status
-  const handleEditStatus = (status: Status) => {
+  const handleEditStatus = (status: LeadStatus) => {
     setSelectedStatus(status)
     setShowEditModal(true)
   }
 
   // Handle delete status
-  const handleDeleteStatus = (status: Status) => {
+  const handleDeleteStatus = (status: LeadStatus) => {
     setDeletingStatus(status)
     setShowDeleteModal(true)
   }
 
   // Handle status success (create/update)
-  const handleStatusSuccess = (status: Status) => {
+  const handleStatusSuccess = (status: LeadStatus) => {
     if (selectedStatus) {
       // Update existing status
       setStatuses(prev => prev.map(s => s.id === status.id ? status : s))
@@ -118,12 +121,6 @@ export default function LeadStatusesPage() {
   // Clear search
   const handleClearSearch = () => {
     setSearchTerm('')
-  }
-
-  // Clear filters
-  const handleClearFilters = () => {
-    setSearchTerm('')
-    setFilterActive('all')
   }
 
   if (loading) {
@@ -181,10 +178,10 @@ export default function LeadStatusesPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search statuses by name, code, or description..."
+              placeholder="Search lead statuses by name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="input-with-icon w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             {searchTerm && (
               <button
@@ -196,25 +193,16 @@ export default function LeadStatusesPage() {
             )}
           </div>
           
-          {/* Active filter */}
-          <select
-            value={filterActive}
-            onChange={(e) => setFilterActive(e.target.value as 'all' | 'active' | 'inactive')}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active Only</option>
-            <option value="inactive">Inactive Only</option>
-          </select>
-          
-          {/* Clear filters */}
-          <button
-            onClick={handleClearFilters}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
-          >
-            <Filter className="h-4 w-4" />
-            <span>Clear</span>
-          </button>
+          {/* Clear search */}
+          {searchTerm && (
+            <button
+              onClick={handleClearSearch}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+            >
+              <Filter className="h-4 w-4" />
+              <span>Clear</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -223,7 +211,7 @@ export default function LeadStatusesPage() {
         <div className="px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900">
-              Statuses ({filteredStatuses.length})
+              Lead Statuses ({filteredStatuses.length})
             </h3>
             <button
               onClick={loadStatuses}
@@ -242,25 +230,25 @@ export default function LeadStatusesPage() {
                 <Search className="h-12 w-12 mx-auto" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                {searchTerm || filterActive !== 'all' ? 'No statuses found' : 'No statuses yet'}
+                {searchTerm ? 'No lead statuses found' : 'No lead statuses yet'}
               </h3>
               <p className="text-gray-500 mb-4">
-                {searchTerm || filterActive !== 'all' 
-                  ? 'Try adjusting your search or filter criteria'
+                {searchTerm 
+                  ? 'Try adjusting your search criteria'
                   : 'Get started by creating your first lead status'
                 }
               </p>
-              {canManageCategoriesAndStatuses && (!searchTerm && filterActive === 'all') && (
+              {canManageCategoriesAndStatuses && !searchTerm && (
                 <button
                   onClick={handleAddStatus}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                 >
-                  Add Status
+                  Add Lead Status
                 </button>
               )}
             </div>
           ) : (
-            <StatusTable
+            <LeadStatusTable
               statuses={filteredStatuses}
               onEdit={handleEditStatus}
               onDelete={handleDeleteStatus}
@@ -271,14 +259,14 @@ export default function LeadStatusesPage() {
       </div>
 
       {/* Modals */}
-      <StatusModal
+      <LeadStatusModal
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={handleStatusSuccess}
         title="Add Lead Status"
       />
 
-      <StatusModal
+      <LeadStatusModal
         isOpen={showEditModal}
         onClose={() => setShowEditModal(false)}
         onSuccess={handleStatusSuccess}
@@ -287,7 +275,7 @@ export default function LeadStatusesPage() {
       />
 
       {deletingStatus && (
-        <StatusDeleteModal
+        <LeadStatusDeleteModal
           isOpen={showDeleteModal}
           onClose={() => {
             setShowDeleteModal(false)

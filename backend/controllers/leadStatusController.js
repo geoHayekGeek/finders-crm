@@ -51,7 +51,7 @@ class LeadStatusController {
   // Create new lead status
   static async createStatus(req, res) {
     try {
-      const { status_name } = req.body;
+      const { status_name, code, color, description, is_active } = req.body;
       console.log('➕ Creating new lead status:', status_name);
       
       if (!status_name) {
@@ -61,7 +61,22 @@ class LeadStatusController {
         });
       }
       
-      const status = await LeadStatus.createStatus(status_name);
+      if (!code) {
+        return res.status(400).json({
+          success: false,
+          message: 'Status code is required'
+        });
+      }
+      
+      const statusData = {
+        status_name,
+        code: code.toUpperCase(),
+        color: color || '#6B7280',
+        description: description || '',
+        is_active: is_active !== undefined ? is_active : true
+      };
+      
+      const status = await LeadStatus.createStatus(statusData);
       
       res.status(201).json({
         success: true,
@@ -73,7 +88,7 @@ class LeadStatusController {
       if (error.code === '23505') { // Unique constraint violation
         res.status(409).json({
           success: false,
-          message: 'Lead status already exists'
+          message: 'Lead status with this name or code already exists'
         });
       } else {
         res.status(500).json({
@@ -88,7 +103,7 @@ class LeadStatusController {
   static async updateStatus(req, res) {
     try {
       const { id } = req.params;
-      const { status_name } = req.body;
+      const { status_name, code, color, description, is_active } = req.body;
       console.log('📝 Updating lead status:', id, '->', status_name);
       
       if (!status_name) {
@@ -98,7 +113,22 @@ class LeadStatusController {
         });
       }
       
-      const status = await LeadStatus.updateStatus(id, status_name);
+      if (!code) {
+        return res.status(400).json({
+          success: false,
+          message: 'Status code is required'
+        });
+      }
+      
+      const statusData = {
+        status_name,
+        code: code.toUpperCase(),
+        color: color || '#6B7280',
+        description: description || '',
+        is_active: is_active !== undefined ? is_active : true
+      };
+      
+      const status = await LeadStatus.updateStatus(id, statusData);
       if (!status) {
         return res.status(404).json({
           success: false,
@@ -116,7 +146,7 @@ class LeadStatusController {
       if (error.code === '23505') { // Unique constraint violation
         res.status(409).json({
           success: false,
-          message: 'Lead status already exists'
+          message: 'Lead status with this name or code already exists'
         });
       } else {
         res.status(500).json({

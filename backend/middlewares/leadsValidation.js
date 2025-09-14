@@ -1,6 +1,7 @@
 // leadsValidation.js - Comprehensive validation middleware for leads operations
 
 const { body, param, query, validationResult } = require('express-validator');
+const pool = require('../config/db');
 
 // Input sanitization function to prevent XSS and SQL injection
 const sanitizeInput = (input) => {
@@ -17,8 +18,38 @@ const sanitizeInput = (input) => {
 // Phone number validation regex (international format)
 const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{6,19}$/;
 
-// Valid lead statuses (matching database values)
-const validStatuses = ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
+// Function to get valid lead statuses from database
+const getValidStatuses = async () => {
+  try {
+    const result = await pool.query(`
+      SELECT status_name 
+      FROM lead_statuses 
+      WHERE is_active = true 
+      ORDER BY status_name
+    `);
+    return result.rows.map(row => row.status_name);
+  } catch (error) {
+    console.error('❌ Error fetching lead statuses:', error);
+    // Fallback to default statuses if database query fails
+    return ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
+  }
+};
+
+// Valid lead statuses (will be populated from database)
+let validStatuses = ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
+
+// Initialize valid statuses from database
+const initializeValidStatuses = async () => {
+  try {
+    validStatuses = await getValidStatuses();
+    console.log('✅ Lead statuses loaded from database:', validStatuses);
+  } catch (error) {
+    console.error('❌ Failed to load lead statuses from database:', error);
+  }
+};
+
+// Initialize on module load
+initializeValidStatuses();
 
 // Validation rules for creating leads
 const validateCreateLead = [
@@ -115,8 +146,15 @@ const validateCreateLead = [
     
   body('status')
     .optional({ nullable: true, checkFalsy: true })
-    .isIn(validStatuses)
-    .withMessage(`Status must be one of: ${validStatuses.join(', ')}`),
+    .custom(async (value) => {
+      if (value) {
+        const validStatuses = await getValidStatuses();
+        if (!validStatuses.includes(value)) {
+          throw new Error(`Status must be one of: ${validStatuses.join(', ')}`);
+        }
+      }
+      return true;
+    }),
     
   // Cross-field validation
   body().custom((body) => {
@@ -207,8 +245,15 @@ const validateUpdateLead = [
     
   body('status')
     .optional({ nullable: false, checkFalsy: false })
-    .isIn(validStatuses)
-    .withMessage(`Status must be one of: ${validStatuses.join(', ')}`),
+    .custom(async (value) => {
+      if (value) {
+        const validStatuses = await getValidStatuses();
+        if (!validStatuses.includes(value)) {
+          throw new Error(`Status must be one of: ${validStatuses.join(', ')}`);
+        }
+      }
+      return true;
+    }),
     
   // Ensure at least one field is being updated
   body().custom((body) => {
@@ -250,8 +295,15 @@ const validateAgentId = [
 const validateLeadsFilters = [
   query('status')
     .optional()
-    .isIn([...validStatuses, 'All'])
-    .withMessage(`Status must be one of: ${[...validStatuses, 'All'].join(', ')}`),
+    .custom(async (value) => {
+      if (value && value !== 'All') {
+        const validStatuses = await getValidStatuses();
+        if (!validStatuses.includes(value)) {
+          throw new Error(`Status must be one of: ${[...validStatuses, 'All'].join(', ')}`);
+        }
+      }
+      return true;
+    }),
     
   query('agent_id')
     .optional()
@@ -442,5 +494,7 @@ module.exports = {
   leadsRateLimit,
   validateLeadBusinessRules,
   sanitizeInput,
+  getValidStatuses,
+  initializeValidStatuses,
   validStatuses
 };

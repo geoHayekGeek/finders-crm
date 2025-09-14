@@ -162,18 +162,24 @@ export default function DashboardLayout({
                   {item.hasSubmenu ? (
                     <>
                       <button
-                        onClick={() => setPropertiesMenuOpen(!propertiesMenuOpen)}
+                        onClick={() => {
+                          if (item.name === 'Properties') {
+                            setPropertiesMenuOpen(!propertiesMenuOpen)
+                          } else if (item.name === 'Leads') {
+                            setLeadsMenuOpen(!leadsMenuOpen)
+                          }
+                        }}
                         className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       >
                         <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
                         {item.name}
-                        {propertiesMenuOpen ? (
+                        {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) ? (
                           <ChevronUp className="ml-auto h-4 w-4" />
                         ) : (
                           <ChevronDown className="ml-auto h-4 w-4" />
                         )}
                       </button>
-                      {propertiesMenuOpen && (
+                      {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) && (
                         <div className="ml-6 space-y-1 mt-1">
                           {item.submenu?.map((subItem) => (
                             <a
@@ -258,7 +264,13 @@ export default function DashboardLayout({
                   {item.hasSubmenu ? (
                     <>
                       <button
-                        onClick={() => setPropertiesMenuOpen(!propertiesMenuOpen)}
+                        onClick={() => {
+                          if (item.name === 'Properties') {
+                            setPropertiesMenuOpen(!propertiesMenuOpen)
+                          } else if (item.name === 'Leads') {
+                            setLeadsMenuOpen(!leadsMenuOpen)
+                          }
+                        }}
                         className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
                         title={!sidebarExpanded ? item.name : undefined}
                       >
@@ -266,7 +278,7 @@ export default function DashboardLayout({
                         {sidebarExpanded && (
                           <>
                             <span className="ml-3 transition-opacity duration-300">{item.name}</span>
-                            {propertiesMenuOpen ? (
+                            {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) ? (
                               <ChevronUp className="ml-auto h-4 w-4" />
                             ) : (
                               <ChevronDown className="ml-auto h-4 w-4" />
@@ -274,7 +286,7 @@ export default function DashboardLayout({
                           </>
                         )}
                       </button>
-                      {propertiesMenuOpen && sidebarExpanded && (
+                      {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) && sidebarExpanded && (
                         <div className="ml-6 space-y-1 mt-1">
                           {item.submenu?.map((subItem) => (
                             <a

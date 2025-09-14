@@ -9,6 +9,8 @@ import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { OperationsSelector } from './OperationsSelector'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
+import { leadStatusesApi, ApiError } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface User {
   id: number
@@ -31,6 +33,8 @@ interface LeadsModalsProps {
   editingLead: Lead | null
   editFormData: EditLeadFormData
   setEditFormData: (data: EditLeadFormData) => void
+  editValidationErrors: Record<string, string>
+  setEditValidationErrors: (errors: Record<string, string>) => void
   onSaveEdit: () => Promise<void>
   
   // View Lead Modal
@@ -56,6 +60,8 @@ export function LeadsModals({
   editingLead,
   editFormData,
   setEditFormData,
+  editValidationErrors,
+  setEditValidationErrors,
   onSaveEdit,
   showViewLeadModal,
   setShowViewLeadModal,
@@ -68,10 +74,14 @@ export function LeadsModals({
   onConfirmDelete
 }: LeadsModalsProps) {
   const { showSuccess, showError } = useToast()
+  const { token } = useAuth()
+  
+  // Lead statuses state
+  const [leadStatuses, setLeadStatuses] = useState<Array<{ value: string; label: string; color: string }>>([])
+  const [loadingStatuses, setLoadingStatuses] = useState(false)
   
   // Validation state
   const [addValidationErrors, setAddValidationErrors] = useState<Record<string, string>>({})
-  const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
   
   const [addFormData, setAddFormData] = useState<CreateLeadFormData>({
     date: new Date().toISOString().split('T')[0],
@@ -87,6 +97,53 @@ export function LeadsModals({
   })
 
   const [saving, setSaving] = useState(false)
+
+  // Load lead statuses from API
+  const loadLeadStatuses = async () => {
+    if (!token) return
+    
+    try {
+      setLoadingStatuses(true)
+      const response = await leadStatusesApi.getAll()
+      
+      if (response.success && response.data) {
+        // Convert API data to the format expected by StatusSelector
+        const statuses = response.data.map((status: any) => ({
+          value: status.status_name,
+          label: status.status_name,
+          color: getStatusColor(status.status_name)
+        }))
+        setLeadStatuses(statuses)
+      } else {
+        // Fallback to hardcoded statuses if API fails
+        setLeadStatuses(LEAD_STATUSES)
+      }
+    } catch (error) {
+      console.error('Error loading lead statuses:', error)
+      // Fallback to hardcoded statuses if API fails
+      setLeadStatuses(LEAD_STATUSES)
+    } finally {
+      setLoadingStatuses(false)
+    }
+  }
+
+  // Get color for status (fallback to hardcoded colors)
+  const getStatusColor = (statusName: string) => {
+    const hardcodedStatus = LEAD_STATUSES.find(s => s.value === statusName)
+    return hardcodedStatus?.color || '#6B7280'
+  }
+
+  // Load lead statuses on component mount
+  useEffect(() => {
+    loadLeadStatuses()
+  }, [token])
+
+  // Clear validation errors when editing lead changes
+  useEffect(() => {
+    if (editingLead) {
+      setEditValidationErrors({})
+    }
+  }, [editingLead])
 
   // Validation functions
   const validateField = (fieldName: string, value: any, isEditForm = false) => {
@@ -298,7 +355,16 @@ export function LeadsModals({
       setEditValidationErrors({})
     } catch (error) {
       console.error('Error updating lead:', error)
-      showError('Failed to update lead. Please try again.')
+      
+      // Check if it's a validation error (ApiError with validation errors)
+      if (error instanceof ApiError) {
+        // Don't show error toast for validation errors - they're already displayed under fields
+        // Don't close the modal - let user fix the validation errors
+        console.log('Validation errors detected, keeping modal open')
+      } else {
+        // Show error toast for other types of errors
+        showError('Failed to update lead. Please try again.')
+      }
     } finally {
       setSaving(false)
     }
@@ -664,11 +730,16 @@ export function LeadsModals({
                    </label>
                    <AgentSelector
                      selectedAgentId={editFormData.agent_id}
-                     onAgentChange={(agent) => setEditFormData({ 
-                       ...editFormData, 
-                       agent_id: agent?.id, 
-                       agent_name: agent?.name || '' 
-                     })}
+                     onAgentChange={(agent) => {
+                       console.log('🔄 Agent changed:', agent)
+                       const newFormData = { 
+                         ...editFormData, 
+                         agent_id: agent?.id, 
+                         agent_name: agent?.name || '' 
+                       }
+                       console.log('📝 New form data after agent change:', newFormData)
+                       setEditFormData(newFormData)
+                     }}
                      placeholder="Select an agent..."
                    />
                  </div>
@@ -751,12 +822,22 @@ export function LeadsModals({
                   <StatusSelector
                     selectedStatus={editFormData.status}
                     onStatusChange={(status) => {
-                      setEditFormData({ 
+                      console.log('🔄 [LeadsModals] Status changed in edit form:', status)
+                      console.log('🔄 [LeadsModals] Current editFormData before change:', editFormData)
+                      
+                      const newFormData = { 
                         ...editFormData, 
                         status: status 
-                      })
+                      }
+                      
+                      console.log('📝 [LeadsModals] New form data after status change:', newFormData)
+                      console.log('📝 [LeadsModals] Status field specifically:', newFormData.status)
+                      
+                      setEditFormData(newFormData)
                       clearFieldError('status', true)
                       validateField('status', status, true)
+                      
+                      console.log('✅ [LeadsModals] Status change processing completed')
                     }}
                     placeholder="Select a status..."
                   />
