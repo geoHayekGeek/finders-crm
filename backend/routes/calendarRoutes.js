@@ -24,6 +24,12 @@ router.get('/day', calendarController.getEventsByDay);
 // Search events (must come before /:id route)
 router.get('/search', calendarController.searchEvents);
 
+// Get properties for dropdown
+router.get('/properties', calendarController.getPropertiesForDropdown);
+
+// Get leads for dropdown
+router.get('/leads', calendarController.getLeadsForDropdown);
+
 // Get event by ID
 router.get('/:id', calendarController.getEventById);
 

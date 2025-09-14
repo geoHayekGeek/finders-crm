@@ -21,7 +21,13 @@ const getAllEvents = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }))
     });
   } catch (error) {
@@ -72,7 +78,13 @@ const getEventsByDateRange = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }))
     });
   } catch (error) {
@@ -123,7 +135,13 @@ const getEventsByMonth = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }))
     });
   } catch (error) {
@@ -173,7 +191,13 @@ const getEventsByWeek = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }))
     });
   } catch (error) {
@@ -223,7 +247,13 @@ const getEventsByDay = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }))
     });
   } catch (error) {
@@ -272,7 +302,13 @@ const getEventById = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }
     });
   } catch (error) {
@@ -297,7 +333,9 @@ const createEvent = async (req, res) => {
       type,
       location,
       attendees,
-      notes
+      notes,
+      propertyId,
+      leadId
     } = req.body;
 
     // Basic validation
@@ -336,7 +374,9 @@ const createEvent = async (req, res) => {
       location: location?.trim() || null,
       attendees: attendees || [],
       notes: notes?.trim() || null,
-      created_by: req.user?.id || null // Will be set when auth is implemented
+      created_by: req.user?.id || null, // Will be set when auth is implemented
+      property_id: propertyId || null,
+      lead_id: leadId || null
     };
 
     const newEvent = await calendarEventModel.createEvent(eventData);
@@ -424,6 +464,8 @@ const updateEvent = async (req, res) => {
     if (updates.location !== undefined) updateData.location = updates.location?.trim() || null;
     if (updates.attendees !== undefined) updateData.attendees = updates.attendees;
     if (updates.notes !== undefined) updateData.notes = updates.notes?.trim() || null;
+    if (updates.propertyId !== undefined) updateData.property_id = updates.propertyId || null;
+    if (updates.leadId !== undefined) updateData.lead_id = updates.leadId || null;
 
     const updatedEvent = await calendarEventModel.updateEvent(id, updateData);
     
@@ -444,7 +486,13 @@ const updateEvent = async (req, res) => {
         notes: updatedEvent.notes,
         createdBy: updatedEvent.created_by,
         createdAt: updatedEvent.created_at,
-        updatedAt: updatedEvent.updated_at
+        updatedAt: updatedEvent.updated_at,
+        propertyId: updatedEvent.property_id,
+        propertyReference: updatedEvent.property_reference,
+        propertyLocation: updatedEvent.property_location,
+        leadId: updatedEvent.lead_id,
+        leadName: updatedEvent.lead_name,
+        leadPhone: updatedEvent.lead_phone
       }
     });
   } catch (error) {
@@ -521,7 +569,13 @@ const searchEvents = async (req, res) => {
         notes: event.notes,
         createdBy: event.created_by,
         createdAt: event.created_at,
-        updatedAt: event.updated_at
+        updatedAt: event.updated_at,
+        propertyId: event.property_id,
+        propertyReference: event.property_reference,
+        propertyLocation: event.property_location,
+        leadId: event.lead_id,
+        leadName: event.lead_name,
+        leadPhone: event.lead_phone
       }))
     });
   } catch (error) {
@@ -529,6 +583,52 @@ const searchEvents = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to search events'
+    });
+  }
+};
+
+// Get properties for dropdown
+const getPropertiesForDropdown = async (req, res) => {
+  try {
+    const pool = require('../config/db');
+    const result = await pool.query(
+      `SELECT id, reference_number, location 
+       FROM properties 
+       ORDER BY reference_number ASC`
+    );
+    
+    res.json({
+      success: true,
+      properties: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching properties for dropdown:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch properties'
+    });
+  }
+};
+
+// Get leads for dropdown
+const getLeadsForDropdown = async (req, res) => {
+  try {
+    const pool = require('../config/db');
+    const result = await pool.query(
+      `SELECT id, customer_name, phone_number 
+       FROM leads 
+       ORDER BY customer_name ASC`
+    );
+    
+    res.json({
+      success: true,
+      leads: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching leads for dropdown:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch leads'
     });
   }
 };
@@ -543,5 +643,7 @@ module.exports = {
   createEvent,
   updateEvent,
   deleteEvent,
-  searchEvents
+  searchEvents,
+  getPropertiesForDropdown,
+  getLeadsForDropdown
 };

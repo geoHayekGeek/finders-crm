@@ -17,16 +17,48 @@ export async function uploadMainPropertyImage(propertyId: number, imageFile: Fil
       throw new Error('Authentication token not found')
     }
 
+    // Get CSRF token first from the specific property endpoint (same as property update)
+    const csrfResponse = await fetch(`http://localhost:10000/api/properties/${propertyId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    
+    if (!csrfResponse.ok) {
+      throw new Error('Failed to get CSRF token')
+    }
+    
+    const csrfToken = csrfResponse.headers.get('X-CSRF-Token')
+    console.log('🔍 Main Image CSRF Response status:', csrfResponse.status)
+    console.log('🔍 Main Image CSRF Response headers:', Array.from(csrfResponse.headers.entries()))
+    console.log('🔍 Main Image CSRF Token received:', csrfToken ? csrfToken.substring(0, 8) + '...' : 'None')
+    
+    if (!csrfToken) {
+      console.error('❌ CSRF token not received from backend')
+      console.error('❌ Response status:', csrfResponse.status)
+      console.error('❌ Response headers:', Object.fromEntries(csrfResponse.headers.entries()))
+      throw new Error('CSRF token not received')
+    }
+
     const response = await fetch(`http://localhost:10000/api/properties/${propertyId}/upload-main-image`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
+        'X-CSRF-Token': csrfToken,
       },
       body: formData,
     })
 
     if (!response.ok) {
       const errorData = await response.json()
+      console.error('Main image upload error response:', errorData)
+      
+      // Handle CSRF token errors specifically
+      if (response.status === 403 && errorData.message?.includes('CSRF')) {
+        throw new Error('Security token expired. Please refresh the page and try again.')
+      }
+      
       throw new Error(errorData.message || 'Failed to upload main image')
     }
 
@@ -63,16 +95,48 @@ export async function uploadGalleryImages(propertyId: number, imageFiles: File[]
       throw new Error('Authentication token not found')
     }
 
+    // Get CSRF token first from the specific property endpoint
+    const csrfResponse = await fetch(`http://localhost:10000/api/properties/${propertyId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    
+    if (!csrfResponse.ok) {
+      throw new Error('Failed to get CSRF token')
+    }
+    
+    const csrfToken = csrfResponse.headers.get('X-CSRF-Token')
+    console.log('🔍 Gallery CSRF Response status:', csrfResponse.status)
+    console.log('🔍 Gallery CSRF Response headers:', Array.from(csrfResponse.headers.entries()))
+    console.log('🔍 Gallery CSRF Token received:', csrfToken ? csrfToken.substring(0, 8) + '...' : 'None')
+    
+    if (!csrfToken) {
+      console.error('❌ Gallery CSRF token not received from backend')
+      console.error('❌ Response status:', csrfResponse.status)
+      console.error('❌ Response headers:', Object.fromEntries(csrfResponse.headers.entries()))
+      throw new Error('CSRF token not received')
+    }
+
     const response = await fetch(`http://localhost:10000/api/properties/${propertyId}/upload-gallery`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
+        'X-CSRF-Token': csrfToken,
       },
       body: formData,
     })
 
     if (!response.ok) {
       const errorData = await response.json()
+      console.error('Gallery upload error response:', errorData)
+      
+      // Handle CSRF token errors specifically
+      if (response.status === 403 && errorData.message?.includes('CSRF')) {
+        throw new Error('Security token expired. Please refresh the page and try again.')
+      }
+      
       throw new Error(errorData.message || 'Failed to upload gallery images')
     }
 
@@ -144,7 +208,7 @@ export function validateImageFiles(files: File[]): { valid: boolean; errors: str
 }
 
 /**
- * Create a preview URL for an image file
+ * Create a preview URL for an image file (for display purposes only)
  * @param file - The image file
  * @returns Promise with preview URL
  */

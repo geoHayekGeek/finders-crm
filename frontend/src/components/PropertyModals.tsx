@@ -10,8 +10,161 @@ import { CategorySelector } from './CategorySelector'
 import { PropertyStatusSelector } from './PropertyStatusSelector'
 import { AgentSelector } from './AgentSelector'
 import { ReferralSelector } from './ReferralSelector'
+import { useToast } from '@/contexts/ToastContext'
 
+// Reusable Input Field Component with Validation
+const InputField = ({ 
+  label, 
+  id, 
+  type = 'text', 
+  value, 
+  onChange, 
+  onBlur,
+  required = false, 
+  placeholder = '', 
+  className = '', 
+  errorMessage = '',
+  disabled = false 
+}: {
+  label: string
+  id: string
+  type?: string
+  value: string | number
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
+  required?: boolean
+  placeholder?: string
+  className?: string
+  errorMessage?: string
+  disabled?: boolean
+}) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <input
+      id={id}
+      type={type}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      required={required}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 ${
+        errorMessage 
+          ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+          : 'border-gray-300'
+      } ${disabled ? 'bg-gray-50 text-gray-500' : ''} ${className}`}
+    />
+    {errorMessage && (
+      <p className="mt-1 text-sm text-red-600 flex items-center">
+        <span className="mr-1">⚠️</span>
+        {errorMessage}
+      </p>
+    )}
+  </div>
+)
 
+// Reusable Select Field Component with Validation
+const SelectField = ({ 
+  label, 
+  id, 
+  value, 
+  onChange, 
+  onBlur,
+  required = false, 
+  className = '', 
+  errorMessage = '',
+  children 
+}: {
+  label: string
+  id: string
+  value: string | number
+  onChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLSelectElement>) => void
+  required?: boolean
+  className?: string
+  errorMessage?: string
+  children: React.ReactNode
+}) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <select
+      id={id}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      required={required}
+      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 ${
+        errorMessage 
+          ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+          : 'border-gray-300'
+      } ${className}`}
+    >
+      {children}
+    </select>
+    {errorMessage && (
+      <p className="mt-1 text-sm text-red-600 flex items-center">
+        <span className="mr-1">⚠️</span>
+        {errorMessage}
+      </p>
+    )}
+  </div>
+)
+
+// Reusable Textarea Field Component with Validation
+const TextareaField = ({ 
+  label, 
+  id, 
+  value, 
+  onChange, 
+  onBlur,
+  required = false, 
+  placeholder = '', 
+  className = '', 
+  errorMessage = '',
+  rows = 3 
+}: {
+  label: string
+  id: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void
+  onBlur?: (e: React.FocusEvent<HTMLTextAreaElement>) => void
+  required?: boolean
+  placeholder?: string
+  className?: string
+  errorMessage?: string
+  rows?: number
+}) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    <textarea
+      id={id}
+      value={value}
+      onChange={onChange}
+      onBlur={onBlur}
+      required={required}
+      placeholder={placeholder}
+      rows={rows}
+      className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 resize-vertical ${
+        errorMessage 
+          ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
+          : 'border-gray-300'
+      } ${className}`}
+    />
+    {errorMessage && (
+      <p className="mt-1 text-sm text-red-600 flex items-center">
+        <span className="mr-1">⚠️</span>
+        {errorMessage}
+      </p>
+    )}
+  </div>
+)
 
 interface Agent {
   id: number
@@ -43,20 +196,17 @@ interface PropertyModalsProps {
   setDeleteConfirmation: (confirmation: string) => void
   editFormData: EditFormData
   setEditFormData: (data: any) => void
-  selectedImage: string
-  allImages: string[]
-  currentImageIndex: number
   onSaveEdit: () => void
   onConfirmDelete: () => void
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
-  onRemoveGalleryImage: (index: number) => void
-  onGoToPreviousImage: () => void
-  onGoToNextImage: () => void
   onSaveAdd: (propertyData: any) => Promise<any>
   categories: Category[]
   statuses: Status[]
   onRefreshCategories?: () => void
   onRefreshStatuses?: () => void
+  onRefreshProperties?: () => void
+  backendValidationErrors?: Record<string, string>
+  setBackendValidationErrors?: (errors: Record<string, string>) => void
 }
 
 export function PropertyModals({
@@ -79,30 +229,35 @@ export function PropertyModals({
   setDeleteConfirmation,
   editFormData,
   setEditFormData,
-  selectedImage,
-  allImages,
-  currentImageIndex,
   onSaveEdit,
   onConfirmDelete,
   onImageUpload,
-  onRemoveGalleryImage,
-  onGoToPreviousImage,
-  onGoToNextImage,
   onSaveAdd,
   categories,
   statuses,
   onRefreshCategories,
-  onRefreshStatuses
+  onRefreshStatuses,
+  onRefreshProperties,
+  backendValidationErrors = {},
+  setBackendValidationErrors
 }: PropertyModalsProps) {
+  const { showSuccess, showError, showWarning } = useToast()
   const [skipDuplicates, setSkipDuplicates] = useState(true)
   const [selectedImageState, setSelectedImageState] = useState<string>('')
   const [allImagesState, setAllImagesState] = useState<string[]>([])
   const [currentImageIndexState, setCurrentImageIndexState] = useState<number>(0)
   const [updateExisting, setUpdateExisting] = useState(false)
   const [employees, setEmployees] = useState<Agent[]>([])
-  const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error' | 'warning', message: string } | null>(null)
 
-
+  // Validation error state for form fields
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
+  const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
+  
+  // Track if user has modified the image gallery to prevent overwriting
+  const [galleryModified, setGalleryModified] = useState(false)
+  
+  // Local gallery state for edit form - only uploaded when user clicks save
+  const [localEditGallery, setLocalEditGallery] = useState<File[]>([])
 
   // Local state for add property modal
   const [addFormData, setAddFormData] = useState({
@@ -116,7 +271,7 @@ export function PropertyModals({
     surface: '',
     details: '',
     interior_details: '',
-    built_year: '',
+    built_year: '' as string | undefined,
     view_type: '',
     concierge: false,
     agent_id: undefined as number | undefined, // Add agent_id field
@@ -136,6 +291,15 @@ export function PropertyModals({
   useEffect(() => {
     console.log('addFormData.main_image changed:', addFormData.main_image ? 'has image' : 'no image')
   }, [addFormData.main_image])
+
+  // Reset image modal state when modal is closed
+  useEffect(() => {
+    if (!showImageModal) {
+      setSelectedImageState('')
+      setAllImagesState([])
+      setCurrentImageIndexState(0)
+    }
+  }, [showImageModal])
 
   // Fetch employees for referral selection
   useEffect(() => {
@@ -166,31 +330,66 @@ export function PropertyModals({
     fetchEmployees()
   }, [])
 
-  // Simple validation function
+  // Comprehensive validation function for all fields
   const isFieldValid = (fieldName: string, value: any) => {
     switch (fieldName) {
+      // Required fields
       case 'status_id':
         return value !== undefined && value !== null && value !== 0
       case 'category_id':
         return value !== undefined && value !== null && value !== 0
       case 'location':
-        return value && value.trim() !== ''
+        return value && typeof value === 'string' && value.trim() !== ''
       case 'owner_name':
-        return value && value.trim() !== ''
+        return value && typeof value === 'string' && value.trim() !== ''
       case 'phone_number':
-        return value && value.trim() !== ''
+        return value && typeof value === 'string' && value.trim() !== ''
       case 'surface':
-        return value && value.trim() !== ''
+        // Handle both string and number types
+        if (typeof value === 'number') {
+          return !isNaN(value) && value > 0
+        }
+        return value && typeof value === 'string' && value.trim() !== '' && !isNaN(Number(value)) && Number(value) > 0
       case 'view_type':
-        return value && value.trim() !== ''
+        return value && typeof value === 'string' && value.trim() !== ''
       case 'price':
-        return value && value.trim() !== ''
+        // Handle both string and number types
+        if (typeof value === 'number') {
+          return !isNaN(value) && value > 0
+        }
+        return value && typeof value === 'string' && value.trim() !== '' && !isNaN(Number(value)) && Number(value) > 0
       case 'concierge':
         return value !== undefined && value !== null
       case 'details':
-        return value && value.trim() !== ''
+        return value && typeof value === 'string' && value.trim() !== ''
       case 'interior_details':
-        return value && value.trim() !== ''
+        return value && typeof value === 'string' && value.trim() !== ''
+      case 'building_name':
+        return true // Optional field
+      case 'agent_id':
+        return value !== undefined && value !== null && value !== 0
+      // Optional fields with validation
+      case 'built_year':
+        if (!value || (typeof value === 'string' && value.trim() === '')) return true // Optional field
+        const year = Number(value)
+        const currentYear = new Date().getFullYear()
+        return !isNaN(year) && year >= 1800 && year <= currentYear
+      case 'notes':
+        return true // Optional field
+      case 'property_url':
+        // If empty, it's valid (optional field)
+        if (!value || (typeof value === 'string' && value.trim() === '')) return true
+        // If not empty, validate URL format - must start with http:// or https://
+        const trimmedValue = typeof value === 'string' ? value.trim() : String(value)
+        if (!trimmedValue.startsWith('http://') && !trimmedValue.startsWith('https://')) {
+          return false
+        }
+        try {
+          const url = new URL(trimmedValue)
+          return url.protocol === 'http:' || url.protocol === 'https:'
+        } catch {
+          return false
+        }
       default:
         return true
     }
@@ -216,13 +415,13 @@ export function PropertyModals({
       errors.push('Phone number is required');
     }
     if (!isFieldValid('surface', addFormData.surface)) {
-      errors.push('Surface area is required');
+      errors.push('Surface area is required and must be a positive number');
     }
     if (!isFieldValid('view_type', addFormData.view_type)) {
       errors.push('View type is required');
     }
     if (!isFieldValid('price', addFormData.price)) {
-      errors.push('Price is required');
+      errors.push('Price is required and must be a positive number');
     }
     if (!isFieldValid('concierge', addFormData.concierge)) {
       errors.push('Concierge service status is required');
@@ -233,32 +432,137 @@ export function PropertyModals({
     if (!isFieldValid('interior_details', addFormData.interior_details)) {
       errors.push('Interior details are required');
     }
+    // Building name is optional - no validation needed
+    if (!isFieldValid('agent_id', addFormData.agent_id)) {
+      errors.push('Agent is required and must be a valid selection');
+    }
+    if (!isFieldValid('built_year', addFormData.built_year)) {
+      errors.push('Built year must be between 1800 and current year');
+    }
+    if (!isFieldValid('property_url', addFormData.property_url)) {
+      errors.push('Property URL must be a valid URL starting with http:// or https://');
+    }
     
     return errors;
   };
 
-  // Check if form is valid
-  const isFormValid =
-    isFieldValid('status_id', addFormData.status_id) &&
-    isFieldValid('category_id', addFormData.category_id) &&
-    isFieldValid('location', addFormData.location) &&
-    isFieldValid('owner_name', addFormData.owner_name) &&
-    isFieldValid('phone_number', addFormData.phone_number) &&
-    isFieldValid('surface', addFormData.surface) &&
-    isFieldValid('view_type', addFormData.view_type) &&
-    isFieldValid('price', addFormData.price) &&
-    isFieldValid('concierge', addFormData.concierge) &&
-    isFieldValid('details', addFormData.details) &&
-    isFieldValid('interior_details', addFormData.interior_details)
 
-  // Function to show toast messages (only for major events)
-  const showToast = (type: 'success' | 'error' | 'warning', message: string) => {
-    setToastMessage({ type, message })
-    // Auto-hide after 5 seconds
-    setTimeout(() => setToastMessage(null), 5000)
+  // Helper function to get field-specific error message
+  const getFieldErrorMessage = (fieldName: string, value: any): string => {
+    if (isFieldValid(fieldName, value)) return ''
+    
+    switch (fieldName) {
+      case 'status_id':
+        return 'Please select a status'
+      case 'category_id':
+        return 'Please select a category'
+      case 'location':
+        return 'Location is required'
+      case 'owner_name':
+        return 'Owner name is required'
+      case 'phone_number':
+        return 'Phone number is required'
+      case 'surface':
+        if (!value || value.trim() === '') {
+          return 'Surface area is required'
+        }
+        if (isNaN(Number(value)) || Number(value) <= 0) {
+          return 'Surface area must be a positive number'
+        }
+        return 'Surface area is required'
+      case 'view_type':
+        return 'View type is required'
+      case 'price':
+        if (!value || value.trim() === '') {
+          return 'Price is required'
+        }
+        if (isNaN(Number(value)) || Number(value) <= 0) {
+          return 'Price must be a positive number'
+        }
+        return 'Price is required'
+      case 'concierge':
+        return 'Concierge service status is required'
+      case 'details':
+        return 'Property details are required'
+      case 'interior_details':
+        return 'Interior details are required'
+      case 'building_name':
+        return '' // Optional field - no error message
+      case 'agent_id':
+        return 'Please select an agent'
+      case 'built_year':
+        if (value && value.trim() !== '') {
+          const year = Number(value)
+          if (isNaN(year)) {
+            return 'Built year must be a valid number'
+          }
+          if (year < 1800) {
+            return 'Built year must be 1800 or later'
+          }
+          if (year > new Date().getFullYear()) {
+            return 'Built year cannot be in the future'
+          }
+        }
+        return 'Built year must be between 1800 and current year'
+      case 'property_url':
+        return 'Please enter a valid URL starting with http:// or https:// (e.g., https://example.com)'
+      default:
+        return ''
+    }
   }
 
+  // Validate a single field and update error state
+  const validateField = (fieldName: string, value: any, isEditForm = false) => {
+    const isValid = isFieldValid(fieldName, value)
+    const errorMessage = isValid ? '' : getFieldErrorMessage(fieldName, value)
+    
+    console.log(`🔍 validateField called: field="${fieldName}", value="${value}", isValid=${isValid}, errorMessage="${errorMessage}", isEditForm=${isEditForm}`)
+    
+    if (isEditForm) {
+      setEditValidationErrors(prev => {
+        const newErrors = {
+          ...prev,
+          [fieldName]: errorMessage
+        }
+        console.log('🔍 Updated editValidationErrors:', newErrors)
+        return newErrors
+      })
+    } else {
+      setValidationErrors(prev => {
+        const newErrors = {
+          ...prev,
+          [fieldName]: errorMessage
+        }
+        console.log('🔍 Updated validationErrors:', newErrors)
+        return newErrors
+      })
+    }
+  }
 
+  // Clear validation error for a field
+  const clearFieldError = (fieldName: string, isEditForm = false) => {
+    if (isEditForm) {
+      setEditValidationErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[fieldName]
+        return newErrors
+      })
+    } else {
+      setValidationErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[fieldName]
+        return newErrors
+      })
+    }
+  }
+
+  // Reset gallery modification flag and local gallery when edit modal opens
+  useEffect(() => {
+    if (showEditPropertyModal && editingProperty) {
+      setGalleryModified(false)
+      setLocalEditGallery([])
+    }
+  }, [showEditPropertyModal, editingProperty?.id])
 
   // Fetch complete property details from backend when editing property changes
   useEffect(() => {
@@ -305,20 +609,25 @@ export function PropertyModals({
               built_year: propertyData.built_year,
               view_type: propertyData.view_type,
               concierge: propertyData.concierge || false,
-              agent_id: propertyData.agent_id,
+              agent_id: propertyData.agent_id ? parseInt(propertyData.agent_id.toString()) : undefined,
               price: propertyData.price,
               notes: propertyData.notes || '',
               property_url: propertyData.property_url || '',
               referrals: propertyData.referrals || [],
 
               main_image: propertyData.main_image || '',
-              image_gallery: propertyData.image_gallery || []
+              image_gallery: galleryModified ? editFormData.image_gallery : (propertyData.image_gallery || [])
             }
 
             console.log('🎯 Setting editFormData:', formData)
+            console.log('🎯 Agent ID from API:', propertyData.agent_id)
+            console.log('🎯 Agent ID converted:', formData.agent_id)
+            console.log('🎯 Agent ID type:', typeof formData.agent_id)
+            console.log('🎯 Full property data:', propertyData)
             setEditFormData(formData)
           } else {
             console.error('❌ Failed to fetch property details:', result.message)
+            console.log('🎯 Using fallback data. Agent ID from editingProperty:', editingProperty.agent_id)
             // Fallback to existing property data
             setEditFormData({
               reference_number: editingProperty.reference_number || '',
@@ -335,7 +644,7 @@ export function PropertyModals({
               built_year: editingProperty.built_year,
               view_type: editingProperty.view_type,
               concierge: editingProperty.concierge || false,
-              agent_id: editingProperty.agent_id,
+              agent_id: editingProperty.agent_id ? parseInt(editingProperty.agent_id.toString()) : undefined,
               price: editingProperty.price,
               notes: editingProperty.notes || '',
               property_url: editingProperty.property_url || '',
@@ -440,7 +749,7 @@ export function PropertyModals({
         // Validate the file
         const validation = validateImageFile(file)
         if (!validation.valid) {
-          alert(validation.error)
+          showError(validation.error || 'Invalid image file')
           return
         }
 
@@ -462,7 +771,7 @@ export function PropertyModals({
         }
       } catch (error) {
         console.error('Error processing image:', error)
-        alert('Error processing image. Please try again.')
+        showError('Something went wrong processing the image. Please try again.')
       }
     }
   }
@@ -477,7 +786,7 @@ export function PropertyModals({
         // Validate all files
         const validation = validateImageFiles(fileArray)
         if (!validation.valid) {
-          alert('File validation errors:\n' + validation.errors.join('\n'))
+          showError(`File validation errors: ${validation.errors.join(', ')}`)
           return
         }
 
@@ -502,7 +811,7 @@ export function PropertyModals({
         }
       } catch (error) {
         console.error('Error processing gallery images:', error)
-        alert('Error processing gallery images. Please try again.')
+        showError('Something went wrong processing gallery images. Please try again.')
       }
     }
   }
@@ -530,7 +839,7 @@ export function PropertyModals({
       surface: '',
       details: '',
       interior_details: '',
-      built_year: '',
+      built_year: '' as string | undefined,
       view_type: '',
       concierge: false,
       agent_id: undefined as number | undefined, // Reset agent_id
@@ -553,15 +862,21 @@ export function PropertyModals({
     const file = event.target.files?.[0]
     if (file) {
       try {
-        // Get recommended compression options based on file size
-        const compressionOptions = getRecommendedCompressionOptions(file.size)
+        // Validate the file
+        const validation = validateImageFile(file)
+        if (!validation.valid) {
+          showError(validation.error || 'Invalid image file')
+          return
+        }
 
-        // Compress and convert to base64
-        const compressedBase64 = await compressAndConvertToBase64(file, compressionOptions)
+        // Create preview URL
+        const previewUrl = await createImagePreview(file)
 
+        // Store the file for upload (no Base64 conversion)
         setEditFormData((prev: EditFormData) => ({
           ...prev,
-          main_image: compressedBase64
+          main_image_file: file,
+          main_image_preview: previewUrl
         }))
 
         // Clear the file input
@@ -570,7 +885,7 @@ export function PropertyModals({
         }
       } catch (error) {
         console.error('Error processing edit image:', error)
-        alert('Error processing image. Please try again.')
+        showError('Something went wrong processing the image. Please try again.')
       }
     }
   }
@@ -580,20 +895,19 @@ export function PropertyModals({
     const files = event.target.files
     if (files) {
       try {
-        for (const file of Array.from(files)) {
-          console.log('Processing edit gallery image:', file.name, file.size, file.type)
+        const fileArray = Array.from(files)
+        console.log('Processing edit gallery images:', fileArray.length, 'files')
 
-          // Get recommended compression options based on file size
-          const compressionOptions = getRecommendedCompressionOptions(file.size)
-
-          // Compress and convert to base64
-          const compressedBase64 = await compressAndConvertToBase64(file, compressionOptions)
-
-          setEditFormData((prev: EditFormData) => ({
-            ...prev,
-            image_gallery: [...(prev.image_gallery || []), compressedBase64]
-          }))
+        // Validate files
+        const validation = validateImageFiles(fileArray)
+        if (!validation.valid) {
+          showError(validation.errors.join(', '))
+          return
         }
+
+        // Store File objects directly instead of converting to Base64
+        setLocalEditGallery(prev => [...prev, ...fileArray])
+        setGalleryModified(true)
 
         // Clear the file input
         if (event.target) {
@@ -601,7 +915,7 @@ export function PropertyModals({
         }
       } catch (error) {
         console.error('Error processing edit gallery images:', error)
-        alert('Error processing gallery images. Please try again.')
+        showError('Something went wrong processing gallery images. Please try again.')
       }
     }
   }
@@ -774,6 +1088,47 @@ export function PropertyModals({
               <form onSubmit={async (e) => {
                 e.preventDefault()
 
+                // Validate all required fields and optional fields with format requirements
+                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
+                
+                console.log('🔍 Form data before validation:', addFormData)
+                console.log('🔍 Validation errors before validation:', validationErrors)
+                console.log('🔍 Fields to validate:', fieldsToValidate)
+
+                // Force validation on all fields and collect errors
+                const newValidationErrors: Record<string, string> = {}
+                let hasErrors = false
+                
+                fieldsToValidate.forEach(field => {
+                  const value = addFormData[field as keyof typeof addFormData]
+                  const isValid = isFieldValid(field, value)
+                  const errorMessage = isValid ? '' : getFieldErrorMessage(field, value)
+                  
+                  console.log(`🔍 Validating field "${field}": value="${value}", isValid=${isValid}, errorMessage="${errorMessage}"`)
+                  
+                  newValidationErrors[field] = errorMessage
+                  
+                  if (!isValid) {
+                    console.log(`🔍 Field "${field}" is invalid, marking as error`)
+                    hasErrors = true
+                  }
+                })
+
+                // Update validation errors state
+                setValidationErrors(newValidationErrors)
+
+                console.log('🔍 Validation complete. hasErrors:', hasErrors)
+                console.log('🔍 New validation errors:', newValidationErrors)
+                
+                // If there are validation errors, don't submit
+                if (hasErrors) {
+                  console.log('🔍 Form submission blocked due to validation errors')
+                  showError('Please fill in all required fields before submitting')
+                  return
+                }
+                
+                console.log('🔍 Form validation passed, proceeding with submission')
+
                 try {
                   // Debug: Log the form data being sent
                   console.log('🔍 Form data being submitted:', addFormData)
@@ -810,7 +1165,7 @@ export function PropertyModals({
                     price: parseFloat(addFormData.price),
                     notes: addFormData.notes || undefined,
                     property_url: addFormData.property_url || undefined,
-                    referrals: addFormData.referrals.length > 0 ? addFormData.referrals : undefined,
+                    referrals: addFormData.referrals || [],
 
                     // Note: Images will be uploaded separately after property creation
                     hasImages: addFormData.main_image_file || addFormData.gallery_files.length > 0 // Flag to indicate if we need to upload images
@@ -849,7 +1204,7 @@ export function PropertyModals({
                         const mainImageResult = await uploadMainPropertyImage(newProperty.id, addFormData.main_image_file)
                         if (!mainImageResult.success) {
                           console.error('Main image upload failed:', mainImageResult.message)
-                          alert('Property created but main image upload failed: ' + mainImageResult.message)
+                          showWarning('Property created but main image upload failed: ' + mainImageResult.message)
                         } else {
                           console.log('Main image uploaded successfully')
                         }
@@ -861,27 +1216,39 @@ export function PropertyModals({
                         const galleryResult = await uploadGalleryImages(newProperty.id, addFormData.gallery_files)
                         if (!galleryResult.success) {
                           console.error('Gallery upload failed:', galleryResult.message)
-                          alert('Property created but gallery upload failed: ' + galleryResult.message)
+                          
+                          // If it's a CSRF error, suggest refreshing the page
+                          if (galleryResult.message?.includes('Security token expired')) {
+                            showError('Security token expired. Please refresh the page and try uploading images again.')
+                          } else {
+                            showWarning('Property created but gallery upload failed: ' + galleryResult.message)
+                          }
                         } else {
                           console.log('Gallery images uploaded successfully')
                         }
                       }
 
                       console.log('✅ Property creation and image upload completed successfully!')
+                      
+                      // Refresh the property list to show updated images
+                      if (onRefreshProperties) {
+                        console.log('🔄 Refreshing property list after image upload...')
+                        await onRefreshProperties()
+                      }
 
                     } catch (imageError) {
                       console.error('Error uploading images:', imageError)
-                      alert('Property created successfully, but there was an error uploading images. You can add images later by editing the property.')
+                      showWarning('Property created successfully, but there was an error uploading images. You can add images later by editing the property.')
                     }
                   }
 
                   setShowAddPropertyModal(false)
                   resetAddFormData()
-                  showToast('success', 'Property created successfully!')
+                  showSuccess('Property created successfully!')
 
                 } catch (error) {
                   console.error('Error in property creation process:', error)
-                  showToast('error', 'Error creating property: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                  showError('Something went wrong creating property: ' + (error instanceof Error ? error.message : 'Unknown error'))
                 }
               }}>
 
@@ -966,12 +1333,18 @@ export function PropertyModals({
                       <div>
                         <PropertyStatusSelector
                           selectedStatusId={addFormData.status_id}
-                          onStatusChange={(statusId) => setAddFormData(prev => ({ ...prev, status_id: statusId }))}
+                          onStatusChange={(statusId) => {
+                            setAddFormData(prev => ({ ...prev, status_id: statusId }))
+                          }}
                           placeholder="Select status..."
-                          required={true}
                         />
+                        {validationErrors.status_id && (
+                          <p className="mt-1 text-sm text-red-600 flex items-center">
+                            <span className="mr-1">⚠️</span>
+                            {validationErrors.status_id}
+                          </p>
+                        )}
                       </div>
-
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -998,10 +1371,17 @@ export function PropertyModals({
                       <div>
                         <CategorySelector
                           selectedCategoryId={addFormData.category_id}
-                          onCategoryChange={(categoryId) => setAddFormData(prev => ({ ...prev, category_id: categoryId }))}
+                          onCategoryChange={(categoryId) => {
+                            setAddFormData(prev => ({ ...prev, category_id: categoryId }))
+                          }}
                           placeholder="Select category..."
-                          required={true}
                         />
+                        {validationErrors.category_id && (
+                          <p className="mt-1 text-sm text-red-600 flex items-center">
+                            <span className="mr-1">⚠️</span>
+                            {validationErrors.category_id}
+                          </p>
+                        )}
                       </div>
                     </div>
                     <div>
@@ -1016,186 +1396,208 @@ export function PropertyModals({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Location <span className="text-red-500">*</span>
-                      </label>
-                      <input
+                    <InputField
+                      label="Location"
                         id="add-location"
                         type="text"
                         value={addFormData.location}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, location: e.target.value }))}
-                        required
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, location: newValue }))
+                      }}
+                      onBlur={(e) => validateField('location', e.target.value)}
                         placeholder="Enter property location"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name (Optional)</label>
-                      <input
-                        id="add-building-name"
-                        type="text"
-                        value={addFormData.building_name}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, building_name: e.target.value }))}
-                        placeholder="Enter building name (optional)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
+                      errorMessage={validationErrors.location}
+                    />
+                    <InputField
+                      label="Building Name (Optional)"
+                      id="add-building-name"
+                      type="text"
+                      value={addFormData.building_name}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, building_name: newValue }))
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        validateField('building_name', value)
+                      }}
+                      required={false}
+                      placeholder="Enter building name (optional)"
+                      errorMessage={validationErrors.building_name}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Owner Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
+                    <InputField
+                      label="Owner Name"
                         id="add-owner-name"
                         type="text"
                         value={addFormData.owner_name}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, owner_name: e.target.value }))}
-                        required
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, owner_name: newValue }))
+                      }}
+                      onBlur={(e) => validateField('owner_name', e.target.value)}
                         placeholder="Enter owner name"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
+                      errorMessage={validationErrors.owner_name}
+                    />
+                    <InputField
+                      label="Phone Number"
                         id="add-phone"
                         type="tel"
                         value={addFormData.phone_number}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, phone_number: e.target.value }))}
-                        required
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, phone_number: newValue }))
+                      }}
+                      onBlur={(e) => validateField('phone_number', e.target.value)}
                         placeholder="Enter phone number"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      errorMessage={validationErrors.phone_number}
                       />
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Surface Area (m²) <span className="text-red-500">*</span>
-                      </label>
-                      <input
+                    <InputField
+                      label="Surface Area (m²)"
                         id="add-surface"
                         type="number"
-                        step="0.01"
                         value={addFormData.surface}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, surface: e.target.value }))}
-                        required
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, surface: newValue === '' ? '' : newValue }))
+                      }}
+                      onBlur={(e) => validateField('surface', e.target.value)}
                         placeholder="Enter surface area"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year (Optional)</label>
-                      <input
+                      errorMessage={validationErrors.surface}
+                      className="[&>input]:step-0.01"
+                    />
+                    <InputField
+                      label="Built Year (Optional)"
                         id="add-built-year"
                         type="number"
-                        min="1800"
-                        max={new Date().getFullYear()}
-                        value={addFormData.built_year}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, built_year: e.target.value }))}
+                        value={addFormData.built_year || ''}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, built_year: newValue === '' ? undefined : newValue }))
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        validateField('built_year', value)
+                      }}
+                      required={false}
                         placeholder="Enter built year (optional)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      errorMessage={validationErrors.built_year}
                       />
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent (Optional)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent <span className="text-red-500">*</span></label>
                       <AgentSelector
                         selectedAgentId={addFormData.agent_id}
-                        onAgentChange={(agent) => setAddFormData(prev => ({ ...prev, agent_id: agent?.id }))}
-                        placeholder="Select agent (optional)..."
+                        onAgentChange={(agent) => {
+                          const agentId = agent?.id
+                          setAddFormData(prev => ({ ...prev, agent_id: agentId }))
+                        }}
+                        placeholder="Select agent..."
                       />
+                      {validationErrors.agent_id && (
+                        <p className="mt-1 text-sm text-red-600">{validationErrors.agent_id}</p>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        View Type <span className="text-red-500">*</span>
-                      </label>
-                      <select
+                    <SelectField
+                      label="View Type"
                         id="add-view-type"
                         value={addFormData.view_type}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, view_type: e.target.value }))}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, view_type: newValue }))
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        validateField('view_type', value)
+                      }}
+                      errorMessage={validationErrors.view_type}
                       >
                         <option value="">Select View Type</option>
                         <option value="open view">Open View</option>
                         <option value="sea view">Sea View</option>
                         <option value="mountain view">Mountain View</option>
                         <option value="no view">No View</option>
-                      </select>
-                    </div>
+                    </SelectField>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Price <span className="text-red-500">*</span>
-                      </label>
-                      <input
+                    <InputField
+                      label="Price"
                         id="add-price"
                         type="number"
-                        step="0.01"
                         value={addFormData.price}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, price: e.target.value }))}
-                        required
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, price: newValue === '' ? '' : newValue }))
+                      }}
+                      onBlur={(e) => validateField('price', e.target.value)}
                         placeholder="Enter price"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      errorMessage={validationErrors.price}
+                      className="[&>input]:step-0.01"
                       />
-                    </div>
 
                   </div>
                   <div className="flex items-center space-x-3">
-                    <label className="flex items-center">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Concierge Service <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center">
                       <input
                         id="add-concierge"
                         type="checkbox"
                         checked={addFormData.concierge}
-                        onChange={(e) => setAddFormData(prev => ({ ...prev, concierge: e.target.checked }))}
-                        required
+                          onChange={(e) => {
+                            const newValue = e.target.checked
+                            setAddFormData(prev => ({ ...prev, concierge: newValue }))
+                          }}
+                          onBlur={() => validateField('concierge', addFormData.concierge)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2 text-sm font-medium text-gray-700">
-                        Concierge Service <span className="text-red-500">*</span>
+                        <span className="ml-2 text-sm text-gray-700">
+                          {addFormData.concierge ? 'Yes' : 'No'}
                       </span>
-                    </label>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Details <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
+                      {validationErrors.concierge && (
+                        <p className="mt-1 text-sm text-red-600">{validationErrors.concierge}</p>
+                      )}
+                    </div>
+                  </div>
+                  <TextareaField
+                    label="Details"
                       id="add-details"
-                      rows={3}
                       value={addFormData.details}
-                      onChange={(e) => setAddFormData(prev => ({ ...prev, details: e.target.value }))}
-                      required
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setAddFormData(prev => ({ ...prev, details: newValue }))
+                    }}
+                    onBlur={(e) => validateField('details', e.target.value)}
                       placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                    />
-                  </div>
+                    errorMessage={validationErrors.details}
+                    rows={3}
+                  />
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Interior Details <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
+                  <TextareaField
+                    label="Interior Details"
                       id="add-interior-details"
-                      rows={3}
                       value={addFormData.interior_details}
-                      onChange={(e) => setAddFormData(prev => ({ ...prev, interior_details: e.target.value }))}
-                      required
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setAddFormData(prev => ({ ...prev, interior_details: newValue }))
+                    }}
+                    onBlur={(e) => validateField('interior_details', e.target.value)}
                       placeholder="Enter interior details and features"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                    errorMessage={validationErrors.interior_details}
+                    rows={3}
                     />
-                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
@@ -1210,14 +1612,23 @@ export function PropertyModals({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Property URL (Optional)</label>
-                    <input
-                      type="url"
+                    <InputField
+                      label="Property URL (Optional)"
                       id="add-property-url"
+                      type="url"
                       value={addFormData.property_url}
-                      onChange={(e) => setAddFormData(prev => ({ ...prev, property_url: e.target.value }))}
+                      onChange={(e) => {
+                        let newValue = e.target.value
+                        setAddFormData(prev => ({ ...prev, property_url: newValue }))
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        console.log('🔍 Add Property URL onBlur triggered with value:', value)
+                        validateField('property_url', value)
+                      }}
+                      required={false}
                       placeholder="https://example.com/property-listing"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      errorMessage={validationErrors.property_url}
                     />
                     <p className="text-xs text-gray-500 mt-1">Enter the URL of the property listing (e.g., from external real estate sites)</p>
                   </div>
@@ -1270,7 +1681,7 @@ export function PropertyModals({
                                 className="w-full h-full object-cover"
                               />
                               <button
-                                type="button"
+                                type="button" 
                                 onClick={() => removeGalleryImage(addFormData.gallery_previews.length + index)}
                                 className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                               >
@@ -1326,11 +1737,7 @@ export function PropertyModals({
                   </button>
                   <button
                     type="submit"
-                    disabled={!isFormValid}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isFormValid
-                      ? 'bg-blue-600 text-white hover:bg-blue-700'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      }`}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     Add Property
                   </button>
@@ -1366,19 +1773,95 @@ export function PropertyModals({
 
             {/* Modal Body */}
             <div className="p-6">
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault()
-                onSaveEdit()
+                
+                // Validate required fields and optional fields with format requirements for edit form
+                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
+                let hasErrors = false
+                
+                console.log('🔍 Edit form data before validation:', editFormData)
+                console.log('🔍 Edit validation errors before validation:', editValidationErrors)
+
+                fieldsToValidate.forEach(field => {
+                  const value = editFormData[field as keyof EditFormData]
+                  const isValid = isFieldValid(field, value)
+                  console.log(`🔍 Validating edit field "${field}": value="${value}", isValid=${isValid}`)
+                  if (!isValid) {
+                    console.log(`🔍 Edit field "${field}" is invalid, calling validateField`)
+                    validateField(field, value, true)
+                    hasErrors = true
+                  }
+                })
+
+                // If there are validation errors, don't submit
+                if (hasErrors) {
+                  console.log('🔍 Edit form submission blocked due to validation errors')
+                  showError('Please fix the validation errors before saving')
+                  return
+                }
+                
+                console.log('🔍 Edit form validation passed, proceeding with submission')
+
+                // Save property first and wait for completion
+                await onSaveEdit()
+                
+                // Upload main image if present
+                if (editFormData.main_image_file) {
+                  try {
+                    console.log('Uploading main image...')
+                    const mainImageResult = await uploadMainPropertyImage(editingProperty!.id, editFormData.main_image_file)
+                    if (!mainImageResult.success) {
+                      console.error('Main image upload failed:', mainImageResult.message)
+                      
+                      // If it's a CSRF error, suggest refreshing the page
+                      if (mainImageResult.message?.includes('Security token expired')) {
+                        showError('Security token expired. Please refresh the page and try uploading images again.')
+                      } else {
+                        showWarning('Property updated but main image upload failed: ' + mainImageResult.message)
+                      }
+                    } else {
+                      console.log('Main image uploaded successfully')
+                    }
+                  } catch (error) {
+                    console.error('Error uploading main image:', error)
+                    showError('Failed to upload main image: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                  }
+                }
+                
+                // Then upload local gallery files if any exist
+                if (localEditGallery.length > 0) {
+                  try {
+                    console.log('Uploading', localEditGallery.length, 'gallery images...')
+                    const galleryResult = await uploadGalleryImages(editingProperty!.id, localEditGallery)
+                    if (!galleryResult.success) {
+                      console.error('Gallery upload failed:', galleryResult.message)
+                      
+                      // If it's a CSRF error, suggest refreshing the page
+                      if (galleryResult.message?.includes('Security token expired')) {
+                        showError('Security token expired. Please refresh the page and try uploading images again.')
+                      } else {
+                        showWarning('Property updated but gallery upload failed: ' + galleryResult.message)
+                      }
+                    } else {
+                      console.log('Gallery images uploaded successfully')
+                    }
+                    setLocalEditGallery([]) // Clear local gallery after upload
+                  } catch (error) {
+                    console.error('Error uploading gallery images:', error)
+                    showError('Failed to upload gallery images: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                  }
+                }
               }}>
                 {/* Main Image Section - Top of Modal */}
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
                   <div className="relative group">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
-                      {editFormData.main_image ? (
+                      {editFormData.main_image_preview || editFormData.main_image ? (
                         <div className="relative w-full h-full">
                           <img
-                            src={getFullImageUrl(editFormData.main_image)}
+                            src={editFormData.main_image_preview || (editFormData.main_image ? getFullImageUrl(editFormData.main_image) : '')}
                             alt="Main property image"
                             className="w-full h-full object-cover"
                           />
@@ -1388,7 +1871,12 @@ export function PropertyModals({
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              setEditFormData((prev: EditFormData) => ({ ...prev, main_image: '' }));
+                              setEditFormData((prev: EditFormData) => ({ 
+                                ...prev, 
+                                main_image: '', 
+                                main_image_preview: '',
+                                main_image_file: undefined
+                              }));
                             }}
                             className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition-colors shadow-lg z-10"
                             title="Remove main image"
@@ -1413,18 +1901,37 @@ export function PropertyModals({
                             const fileInput = document.createElement('input')
                             fileInput.type = 'file'
                             fileInput.accept = 'image/*'
-                            fileInput.onchange = (e) => {
+                            fileInput.onchange = async (e) => {
                               const file = (e.target as HTMLInputElement).files?.[0]
-                              if (file) {
-                                const reader = new FileReader()
-                                reader.onload = (event) => {
-                                  const base64 = event.target?.result as string
-                                  setEditFormData((prev: EditFormData) => ({
-                                    ...prev,
-                                    main_image: base64
-                                  }))
+                              console.log('🖼️ Edit Modal - File selected:', file?.name, file?.size)
+                              
+                              if (!file) {
+                                console.error('❌ No file selected')
+                                return
+                              }
+
+                              try {
+                                // Validate the file
+                                const validation = validateImageFile(file)
+                                if (!validation.valid) {
+                                  showError(validation.error || 'Invalid image file')
+                                  return
                                 }
-                                reader.readAsDataURL(file)
+
+                                // Create preview URL
+                                const previewUrl = await createImagePreview(file)
+
+                                // Store the file for upload (same as add property flow)
+                                setEditFormData((prev: EditFormData) => ({
+                                  ...prev,
+                                  main_image_file: file,
+                                  main_image_preview: previewUrl
+                                }))
+
+                                showSuccess('Image selected! It will be uploaded when you save the property.')
+                              } catch (error) {
+                                console.error('❌ Error processing image:', error)
+                                showError('Failed to process image: ' + (error instanceof Error ? error.message : 'Unknown error'))
                               }
                             }
                             fileInput.click()
@@ -1448,10 +1955,18 @@ export function PropertyModals({
                       </label>
                       <PropertyStatusSelector
                         selectedStatusId={editFormData.status_id}
-                        onStatusChange={(statusId) => setEditFormData((prev: EditFormData) => ({ ...prev, status_id: statusId }))}
+                        onStatusChange={(statusId) => {
+                          setEditFormData((prev: EditFormData) => ({ ...prev, status_id: statusId }))
+                        }}
                         placeholder="Select status..."
                         required={true}
                       />
+                      {editValidationErrors.status_id && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {editValidationErrors.status_id}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1476,10 +1991,18 @@ export function PropertyModals({
                       </label>
                       <CategorySelector
                         selectedCategoryId={editFormData.category_id}
-                        onCategoryChange={(categoryId) => setEditFormData((prev: EditFormData) => ({ ...prev, category_id: categoryId }))}
+                        onCategoryChange={(categoryId) => {
+                          setEditFormData((prev: EditFormData) => ({ ...prev, category_id: categoryId }))
+                        }}
                         placeholder="Select category..."
                         required={true}
                       />
+                      {editValidationErrors.category_id && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {editValidationErrors.category_id}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
@@ -1493,28 +2016,39 @@ export function PropertyModals({
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Location <span className="text-red-500">*</span>
-                      </label>
-                      <input
+                    <InputField
+                      label="Location"
+                      id="edit-location"
                         type="text"
                         value={editFormData.location}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, location: e.target.value }))}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Building Name (Optional)</label>
-                      <input
-                        type="text"
-                        value={editFormData.building_name || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, building_name: e.target.value }))}
-                        placeholder="Enter building name (optional)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setEditFormData((prev: EditFormData) => ({ ...prev, location: newValue }))
+                        clearFieldError('location', true)
+                      }}
+                      onBlur={(e) => validateField('location', e.target.value, true)}
+                      required={true}
+                      placeholder="Enter property location"
+                      errorMessage={editValidationErrors.location}
+                    />
+                    <InputField
+                      label="Building Name (Optional)"
+                      id="edit-building-name"
+                      type="text"
+                      value={editFormData.building_name || ''}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setEditFormData((prev: EditFormData) => ({ ...prev, building_name: newValue }))
+                        clearFieldError('building_name', true)
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        validateField('building_name', value, true)
+                      }}
+                      required={false}
+                      placeholder="Enter building name (optional)"
+                      errorMessage={backendValidationErrors.building_name || editValidationErrors.building_name}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1525,10 +2059,20 @@ export function PropertyModals({
                       <input
                         type="text"
                         value={editFormData.owner_name}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, owner_name: e.target.value }))}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setEditFormData((prev: EditFormData) => ({ ...prev, owner_name: newValue }))
+                        }}
+                        onBlur={(e) => validateField('owner_name', e.target.value, true)}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
+                      {(backendValidationErrors.owner_name || editValidationErrors.owner_name) && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {backendValidationErrors.owner_name || editValidationErrors.owner_name}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1537,10 +2081,20 @@ export function PropertyModals({
                       <input
                         type="tel"
                         value={editFormData.phone_number || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, phone_number: e.target.value }))}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setEditFormData((prev: EditFormData) => ({ ...prev, phone_number: newValue }))
+                        }}
+                        onBlur={(e) => validateField('phone_number', e.target.value, true)}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
+                      {(backendValidationErrors.phone_number || editValidationErrors.phone_number) && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {backendValidationErrors.phone_number || editValidationErrors.phone_number}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1553,51 +2107,78 @@ export function PropertyModals({
                         type="number"
                         step="0.01"
                         value={editFormData.surface || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, surface: parseFloat(e.target.value) || undefined }))}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setEditFormData((prev: EditFormData) => ({ ...prev, surface: parseFloat(newValue) || undefined }))
+                        }}
+                        onBlur={(e) => validateField('surface', e.target.value, true)}
                         required
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
+                      {(backendValidationErrors.surface || editValidationErrors.surface) && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {backendValidationErrors.surface || editValidationErrors.surface}
+                        </p>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Built Year (Optional)</label>
-                      <input
+                    <InputField
+                      label="Built Year (Optional)"
+                      id="edit-built-year"
                         type="number"
-                        min="1800"
-                        max={new Date().getFullYear()}
                         value={editFormData.built_year || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, built_year: parseInt(e.target.value) || undefined }))}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setEditFormData((prev: EditFormData) => ({ ...prev, built_year: newValue === '' ? undefined : newValue }))
+                        clearFieldError('built_year', true)
+                      }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        validateField('built_year', value, true)
+                      }}
+                      required={false}
                         placeholder="Enter built year (optional)"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                      errorMessage={backendValidationErrors.built_year || editValidationErrors.built_year}
                       />
-                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent (Optional)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent <span className="text-red-500">*</span></label>
                       <AgentSelector
                         selectedAgentId={editFormData.agent_id}
-                        onAgentChange={(agent) => setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: agent?.id }))}
-                        placeholder="Select agent (optional)..."
+                        onAgentChange={(agent) => {
+                          console.log('🔍 Agent selected in edit form:', agent)
+                          const agentId = agent?.id
+                          setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: agentId }))
+                        }}
+                        placeholder="Select agent..."
                       />
+                      {(backendValidationErrors.agent_id || editValidationErrors.agent_id) && (
+                        <p className="mt-1 text-sm text-red-600">{backendValidationErrors.agent_id || editValidationErrors.agent_id}</p>
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        View Type <span className="text-red-500">*</span>
-                      </label>
-                      <select
+                    <SelectField
+                      label="View Type"
+                      id="edit-view-type"
                         value={editFormData.view_type || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, view_type: e.target.value as 'open view' | 'sea view' | 'mountain view' | 'no view' }))}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setEditFormData((prev: EditFormData) => ({ ...prev, view_type: newValue as 'open view' | 'sea view' | 'mountain view' | 'no view' }))
+                        }}
+                      onBlur={(e) => {
+                        const value = e.target.value.trim()
+                        validateField('view_type', value, true)
+                      }}
+                      required={true}
+                      errorMessage={backendValidationErrors.view_type || editValidationErrors.view_type}
                       >
                         <option value="">Select View Type</option>
                         <option value="open view">Open View</option>
                         <option value="sea view">Sea View</option>
                         <option value="mountain view">Mountain View</option>
                         <option value="no view">No View</option>
-                      </select>
-                    </div>
+                    </SelectField>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1609,27 +2190,48 @@ export function PropertyModals({
                         type="number"
                         step="0.01"
                         value={editFormData.price || ''}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, price: parseFloat(e.target.value) || undefined }))}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setEditFormData((prev: EditFormData) => ({ ...prev, price: parseFloat(newValue) || undefined }))
+                        }}
+                        onBlur={(e) => validateField('price', e.target.value, true)}
                         required
                         placeholder="Enter price"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                       />
+                      {(backendValidationErrors.price || editValidationErrors.price) && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {backendValidationErrors.price || editValidationErrors.price}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex items-center space-x-3">
-                    <label className="flex items-center">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Concierge Service <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center">
                       <input
                         type="checkbox"
                         checked={editFormData.concierge}
-                        onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, concierge: e.target.checked }))}
-                        required
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({ ...prev, concierge: e.target.checked }))
+                            clearFieldError('concierge', true)
+                          }}
+                          onBlur={() => validateField('concierge', editFormData.concierge, true)}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="ml-2 text-sm font-medium text-gray-700">
-                        Concierge Service <span className="text-red-500">*</span>
+                        <span className="ml-2 text-sm text-gray-700">
+                          {editFormData.concierge ? 'Yes' : 'No'}
                       </span>
-                    </label>
+                      </div>
+                      {(backendValidationErrors.concierge || editValidationErrors.concierge) && (
+                        <p className="mt-1 text-sm text-red-600">{backendValidationErrors.concierge || editValidationErrors.concierge}</p>
+                      )}
+                    </div>
                   </div>
 
 
@@ -1640,11 +2242,21 @@ export function PropertyModals({
                     <textarea
                       rows={3}
                       value={typeof editFormData.details === 'string' ? editFormData.details : (editFormData.details ? JSON.stringify(editFormData.details, null, 2) : '')}
-                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, details: e.target.value }))}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setEditFormData((prev: EditFormData) => ({ ...prev, details: newValue }))
+                      }}
+                      onBlur={(e) => validateField('details', e.target.value, true)}
                       required
                       placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
+                    {(backendValidationErrors.details || editValidationErrors.details) && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {backendValidationErrors.details || editValidationErrors.details}
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -1654,23 +2266,46 @@ export function PropertyModals({
                     <textarea
                       rows={3}
                       value={editFormData.interior_details || ''}
-                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, interior_details: e.target.value }))}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setEditFormData((prev: EditFormData) => ({ ...prev, interior_details: newValue }))
+                      }}
+                      onBlur={(e) => validateField('interior_details', e.target.value, true)}
                       required
                       placeholder="Enter interior details and features"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
+                    {(backendValidationErrors.interior_details || editValidationErrors.interior_details) && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {backendValidationErrors.interior_details || editValidationErrors.interior_details}
+                      </p>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Property URL (Optional)</label>
-                    <input
+                  <InputField
+                    label="Property URL (Optional)"
+                    id="edit-property-url"
                       type="url"
                       value={editFormData.property_url || ''}
-                      onChange={(e) => setEditFormData((prev: EditFormData) => ({ ...prev, property_url: e.target.value }))}
-                      placeholder="Enter property URL (optional)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                    />
-                  </div>
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setEditFormData((prev: EditFormData) => ({ ...prev, property_url: newValue }))
+                      clearFieldError('property_url', true)
+                      // Clear backend validation error when user starts typing
+                      if (setBackendValidationErrors && backendValidationErrors.property_url) {
+                        setBackendValidationErrors({ ...backendValidationErrors, property_url: '' })
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.target.value.trim()
+                      console.log('🔍 Property URL onBlur triggered with value:', value)
+                      validateField('property_url', value, true)
+                    }}
+                    required={false}
+                    placeholder="https://example.com/property-listing"
+                    errorMessage={backendValidationErrors.property_url || editValidationErrors.property_url}
+                  />
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
@@ -1700,10 +2335,11 @@ export function PropertyModals({
                     <label className="block text-sm font-medium text-gray-700 mb-2">Image Gallery (Optional)</label>
                     <div className="space-y-4">
                       {/* Gallery Images Display */}
-                      {editFormData.image_gallery && editFormData.image_gallery.length > 0 && (
+                      {(editFormData.image_gallery && editFormData.image_gallery.length > 0) || localEditGallery.length > 0 ? (
                         <div className="grid grid-cols-4 gap-3">
-                          {editFormData.image_gallery.map((image, index) => (
-                            <div key={index} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-300">
+                          {/* Show original gallery images */}
+                          {editFormData.image_gallery && editFormData.image_gallery.map((image, index) => (
+                            <div key={`original-${index}`} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-300">
                               <img
                                 src={getFullImageUrl(image)}
                                 alt={`Gallery image ${index + 1}`}
@@ -1714,6 +2350,7 @@ export function PropertyModals({
                                 onClick={() => {
                                   const updatedGallery = editFormData.image_gallery?.filter((_, i) => i !== index)
                                   setEditFormData((prev: EditFormData) => ({ ...prev, image_gallery: updatedGallery }))
+                                  setGalleryModified(true)
                                 }}
                                 className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                               >
@@ -1721,36 +2358,37 @@ export function PropertyModals({
                               </button>
                             </div>
                           ))}
+                          {/* Show local gallery images */}
+                          {localEditGallery.map((file, index) => (
+                            <div key={`local-${index}`} className="relative w-full h-24 bg-gray-200 rounded-lg overflow-hidden border-2 border-blue-300">
+                              <img
+                                src={URL.createObjectURL(file)}
+                                alt={`New gallery image ${index + 1}`}
+                                className="w-full h-full object-cover"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLocalEditGallery(prev => prev.filter((_, i) => i !== index))
+                                  setGalleryModified(true)
+                                }}
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                              <div className="absolute bottom-1 left-1 bg-blue-500 text-white text-xs px-1 rounded">
+                                NEW
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      )}
+                      ) : null}
 
                       {/* Add Gallery Images Button */}
                       <div
                         className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 cursor-pointer group"
                         onClick={() => {
-                          // Create a file input element
-                          const fileInput = document.createElement('input')
-                          fileInput.type = 'file'
-                          fileInput.multiple = true
-                          fileInput.accept = 'image/*'
-                          fileInput.onchange = (e) => {
-                            const files = (e.target as HTMLInputElement).files
-                            if (files) {
-                              // Handle multiple file selection
-                              Array.from(files).forEach(file => {
-                                const reader = new FileReader()
-                                reader.onload = (event) => {
-                                  const base64 = event.target?.result as string
-                                  setEditFormData((prev: EditFormData) => ({
-                                    ...prev,
-                                    image_gallery: [...(prev.image_gallery || []), base64]
-                                  }))
-                                }
-                                reader.readAsDataURL(file)
-                              })
-                            }
-                          }
-                          fileInput.click()
+                          editGalleryImageInputRef.current?.click()
                         }}
                       >
                         <div className="flex items-center justify-center space-x-2">
@@ -1776,7 +2414,86 @@ export function PropertyModals({
                 Cancel
               </button>
               <button
-                onClick={onSaveEdit}
+                onClick={async () => {
+                  console.log('🔍 Save Changes button clicked - validating form...')
+                  console.log('🔍 Current property_url value:', editFormData.property_url)
+                  
+                  // Validate required fields and optional fields with format requirements for edit form
+                  const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
+                  let hasErrors = false
+
+                  fieldsToValidate.forEach(field => {
+                    const value = editFormData[field as keyof EditFormData]
+                    const isValid = isFieldValid(field, value)
+                    console.log(`🔍 Field ${field}: value="${value}", isValid=${isValid}`)
+                    
+                    if (!isValid) {
+                      validateField(field, value, true)
+                      hasErrors = true
+                    }
+                  })
+
+                  console.log('🔍 Validation complete. HasErrors:', hasErrors)
+
+                  // If there are validation errors, don't save
+                  if (hasErrors) {
+                    console.log('🚫 Validation failed - showing error message')
+                    showError('Please fix the validation errors before saving')
+                    return
+                  }
+
+                  console.log('✅ Validation passed - calling onSaveEdit()')
+                  
+                  // Save property first and wait for completion
+                  await onSaveEdit()
+                  
+                  // Upload main image if present
+                  if (editFormData.main_image_file) {
+                    try {
+                      console.log('Uploading main image...')
+                      const mainImageResult = await uploadMainPropertyImage(editingProperty!.id, editFormData.main_image_file)
+                      if (!mainImageResult.success) {
+                        console.error('Main image upload failed:', mainImageResult.message)
+                        
+                        // If it's a CSRF error, suggest refreshing the page
+                        if (mainImageResult.message?.includes('Security token expired')) {
+                          showError('Security token expired. Please refresh the page and try uploading images again.')
+                        } else {
+                          showWarning('Property updated but main image upload failed: ' + mainImageResult.message)
+                        }
+                      } else {
+                        console.log('Main image uploaded successfully')
+                      }
+                    } catch (error) {
+                      console.error('Error uploading main image:', error)
+                      showError('Failed to upload main image: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                    }
+                  }
+                  
+                  // Then upload local gallery files if any exist
+                  if (localEditGallery.length > 0) {
+                    try {
+                      console.log('Uploading', localEditGallery.length, 'gallery images...')
+                      const galleryResult = await uploadGalleryImages(editingProperty!.id, localEditGallery)
+                      if (!galleryResult.success) {
+                        console.error('Gallery upload failed:', galleryResult.message)
+                        
+                        // If it's a CSRF error, suggest refreshing the page
+                        if (galleryResult.message?.includes('Security token expired')) {
+                          showError('Security token expired. Please refresh the page and try uploading images again.')
+                        } else {
+                          showWarning('Property updated but gallery upload failed: ' + galleryResult.message)
+                        }
+                      } else {
+                        console.log('Gallery images uploaded successfully')
+                      }
+                      setLocalEditGallery([]) // Clear local gallery after upload
+                    } catch (error) {
+                      console.error('Error uploading gallery images:', error)
+                      showError('Failed to upload gallery images: ' + (error instanceof Error ? error.message : 'Unknown error'))
+                    }
+                  }
+                }}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
               >
                 Save Changes
@@ -2080,8 +2797,11 @@ export function PropertyModals({
                             alt={`Gallery image ${index + 1}`}
                             className="w-full h-full object-cover cursor-pointer"
                             onClick={() => {
-                              setSelectedImageState(getFullImageUrl(image))
-                              setAllImagesState(viewPropertyData.image_gallery?.map(img => getFullImageUrl(img)) || [])
+                              const fullImageUrl = getFullImageUrl(image)
+                              const allImages = viewPropertyData.image_gallery?.map(img => getFullImageUrl(img)) || []
+                              console.log('Opening image modal. Index:', index, 'Image URL:', fullImageUrl, 'All images:', allImages.length)
+                              setSelectedImageState(fullImageUrl)
+                              setAllImagesState(allImages)
                               setCurrentImageIndexState(index)
                               setShowImageModal(true)
                             }}
@@ -2135,7 +2855,15 @@ export function PropertyModals({
               <>
                 {/* Previous Button */}
                 <button
-                  onClick={onGoToPreviousImage}
+                  onClick={() => {
+                    console.log('Previous button clicked. Current index:', currentImageIndexState, 'Total images:', allImagesState.length)
+                    if (currentImageIndexState > 0) {
+                      const newIndex = currentImageIndexState - 1
+                      console.log('Moving to index:', newIndex, 'Image URL:', allImagesState[newIndex])
+                      setCurrentImageIndexState(newIndex)
+                      setSelectedImageState(allImagesState[newIndex])
+                    }
+                  }}
                   disabled={currentImageIndexState === 0}
                   className={`absolute left-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 hover:text-blue-600 rounded-full p-2 transition-all z-10 ${currentImageIndexState === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-opacity-100'
                     }`}
@@ -2146,7 +2874,15 @@ export function PropertyModals({
 
                 {/* Next Button */}
                 <button
-                  onClick={onGoToNextImage}
+                  onClick={() => {
+                    console.log('Next button clicked. Current index:', currentImageIndexState, 'Total images:', allImagesState.length)
+                    if (currentImageIndexState < allImagesState.length - 1) {
+                      const newIndex = currentImageIndexState + 1
+                      console.log('Moving to index:', newIndex, 'Image URL:', allImagesState[newIndex])
+                      setCurrentImageIndexState(newIndex)
+                      setSelectedImageState(allImagesState[newIndex])
+                    }
+                  }}
                   disabled={currentImageIndexState === allImagesState.length - 1}
                   className={`absolute right-4 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-90 hover:bg-opacity-100 text-gray-700 hover:text-blue-600 rounded-full p-2 transition-all z-10 ${currentImageIndexState === allImagesState.length - 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-opacity-100'
                     }`}

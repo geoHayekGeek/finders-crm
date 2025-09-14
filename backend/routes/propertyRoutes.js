@@ -28,10 +28,10 @@ router.use(filterDataByRole);
 
 
 // GET /api/properties - Get all properties (filtered by role)
-router.get('/', propertyController.getAllProperties);
+router.get('/', csrfProtection, propertyController.getAllProperties);
 
 // GET /api/properties/filtered - Get properties with filters (filtered by role)
-router.get('/filtered', propertyController.getPropertiesWithFilters);
+router.get('/filtered', csrfProtection, propertyController.getPropertiesWithFilters);
 
 // GET /api/properties/stats/overview - Get property statistics (admin, operations manager, operations, agent manager)
 router.get('/stats/overview', canViewAllData, propertyController.getPropertyStats);
@@ -41,10 +41,10 @@ router.get('/agent/:agentId', canViewAgentPerformance, propertyController.getPro
 
 // Image management routes (file uploads)
 // POST /api/properties/:id/upload-main-image - Upload main property image
-router.post('/:id/upload-main-image', canManageProperties, uploadSingle, propertyController.uploadMainImage);
+router.post('/:id/upload-main-image', canManageProperties, csrfProtection, uploadSingle, propertyController.uploadMainImage);
 
 // POST /api/properties/:id/upload-gallery - Upload multiple gallery images
-router.post('/:id/upload-gallery', canManageProperties, uploadMultiple, propertyController.uploadGalleryImages);
+router.post('/:id/upload-gallery', canManageProperties, csrfProtection, uploadMultiple, propertyController.uploadGalleryImages);
 
 // DELETE /api/properties/:id/images/:imageUrl - Remove image from gallery
 router.delete('/:id/images/:imageUrl', canManageProperties, propertyController.removeImageFromGallery);

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Dialog } from '@headlessui/react'
 import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline'
-import { CalendarEvent } from '@/app/dashboard/calendar/page'
+import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
 
 interface User {
@@ -42,10 +42,36 @@ export function EventModal({
     type: 'other' as CalendarEvent['type'],
     location: '',
     attendees: [] as User[],
-    notes: ''
+    notes: '',
+    propertyId: null as number | null,
+    leadId: null as number | null
   })
 
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [properties, setProperties] = useState<Property[]>([])
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [loadingDropdowns, setLoadingDropdowns] = useState(true)
+
+  // Debug form data changes
+  useEffect(() => {
+    console.log('🔄 FORM DATA CHANGED:', {
+      propertyId: formData.propertyId,
+      leadId: formData.leadId,
+      propertiesLoaded: properties.length,
+      leadsLoaded: leads.length,
+      loadingDropdowns: loadingDropdowns
+    })
+    
+    if (formData.propertyId) {
+      const selectedProperty = properties.find(p => p.id === formData.propertyId)
+      console.log('🏠 Selected property details:', selectedProperty)
+    }
+    
+    if (formData.leadId) {
+      const selectedLead = leads.find(l => l.id === formData.leadId)
+      console.log('👤 Selected lead details:', selectedLead)
+    }
+  }, [formData.propertyId, formData.leadId, properties.length, leads.length, loadingDropdowns, properties, leads])
 
   useEffect(() => {
     if (event) {
@@ -59,17 +85,46 @@ export function EventModal({
         phone: ''
       })) || []
 
+      // Convert dates to local timezone for the datetime-local input
+      const startLocal = new Date(event.start.getTime() - (event.start.getTimezoneOffset() * 60000))
+      const endLocal = new Date(event.end.getTime() - (event.end.getTimezoneOffset() * 60000))
+
+      console.log('🎭 MODAL OPENED FOR EDITING EVENT!')
+      console.log('📋 Event data received in modal:', {
+        id: event.id,
+        title: event.title,
+        propertyId: event.propertyId,
+        propertyReference: event.propertyReference,
+        propertyLocation: event.propertyLocation,
+        leadId: event.leadId,
+        leadName: event.leadName,
+        leadPhone: event.leadPhone
+      })
+      
+      console.log('🎯 Form data will be set with:', {
+        propertyId: event.propertyId || null,
+        leadId: event.leadId || null
+      })
+      
+      console.log('📊 Current dropdown state:', {
+        propertiesLoaded: properties.length,
+        leadsLoaded: leads.length,
+        loadingDropdowns: loadingDropdowns
+      })
+
       setFormData({
         title: event.title,
         description: event.description || '',
-        start: event.start.toISOString().slice(0, 16),
-        end: event.end.toISOString().slice(0, 16),
+        start: startLocal.toISOString().slice(0, 16),
+        end: endLocal.toISOString().slice(0, 16),
         allDay: event.allDay,
         color: event.color,
         type: event.type,
         location: event.location || '',
         attendees: attendeeUsers,
-        notes: event.notes || ''
+        notes: event.notes || '',
+        propertyId: event.propertyId || null,
+        leadId: event.leadId || null
       })
     } else {
       // Creating new event
@@ -79,21 +134,107 @@ export function EventModal({
       const endDate = new Date(startDate)
       endDate.setHours(10, 0, 0, 0) // Default to 10 AM
 
+      // Convert to local timezone for the datetime-local input
+      const startLocal = new Date(startDate.getTime() - (startDate.getTimezoneOffset() * 60000))
+      const endLocal = new Date(endDate.getTime() - (endDate.getTimezoneOffset() * 60000))
+
       setFormData({
         title: '',
         description: '',
-        start: startDate.toISOString().slice(0, 16),
-        end: endDate.toISOString().slice(0, 16),
+        start: startLocal.toISOString().slice(0, 16),
+        end: endLocal.toISOString().slice(0, 16),
         allDay: false,
         color: 'blue',
         type: 'other',
         location: '',
         attendees: [],
-        notes: ''
+        notes: '',
+        propertyId: null,
+        leadId: null
       })
     }
     setErrors({})
   }, [event, selectedDate, isOpen])
+
+  // Update form data when properties/leads are loaded and we have an event
+  useEffect(() => {
+    console.log('🔄 Checking if should update form data after dropdowns loaded:', {
+      hasEvent: !!event,
+      loadingDropdowns: loadingDropdowns,
+      propertiesCount: properties.length,
+      leadsCount: leads.length,
+      eventPropertyId: event?.propertyId,
+      eventLeadId: event?.leadId
+    })
+    
+    if (event && !loadingDropdowns && (properties.length > 0 || leads.length > 0)) {
+      console.log('✅ UPDATING FORM DATA AFTER DROPDOWNS LOADED!')
+      console.log('🎯 Setting propertyId to:', event.propertyId || null)
+      console.log('🎯 Setting leadId to:', event.leadId || null)
+      
+      setFormData(prev => {
+        const newFormData = {
+          ...prev,
+          propertyId: event.propertyId || null,
+          leadId: event.leadId || null
+        }
+        console.log('📝 New form data after update:', newFormData)
+        return newFormData
+      })
+    }
+  }, [event, loadingDropdowns, properties.length, leads.length])
+
+  // Load properties and leads for dropdowns
+  useEffect(() => {
+    if (isOpen) {
+      const loadDropdownData = async () => {
+        setLoadingDropdowns(true)
+        try {
+          const [propertiesResponse, leadsResponse] = await Promise.all([
+            fetch('http://localhost:10000/api/calendar/properties'),
+            fetch('http://localhost:10000/api/calendar/leads')
+          ])
+
+          console.log('📡 Properties API response status:', propertiesResponse.status)
+          console.log('📡 Leads API response status:', leadsResponse.status)
+
+          if (propertiesResponse.ok) {
+            const propertiesData = await propertiesResponse.json()
+            console.log('📦 Properties API data:', propertiesData)
+            if (propertiesData.success) {
+              console.log('✅ PROPERTIES LOADED:', propertiesData.properties.length)
+              console.log('🏠 Properties list:', propertiesData.properties.map(p => ({ id: p.id, ref: p.reference_number })))
+              setProperties(propertiesData.properties)
+            } else {
+              console.error('❌ Properties API failed:', propertiesData.message)
+            }
+          } else {
+            console.error('❌ Properties API request failed:', propertiesResponse.status)
+          }
+
+          if (leadsResponse.ok) {
+            const leadsData = await leadsResponse.json()
+            console.log('📦 Leads API data:', leadsData)
+            if (leadsData.success) {
+              console.log('✅ LEADS LOADED:', leadsData.leads.length)
+              console.log('👤 Leads list:', leadsData.leads.map(l => ({ id: l.id, name: l.customer_name })))
+              setLeads(leadsData.leads)
+            } else {
+              console.error('❌ Leads API failed:', leadsData.message)
+            }
+          } else {
+            console.error('❌ Leads API request failed:', leadsResponse.status)
+          }
+        } catch (error) {
+          console.error('Error loading dropdown data:', error)
+        } finally {
+          setLoadingDropdowns(false)
+        }
+      }
+
+      loadDropdownData()
+    }
+  }, [isOpen])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -147,7 +288,9 @@ export function EventModal({
           type: formData.type, 
           location: formData.location.trim() || undefined, 
           attendees: attendeeNames, 
-          notes: formData.notes.trim() || undefined 
+          notes: formData.notes.trim() || undefined,
+          propertyId: formData.propertyId,
+          leadId: formData.leadId
         }
       : {
           title: formData.title.trim(),
@@ -159,7 +302,9 @@ export function EventModal({
           type: formData.type,
           location: formData.location.trim() || undefined,
           attendees: attendeeNames,
-          notes: formData.notes.trim() || undefined
+          notes: formData.notes.trim() || undefined,
+          propertyId: formData.propertyId,
+          leadId: formData.leadId
         }
 
     onSave(eventData)
@@ -351,6 +496,126 @@ export function EventModal({
                 placeholder="Event location"
               />
             </div>
+
+            {/* Property and Lead Selection */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="property" className="block text-sm font-medium text-gray-700 mb-1">
+                  Related Property
+                </label>
+                <select
+                  id="property"
+                  value={(() => {
+                    const value = formData.propertyId?.toString() || ''
+                    console.log('🏠 Property dropdown rendering with value:', value)
+                    console.log('🏠 Available properties:', properties.map(p => ({ id: p.id, ref: p.reference_number })))
+                    console.log('🏠 Form data propertyId:', formData.propertyId)
+                    return value
+                  })()}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    console.log('🏠 Property selected:', value)
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      propertyId: value ? parseInt(value) : null,
+                      leadId: null // Clear lead selection when property is selected
+                    }))
+                  }}
+                  disabled={loadingDropdowns}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
+                >
+                  <option value="">Select a property...</option>
+                  {properties.map((property) => {
+                    console.log('🏠 Rendering property option:', { id: property.id, ref: property.reference_number })
+                    return (
+                      <option key={property.id} value={property.id} className="text-gray-900 bg-white">
+                        {property.reference_number} - {property.location}
+                      </option>
+                    )
+                  })}
+                </select>
+                {loadingDropdowns && (
+                  <p className="mt-1 text-xs text-gray-500">Loading properties...</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="lead" className="block text-sm font-medium text-gray-700 mb-1">
+                  Related Lead
+                </label>
+                <select
+                  id="lead"
+                  value={(() => {
+                    const value = formData.leadId?.toString() || ''
+                    console.log('👤 Lead dropdown rendering with value:', value)
+                    console.log('👤 Available leads:', leads.map(l => ({ id: l.id, name: l.customer_name })))
+                    console.log('👤 Form data leadId:', formData.leadId)
+                    return value
+                  })()}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    console.log('👤 Lead selected:', value)
+                    setFormData(prev => ({ 
+                      ...prev, 
+                      leadId: value ? parseInt(value) : null,
+                      propertyId: null // Clear property selection when lead is selected
+                    }))
+                  }}
+                  disabled={loadingDropdowns}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
+                >
+                  <option value="">Select a lead...</option>
+                  {leads.map((lead) => {
+                    console.log('👤 Rendering lead option:', { id: lead.id, name: lead.customer_name })
+                    return (
+                      <option key={lead.id} value={lead.id} className="text-gray-900 bg-white">
+                        {lead.customer_name} {lead.phone_number ? `- ${lead.phone_number}` : ''}
+                      </option>
+                    )
+                  })}
+                </select>
+                {loadingDropdowns && (
+                  <p className="mt-1 text-xs text-gray-500">Loading leads...</p>
+                )}
+              </div>
+            </div>
+
+            {/* Show selected property/lead info */}
+            {formData.propertyId && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-blue-800">
+                      Property Event
+                    </p>
+                    <p className="text-xs text-blue-600">
+                      This event is linked to a property
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {formData.leadId && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-green-800">
+                      Lead Event
+                    </p>
+                    <p className="text-xs text-green-600">
+                      This event is linked to a lead
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Attendees - Now using UserSelector */}
             <div>

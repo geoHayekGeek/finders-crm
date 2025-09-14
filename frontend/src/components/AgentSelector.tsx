@@ -95,7 +95,18 @@ export function AgentSelector({
     onAgentChange(undefined)
   }
 
-  const selectedAgent = agents.find(a => a.id === selectedAgentId)
+  const selectedAgent = agents.find(a => a.id == selectedAgentId) // Use == for type coercion
+  
+  // Debug logging
+  console.log('🔍 AgentSelector - selectedAgentId:', selectedAgentId, 'type:', typeof selectedAgentId)
+  console.log('🔍 AgentSelector - agents:', agents)
+  console.log('🔍 AgentSelector - selectedAgent:', selectedAgent)
+  console.log('🔍 AgentSelector - agents length:', agents.length)
+  if (selectedAgentId) {
+    console.log('🔍 AgentSelector - looking for agent with ID:', selectedAgentId)
+    const foundAgent = agents.find(a => a.id == selectedAgentId) // Use == for type coercion
+    console.log('🔍 AgentSelector - found agent:', foundAgent)
+  }
 
   const getRoleColor = (role: string) => {
     switch (role) {
@@ -117,7 +128,7 @@ export function AgentSelector({
   return (
     <div className="space-y-2">
       {/* Display selected agent */}
-      {selectedAgentId && selectedAgent && (
+      {selectedAgentId !== undefined && selectedAgentId !== null && selectedAgent && (
         <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex items-center gap-2 flex-1">
             <Users className="h-4 w-4 text-blue-600" />

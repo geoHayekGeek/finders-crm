@@ -24,10 +24,12 @@ import { Property, Category, Status, PropertyFilters as PropertyFiltersType, Edi
 import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategories, mockStatuses } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
   const { canManageProperties } = usePermissions()
+  const { showSuccess, showError, showWarning } = useToast()
   
   // State management
   const [properties, setProperties] = useState<Property[]>([])
@@ -36,6 +38,9 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true)
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  
+  // Backend validation errors state
+  const [backendValidationErrors, setBackendValidationErrors] = useState<Record<string, string>>({})
   
   // View and display state
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
@@ -75,9 +80,7 @@ export default function PropertiesPage() {
     image_gallery: [],
     referrals: []
   })
-  const [selectedImage, setSelectedImage] = useState('')
-  const [allImages, setAllImages] = useState<string[]>([])
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  // Image modal state is now managed internally by PropertyModals component
   
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
@@ -366,6 +369,8 @@ export default function PropertiesPage() {
   const handleEditProperty = (property: Property) => {
     setSelectedProperty(property)
     setShowEditModal(true)
+    // Clear any previous backend validation errors
+    setBackendValidationErrors({})
   }
 
   const handleSaveEdit = async () => {
@@ -374,35 +379,36 @@ export default function PropertiesPage() {
       
       // Check authentication
       if (!isAuthenticated || !token) {
-        alert('You must be logged in to edit properties')
+        showError('You must be logged in to edit properties')
         return
       }
       
       // Check permissions
       if (!canManageProperties) {
-        alert('You do not have permission to edit properties')
+        showError('You do not have permission to edit properties')
         return
       }
 
       // Get the property ID from selectedProperty
       if (!selectedProperty) {
-        alert('No property selected for editing')
+        showError('No property selected for editing')
         return
       }
 
-      // Validate required fields
-      const requiredFields = ['status_id', 'location', 'category_id', 'owner_name']
-      const missingFields = requiredFields.filter(field => !editFormData[field as keyof EditFormData])
-      
-      if (missingFields.length > 0) {
-        alert(`Please fill in all required fields: ${missingFields.join(', ')}`)
-        return
-      }
+      // Note: Required field validation is now handled by HTML required attributes
 
-      // Prepare update data
+      // Prepare update data (EXCLUDE file objects - they should only be uploaded via file upload endpoints)
       const updateData = {
         ...editFormData,
-        id: selectedProperty.id
+        id: selectedProperty.id,
+        // Remove file objects from regular property update - they should only be uploaded via dedicated endpoints
+        main_image: editFormData.main_image, // Keep main_image to allow clearing it
+        main_image_file: undefined,
+        main_image_preview: undefined,
+        // Keep image_gallery to allow removal of gallery images
+        image_gallery: editFormData.image_gallery,
+        // Ensure referrals is always an array (never null or undefined)
+        referrals: editFormData.referrals || []
       }
 
       console.log('📡 Sending update request:', updateData)
@@ -414,21 +420,58 @@ export default function PropertiesPage() {
       }
 
       // Use the handleUpdateProperty function which handles CSRF tokens
-      await handleUpdateProperty(selectedProperty.id, updateData)
+      const result = await handleUpdateProperty(selectedProperty.id, updateData)
       
-      // Close the modal
-      setShowEditModal(false)
-      setSelectedProperty(null)
+      console.log('🔍 handleUpdateProperty result:', result)
       
-      // Refresh the properties list
-      await loadData()
+      // Check if there were validation errors
+      if (result && !result.success && result.validationErrors) {
+        // Handle validation errors - don't close modal, show errors under inputs
+        console.log('🔍 Backend validation errors received:', result.validationErrors)
+        
+        // Convert backend validation errors to frontend format
+        const fieldErrors: Record<string, string> = {}
+        result.validationErrors.forEach((error: any) => {
+          fieldErrors[error.field] = error.message
+        })
+        
+        // Set backend validation errors to display under inputs
+        setBackendValidationErrors(fieldErrors)
+        console.log('🔍 Field errors to display:', fieldErrors)
+        
+        // Show a generic error message
+        showError('Please fix the validation errors shown below')
+        return // Don't close modal
+      }
       
-      // Refresh categories and statuses to ensure they're up to date
-      await refreshCategories()
-      await refreshStatuses()
+      // Check if there was an error (but not validation errors)
+      if (result && !result.success && !result.validationErrors) {
+        console.log('🔍 Update failed with error:', result.error)
+        // Show the error message
+        showError(result.error || 'Update failed')
+        // Don't close modal for other errors either
+        return
+      }
+      
+      // Only close modal if update was successful
+      if (result && result.success) {
+        console.log('🔍 Update successful, closing modal')
+        setShowEditModal(false)
+        setSelectedProperty(null)
+        
+        // Refresh the properties list
+        await loadData()
+        
+        // Refresh categories and statuses to ensure they're up to date
+        await refreshCategories()
+        await refreshStatuses()
+      } else {
+        console.log('🔍 Unexpected result format:', result)
+        // Don't close modal if we don't know what happened
+      }
     } catch (error) {
       console.error('❌ Error updating property:', error)
-      alert('An error occurred while updating the property. Please try again.')
+      showError('Something went wrong while updating the property. Please try again.')
     }
   }
 
@@ -439,24 +482,17 @@ export default function PropertiesPage() {
       
       // Check authentication
       if (!isAuthenticated || !token) {
-        alert('You must be logged in to add properties')
+        showError('You must be logged in to add properties')
         return
       }
       
       // Check permissions
       if (!canManageProperties) {
-        alert('You do not have permission to add properties')
+        showError('You do not have permission to add properties')
         return
       }
       
-      // Validate required fields
-      const requiredFields = ['status_id', 'location', 'category_id', 'owner_name', 'price']
-      const missingFields = requiredFields.filter(field => !propertyData[field])
-      
-      if (missingFields.length > 0) {
-        alert(`Missing required fields: ${missingFields.join(', ')}`)
-        return
-      }
+      // Note: Required field validation is now handled by HTML required attributes
 
       // Ensure numeric fields are properly formatted and exclude image data
               const formattedData = {
@@ -476,6 +512,7 @@ export default function PropertiesPage() {
           agent_id: propertyData.agent_id || null,
           price: parseFloat(propertyData.price),
           notes: propertyData.notes || null,
+          property_url: propertyData.property_url || null,
           referrals: propertyData.referrals || null
           // Note: main_image and image_gallery are excluded - they will be handled separately via file uploads
         }
@@ -490,7 +527,7 @@ export default function PropertiesPage() {
         
         // Additional validation after formatting
         if (isNaN(formattedData.status_id) || isNaN(formattedData.category_id) || isNaN(formattedData.price)) {
-          alert('Invalid numeric values detected. Please check Status, Category, and Price fields.')
+          showError('Invalid values detected. Please check Status, Category, and Price fields.')
           return
         }
         
@@ -509,7 +546,7 @@ export default function PropertiesPage() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          alert('Authentication required. Please log in again.')
+          showError('Authentication required. Please log in again.')
           return
         }
         const errorData = await response.json().catch(() => ({}))
@@ -518,6 +555,7 @@ export default function PropertiesPage() {
 
       const newProperty = await response.json()
       console.log('Property added successfully:', newProperty)
+      showSuccess('Property added successfully!')
 
               // Refresh the properties list
         await loadData()
@@ -532,7 +570,7 @@ export default function PropertiesPage() {
     } catch (error) {
       console.error('Error adding property:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Error adding property: ${errorMessage}`)
+      showError(`Something went wrong: ${errorMessage}`)
       throw error // Re-throw so the modal knows the creation failed
     }
   }
@@ -549,13 +587,13 @@ export default function PropertiesPage() {
       try {
         // Check authentication
         if (!isAuthenticated || !token) {
-          alert('You must be logged in to delete properties')
+          showError('You must be logged in to delete properties')
           return
         }
         
         // Check permissions
         if (!canManageProperties) {
-          alert('You do not have permission to delete properties')
+          showError('You do not have permission to delete properties')
           return
         }
         
@@ -578,7 +616,7 @@ export default function PropertiesPage() {
         
         if (!response.ok) {
           if (response.status === 401) {
-            alert('Authentication required. Please log in again.')
+            showError('Authentication required. Please log in again.')
             return
           }
           
@@ -608,133 +646,100 @@ export default function PropertiesPage() {
         setDeleteConfirmation('')
         
         // Show success message
-        alert('Property deleted successfully!')
+        showSuccess('Property deleted successfully!')
         
       } catch (error) {
         console.error('❌ Error deleting property:', error)
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-        alert(`Error deleting property: ${errorMessage}`)
+        showError(`Something went wrong while deleting property: ${errorMessage}`)
       }
     }
   }
 
-  // Handle image navigation
-  const handleGoToPreviousImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex(currentImageIndex - 1)
-      setSelectedImage(allImages[currentImageIndex - 1])
-    }
-  }
-
-  const handleGoToNextImage = () => {
-    if (currentImageIndex < allImages.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1)
-      setSelectedImage(allImages[currentImageIndex + 1])
-    }
-  }
+  // Image navigation is now handled internally by PropertyModals component
 
   // Handle image upload
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (files) {
-      Array.from(files).forEach(file => {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          const base64Image = e.target?.result as string
-          // Handle the uploaded image
-          console.log('Image uploaded:', base64Image.substring(0, 50) + '...')
-        }
-        reader.readAsDataURL(file)
-      })
+      // Note: This is just a generic file handler - actual image upload 
+      // is handled in PropertyModals component using proper file upload API
+      console.log(`Selected ${files.length} files for upload. Use the Edit Property modal to upload images.`)
     }
   }
 
-  // Handle remove gallery image
-  const handleRemoveGalleryImage = (index: number) => {
-    const newImages = allImages.filter((_, i) => i !== index)
-    setAllImages(newImages)
-    if (currentImageIndex >= newImages.length) {
-      setCurrentImageIndex(Math.max(0, newImages.length - 1))
-    }
-  }
+  // Gallery image management is now handled internally by PropertyModals component
 
   const handleUpdateProperty = async (id: number, propertyData: any) => {
+    console.log('🚀 handleUpdateProperty called with centralized API')
     try {
       // Check authentication
       if (!isAuthenticated || !token) {
-        alert('You must be logged in to update properties')
+        showError('You must be logged in to update properties')
         return
       }
       
       // Check permissions
       if (!canManageProperties) {
-        alert('You do not have permission to update properties')
+        showError('You do not have permission to update properties')
         return
       }
       
-      // Step 1: Get CSRF token by making a GET request to the property endpoint
-      console.log('🔐 Getting CSRF token for property:', id)
-      const csrfResponse = await fetch(`http://localhost:10000/api/properties/${id}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (!csrfResponse.ok) {
-        throw new Error(`Failed to get CSRF token: ${csrfResponse.statusText}`)
-      }
-
-      // Extract CSRF token from response headers
-      const csrfToken = csrfResponse.headers.get('X-CSRF-Token')
-      console.log('🔐 CSRF token received:', csrfToken ? 'Yes' : 'No')
-      console.log('🔐 All response headers:', Array.from(csrfResponse.headers.entries()))
+      console.log('🔍 Using centralized propertiesApi.update')
+      console.log('🔍 Request body:', JSON.stringify(propertyData, null, 2))
       
-      if (!csrfToken) {
-        throw new Error('CSRF token not received from server')
-      }
+      // Use the centralized API function which handles CSRF tokens automatically
+      const response = await propertiesApi.update(id, propertyData)
       
-              // Step 2: Update the property with CSRF token
-        const response = await fetch(`http://localhost:10000/api/properties/${id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-            'X-CSRF-Token': csrfToken
-          },
-          body: JSON.stringify(propertyData),
+      console.log('🔍 API response:', response)
+      
+      // Check if there were validation errors
+      if (response && !response.success && (response as any).validationErrors) {
+        // Handle validation errors - don't close modal, show errors under inputs
+        console.log('🔍 Backend validation errors received:', (response as any).validationErrors)
+        
+        // Convert backend validation errors to frontend format
+        const fieldErrors: Record<string, string> = {}
+        ;(response as any).validationErrors.forEach((error: any) => {
+          fieldErrors[error.field] = error.message
         })
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          alert('Authentication required. Please log in again.')
-          return
-        }
-        if (response.status === 403) {
-          const errorData = await response.json()
-          throw new Error(`CSRF Error: ${errorData.message}`)
-        }
-        throw new Error(`Failed to update property: ${response.statusText}`)
+        
+        setBackendValidationErrors(fieldErrors)
+        return { success: false, validationErrors: (response as any).validationErrors }
       }
       
-      const updatedProperty = await response.json()
+      // Check for other errors
+      if (!response.success) {
+        console.log('🔍 API returned error:', response.message)
+        return { success: false, error: response.message || 'Update failed' }
+      }
       
       // Update local state
       setProperties(prev => prev.map(p => 
-        p.id === id ? { ...updatedProperty, onView: handleViewProperty, onEdit: handleEditProperty, onDelete: handleDeleteProperty } : p
+        p.id === id ? { ...response.data, onView: handleViewProperty, onEdit: handleEditProperty, onDelete: handleDeleteProperty } : p
       ))
       
-      setShowEditModal(false)
-      setSelectedProperty(null)
+      // Clear any previous validation errors
+      setBackendValidationErrors({})
       
       // Show success message
-      alert('Property updated successfully!')
+      showSuccess('Property successfully updated!')
+      
+      // Return success indicator
+      return { success: true, data: response.data }
       
     } catch (error) {
       console.error('Error updating property:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Failed to update property: ${errorMessage}`)
+      
+      // Check if it's a CSRF error
+      if (errorMessage.includes('CSRF') || errorMessage.includes('Invalid CSRF token')) {
+        showError('Security token expired. Please refresh the page and try again.')
+      } else {
+        showError(`Something went wrong while updating property: ${errorMessage}`)
+      }
+      
+      return { success: false, error: errorMessage }
     }
   }
 
@@ -1218,20 +1223,17 @@ export default function PropertiesPage() {
         setDeleteConfirmation={setDeleteConfirmation}
         editFormData={editFormData}
         setEditFormData={setEditFormData}
-        selectedImage={selectedImage}
-        allImages={allImages}
-        currentImageIndex={currentImageIndex}
         onSaveEdit={handleSaveEdit}
         onConfirmDelete={handleConfirmDelete}
         onImageUpload={handleImageUpload}
-        onRemoveGalleryImage={handleRemoveGalleryImage}
-        onGoToPreviousImage={handleGoToPreviousImage}
-        onGoToNextImage={handleGoToNextImage}
         onSaveAdd={handleAddProperty}
         categories={categories}
         statuses={statuses}
         onRefreshCategories={refreshCategories}
         onRefreshStatuses={refreshStatuses}
+        onRefreshProperties={loadData}
+        backendValidationErrors={backendValidationErrors}
+        setBackendValidationErrors={setBackendValidationErrors}
       />
     </div>
   )

@@ -10,6 +10,54 @@ export class ApiError extends Error {
   }
 }
 
+// CSRF token cache
+let csrfToken: string | null = null
+let csrfTokenTimestamp: number = 0
+const CSRF_TOKEN_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+
+// Get CSRF token from server
+async function getCSRFToken(forceRefresh = false): Promise<string | null> {
+  const now = Date.now()
+  
+  // Return cached token if it's still valid and not forcing refresh
+  if (csrfToken && !forceRefresh && (now - csrfTokenTimestamp) < CSRF_TOKEN_CACHE_DURATION) {
+    return csrfToken
+  }
+  
+  try {
+    console.log('🔐 Fetching fresh CSRF token...')
+    const response = await fetch(`${API_BASE_URL}/properties`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      },
+    })
+    
+    if (response.ok) {
+      const newToken = response.headers.get('X-CSRF-Token')
+      if (newToken) {
+        csrfToken = newToken
+        csrfTokenTimestamp = now
+        console.log('🔐 CSRF token refreshed successfully')
+        return csrfToken
+      }
+    } else {
+      console.error('🔐 Failed to get CSRF token, response status:', response.status)
+    }
+  } catch (error) {
+    console.error('🔐 Failed to get CSRF token:', error)
+  }
+  
+  return null
+}
+
+// Clear CSRF token cache (useful when getting 403 errors)
+function clearCSRFToken() {
+  csrfToken = null
+  csrfTokenTimestamp = 0
+  console.log('🔐 CSRF token cache cleared')
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -28,6 +76,14 @@ async function apiRequest<T>(
     headers['Authorization'] = `Bearer ${authToken}`
   }
   
+  // Add CSRF token for non-GET requests
+  if (options.method && options.method !== 'GET') {
+    const csrf = await getCSRFToken()
+    if (csrf) {
+      headers['X-CSRF-Token'] = csrf
+    }
+  }
+  
   const config: RequestInit = {
     headers,
     ...options,
@@ -43,6 +99,26 @@ async function apiRequest<T>(
         const errorData = await response.json()
         if (errorData.message) {
           errorMessage = errorData.message
+          
+          // If CSRF token is invalid, try to get a new one and retry once
+          if ((errorData.message === 'Invalid CSRF token' || errorData.message.includes('CSRF')) && options.method && options.method !== 'GET') {
+            console.log('🔐 CSRF token invalid, getting new token and retrying...')
+            clearCSRFToken() // Clear cached token
+            const newCsrf = await getCSRFToken(true) // Force refresh
+            if (newCsrf) {
+              const retryHeaders = { ...headers, 'X-CSRF-Token': newCsrf }
+              const retryConfig = { ...config, headers: retryHeaders }
+              const retryResponse = await fetch(url, retryConfig)
+              
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json()
+                console.log('🔐 Retry successful with new CSRF token')
+                return retryData
+              } else {
+                console.log('🔐 Retry failed with new CSRF token, status:', retryResponse.status)
+              }
+            }
+          }
         }
       } catch (parseError) {
         // If we can't parse the response, use the default message
@@ -62,6 +138,9 @@ async function apiRequest<T>(
 }
 
 // Authentication API
+// Export CSRF utilities
+export { clearCSRFToken }
+
 export const apiClient = {
   // Login user
   login: (email: string, password: string) => 
@@ -165,10 +244,35 @@ export const propertiesApi = {
   }),
   
   // Update property
-  update: (id: number, data: any) => apiRequest<{ success: boolean; data: any; message: string }>(`/properties/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(data),
-  }),
+  update: async (id: number, data: any) => {
+    // First get a fresh CSRF token for this specific property
+    console.log(`🔐 Getting CSRF token for property ${id}...`)
+    try {
+      const csrfResponse = await fetch(`${API_BASE_URL}/properties/${id}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+      
+      if (csrfResponse.ok) {
+        const newToken = csrfResponse.headers.get('X-CSRF-Token')
+        if (newToken) {
+          csrfToken = newToken
+          csrfTokenTimestamp = Date.now()
+          console.log('🔐 CSRF token updated for property update')
+        }
+      }
+    } catch (error) {
+      console.warn('🔐 Failed to get fresh CSRF token, using cached one:', error)
+    }
+    
+    // Now make the update request
+    return apiRequest<{ success: boolean; data: any; message: string }>(`/properties/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
   
   // Delete property
   delete: (id: number) => apiRequest<{ success: boolean; message: string }>(`/properties/${id}`, {

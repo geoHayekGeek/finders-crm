@@ -19,6 +19,24 @@ export interface CalendarEvent {
   location?: string
   attendees?: string[]
   notes?: string
+  propertyId?: number | null
+  propertyReference?: string
+  propertyLocation?: string
+  leadId?: number | null
+  leadName?: string
+  leadPhone?: string
+}
+
+export interface Property {
+  id: number
+  reference_number: string
+  location: string
+}
+
+export interface Lead {
+  id: number
+  customer_name: string
+  phone_number?: string
 }
 
 export default function CalendarPage() {
@@ -38,15 +56,38 @@ export default function CalendarPage() {
         setIsLoading(true)
         setError(null)
         
+        console.log('🔍 FETCHING EVENTS FROM API...')
         const response = await fetch('http://localhost:10000/api/calendar')
+        console.log('📡 API Response status:', response.status)
+        
         if (response.ok) {
           const data = await response.json()
+          console.log('📦 Raw API data:', data)
+          
           if (data.success) {
             const eventsWithDates = data.events.map((event: { start: string; end: string; [key: string]: unknown }) => ({
               ...event,
               start: new Date(event.start),
               end: new Date(event.end)
             }))
+            
+            console.log('🎯 ALL EVENTS LOADED:', eventsWithDates.length)
+            console.log('🔗 Events with property/lead data:', eventsWithDates.filter(e => e.propertyId || e.leadId))
+            
+            // Log each event with property/lead data in detail
+            eventsWithDates.forEach(event => {
+              if (event.propertyId || event.leadId) {
+                console.log(`📋 Event "${event.title}" (ID: ${event.id}):`, {
+                  propertyId: event.propertyId,
+                  propertyReference: event.propertyReference,
+                  propertyLocation: event.propertyLocation,
+                  leadId: event.leadId,
+                  leadName: event.leadName,
+                  leadPhone: event.leadPhone
+                })
+              }
+            })
+            
             setEvents(eventsWithDates)
           } else {
             setError(data.message || 'Failed to fetch events')
@@ -100,6 +141,14 @@ export default function CalendarPage() {
 
   const handleUpdateEvent = async (event: CalendarEvent) => {
     try {
+      console.log('🔄 UPDATING EVENT!')
+      console.log('📝 Event data being sent to API:', {
+        id: event.id,
+        title: event.title,
+        propertyId: event.propertyId,
+        leadId: event.leadId
+      })
+      
       const response = await fetch(`http://localhost:10000/api/calendar/${event.id}`, {
         method: 'PUT',
         headers: {
@@ -108,8 +157,12 @@ export default function CalendarPage() {
         body: JSON.stringify(event)
       })
 
+      console.log('📡 Update API response status:', response.status)
+
       if (response.ok) {
         const data = await response.json()
+        console.log('📦 Update API response data:', data)
+        
         if (data.success) {
           // Convert string dates back to Date objects
           const updatedEvent: CalendarEvent = {
@@ -117,7 +170,37 @@ export default function CalendarPage() {
             start: new Date(data.event.start),
             end: new Date(data.event.end)
           }
-          setEvents(prev => prev.map(e => e.id === event.id ? updatedEvent : e))
+          
+          console.log('✅ UPDATED EVENT FROM API:', {
+            id: updatedEvent.id,
+            title: updatedEvent.title,
+            propertyId: updatedEvent.propertyId,
+            propertyReference: updatedEvent.propertyReference,
+            propertyLocation: updatedEvent.propertyLocation,
+            leadId: updatedEvent.leadId,
+            leadName: updatedEvent.leadName,
+            leadPhone: updatedEvent.leadPhone
+          })
+          
+          console.log('🔄 Updating events state with new data...')
+          console.log('🔍 Comparing IDs for update:')
+          console.log('  - Original event ID:', event.id, typeof event.id)
+          console.log('  - Updated event ID:', updatedEvent.id, typeof updatedEvent.id)
+          
+          setEvents(prev => {
+            console.log('📋 Current events in state:', prev.map(e => ({ id: e.id, title: e.title, propertyId: e.propertyId, leadId: e.leadId })))
+            
+            const newEvents = prev.map(e => {
+              const match = String(e.id) === String(event.id)
+              console.log(`🔍 Checking event ${e.id} (${typeof e.id}) vs ${event.id} (${typeof event.id}): ${match}`)
+              return match ? updatedEvent : e
+            })
+            
+            const updatedEventInNewState = newEvents.find(e => String(e.id) === String(event.id))
+            console.log('📋 Updated event in new state:', updatedEventInNewState)
+            return newEvents
+          })
+          
           setIsEventModalOpen(false)
           setSelectedEvent(null)
         } else {
@@ -157,8 +240,39 @@ export default function CalendarPage() {
   }
 
   const handleEventClick = (event: CalendarEvent) => {
+    console.log('🖱️ EVENT CLICKED!')
+    console.log('📅 Clicked event details:', {
+      id: event.id,
+      title: event.title,
+      propertyId: event.propertyId,
+      propertyReference: event.propertyReference,
+      propertyLocation: event.propertyLocation,
+      leadId: event.leadId,
+      leadName: event.leadName,
+      leadPhone: event.leadPhone
+    })
+    
+    console.log('🔍 Checking event in current state:')
+    const eventInState = events.find(e => String(e.id) === String(event.id))
+    if (eventInState) {
+      console.log('📋 Event found in state:', {
+        id: eventInState.id,
+        title: eventInState.title,
+        propertyId: eventInState.propertyId,
+        propertyReference: eventInState.propertyReference,
+        propertyLocation: eventInState.propertyLocation,
+        leadId: eventInState.leadId,
+        leadName: eventInState.leadName,
+        leadPhone: eventInState.leadPhone
+      })
+    } else {
+      console.log('❌ Event NOT found in state!')
+    }
+    
     setSelectedEvent(event)
     setIsEventModalOpen(true)
+    
+    console.log('✅ Modal should open now with event:', event.title)
   }
 
   const handleDateClick = (date: Date) => {

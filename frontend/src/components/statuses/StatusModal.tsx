@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Circle, Save, Palette } from 'lucide-react'
 import { Status } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { statusesApi } from '@/utils/api'
 
 interface StatusModalProps {
@@ -32,8 +33,10 @@ const PRESET_COLORS = [
 
 export default function StatusModal({ isOpen, onClose, onSuccess, status, title }: StatusModalProps) {
   const { token } = useAuth()
+  const { showSuccess, showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
     name: '',
@@ -42,6 +45,36 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
     color: '#6B7280',
     is_active: true
   })
+
+  // Validation functions
+  const validateField = (fieldName: string, value: string) => {
+    let errorMessage = ''
+    
+    switch (fieldName) {
+      case 'name':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Status name is required'
+        }
+        break
+      case 'code':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Status code is required'
+        }
+        break
+    }
+    
+    setValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: errorMessage
+    }))
+  }
+
+  const clearFieldError = (fieldName: string) => {
+    setValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: ''
+    }))
+  }
 
   // Reset form when modal opens/closes or status changes
   useEffect(() => {
@@ -64,6 +97,7 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
         })
       }
       setError(null)
+      setValidationErrors({})
     }
   }, [isOpen, status])
 
@@ -75,6 +109,14 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
+    
+    // Clear error when user starts typing
+    clearFieldError(name)
+    
+    // Validate required fields instantly
+    if (name === 'name' || name === 'code') {
+      validateField(name, value)
+    }
   }
 
   const handleColorChange = (color: string) => {
@@ -87,8 +129,16 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim() || !formData.code.trim()) {
-      setError('Name and code are required')
+    // Validate all required fields
+    validateField('name', formData.name)
+    validateField('code', formData.code)
+    
+    // Check if any required fields are empty
+    const hasEmptyFields = !formData.name.trim() || !formData.code.trim()
+    
+    if (hasEmptyFields) {
+      const errorMessage = 'Please fill in all required fields before submitting'
+      showError(errorMessage)
       return
     }
 
@@ -115,12 +165,18 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
 
       if (response.success) {
         onSuccess(response.data)
+        showSuccess(`Status ${status ? 'updated' : 'created'} successfully!`)
+        onClose()
       } else {
-        setError(response.message || `Failed to ${status ? 'update' : 'create'} status`)
+        const errorMessage = response.message || `Failed to ${status ? 'update' : 'create'} status`
+        setError(errorMessage)
+        showError(errorMessage)
       }
     } catch (err) {
       console.error('Error saving status:', err)
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(errorMessage)
+      showError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -162,44 +218,53 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
               </button>
             </div>
 
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
 
             <div className="space-y-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
                   Status Name <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="Enter status name"
-                  required
-                />
+                 <input
+                   type="text"
+                   id="name"
+                   name="name"
+                   value={formData.name}
+                   onChange={handleInputChange}
+                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                     validationErrors.name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                   }`}
+                   placeholder="Enter status name"
+                 />
+                {validationErrors.name && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {validationErrors.name}
+                  </p>
+                )}
               </div>
 
               <div>
                 <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-1">
                   Status Code <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  id="code"
-                  name="code"
-                  value={formData.code}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                  placeholder="Enter status code (e.g., ACTIVE, SOLD)"
-                  required
-                  style={{ textTransform: 'uppercase' }}
-                />
+                 <input
+                   type="text"
+                   id="code"
+                   name="code"
+                   value={formData.code}
+                   onChange={handleInputChange}
+                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 ${
+                     validationErrors.code ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                   }`}
+                   placeholder="Enter status code (e.g., ACTIVE, SOLD)"
+                   style={{ textTransform: 'uppercase' }}
+                 />
+                {validationErrors.code && (
+                  <p className="mt-1 text-sm text-red-600 flex items-center">
+                    <span className="mr-1">⚠️</span>
+                    {validationErrors.code}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 mt-1">Short code for this status (will be converted to uppercase)</p>
               </div>
 

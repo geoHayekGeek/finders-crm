@@ -1,0 +1,18 @@
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="skyGrad2" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#87CEEB;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#E0F6FF;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <rect width="400" height="300" fill="url(#skyGrad2)"/>
+        <polygon points="200,80 100,160 300,160" fill="#8B4513"/>
+        <rect x="120" y="160" width="160" height="100" fill="#DEB887" stroke="#8B7355" stroke-width="2"/>
+        <rect x="140" y="180" width="30" height="40" fill="#4169E1" stroke="#000080" stroke-width="1"/>
+        <rect x="190" y="180" width="30" height="40" fill="#4169E1" stroke="#000080" stroke-width="1"/>
+        <rect x="240" y="180" width="30" height="40" fill="#4169E1" stroke="#000080" stroke-width="1"/>
+        <rect x="180" y="210" width="25" height="50" fill="#8B4513" stroke="#654321" stroke-width="1"/>
+        <rect x="50" y="200" width="60" height="60" fill="#228B22"/>
+        <rect x="290" y="200" width="60" height="60" fill="#228B22"/>
+        <text x="200" y="40" font-family="Arial" font-size="16" fill="#2F4F4F" text-anchor="middle">Luxury Villa</text>
+      </svg>

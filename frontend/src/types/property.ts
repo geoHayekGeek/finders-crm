@@ -33,7 +33,7 @@ export interface Property {
   notes?: string
   property_url?: string // Optional property URL (e.g., listing URL from external sites)
   main_image?: string // Base64 encoded main image
-  image_gallery?: string[] // Array of base64 encoded gallery images
+  image_gallery?: string[] // Array of image URLs
   created_at: string
   updated_at: string
   referrals?: Referral[]
@@ -62,8 +62,10 @@ export interface EditFormData {
   price: number
   notes?: string
   property_url?: string // Optional property URL (e.g., listing URL from external sites)
-  main_image?: string // Base64 encoded main image
-  image_gallery?: string[] // Array of base64 encoded gallery images
+  main_image?: string // Base64 encoded main image (legacy)
+  main_image_file?: File // File object for upload
+  main_image_preview?: string // Preview URL for display
+  image_gallery?: string[] // Array of image URLs
   referrals?: Referral[]
 }
 

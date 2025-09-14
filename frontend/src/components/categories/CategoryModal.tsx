@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { X, Tag, Save } from 'lucide-react'
 import { Category } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { categoriesApi } from '@/utils/api'
 
 interface CategoryModalProps {
@@ -16,8 +17,10 @@ interface CategoryModalProps {
 
 export default function CategoryModal({ isOpen, onClose, onSuccess, category, title }: CategoryModalProps) {
   const { token } = useAuth()
+  const { showSuccess, showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
     name: '',
@@ -25,6 +28,36 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
     description: '',
     is_active: true
   })
+
+  // Validation functions
+  const validateField = (fieldName: string, value: string) => {
+    let errorMessage = ''
+    
+    switch (fieldName) {
+      case 'name':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Category name is required'
+        }
+        break
+      case 'code':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Category code is required'
+        }
+        break
+    }
+    
+    setValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: errorMessage
+    }))
+  }
+
+  const clearFieldError = (fieldName: string) => {
+    setValidationErrors(prev => ({
+      ...prev,
+      [fieldName]: ''
+    }))
+  }
 
   // Reset form when modal opens/closes or category changes
   useEffect(() => {
@@ -45,6 +78,7 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
         })
       }
       setError(null)
+      setValidationErrors({})
     }
   }, [isOpen, category])
 
@@ -56,13 +90,29 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }))
+    
+    // Clear error when user starts typing
+    clearFieldError(name)
+    
+    // Validate required fields instantly
+    if (name === 'name' || name === 'code') {
+      validateField(name, value)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.name.trim() || !formData.code.trim()) {
-      setError('Name and code are required')
+    // Validate all required fields
+    validateField('name', formData.name)
+    validateField('code', formData.code)
+    
+    // Check if any required fields are empty
+    const hasEmptyFields = !formData.name.trim() || !formData.code.trim()
+    
+    if (hasEmptyFields) {
+      const errorMessage = 'Please fill in all required fields before submitting'
+      showError(errorMessage)
       return
     }
 
@@ -88,12 +138,18 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
 
       if (response.success) {
         onSuccess(response.data)
+        showSuccess(`Category ${category ? 'updated' : 'created'} successfully!`)
+        onClose()
       } else {
-        setError(response.message || `Failed to ${category ? 'update' : 'create'} category`)
+        const errorMessage = response.message || `Failed to ${category ? 'update' : 'create'} category`
+        setError(errorMessage)
+        showError(errorMessage)
       }
     } catch (err) {
       console.error('Error saving category:', err)
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(errorMessage)
+      showError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -128,11 +184,6 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
                 </button>
               </div>
 
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              )}
 
               <div className="space-y-4">
                 <div>
@@ -145,10 +196,17 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      validationErrors.name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter category name"
-                    required
                   />
+                  {validationErrors.name && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {validationErrors.name}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -161,11 +219,18 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
                     name="code"
                     value={formData.code}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      validationErrors.code ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter category code (e.g., APT, VILLA)"
-                    required
                     style={{ textTransform: 'uppercase' }}
                   />
+                  {validationErrors.code && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {validationErrors.code}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-500 mt-1">Short code for this category (will be converted to uppercase)</p>
                 </div>
 

@@ -241,8 +241,17 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                                   e.stopPropagation()
                                   onEventClick(event)
                                 }}
+                                title={`${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}`}
                               >
-                                {event.title}
+                                <div className="flex items-center space-x-1">
+                                  {event.propertyId && (
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
+                                  )}
+                                  {event.leadId && (
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
+                                  )}
+                                  <span className="truncate">{event.title}</span>
+                                </div>
                               </div>
                             ))}
                             {dayEvents.length > 3 && (
@@ -375,8 +384,17 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                               e.stopPropagation()
                               onEventClick(event)
                             }}
+                            title={`${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}`}
                           >
-                            {event.title}
+                            <div className="flex items-center space-x-1">
+                              {event.propertyId && (
+                                <div className="w-1 h-1 bg-white rounded-full opacity-75"></div>
+                              )}
+                              {event.leadId && (
+                                <div className="w-1 h-1 bg-white rounded-full opacity-75"></div>
+                              )}
+                              <span className="truncate">{event.title}</span>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -486,9 +504,23 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                         onEventClick(event)
                       }}
                     >
-                      <div className="font-medium text-xs sm:text-sm">{event.title}</div>
+                      <div className="font-medium text-xs sm:text-sm flex items-center space-x-1">
+                        {event.propertyId && (
+                          <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
+                        )}
+                        {event.leadId && (
+                          <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
+                        )}
+                        <span>{event.title}</span>
+                      </div>
                       {event.location && (
                         <div className="text-xs opacity-90">{event.location}</div>
+                      )}
+                      {event.propertyReference && (
+                        <div className="text-xs opacity-75">Property: {event.propertyReference}</div>
+                      )}
+                      {event.leadName && (
+                        <div className="text-xs opacity-75">Lead: {event.leadName}</div>
                       )}
                     </div>
                   ))}

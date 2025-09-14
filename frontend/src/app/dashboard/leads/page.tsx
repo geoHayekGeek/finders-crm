@@ -283,25 +283,21 @@ export default function LeadsPage() {
       
       // Check authentication
       if (!isAuthenticated || !token) {
-        alert('You must be logged in to edit leads')
         return
       }
       
       // Check permissions
       if (!canManageLeads) {
-        alert('You do not have permission to edit leads')
         return
       }
 
       // Get the lead ID from selectedLead
       if (!selectedLead) {
-        alert('No lead selected for editing')
         return
       }
 
       // Validate required fields
       if (!editFormData.customer_name.trim()) {
-        alert('Customer name is required')
         return
       }
 
@@ -319,10 +315,8 @@ export default function LeadsPage() {
       // Refresh the leads list
       await loadData()
       
-      alert('Lead updated successfully!')
     } catch (error) {
       console.error('❌ Error updating lead:', error)
-      alert('An error occurred while updating the lead. Please try again.')
     }
   }
 
@@ -333,19 +327,16 @@ export default function LeadsPage() {
       
       // Check authentication
       if (!isAuthenticated || !token) {
-        alert('You must be logged in to add leads')
         return
       }
       
       // Check permissions
       if (!canManageLeads) {
-        alert('You do not have permission to add leads')
         return
       }
       
       // Validate required fields
       if (!leadData.customer_name.trim()) {
-        alert('Customer name is required')
         return
       }
 
@@ -365,7 +356,6 @@ export default function LeadsPage() {
     } catch (error) {
       console.error('Error adding lead:', error)
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      alert(`Error adding lead: ${errorMessage}`)
       throw error // Re-throw so the modal knows the creation failed
     }
   }
@@ -377,13 +367,11 @@ export default function LeadsPage() {
       try {
         // Check authentication
         if (!isAuthenticated || !token) {
-          alert('You must be logged in to delete leads')
           return
         }
         
         // Check permissions
         if (!canManageLeads) {
-          alert('You do not have permission to delete leads')
           return
         }
         
@@ -403,12 +391,10 @@ export default function LeadsPage() {
         setDeleteConfirmation('')
         
         // Show success message
-        alert('Lead deleted successfully!')
         
       } catch (error) {
         console.error('Error deleting lead:', error)
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-        alert(`Error deleting lead: ${errorMessage}`)
       }
     }
   }

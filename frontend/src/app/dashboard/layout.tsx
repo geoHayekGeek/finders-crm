@@ -48,6 +48,7 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
+  const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
   const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, role } = usePermissions()
 
@@ -95,8 +96,26 @@ export default function DashboardLayout({
     // Clients - visible to management roles
     baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
 
-    // Leads - visible to management roles
-    baseNavigation.push({ name: 'Leads', href: '/dashboard/leads', icon: FileText, alwaysVisible: true })
+    // Leads with submenu for management roles
+    const leadsSubmenuItems = [
+      { name: 'All Leads', href: '/dashboard/leads', icon: FileText }
+    ]
+    
+    // Add lead statuses to submenu only if user can view them
+    if (canViewCategoriesAndStatuses) {
+      leadsSubmenuItems.push(
+        { name: 'Lead Statuses', href: '/dashboard/leads/statuses', icon: Circle }
+      )
+    }
+
+    baseNavigation.push({ 
+      name: 'Leads', 
+      href: '/dashboard/leads', 
+      icon: FileText, 
+      alwaysVisible: true,
+      hasSubmenu: leadsSubmenuItems.length > 1,
+      submenu: leadsSubmenuItems.length > 1 ? leadsSubmenuItems : undefined
+    })
 
     // Calendar - visible to management roles
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })

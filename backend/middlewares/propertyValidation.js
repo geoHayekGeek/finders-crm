@@ -150,9 +150,17 @@ const validateProperty = [
     .withMessage('Image gallery must be an array'),
     
   body('referrals')
-    .optional()
-    .isArray()
-    .withMessage('Referrals must be an array'),
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (value === null || value === undefined) {
+        return true; // Allow null/undefined
+      }
+      if (Array.isArray(value)) {
+        return true; // Allow array
+      }
+      return false; // Reject other types
+    })
+    .withMessage('Referrals must be an array or null'),
     
   // Custom validation for referrals if provided
   body('referrals.*.name')

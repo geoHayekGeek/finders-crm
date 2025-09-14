@@ -8,6 +8,7 @@ import { StatusSelector } from './StatusSelector'
 import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { OperationsSelector } from './OperationsSelector'
 import { formatDateForDisplay } from '@/utils/dateUtils'
+import { useToast } from '@/contexts/ToastContext'
 
 interface User {
   id: number
@@ -66,6 +67,12 @@ export function LeadsModals({
   setDeleteConfirmation,
   onConfirmDelete
 }: LeadsModalsProps) {
+  const { showSuccess, showError } = useToast()
+  
+  // Validation state
+  const [addValidationErrors, setAddValidationErrors] = useState<Record<string, string>>({})
+  const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
+  
   const [addFormData, setAddFormData] = useState<CreateLeadFormData>({
     date: new Date().toISOString().split('T')[0],
     customer_name: '',
@@ -81,35 +88,126 @@ export function LeadsModals({
 
   const [saving, setSaving] = useState(false)
 
+  // Validation functions
+  const validateField = (fieldName: string, value: any, isEditForm = false) => {
+    let errorMessage = ''
+    
+    switch (fieldName) {
+      case 'customer_name':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Customer name is required'
+        }
+        break
+      case 'phone_number':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Phone number is required'
+        }
+        break
+      case 'reference_source_id':
+        if (!value || value === undefined || value === null) {
+          errorMessage = 'Reference source is required'
+        }
+        break
+      case 'operations_id':
+        if (!value || value === undefined || value === null) {
+          errorMessage = 'Operations staff assignment is required'
+        }
+        break
+      case 'status':
+        if (!value || value.trim() === '') {
+          errorMessage = 'Status is required'
+        }
+        break
+    }
+    
+    if (isEditForm) {
+      setEditValidationErrors(prev => ({
+        ...prev,
+        [fieldName]: errorMessage
+      }))
+    } else {
+      setAddValidationErrors(prev => ({
+        ...prev,
+        [fieldName]: errorMessage
+      }))
+    }
+  }
+
+  const clearFieldError = (fieldName: string, isEditForm = false) => {
+    if (isEditForm) {
+      setEditValidationErrors(prev => ({
+        ...prev,
+        [fieldName]: ''
+      }))
+    } else {
+      setAddValidationErrors(prev => ({
+        ...prev,
+        [fieldName]: ''
+      }))
+    }
+  }
+
   // Handle add form submission
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validate required fields
-    if (!addFormData.customer_name.trim()) {
-      alert('Customer name is required')
-      return
-    }
-    if (!addFormData.phone_number.trim()) {
-      alert('Phone number is required')
-      return
-    }
-    if (!addFormData.reference_source_id) {
-      alert('Reference source is required')
-      return
-    }
-    if (!addFormData.operations_id) {
-      alert('Operations staff assignment is required')
-      return
-    }
-    if (!addFormData.status || !addFormData.status.trim()) {
-      alert('Status is required')
+    // Validate all required fields
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'operations_id', 'status']
+    const newValidationErrors: Record<string, string> = {}
+    let hasErrors = false
+    
+    fieldsToValidate.forEach(field => {
+      const value = addFormData[field as keyof CreateLeadFormData]
+      let errorMessage = ''
+      
+      switch (field) {
+        case 'customer_name':
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            errorMessage = 'Customer name is required'
+          }
+          break
+        case 'phone_number':
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            errorMessage = 'Phone number is required'
+          }
+          break
+        case 'reference_source_id':
+          if (!value || value === undefined || value === null) {
+            errorMessage = 'Reference source is required'
+          }
+          break
+        case 'operations_id':
+          if (!value || value === undefined || value === null) {
+            errorMessage = 'Operations staff assignment is required'
+          }
+          break
+        case 'status':
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            errorMessage = 'Status is required'
+          }
+          break
+      }
+      
+      newValidationErrors[field] = errorMessage
+      
+      if (errorMessage) {
+        hasErrors = true
+      }
+    })
+
+    // Update validation errors state
+    setAddValidationErrors(newValidationErrors)
+    
+    // If there are validation errors, don't submit
+    if (hasErrors) {
+      showError('Please fill in all required fields before submitting')
       return
     }
 
     setSaving(true)
     try {
       await onSaveAdd(addFormData)
+      showSuccess('Lead created successfully!')
       setShowAddLeadModal(false)
       // Reset form
       setAddFormData({
@@ -124,8 +222,11 @@ export function LeadsModals({
         notes: '',
         status: ''
       })
+      // Clear validation errors
+      setAddValidationErrors({})
     } catch (error) {
       console.error('Error saving lead:', error)
+      showError('Failed to create lead. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -135,33 +236,69 @@ export function LeadsModals({
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validate required fields
-    if (!editFormData.customer_name.trim()) {
-      alert('Customer name is required')
-      return
-    }
-    if (!editFormData.phone_number.trim()) {
-      alert('Phone number is required')
-      return
-    }
-    if (!editFormData.reference_source_id) {
-      alert('Reference source is required')
-      return
-    }
-    if (!editFormData.operations_id) {
-      alert('Operations staff assignment is required')
-      return
-    }
-    if (!editFormData.status || !editFormData.status.trim()) {
-      alert('Status is required')
+    // Validate all required fields
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'operations_id', 'status']
+    const newValidationErrors: Record<string, string> = {}
+    let hasErrors = false
+    
+    fieldsToValidate.forEach(field => {
+      const value = editFormData[field as keyof EditLeadFormData]
+      let errorMessage = ''
+      
+      switch (field) {
+        case 'customer_name':
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            errorMessage = 'Customer name is required'
+          }
+          break
+        case 'phone_number':
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            errorMessage = 'Phone number is required'
+          }
+          break
+        case 'reference_source_id':
+          if (!value || value === undefined || value === null) {
+            errorMessage = 'Reference source is required'
+          }
+          break
+        case 'operations_id':
+          if (!value || value === undefined || value === null) {
+            errorMessage = 'Operations staff assignment is required'
+          }
+          break
+        case 'status':
+          if (!value || (typeof value === 'string' && value.trim() === '')) {
+            errorMessage = 'Status is required'
+          }
+          break
+      }
+      
+      newValidationErrors[field] = errorMessage
+      
+      if (errorMessage) {
+        hasErrors = true
+      }
+    })
+
+    // Update validation errors state
+    setEditValidationErrors(newValidationErrors)
+    
+    // If there are validation errors, don't submit
+    if (hasErrors) {
+      showError('Please fill in all required fields before submitting')
       return
     }
 
     setSaving(true)
     try {
       await onSaveEdit()
+      showSuccess('Lead updated successfully!')
+      setShowEditLeadModal(false)
+      // Clear validation errors
+      setEditValidationErrors({})
     } catch (error) {
       console.error('Error updating lead:', error)
+      showError('Failed to update lead. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -171,15 +308,19 @@ export function LeadsModals({
   const handleDeleteSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (deleteConfirmation !== deletingLead?.customer_name) {
-      alert('Please type the customer name exactly to confirm deletion')
+      showError('Please type the customer name exactly to confirm deletion')
       return
     }
 
     setSaving(true)
     try {
       await onConfirmDelete()
+      showSuccess('Lead deleted successfully!')
+      setShowDeleteLeadModal(false)
+      setDeleteConfirmation('')
     } catch (error) {
       console.error('Error deleting lead:', error)
+      showError('Failed to delete lead. Please try again.')
     } finally {
       setSaving(false)
     }
@@ -211,7 +352,6 @@ export function LeadsModals({
                   </label>
                   <input
                     type="date"
-                    required
                     value={addFormData.date}
                     onChange={(e) => setAddFormData({ ...addFormData, date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -226,12 +366,25 @@ export function LeadsModals({
                   </label>
                   <input
                     type="text"
-                    required
                     value={addFormData.customer_name}
-                    onChange={(e) => setAddFormData({ ...addFormData, customer_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setAddFormData({ ...addFormData, customer_name: newValue })
+                      clearFieldError('customer_name')
+                      validateField('customer_name', newValue)
+                    }}
+                    onBlur={(e) => validateField('customer_name', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      addValidationErrors.customer_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter customer name"
                   />
+                  {addValidationErrors.customer_name && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {addValidationErrors.customer_name}
+                    </p>
+                  )}
                 </div>
 
                 {/* Phone Number */}
@@ -242,12 +395,25 @@ export function LeadsModals({
                   </label>
                   <input
                     type="tel"
-                    required
                     value={addFormData.phone_number}
-                    onChange={(e) => setAddFormData({ ...addFormData, phone_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setAddFormData({ ...addFormData, phone_number: newValue })
+                      clearFieldError('phone_number')
+                      validateField('phone_number', newValue)
+                    }}
+                    onBlur={(e) => validateField('phone_number', e.target.value)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      addValidationErrors.phone_number ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter phone number"
                   />
+                  {addValidationErrors.phone_number && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {addValidationErrors.phone_number}
+                    </p>
+                  )}
                 </div>
 
                                  {/* Agent Selection */}
@@ -292,12 +458,22 @@ export function LeadsModals({
                   </label>
                   <ReferenceSourceSelector
                     selectedReferenceSourceId={addFormData.reference_source_id}
-                    onReferenceSourceChange={(sourceId) => setAddFormData({ 
-                      ...addFormData, 
-                      reference_source_id: sourceId 
-                    })}
+                    onReferenceSourceChange={(sourceId) => {
+                      setAddFormData({ 
+                        ...addFormData, 
+                        reference_source_id: sourceId 
+                      })
+                      clearFieldError('reference_source_id')
+                      validateField('reference_source_id', sourceId)
+                    }}
                     placeholder="Select a reference source..."
                   />
+                  {addValidationErrors.reference_source_id && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {addValidationErrors.reference_source_id}
+                    </p>
+                  )}
                 </div>
 
                 {/* Operations */}
@@ -308,12 +484,22 @@ export function LeadsModals({
                   </label>
                   <OperationsSelector
                     selectedOperationsId={addFormData.operations_id}
-                    onOperationsChange={(userId) => setAddFormData({ 
-                      ...addFormData, 
-                      operations_id: userId 
-                    })}
+                    onOperationsChange={(userId) => {
+                      setAddFormData({ 
+                        ...addFormData, 
+                        operations_id: userId 
+                      })
+                      clearFieldError('operations_id')
+                      validateField('operations_id', userId)
+                    }}
                     placeholder="Select operations staff..."
                   />
+                  {addValidationErrors.operations_id && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {addValidationErrors.operations_id}
+                    </p>
+                  )}
                 </div>
 
                 {/* Status */}
@@ -324,12 +510,22 @@ export function LeadsModals({
                   </label>
                   <StatusSelector
                     selectedStatus={addFormData.status}
-                    onStatusChange={(status) => setAddFormData({ 
-                      ...addFormData, 
-                      status: status 
-                    })}
+                    onStatusChange={(status) => {
+                      setAddFormData({ 
+                        ...addFormData, 
+                        status: status 
+                      })
+                      clearFieldError('status')
+                      validateField('status', status)
+                    }}
                     placeholder="Select a status..."
                   />
+                  {addValidationErrors.status && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {addValidationErrors.status}
+                    </p>
+                  )}
                 </div>
 
 
@@ -396,7 +592,6 @@ export function LeadsModals({
                   </label>
                   <input
                     type="date"
-                    required
                     value={editFormData.date}
                     onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -411,12 +606,25 @@ export function LeadsModals({
                   </label>
                   <input
                     type="text"
-                    required
                     value={editFormData.customer_name}
-                    onChange={(e) => setEditFormData({ ...editFormData, customer_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setEditFormData({ ...editFormData, customer_name: newValue })
+                      clearFieldError('customer_name', true)
+                      validateField('customer_name', newValue, true)
+                    }}
+                    onBlur={(e) => validateField('customer_name', e.target.value, true)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      editValidationErrors.customer_name ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter customer name"
                   />
+                  {editValidationErrors.customer_name && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {editValidationErrors.customer_name}
+                    </p>
+                  )}
                 </div>
 
                 {/* Phone Number */}
@@ -427,12 +635,25 @@ export function LeadsModals({
                   </label>
                   <input
                     type="tel"
-                    required
                     value={editFormData.phone_number}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onChange={(e) => {
+                      const newValue = e.target.value
+                      setEditFormData({ ...editFormData, phone_number: newValue })
+                      clearFieldError('phone_number', true)
+                      validateField('phone_number', newValue, true)
+                    }}
+                    onBlur={(e) => validateField('phone_number', e.target.value, true)}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      editValidationErrors.phone_number ? 'border-red-300 focus:ring-red-500 focus:border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Enter phone number"
                   />
+                  {editValidationErrors.phone_number && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {editValidationErrors.phone_number}
+                    </p>
+                  )}
                 </div>
 
                                  {/* Agent Selection */}
@@ -477,12 +698,22 @@ export function LeadsModals({
                   </label>
                   <ReferenceSourceSelector
                     selectedReferenceSourceId={editFormData.reference_source_id}
-                    onReferenceSourceChange={(sourceId) => setEditFormData({ 
-                      ...editFormData, 
-                      reference_source_id: sourceId 
-                    })}
+                    onReferenceSourceChange={(sourceId) => {
+                      setEditFormData({ 
+                        ...editFormData, 
+                        reference_source_id: sourceId 
+                      })
+                      clearFieldError('reference_source_id', true)
+                      validateField('reference_source_id', sourceId, true)
+                    }}
                     placeholder="Select a reference source..."
                   />
+                  {editValidationErrors.reference_source_id && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {editValidationErrors.reference_source_id}
+                    </p>
+                  )}
                 </div>
 
                 {/* Operations */}
@@ -493,12 +724,22 @@ export function LeadsModals({
                   </label>
                   <OperationsSelector
                     selectedOperationsId={editFormData.operations_id}
-                    onOperationsChange={(userId) => setEditFormData({ 
-                      ...editFormData, 
-                      operations_id: userId 
-                    })}
+                    onOperationsChange={(userId) => {
+                      setEditFormData({ 
+                        ...editFormData, 
+                        operations_id: userId 
+                      })
+                      clearFieldError('operations_id', true)
+                      validateField('operations_id', userId, true)
+                    }}
                     placeholder="Select operations staff..."
                   />
+                  {editValidationErrors.operations_id && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {editValidationErrors.operations_id}
+                    </p>
+                  )}
                 </div>
 
                 {/* Status */}
@@ -509,12 +750,22 @@ export function LeadsModals({
                   </label>
                   <StatusSelector
                     selectedStatus={editFormData.status}
-                    onStatusChange={(status) => setEditFormData({ 
-                      ...editFormData, 
-                      status: status 
-                    })}
+                    onStatusChange={(status) => {
+                      setEditFormData({ 
+                        ...editFormData, 
+                        status: status 
+                      })
+                      clearFieldError('status', true)
+                      validateField('status', status, true)
+                    }}
                     placeholder="Select a status..."
                   />
+                  {editValidationErrors.status && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {editValidationErrors.status}
+                    </p>
+                  )}
                 </div>
 
 
