@@ -83,14 +83,40 @@ export function LeadsFilters({
   }, [])
 
   const handleFilterChange = (key: keyof LeadFilters, value: string | number | undefined) => {
+    // For date inputs, ensure we handle empty strings properly
+    let newValue = value === '' ? undefined : value
+    
+    // For date inputs, ensure the value is a valid date string or undefined
+    if ((key === 'date_from' || key === 'date_to') && newValue) {
+      // Validate that it's a proper date format (YYYY-MM-DD)
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/
+      if (!dateRegex.test(newValue as string)) {
+        newValue = undefined
+      } else {
+        // Check if the date is in the future
+        const selectedDate = new Date(newValue as string)
+        const today = new Date()
+        today.setHours(23, 59, 59, 999) // Set to end of today
+        
+        if (selectedDate > today) {
+          console.warn('Cannot select future dates:', newValue)
+          // Reset to undefined to prevent future date selection
+          newValue = undefined
+          // You could show a toast notification here
+          // toast.error('Cannot select future dates')
+        }
+      }
+    }
+    
+    console.log('🔍 [LeadsFilters] Filter change:', { key, value, newValue })
     setFilters({
       ...filters,
-      [key]: value === '' ? undefined : value
+      [key]: newValue
     });
   }
 
   const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
-    value !== undefined && value !== null && value !== ''
+    value !== undefined && value !== null && value !== '' && value !== 0
   )
 
   return (
@@ -173,6 +199,9 @@ export function LeadsFilters({
                 value={filters.date_from || ''}
                 onChange={(e) => handleFilterChange('date_from', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Start date"
+                max={new Date().toISOString().split('T')[0]}
+                title="Cannot select future dates"
               />
             </div>
 
@@ -187,6 +216,10 @@ export function LeadsFilters({
                 value={filters.date_to || ''}
                 onChange={(e) => handleFilterChange('date_to', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="End date"
+                min={filters.date_from || undefined}
+                max={new Date().toISOString().split('T')[0]}
+                title="Cannot select future dates"
               />
             </div>
 

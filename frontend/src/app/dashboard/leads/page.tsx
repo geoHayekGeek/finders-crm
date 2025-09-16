@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { 
   Users, 
   Plus,
@@ -45,6 +45,23 @@ export default function LeadsPage() {
   
   // Filters state
   const [filters, setFilters] = useState<LeadFiltersType>({})
+  const isInitialLoad = useRef(true)
+  const prevFiltersRef = useRef<string>('')
+  const loadLeadsRef = useRef<(() => Promise<void>) | null>(null)
+  
+  // Debug render counter
+  const renderCount = useRef(0)
+  renderCount.current += 1
+  console.log('🔄 [DEBUG] LeadsPage render #', renderCount.current, { 
+    isAuthenticated, 
+    hasToken: !!token,
+    canViewLeads,
+    loading,
+    leadsLoading,
+    error,
+    filtersCount: Object.keys(filters).length,
+    leadsCount: leads.length 
+  })
   
   // Modal state
   const [showAddModal, setShowAddModal] = useState(false)
@@ -92,63 +109,163 @@ export default function LeadsPage() {
   }, [showExportDropdown])
 
   // Load leads data
-  const loadLeads = async () => {
+  const loadLeads = useCallback(async () => {
+    console.log('🔄 [DEBUG] loadLeads called', { 
+      isAuthenticated, 
+      hasToken: !!token, 
+      canViewLeads, 
+      filters,
+      timestamp: new Date().toISOString()
+    })
+    
     try {
       setLeadsLoading(true)
       setError(null)
       
       // Check authentication
       if (!isAuthenticated || !token) {
+        console.log('❌ [DEBUG] Authentication failed')
         setError('You must be logged in to view leads')
         return
       }
       
       // Check permissions
       if (!canViewLeads) {
+        console.log('❌ [DEBUG] Permission denied')
         setError('You do not have permission to view leads')
         return
       }
       
       // Check if we have any active filters
       const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
-        value !== undefined && value !== null && value !== '' && value !== 'All'
+        value !== undefined && value !== null && value !== '' && value !== 'All' && value !== 0
       )
+      
+      console.log('🔍 [DEBUG] Filter check', { hasActiveFilters, filters })
       
       let response
       if (hasActiveFilters) {
+        console.log('🔍 [LeadsPage] Using filtered API call')
         response = await leadsApi.getWithFilters(filters, token)
       } else {
+        console.log('🔍 [LeadsPage] Using getAll API call')
         response = await leadsApi.getAll(token)
       }
       
+      console.log('📡 [DEBUG] API response received', { success: response.success, dataLength: response.data?.length })
+      
       if (response.success) {
         setLeads(response.data || [])
+        console.log('✅ [DEBUG] Leads updated successfully')
       } else {
-        setError(response.message || 'Failed to load leads')
+        // Handle validation errors gracefully
+        if (response.errors && Array.isArray(response.errors)) {
+          // Show validation errors as toast messages instead of crashing
+          response.errors.forEach((error: any) => {
+            console.warn('Validation error:', error.message)
+            // You could show a toast notification here
+            // toast.error(`${error.field}: ${error.message}`)
+          })
+          // Set a generic error message for validation errors
+          setError('Please check your filter values and try again')
+        } else {
+          setError(response.message || 'Failed to load leads')
+        }
       }
       
     } catch (error) {
-      console.error('Error loading leads:', error)
+      console.error('❌ [DEBUG] Error loading leads:', error)
       setError(error instanceof Error ? error.message : 'Failed to load leads')
     } finally {
       setLeadsLoading(false)
+      setLoading(false) // Set main loading to false when leads are loaded
+      console.log('🏁 [DEBUG] loadLeads completed')
     }
-  }
+  }, [isAuthenticated, token, canViewLeads, filters])
+
+  // Store the latest loadLeads function in ref
+  loadLeadsRef.current = loadLeads
+
+  // Load stats separately
+  const loadStats = useCallback(async () => {
+    try {
+      if (!isAuthenticated || !token) return
+      
+      const statsResponse = await leadsApi.getStats(token)
+      if (statsResponse.success) {
+        setStats(statsResponse.data)
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error)
+    }
+  }, [isAuthenticated, token])
 
   // Load data on component mount
   useEffect(() => {
-    if (isAuthenticated) {
-      loadData()
+    console.log('🔄 [DEBUG] Initial load useEffect triggered', { 
+      isAuthenticated, 
+      hasToken: !!token,
+      canViewLeads,
+      isInitialLoad: isInitialLoad.current 
+    })
+    
+    // Set a timeout to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      console.log('⏰ [DEBUG] Loading timeout reached, setting loading to false')
+      setLoading(false)
+    }, 10000) // 10 second timeout
+    
+    if (isAuthenticated && token) {
+      console.log('✅ [DEBUG] User is authenticated, loading data')
+      loadStats()
+      if (loadLeadsRef.current) {
+        loadLeadsRef.current()
+      }
+    } else {
+      console.log('❌ [DEBUG] User not authenticated or no token, setting loading to false')
+      // If not authenticated, set loading to false to show error state
+      setLoading(false)
     }
-  }, [isAuthenticated])
+    
+    return () => {
+      clearTimeout(loadingTimeout)
+    }
+  }, [isAuthenticated, token, loadStats])
 
-  // Reload leads when filters change
+  // Load leads when filters change (but not on initial load)
   useEffect(() => {
+    console.log('🔄 [DEBUG] Filter change useEffect triggered', { 
+      isAuthenticated, 
+      isInitialLoad: isInitialLoad.current,
+      filters,
+      prevFilters: prevFiltersRef.current
+    })
+    
     if (isAuthenticated) {
-      loadLeads()
-      setCurrentPage(1) // Reset to first page when filters change
+      const currentFiltersStr = JSON.stringify(filters)
+      
+      if (isInitialLoad.current) {
+        // Initial load - don't reload leads here, it's already done in the first useEffect
+        console.log('🔄 [DEBUG] Initial load detected, skipping filter reload')
+        isInitialLoad.current = false
+        prevFiltersRef.current = currentFiltersStr
+      } else if (prevFiltersRef.current !== currentFiltersStr) {
+        // Filters actually changed
+        console.log('🔍 [DEBUG] Filters changed, loading leads:', { 
+          oldFilters: prevFiltersRef.current, 
+          newFilters: currentFiltersStr,
+          filters 
+        })
+        if (loadLeadsRef.current) {
+          loadLeadsRef.current()
+        }
+        setCurrentPage(1) // Reset to first page when filters change
+        prevFiltersRef.current = currentFiltersStr
+      } else {
+        console.log('🔄 [DEBUG] No filter change detected, skipping reload')
+      }
     }
-  }, [filters, isAuthenticated, token])
+  }, [isAuthenticated, filters])
 
   // Format currency with K, M, B suffixes
   const formatCurrency = (amount: number): string => {
@@ -172,50 +289,6 @@ export default function LeadsPage() {
     }
   }
 
-  // Load all necessary data (initial load)
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      
-      // Check authentication
-      if (!isAuthenticated || !token) {
-        setError('You must be logged in to view leads')
-        return
-      }
-      
-      // Check permissions
-      if (!canViewLeads) {
-        setError('You do not have permission to view leads')
-        return
-      }
-      
-      // Load leads and statistics
-      const [leadsResponse, statsResponse] = await Promise.allSettled([
-        leadsApi.getAll(token),
-        leadsApi.getStats(token)
-      ])
-      
-      // Handle leads response
-      if (leadsResponse.status === 'fulfilled' && leadsResponse.value.success) {
-        setLeads(leadsResponse.value.data || [])
-      } else {
-        const error = leadsResponse.status === 'rejected' ? leadsResponse.reason : leadsResponse.value
-        setError('Failed to load leads: ' + (error?.message || 'Unknown error'))
-      }
-      
-      // Handle stats response
-      if (statsResponse.status === 'fulfilled' && statsResponse.value.success) {
-        setStats(statsResponse.value.data)
-      }
-      
-    } catch (error) {
-      console.error('Error loading data:', error)
-      setError(error instanceof Error ? error.message : 'Failed to load data')
-    } finally {
-      setLoading(false)
-    }
-  }
 
 
   // Action handlers (defined before useMemo to avoid initialization issues)
@@ -353,7 +426,8 @@ export default function LeadsPage() {
         setSelectedLead(null)
         
         // Refresh the leads list
-        await loadData()
+        await loadLeads()
+        await loadStats()
       } else {
         console.error('❌ [LeadsPage] Update failed:', response.message)
         
@@ -421,7 +495,8 @@ export default function LeadsPage() {
       console.log('✅ Lead created successfully:', response.data)
 
       // Refresh the leads list
-      await loadData()
+      await loadLeads()
+      await loadStats()
       
       // Return the created lead data
       return response.data
@@ -456,7 +531,8 @@ export default function LeadsPage() {
         console.log('✅ Lead deleted successfully!')
         
         // Refresh the leads list
-        await loadData()
+        await loadLeads()
+        await loadStats()
         
         // Close modal and reset state
         setShowDeleteModal(false)
@@ -475,7 +551,7 @@ export default function LeadsPage() {
   const clearFilters = () => {
     setFilters({})
     setCurrentPage(1)
-    // The useEffect will trigger loadData when filters change
+    // The useEffect will trigger loadLeads when filters change
   }
 
   // Handle items per page change
@@ -614,6 +690,9 @@ export default function LeadsPage() {
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading leads...</p>
+          <p className="text-sm text-gray-500 mt-2">
+            Debug: Auth={isAuthenticated ? 'Yes' : 'No'}, Token={token ? 'Yes' : 'No'}, CanView={canViewLeads ? 'Yes' : 'No'}
+          </p>
         </div>
       </div>
     )
@@ -627,7 +706,10 @@ export default function LeadsPage() {
           <div className="text-red-600 mb-4">⚠️</div>
           <p className="text-red-600 mb-4">{error}</p>
           <button
-            onClick={loadData}
+            onClick={() => {
+              loadLeads()
+              loadStats()
+            }}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             Retry

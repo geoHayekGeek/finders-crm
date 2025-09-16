@@ -125,6 +125,12 @@ export interface LeadsResponse {
   success: boolean
   data: Lead[]
   message?: string
+  errors?: Array<{
+    field: string
+    message: string
+    value?: any
+    location?: string
+  }>
 }
 
 export interface LeadResponse {

@@ -264,15 +264,15 @@ class Lead {
       valueIndex++;
     }
 
-    if (filters.date_from) {
-      query += ` AND l.date >= $${valueIndex}`;
-      values.push(filters.date_from);
+    if (filters.date_from && filters.date_from.trim() !== '') {
+      query += ` AND l.date >= $${valueIndex}::date`;
+      values.push(filters.date_from.trim());
       valueIndex++;
     }
 
-    if (filters.date_to) {
-      query += ` AND l.date <= $${valueIndex}`;
-      values.push(filters.date_to);
+    if (filters.date_to && filters.date_to.trim() !== '') {
+      query += ` AND l.date <= $${valueIndex}::date`;
+      values.push(filters.date_to.trim());
       valueIndex++;
     }
 
