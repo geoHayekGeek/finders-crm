@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Building2, MapPin, DollarSign, Bed, Bath, Square, Star, Eye, Edit, Trash2, Calendar, Phone, User } from 'lucide-react'
 import { Property } from '@/types/property'
 import { getFullImageUrl } from '@/utils/imageUpload'
+import { usePermissions } from '@/contexts/PermissionContext'
 
 interface PropertyCardProps {
   property: Property
@@ -14,6 +15,7 @@ interface PropertyCardProps {
 
 export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false)
+  const { canManageProperties } = usePermissions()
   const formatPrice = (price?: number) => {
     if (!price) return 'Price on request'
     return new Intl.NumberFormat('en-US', {
@@ -131,18 +133,22 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
             <Eye className="h-4 w-4" />
             <span>View</span>
           </button>
-          <button 
-            onClick={() => onEdit(property)}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600 hover:text-gray-900"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button 
-            onClick={() => onDelete(property)}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-red-600 hover:text-red-900"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canManageProperties && (
+            <>
+              <button 
+                onClick={() => onEdit(property)}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600 hover:text-gray-900"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button 
+                onClick={() => onDelete(property)}
+                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-red-600 hover:text-red-900"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>

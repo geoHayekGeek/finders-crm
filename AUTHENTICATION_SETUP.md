@@ -111,9 +111,12 @@ Your frontend will be running on `http://localhost:3000`
 
 ### User Roles
 - **admin**: Full system access, can manage users
-- **broker**: Can manage properties, clients, and leads
 - **agent**: Can view and manage assigned properties
-- **manager**: Can manage properties and view reports
+- **agent manager**: Can manage agents and view reports
+- **operations**: Can handle operational tasks and support
+- **operations manager**: Can manage operations staff and processes
+- **team_leader**: Can manage assigned agents and team performance
+- **accountant**: Can manage financial records and accounting tasks
 
 ### Adding New Users
 Currently, only admins can add users through the backend. To add a new user:

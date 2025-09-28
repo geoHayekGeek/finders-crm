@@ -93,17 +93,17 @@ export function LeadsFilters({
       if (!dateRegex.test(newValue as string)) {
         newValue = undefined
       } else {
-        // Check if the date is in the future
+        // Check if the date is too far in the future (more than 1 year)
         const selectedDate = new Date(newValue as string)
         const today = new Date()
-        today.setHours(23, 59, 59, 999) // Set to end of today
+        const oneYearFromNow = new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
         
-        if (selectedDate > today) {
-          console.warn('Cannot select future dates:', newValue)
-          // Reset to undefined to prevent future date selection
+        if (selectedDate > oneYearFromNow) {
+          console.warn('Cannot select dates more than 1 year in the future:', newValue)
+          // Reset to undefined to prevent selecting dates too far in the future
           newValue = undefined
           // You could show a toast notification here
-          // toast.error('Cannot select future dates')
+          // toast.error('Cannot select dates more than 1 year in the future')
         }
       }
     }
@@ -200,8 +200,8 @@ export function LeadsFilters({
                 onChange={(e) => handleFilterChange('date_from', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Start date"
-                max={new Date().toISOString().split('T')[0]}
-                title="Cannot select future dates"
+                max={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                title="Cannot select dates more than 1 year in the future"
               />
             </div>
 
@@ -218,8 +218,8 @@ export function LeadsFilters({
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="End date"
                 min={filters.date_from || undefined}
-                max={new Date().toISOString().split('T')[0]}
-                title="Cannot select future dates"
+                max={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
+                title="Cannot select dates more than 1 year in the future"
               />
             </div>
 

@@ -3,8 +3,9 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { Property } from '@/types/property'
 import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar } from 'lucide-react'
+import { usePermissions } from '@/contexts/PermissionContext'
 
-export const propertyColumns: ColumnDef<Property>[] = [
+export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Property>[] => [
   {
     accessorKey: 'reference_number',
     header: 'Reference',
@@ -170,20 +171,24 @@ export const propertyColumns: ColumnDef<Property>[] = [
           >
             <Eye className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => row.original.onEdit?.(property)}
-            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-            title="Edit Property"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => row.original.onDelete?.(property)}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete Property"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canManageProperties && (
+            <>
+              <button
+                onClick={() => row.original.onEdit?.(property)}
+                className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                title="Edit Property"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => row.original.onDelete?.(property)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete Property"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
       )
     },
@@ -191,8 +196,8 @@ export const propertyColumns: ColumnDef<Property>[] = [
 ]
 
 // Extended columns for detailed view
-export const propertyDetailedColumns: ColumnDef<Property>[] = [
-  ...propertyColumns.slice(0, -1), // All columns except actions
+export const getPropertyDetailedColumns = (canManageProperties: boolean): ColumnDef<Property>[] => [
+  ...getPropertyColumns(canManageProperties).slice(0, -1), // All columns except actions
   {
     accessorKey: 'building_name',
     header: 'Building',
@@ -275,20 +280,24 @@ export const propertyDetailedColumns: ColumnDef<Property>[] = [
           >
             <Eye className="h-4 w-4" />
           </button>
-          <button
-            onClick={() => property.onEdit?.(property)}
-            className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-            title="Edit Property"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => property.onDelete?.(property)}
-            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete Property"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {canManageProperties && (
+            <>
+              <button
+                onClick={() => property.onEdit?.(property)}
+                className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                title="Edit Property"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => property.onDelete?.(property)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete Property"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
       )
     },

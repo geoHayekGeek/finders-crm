@@ -15,6 +15,12 @@ interface User {
   phone?: string
 }
 
+interface EventPermissions {
+  canEdit: boolean
+  canDelete: boolean
+  reason: string
+}
+
 interface EventModalProps {
   isOpen: boolean
   onClose: () => void
@@ -22,6 +28,7 @@ interface EventModalProps {
   selectedDate: Date
   onSave: (event: Omit<CalendarEvent, 'id'> | CalendarEvent) => void
   onDelete?: (eventId: string) => void
+  permissions?: EventPermissions
 }
 
 export function EventModal({
@@ -30,7 +37,8 @@ export function EventModal({
   event,
   selectedDate,
   onSave,
-  onDelete
+  onDelete,
+  permissions
 }: EventModalProps) {
   const [formData, setFormData] = useState({
     title: '',
@@ -129,10 +137,15 @@ export function EventModal({
     } else {
       // Creating new event
       const startDate = new Date(selectedDate)
-      startDate.setHours(9, 0, 0, 0) // Default to 9 AM
+      // Use the hour from selectedDate if it's set, otherwise default to 9 AM
+      if (selectedDate.getHours() === 0 && selectedDate.getMinutes() === 0 && selectedDate.getSeconds() === 0) {
+        // If selectedDate is at midnight (default), use 9 AM
+        startDate.setHours(9, 0, 0, 0)
+      }
+      // Otherwise, keep the hour from selectedDate (from hour click)
 
       const endDate = new Date(startDate)
-      endDate.setHours(10, 0, 0, 0) // Default to 10 AM
+      endDate.setHours(startDate.getHours() + 1, 0, 0, 0) // Set end time to 1 hour after start
 
       // Convert to local timezone for the datetime-local input
       const startLocal = new Date(startDate.getTime() - (startDate.getTimezoneOffset() * 60000))
@@ -190,9 +203,20 @@ export function EventModal({
       const loadDropdownData = async () => {
         setLoadingDropdowns(true)
         try {
+          const token = localStorage.getItem('token')
           const [propertiesResponse, leadsResponse] = await Promise.all([
-            fetch('http://localhost:10000/api/calendar/properties'),
-            fetch('http://localhost:10000/api/calendar/leads')
+            fetch('http://localhost:10000/api/calendar/properties', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            }),
+            fetch('http://localhost:10000/api/calendar/leads', {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            })
           ])
 
           console.log('📡 Properties API response status:', propertiesResponse.status)
@@ -652,7 +676,13 @@ export function EventModal({
                   <button
                     type="button"
                     onClick={handleDelete}
-                    className="inline-flex items-center justify-center px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors w-full sm:w-auto"
+                    disabled={!permissions?.canDelete}
+                    className={`inline-flex items-center justify-center px-3 py-2 text-sm font-medium rounded-lg transition-colors w-full sm:w-auto ${
+                      permissions?.canDelete
+                        ? 'text-red-600 hover:bg-red-50'
+                        : 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                    }`}
+                    title={!permissions?.canDelete ? permissions?.reason : 'Delete event'}
                   >
                     <TrashIcon className="h-4 w-4 mr-1" />
                     Delete
@@ -670,7 +700,13 @@ export function EventModal({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  disabled={event && !permissions?.canEdit}
+                  className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                    event && !permissions?.canEdit
+                      ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
+                      : 'text-white bg-blue-600 hover:bg-blue-700'
+                  }`}
+                  title={event && !permissions?.canEdit ? permissions?.reason : undefined}
                 >
                   {event ? 'Update' : 'Create'} Event
                 </button>

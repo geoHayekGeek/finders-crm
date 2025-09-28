@@ -222,6 +222,28 @@ class Lead {
   }
 
   static async getLeadsWithFilters(filters = {}) {
+    console.log('🔍 [Backend] getLeadsWithFilters called with filters:', filters);
+    
+    // Debug: First, let's see what dates are in the database
+    if (filters.date_from || filters.date_to) {
+      const sampleQuery = `SELECT id, date, customer_name FROM leads ORDER BY date DESC LIMIT 5`;
+      const sampleResult = await pool.query(sampleQuery);
+      console.log('🔍 [Backend] Sample dates in database:', sampleResult.rows);
+      
+      // Test individual date filters
+      if (filters.date_from) {
+        const fromQuery = `SELECT COUNT(*) as count FROM leads WHERE date >= $1::date`;
+        const fromResult = await pool.query(fromQuery, [filters.date_from.trim()]);
+        console.log('🔍 [Backend] Count with date_from filter:', fromResult.rows[0].count);
+      }
+      
+      if (filters.date_to) {
+        const toQuery = `SELECT COUNT(*) as count FROM leads WHERE date <= $1::date`;
+        const toResult = await pool.query(toQuery, [filters.date_to.trim()]);
+        console.log('🔍 [Backend] Count with date_to filter:', toResult.rows[0].count);
+      }
+    }
+    
     let query = `
       SELECT 
         l.id,
@@ -256,24 +278,28 @@ class Lead {
       query += ` AND l.status = $${valueIndex}`;
       values.push(filters.status);
       valueIndex++;
+      console.log('🔍 [Backend] Added status filter:', filters.status);
     }
 
     if (filters.agent_id) {
       query += ` AND l.agent_id = $${valueIndex}`;
       values.push(filters.agent_id);
       valueIndex++;
+      console.log('🔍 [Backend] Added agent_id filter:', filters.agent_id);
     }
 
     if (filters.date_from && filters.date_from.trim() !== '') {
       query += ` AND l.date >= $${valueIndex}::date`;
       values.push(filters.date_from.trim());
       valueIndex++;
+      console.log('🔍 [Backend] Added date_from filter:', filters.date_from.trim(), 'Type:', typeof filters.date_from);
     }
 
     if (filters.date_to && filters.date_to.trim() !== '') {
-      query += ` AND l.date <= $${valueIndex}::date`;
+      query += ` AND l.date < ($${valueIndex}::date + interval '1 day')`;
       values.push(filters.date_to.trim());
       valueIndex++;
+      console.log('🔍 [Backend] Added date_to filter:', filters.date_to.trim(), 'Type:', typeof filters.date_to);
     }
 
     if (filters.reference_source_id) {
@@ -290,7 +316,17 @@ class Lead {
 
     query += ` ORDER BY l.created_at DESC`;
 
+    console.log('🔍 [Backend] Final query:', query);
+    console.log('🔍 [Backend] Query values:', values);
+
     const result = await pool.query(query, values);
+    console.log('🔍 [Backend] Query result count:', result.rows.length);
+    
+    // Debug: Show some sample dates from results
+    if (result.rows.length > 0) {
+      console.log('🔍 [Backend] Sample dates from results:', result.rows.slice(0, 3).map(r => ({ id: r.id, date: r.date, customer_name: r.customer_name })));
+    }
+    
     return result.rows;
   }
 
@@ -333,8 +369,6 @@ class Lead {
     `);
     return result.rows;
   }
-
-
 
   static async getLeadsByAgentStats() {
     const result = await pool.query(`

@@ -6,6 +6,7 @@ import { EventModal } from '@/components/EventModal'
 import { EventList } from '@/components/EventList'
 import { CalendarHeader } from '@/components/CalendarHeader'
 import { PlusIcon, CalendarIcon } from '@heroicons/react/24/outline'
+import { useToast } from '@/contexts/ToastContext'
 
 export interface CalendarEvent {
   id: string
@@ -39,6 +40,12 @@ export interface Lead {
   phone_number?: string
 }
 
+export interface EventPermissions {
+  canEdit: boolean
+  canDelete: boolean
+  reason: string
+}
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -48,6 +55,46 @@ export default function CalendarPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [showSidebar, setShowSidebar] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [eventPermissions, setEventPermissions] = useState<Record<string, EventPermissions>>({})
+  const { showSuccess, showError, showWarning, showInfo } = useToast()
+
+  // Check permissions for an event
+  const checkEventPermissions = async (eventId: string): Promise<EventPermissions> => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`http://localhost:10000/api/calendar/${eventId}/permissions`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          canEdit: data.canEdit,
+          canDelete: data.canDelete,
+          reason: data.reason
+        }
+      } else {
+        const errorData = await response.json()
+        showWarning(`Permission check failed: ${errorData.message || 'Unknown error'}`)
+        return {
+          canEdit: false,
+          canDelete: false,
+          reason: 'Failed to check permissions'
+        }
+      }
+    } catch (error) {
+      console.error('Error checking event permissions:', error)
+      showWarning('Failed to check event permissions')
+      return {
+        canEdit: false,
+        canDelete: false,
+        reason: 'Error checking permissions'
+      }
+    }
+  }
 
   // Load events from API on component mount
   useEffect(() => {
@@ -57,7 +104,21 @@ export default function CalendarPage() {
         setError(null)
         
         console.log('🔍 FETCHING EVENTS FROM API...')
-        const response = await fetch('http://localhost:10000/api/calendar')
+        const token = localStorage.getItem('token')
+        
+        if (!token) {
+          console.log('❌ No token found, skipping permission checks')
+          setError('Not authenticated')
+          showError('Please log in to view calendar events')
+          return
+        }
+        
+        const response = await fetch('http://localhost:10000/api/calendar', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        })
         console.log('📡 API Response status:', response.status)
         
         if (response.ok) {
@@ -89,15 +150,35 @@ export default function CalendarPage() {
             })
             
             setEvents(eventsWithDates)
+            
+            // Check permissions for each event
+            const permissions: Record<string, EventPermissions> = {}
+            for (const event of eventsWithDates) {
+              const eventId = String(event.id) // Ensure event ID is a string
+              const eventPermissions = await checkEventPermissions(eventId)
+              permissions[eventId] = eventPermissions
+            }
+            setEventPermissions(permissions)
+            
+            // Show success message for loading events
+            if (eventsWithDates.length > 0) {
+              showInfo(`Loaded ${eventsWithDates.length} event${eventsWithDates.length === 1 ? '' : 's'}`)
+            }
           } else {
-            setError(data.message || 'Failed to fetch events')
+            const errorMessage = data.message || 'Failed to fetch events'
+            setError(errorMessage)
+            showError(errorMessage)
           }
         } else {
-          setError('Failed to fetch events')
+          const errorMessage = 'Failed to fetch events'
+          setError(errorMessage)
+          showError(errorMessage)
         }
       } catch (error) {
         console.error('Error fetching events:', error)
-        setError('Failed to fetch events')
+        const errorMessage = 'Failed to fetch events'
+        setError(errorMessage)
+        showError(errorMessage)
       } finally {
         setIsLoading(false)
       }
@@ -108,9 +189,11 @@ export default function CalendarPage() {
 
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch('http://localhost:10000/api/calendar', {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(event)
@@ -127,15 +210,22 @@ export default function CalendarPage() {
           }
           setEvents(prev => [...prev, newEvent])
           setIsEventModalOpen(false)
+          showSuccess('Event created successfully!')
         } else {
-          setError(data.message || 'Failed to create event')
+          const errorMessage = data.message || 'Failed to create event'
+          setError(errorMessage)
+          showError(errorMessage)
         }
       } else {
-        setError('Failed to create event')
+        const errorMessage = 'Failed to create event'
+        setError(errorMessage)
+        showError(errorMessage)
       }
     } catch (error) {
       console.error('Error creating event:', error)
-      setError('Failed to create event')
+      const errorMessage = 'Failed to create event'
+      setError(errorMessage)
+      showError(errorMessage)
     }
   }
 
@@ -149,9 +239,11 @@ export default function CalendarPage() {
         leadId: event.leadId
       })
       
+      const token = localStorage.getItem('token')
       const response = await fetch(`http://localhost:10000/api/calendar/${event.id}`, {
         method: 'PUT',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(event)
@@ -203,22 +295,34 @@ export default function CalendarPage() {
           
           setIsEventModalOpen(false)
           setSelectedEvent(null)
+          showSuccess('Event updated successfully!')
         } else {
-          setError(data.message || 'Failed to update event')
+          const errorMessage = data.message || 'Failed to update event'
+          setError(errorMessage)
+          showError(errorMessage)
         }
       } else {
-        setError('Failed to update event')
+        const errorMessage = 'Failed to update event'
+        setError(errorMessage)
+        showError(errorMessage)
       }
     } catch (error) {
       console.error('Error updating event:', error)
-      setError('Failed to update event')
+      const errorMessage = 'Failed to update event'
+      setError(errorMessage)
+      showError(errorMessage)
     }
   }
 
   const handleDeleteEvent = async (eventId: string) => {
     try {
+      const token = localStorage.getItem('token')
       const response = await fetch(`http://localhost:10000/api/calendar/${eventId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
       })
 
       if (response.ok) {
@@ -227,15 +331,22 @@ export default function CalendarPage() {
           setEvents(prev => prev.filter(e => e.id !== eventId))
           setIsEventModalOpen(false)
           setSelectedEvent(null)
+          showSuccess('Event deleted successfully!')
         } else {
-          setError(data.message || 'Failed to delete event')
+          const errorMessage = data.message || 'Failed to delete event'
+          setError(errorMessage)
+          showError(errorMessage)
         }
       } else {
-        setError('Failed to delete event')
+        const errorMessage = 'Failed to delete event'
+        setError(errorMessage)
+        showError(errorMessage)
       }
     } catch (error) {
       console.error('Error deleting event:', error)
-      setError('Failed to delete event')
+      const errorMessage = 'Failed to delete event'
+      setError(errorMessage)
+      showError(errorMessage)
     }
   }
 
@@ -425,6 +536,7 @@ export default function CalendarPage() {
             }
           }}
         onDelete={selectedEvent ? handleDeleteEvent : undefined}
+        permissions={selectedEvent ? eventPermissions[String(selectedEvent.id)] : undefined}
       />
     </div>
   )

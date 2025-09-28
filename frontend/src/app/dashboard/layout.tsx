@@ -24,6 +24,7 @@ import {
   Circle,
   LucideIcon
 } from 'lucide-react'
+import NotificationBell from '@/components/NotificationBell'
 
 interface NavigationSubmenuItem {
   name: string
@@ -50,13 +51,13 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, role } = usePermissions()
+  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewClients, role } = usePermissions()
 
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
     const baseNavigation: NavigationItem[] = []
 
-    // For agents: only show dashboard and properties (without categories/statuses)
+    // For agents: show dashboard, properties, and calendar
     if (role === 'agent') {
       baseNavigation.push({ name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true })
       baseNavigation.push({ 
@@ -65,6 +66,7 @@ export default function DashboardLayout({
         icon: Building2, 
         alwaysVisible: true
       })
+      baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
       return baseNavigation
     }
 
@@ -76,8 +78,8 @@ export default function DashboardLayout({
       { name: 'All Properties', href: '/dashboard/properties', icon: Building2 }
     ]
     
-    // Add categories and statuses to submenu only if user can view them
-    if (canViewCategoriesAndStatuses) {
+    // Add categories and statuses to submenu only if user can manage them
+    if (canManageCategoriesAndStatuses) {
       submenuItems.push(
         { name: 'Categories', href: '/dashboard/properties/categories', icon: Tag },
         { name: 'Statuses', href: '/dashboard/properties/statuses', icon: Circle }
@@ -93,35 +95,41 @@ export default function DashboardLayout({
       submenu: submenuItems.length > 1 ? submenuItems : undefined
     })
 
-    // Clients - visible to management roles
-    baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
-
-    // Leads with submenu for management roles
-    const leadsSubmenuItems = [
-      { name: 'All Leads', href: '/dashboard/leads', icon: FileText }
-    ]
-    
-    // Add lead statuses to submenu only if user can view them
-    if (canViewCategoriesAndStatuses) {
-      leadsSubmenuItems.push(
-        { name: 'Lead Statuses', href: '/dashboard/leads/statuses', icon: Circle }
-      )
+    // Clients - visible to management roles and team leaders
+    if (canViewClients) {
+      baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
     }
 
-    baseNavigation.push({ 
-      name: 'Leads', 
-      href: '/dashboard/leads', 
-      icon: FileText, 
-      alwaysVisible: true,
-      hasSubmenu: leadsSubmenuItems.length > 1,
-      submenu: leadsSubmenuItems.length > 1 ? leadsSubmenuItems : undefined
-    })
+    // Leads with submenu for management roles only
+    if (canViewLeads) {
+      const leadsSubmenuItems = [
+        { name: 'All Leads', href: '/dashboard/leads', icon: FileText }
+      ]
+      
+      // Add lead statuses to submenu only if user can manage leads
+      if (canManageLeads) {
+        leadsSubmenuItems.push(
+          { name: 'Lead Statuses', href: '/dashboard/leads/statuses', icon: Circle }
+        )
+      }
 
-    // Calendar - visible to management roles
+      baseNavigation.push({ 
+        name: 'Leads', 
+        href: '/dashboard/leads', 
+        icon: FileText, 
+        alwaysVisible: true,
+        hasSubmenu: leadsSubmenuItems.length > 1,
+        submenu: leadsSubmenuItems.length > 1 ? leadsSubmenuItems : undefined
+      })
+    }
+
+    // Calendar - visible to all roles
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
 
-    // Analytics - visible to management roles
-    baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
+    // Analytics - visible to management roles and team leaders
+    if (canViewAgentPerformance) {
+      baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
+    }
 
     // Settings - only visible to admin and operations manager
     if (canManageUsers) {
@@ -372,6 +380,7 @@ export default function DashboardLayout({
             <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
               <div className="flex flex-1"></div>
               <div className="flex items-center gap-x-4 lg:gap-x-6">
+                <NotificationBell />
                 <div className="text-sm text-gray-700">
                   Welcome, <span className="font-medium">{user?.name}</span>
                 </div>

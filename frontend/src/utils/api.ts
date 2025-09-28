@@ -65,6 +65,16 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   
+  // Add debugging for notification requests
+  if (endpoint.includes('/notifications/')) {
+    console.log('🔔 [API] Notification request:', {
+      url,
+      method: options.method,
+      endpoint,
+      hasToken: !!token
+    })
+  }
+  
   // Add debugging for lead updates
   if (endpoint.includes('/leads/') && options.method === 'PUT') {
     console.log('🌐 [API] Lead update request:', {
@@ -81,9 +91,21 @@ async function apiRequest<T>(
   }
   
   // Auto-get token from localStorage if not provided
-  const authToken = token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null)
+  const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+  const authToken = token || storedToken
+  console.log('🔑 Token check:', { 
+    hasToken: !!token, 
+    hasLocalStorageToken: !!storedToken, 
+    authToken: authToken ? 'present' : 'missing',
+    tokenLength: authToken ? authToken.length : 0
+  })
+  
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`
+    console.log('✅ Authorization header set')
+  } else {
+    console.error('❌ No authentication token found!')
+    console.error('❌ Available localStorage keys:', typeof window !== 'undefined' ? Object.keys(localStorage) : 'N/A')
   }
   
   // Add CSRF token for non-GET requests
@@ -99,8 +121,28 @@ async function apiRequest<T>(
     ...options,
   }
 
+  // Add debugging for notification requests
+  if (endpoint.includes('/notifications/')) {
+    console.log('🔔 [API] Final request config:', {
+      url,
+      method: options.method,
+      headers: Object.keys(headers),
+      hasAuth: !!headers['Authorization']
+    })
+  }
+
   try {
     const response = await fetch(url, config)
+    
+    // Add debugging for notification requests
+    if (endpoint.includes('/notifications/')) {
+      console.log('🔔 [API] Notification response:', {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      })
+    }
     
     // Add debugging for lead updates
     if (endpoint.includes('/leads/') && options.method === 'PUT') {
@@ -468,6 +510,57 @@ export const leadStatusesApi = {
         ...(token && { 'Authorization': `Bearer ${token}` })
       }
     })
+}
+
+// Notifications API
+export const notificationsApi = {
+  // Get all notifications for the authenticated user
+  getAll: (params?: { limit?: number; offset?: number; unreadOnly?: boolean; entityType?: string }) => {
+    const queryParams = new URLSearchParams()
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.offset) queryParams.append('offset', params.offset.toString())
+    if (params?.unreadOnly) queryParams.append('unreadOnly', params.unreadOnly.toString())
+    if (params?.entityType) queryParams.append('entityType', params.entityType)
+    
+    const queryString = queryParams.toString()
+    return apiRequest<{ success: boolean; data: any[]; unreadCount: number; total: number }>(`/notifications${queryString ? `?${queryString}` : ''}`)
+  },
+  
+  // Get notification statistics
+  getStats: () => apiRequest<{ success: boolean; data: any }>('/notifications/stats'),
+  
+  // Get unread notification count
+  getUnreadCount: () => apiRequest<{ success: boolean; unreadCount: number }>('/notifications/unread-count'),
+  
+  // Mark a specific notification as read
+  markAsRead: (notificationId: number) => apiRequest<{ success: boolean; message: string; data: any }>(`/notifications/${notificationId}/read`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  }),
+  
+  // Mark all notifications as read
+  markAllAsRead: () => apiRequest<{ success: boolean; message: string; updatedCount: number }>('/notifications/mark-all-read', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  }),
+  
+  // Delete a specific notification
+  delete: (notificationId: number) => apiRequest<{ success: boolean; message: string; data: any }>(`/notifications/${notificationId}`, {
+    method: 'DELETE',
+  }),
+  
+  // Create test notification (for development)
+  createTest: (data: { title?: string; message?: string; type?: string }) => apiRequest<{ success: boolean; message: string; data: any }>('/notifications/test', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  })
 }
 
 // Mock data for development (when backend is not available)

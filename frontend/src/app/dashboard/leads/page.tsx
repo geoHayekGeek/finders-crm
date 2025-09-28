@@ -142,6 +142,12 @@ export default function LeadsPage() {
       )
       
       console.log('🔍 [DEBUG] Filter check', { hasActiveFilters, filters })
+      console.log('🔍 [DEBUG] Date filters specifically:', { 
+        date_from: filters.date_from, 
+        date_to: filters.date_to,
+        date_from_type: typeof filters.date_from,
+        date_to_type: typeof filters.date_to
+      })
       
       let response
       if (hasActiveFilters) {
@@ -920,8 +926,8 @@ export default function LeadsPage() {
         />
       )}
 
-      {/* Pagination */}
-      {leads.length > itemsPerPage && (
+      {/* Pagination - Always show for table view, conditional for grid view */}
+      {(viewMode === 'table' || leads.length > itemsPerPage) && (
         <PropertyPagination
           currentPage={currentPage}
           totalPages={Math.ceil(leads.length / itemsPerPage)}

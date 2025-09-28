@@ -2,6 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const calendarController = require('../controllers/calendarController');
+const { authenticateToken, filterDataByRole } = require('../middlewares/permissions');
+
+// Apply authentication and role filtering to all routes
+router.use(authenticateToken);
+router.use(filterDataByRole);
 
 // Default route - Get all events (for backward compatibility)
 router.get('/', calendarController.getAllEvents);
@@ -29,6 +34,9 @@ router.get('/properties', calendarController.getPropertiesForDropdown);
 
 // Get leads for dropdown
 router.get('/leads', calendarController.getLeadsForDropdown);
+
+// Check event permissions
+router.get('/:id/permissions', calendarController.checkEventPermissions);
 
 // Get event by ID
 router.get('/:id', calendarController.getEventById);

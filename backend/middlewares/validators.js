@@ -6,8 +6,8 @@ const registerValidator = [
   body('password')
     .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
   body('role')
-    .isIn(['agent', 'agent manager', 'operations', 'operations manager', 'admin', 'accountant'])
-    .withMessage('Invalid role. Must be one of: agent, agent manager, operations, operations manager, admin, accountant'),
+    .isIn(['agent', 'agent manager', 'operations', 'operations manager', 'admin', 'accountant', 'team_leader'])
+    .withMessage('Invalid role. Must be one of: agent, agent manager, operations, operations manager, admin, accountant, team_leader'),
   body('phone')
     .optional()
     .isMobilePhone().withMessage('Invalid phone number'),

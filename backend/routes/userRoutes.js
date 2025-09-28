@@ -26,4 +26,13 @@ router.get('/all', userController.getAllUsers);
 router.get('/agents', userController.getAgents);
 router.put('/:id', userController.updateUser);
 
+// Team Leader Routes
+router.get('/team-leaders', userController.getTeamLeaders);
+router.get('/team-leaders/:teamLeaderId/agents', userController.getTeamLeaderAgents);
+router.get('/agents/:agentId/team-leader', userController.getAgentTeamLeader);
+router.get('/available-agents', userController.getAvailableAgents);
+router.post('/assign-agent', userController.assignAgentToTeamLeader);
+router.delete('/team-leaders/:teamLeaderId/agents/:agentId', userController.removeAgentFromTeamLeader);
+router.post('/transfer-agent', userController.transferAgent);
+
 module.exports = router;

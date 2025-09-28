@@ -6,8 +6,10 @@ import { useAuth } from './AuthContext'
 interface PermissionContextType {
   role: string | null
   canManageProperties: boolean
+  canViewProperties: boolean
   canManageLeads: boolean
   canViewLeads: boolean
+  canViewClients: boolean
   canManageUsers: boolean
   canViewFinancial: boolean
   canViewAgentPerformance: boolean
@@ -24,23 +26,29 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   // Permission logic based on user role
   const role = user?.role || null
   
-  const canManageProperties = role === 'admin' || role === 'operations_manager' || role === 'operations' || role === 'agent_manager'
-  const canManageLeads = role === 'admin' || role === 'operations_manager' || role === 'operations'
-  const canViewLeads = role === 'admin' || role === 'operations_manager' || role === 'operations' || role === 'agent_manager'
-  const canManageUsers = role === 'admin' || role === 'operations_manager'
-  const canViewFinancial = role === 'admin' || role === 'operations_manager'
-  const canViewAgentPerformance = role === 'admin' || role === 'operations_manager' || role === 'agent_manager'
-  const canManageCategoriesAndStatuses = role === 'admin' || role === 'operations_manager' || role === 'operations' || role === 'agent_manager'
-  const canViewCategoriesAndStatuses = role === 'admin' || role === 'operations_manager' || role === 'operations' || role === 'agent_manager' || role === 'agent'
+  const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
+  const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations'
+  const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canViewClients = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader'
+  const canManageUsers = role === 'admin' || role === 'operations manager'
+  const canViewFinancial = role === 'admin' || role === 'operations manager'
+  const canViewAgentPerformance = role === 'admin' || role === 'operations manager' || role === 'agent manager' || role === 'team_leader'
+  const canManageCategoriesAndStatuses = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canViewCategoriesAndStatuses = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
 
   const hasPermission = (permission: string): boolean => {
     switch (permission) {
       case 'canManageProperties':
         return canManageProperties
+      case 'canViewProperties':
+        return canViewProperties
       case 'canManageLeads':
         return canManageLeads
       case 'canViewLeads':
         return canViewLeads
+      case 'canViewClients':
+        return canViewClients
       case 'canManageUsers':
         return canManageUsers
       case 'canViewFinancial':
@@ -59,8 +67,10 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const value: PermissionContextType = {
     role,
     canManageProperties,
+    canViewProperties,
     canManageLeads,
     canViewLeads,
+    canViewClients,
     canManageUsers,
     canViewFinancial,
     canViewAgentPerformance,
@@ -106,6 +116,6 @@ export function RequireCategoryStatusManagement({ children }: { children: ReactN
 }
 
 export function RequireCategoryStatusAccess({ children }: { children: ReactNode }) {
-  const { canManageCategoriesAndStatuses } = usePermissions()
-  return canManageCategoriesAndStatuses ? <>{children}</> : null
+  const { canViewCategoriesAndStatuses } = usePermissions()
+  return canViewCategoriesAndStatuses ? <>{children}</> : null
 }

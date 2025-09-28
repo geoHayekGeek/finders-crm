@@ -5,7 +5,11 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import { PermissionProvider } from '@/contexts/PermissionContext'
 import { ToastProvider } from '@/contexts/ToastContext'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap',
+  fallback: ['system-ui', 'arial']
+})
 
 export const metadata: Metadata = {
   title: 'Finders CRM',

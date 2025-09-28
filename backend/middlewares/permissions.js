@@ -42,17 +42,30 @@ const PERMISSIONS = {
     statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
-  // Agent Manager: Can manage properties and view agent data
+  // Agent Manager: Can manage properties and view agent data, read-only access to leads
   'agent manager': {
     properties: ['create', 'read', 'update', 'delete', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
-    leads: ['create', 'read', 'update', 'delete', 'view_all'],
+    leads: ['read', 'view_all'], // Read-only access to leads
     analytics: ['view_all', 'view_agent_performance'], // Can see agent performance
     users: ['read', 'view_agents'], // Can view agents but not other roles
     settings: ['read_only'],
     dashboard: ['full_access'],
     categories: ['create', 'read', 'update', 'delete', 'view_all'],
     statuses: ['create', 'read', 'update', 'delete', 'view_all']
+  },
+  
+  // Team Leader: Can view their own properties and assigned agents' properties, but cannot manage properties
+  'team_leader': {
+    properties: ['read', 'view_assigned'], // Can only view their own properties and assigned agents' properties
+    clients: ['read', 'view_assigned'], // Can view their own clients and assigned agents' clients
+    leads: [], // No access to leads
+    analytics: ['view_agent_performance'], // Can see performance of assigned agents only
+    users: ['read', 'view_assigned_agents'], // Can view only assigned agents
+    settings: ['read_self'],
+    dashboard: ['limited_access'],
+    categories: ['read'], // Can only view categories
+    statuses: ['read'] // Can only view statuses
   },
   
   // Agent: Limited access - only view assigned properties
@@ -159,11 +172,11 @@ const canViewAgentPerformance = (req, res, next) => {
   }
 
   const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager' || role === 'agent manager') {
+  if (role === 'admin' || role === 'operations manager' || role === 'agent manager' || role === 'team_leader') {
     next();
   } else {
     return res.status(403).json({ 
-      message: 'Access denied. Agent performance data restricted to admin, operations manager, and agent manager only.' 
+      message: 'Access denied. Agent performance data restricted to admin, operations manager, agent manager, and team leader only.' 
     });
   }
 };
@@ -180,6 +193,22 @@ const canManageProperties = (req, res, next) => {
   } else {
     return res.status(403).json({ 
       message: 'Access denied. Property management restricted to admin, operations manager, operations, and agent manager only.' 
+    });
+  }
+};
+
+// Middleware to check if user can view properties
+const canViewProperties = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Property viewing restricted to admin, operations manager, operations, agent manager, team leader, and agent only.' 
     });
   }
 };
@@ -223,7 +252,7 @@ const canViewCategoriesAndStatuses = (req, res, next) => {
   }
 
   const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent') {
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader') {
     next();
   } else {
     return res.status(403).json({ 
@@ -248,6 +277,38 @@ const canViewAllData = (req, res, next) => {
   }
 };
 
+// Middleware to check if user can manage leads
+const canManageLeads = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  if (role === 'admin' || role === 'operations manager' || role === 'operations') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Lead management restricted to admin, operations manager, and operations only.' 
+    });
+  }
+};
+
+// Middleware to check if user can view leads
+const canViewLeads = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Lead viewing restricted to admin, operations manager, operations, and agent manager only.' 
+    });
+  }
+};
+
 // Middleware to filter data based on user role
 const filterDataByRole = (req, res, next) => {
   console.log('🎭 filterDataByRole middleware called');
@@ -266,11 +327,15 @@ const filterDataByRole = (req, res, next) => {
     role: role,
     canViewAll: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewFinancial: ['admin', 'operations manager'].includes(role),
-    canViewAgentPerformance: ['admin', 'operations manager', 'agent manager'].includes(role),
+    canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team_leader'].includes(role),
     canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
+    canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'agent'].includes(role),
     canManageUsers: ['admin', 'operations manager'].includes(role),
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent'].includes(role)
+    canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
+    canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),
+    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
+    canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'].includes(role)
   };
 
   console.log('✅ Role filters set:', req.roleFilters);
@@ -283,10 +348,13 @@ module.exports = {
   canViewFinancialData,
   canViewAgentPerformance,
   canManageProperties,
+  canViewProperties,
   canManageUsers,
   canManageCategoriesAndStatuses,
   canViewCategoriesAndStatuses,
   canViewAllData,
+  canManageLeads,
+  canViewLeads,
   filterDataByRole,
   hasPermission,
   PERMISSIONS

@@ -104,9 +104,12 @@ export default function SettingsPage() {
                     <label className="block text-sm font-medium text-gray-700">Role</label>
                     <select className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="agent">Real Estate Agent</option>
-                      <option value="broker">Broker</option>
-                      <option value="manager">Property Manager</option>
+                      <option value="agent manager">Agent Manager</option>
+                      <option value="operations">Operations Staff</option>
+                      <option value="operations manager">Operations Manager</option>
+                      <option value="team_leader">Team Leader</option>
                       <option value="admin">Administrator</option>
+                      <option value="accountant">Accountant</option>
                     </select>
                   </div>
                   

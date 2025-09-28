@@ -19,7 +19,7 @@ import { PropertyCard } from '@/components/PropertyCard'
 import { PropertyFilters } from '@/components/PropertyFilters'
 import { PropertyModals } from '@/components/PropertyModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
-import { propertyColumns, propertyDetailedColumns } from '@/components/PropertyTableColumns'
+import { getPropertyColumns, getPropertyDetailedColumns } from '@/components/PropertyTableColumns'
 import { Property, Category, Status, PropertyFilters as PropertyFiltersType, EditFormData } from '@/types/property'
 import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategories, mockStatuses } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -1182,7 +1182,7 @@ export default function PropertiesPage() {
       ) : (
         // Table View
         <DataTable
-          columns={propertyColumns}
+          columns={getPropertyColumns(canManageProperties)}
           data={paginatedProperties}
         />
       )}
@@ -1234,6 +1234,7 @@ export default function PropertiesPage() {
         onRefreshProperties={loadData}
         backendValidationErrors={backendValidationErrors}
         setBackendValidationErrors={setBackendValidationErrors}
+        canManageProperties={canManageProperties}
       />
     </div>
   )

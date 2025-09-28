@@ -30,6 +30,12 @@ class LeadsController {
     try {
       console.log('🔍 Getting filtered leads for user:', req.user?.name, 'Filters:', req.query);
       console.log('🔍 User role:', req.user?.role, 'User ID:', req.user?.id);
+      console.log('🔍 Date filters from query:', { 
+        date_from: req.query.date_from, 
+        date_to: req.query.date_to,
+        date_from_type: typeof req.query.date_from,
+        date_to_type: typeof req.query.date_to
+      });
       
       let leads;
       const userRole = req.user.role;

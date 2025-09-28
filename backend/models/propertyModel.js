@@ -252,6 +252,103 @@ class Property {
     return result.rows;
   }
 
+  // Get properties assigned to agents under a specific team leader
+  static async getPropertiesByTeamLeader(teamLeaderId) {
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.reference_number,
+        p.status_id,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
+        p.location,
+        p.category_id,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
+        p.building_name,
+        p.owner_name,
+        p.phone_number,
+        p.surface,
+        p.details,
+        p.interior_details,
+        p.built_year,
+        p.view_type,
+        p.concierge,
+        p.agent_id,
+        u.name as agent_name,
+        u.role as agent_role,
+        p.price,
+        p.notes,
+        p.property_url,
+        p.main_image,
+        p.image_gallery,
+        p.created_at,
+        p.updated_at,
+        'team_agent' as agent_relationship
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
+      LEFT JOIN users u ON p.agent_id = u.id
+      INNER JOIN team_agents ta ON p.agent_id = ta.agent_id
+      WHERE ta.team_leader_id = $1 AND ta.is_active = true
+      ORDER BY p.created_at DESC
+    `, [teamLeaderId]);
+    return result.rows;
+  }
+
+  // Get properties for team leader: their own properties + their team's properties
+  static async getPropertiesForTeamLeader(teamLeaderId) {
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.reference_number,
+        p.status_id,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
+        p.location,
+        p.category_id,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
+        p.building_name,
+        p.owner_name,
+        p.phone_number,
+        p.surface,
+        p.details,
+        p.interior_details,
+        p.built_year,
+        p.view_type,
+        p.concierge,
+        p.agent_id,
+        u.name as agent_name,
+        u.role as agent_role,
+        p.price,
+        p.notes,
+        p.property_url,
+        p.main_image,
+        p.image_gallery,
+        p.created_at,
+        p.updated_at,
+        CASE 
+          WHEN p.agent_id = $1 THEN 'own'
+          ELSE 'team_agent'
+        END as agent_relationship
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
+      LEFT JOIN users u ON p.agent_id = u.id
+      WHERE p.agent_id = $1 
+         OR p.agent_id IN (
+           SELECT ta.agent_id 
+           FROM team_agents ta 
+           WHERE ta.team_leader_id = $1 AND ta.is_active = true
+         )
+      ORDER BY p.created_at DESC
+    `, [teamLeaderId]);
+    return result.rows;
+  }
+
   static async getPropertyById(id) {
     console.log('🔍 getPropertyById called with ID:', id, 'Type:', typeof id);
     

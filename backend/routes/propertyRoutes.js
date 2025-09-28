@@ -6,6 +6,7 @@ const {
   authenticateToken, 
   filterDataByRole,
   canManageProperties,
+  canViewProperties,
   canViewAllData,
   canViewFinancialData,
   canViewAgentPerformance
@@ -28,10 +29,10 @@ router.use(filterDataByRole);
 
 
 // GET /api/properties - Get all properties (filtered by role)
-router.get('/', csrfProtection, propertyController.getAllProperties);
+router.get('/', canViewProperties, csrfProtection, propertyController.getAllProperties);
 
 // GET /api/properties/filtered - Get properties with filters (filtered by role)
-router.get('/filtered', csrfProtection, propertyController.getPropertiesWithFilters);
+router.get('/filtered', canViewProperties, csrfProtection, propertyController.getPropertiesWithFilters);
 
 // GET /api/properties/stats/overview - Get property statistics (admin, operations manager, operations, agent manager)
 router.get('/stats/overview', canViewAllData, propertyController.getPropertyStats);
@@ -56,7 +57,7 @@ router.get('/images/all', canViewAllData, propertyController.getPropertiesWithIm
 router.get('/images/stats', canViewAllData, propertyController.getImageStats);
 
 // GET /api/properties/:id - Get single property (filtered by role) - MUST BE LAST
-router.get('/:id', csrfProtection, propertyController.getPropertyById);
+router.get('/:id', canViewProperties, csrfProtection, propertyController.getPropertyById);
 
 // POST /api/properties - Create new property (admin, operations manager, operations, agent manager)
 router.post('/', 

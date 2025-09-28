@@ -1,10 +1,99 @@
 // controllers/calendarController.js
 const calendarEventModel = require('../models/calendarEventModel');
 
-// Get all events
+// Role hierarchy levels (higher number = higher authority)
+const ROLE_HIERARCHY = {
+  'admin': 6,
+  'operations manager': 5,
+  'operations': 4,
+  'agent manager': 3,
+  'team_leader': 2,
+  'agent': 1,
+  'accountant': 1
+};
+
+// Helper function to check if a user can edit an event based on hierarchy
+const canEditEvent = async (editorId, editorRole, eventId) => {
+  try {
+    // Get the event details
+    const event = await calendarEventModel.getEventById(eventId);
+    if (!event) {
+      return { canEdit: false, reason: 'Event not found' };
+    }
+
+    const editorLevel = ROLE_HIERARCHY[editorRole] || 0;
+    const creatorLevel = ROLE_HIERARCHY[event.created_by_role] || 0;
+
+    // Users can always edit their own events (highest priority)
+    if (event.created_by === editorId) {
+      return { canEdit: true, reason: 'You can edit your own events' };
+    }
+
+    // Admin can edit everything
+    if (editorRole === 'admin') {
+      return { canEdit: true, reason: 'Admin can edit all events' };
+    }
+
+    // Operations Manager can edit operations and below
+    if (editorRole === 'operations manager') {
+      if (event.created_by_role === 'operations' || event.created_by_role === 'agent manager' || 
+          event.created_by_role === 'team_leader' || event.created_by_role === 'agent' || 
+          event.created_by_role === 'accountant') {
+        return { canEdit: true, reason: 'Operations Manager can edit operations and below' };
+      }
+    }
+
+    // Operations can only edit themselves and other operations
+    if (editorRole === 'operations') {
+      if (event.created_by_role === 'operations' || event.created_by === editorId) {
+        return { canEdit: true, reason: 'Operations can edit operations events' };
+      }
+    }
+
+    // Agent Manager can edit anything related to agents
+    if (editorRole === 'agent manager') {
+      if (event.created_by_role === 'agent' || event.created_by_role === 'team_leader' || 
+          event.assigned_to_role === 'agent' || event.assigned_to_role === 'team_leader') {
+        return { canEdit: true, reason: 'Agent Manager can edit agent-related events' };
+      }
+    }
+
+    // Team Leader can edit events for agents under them
+    if (editorRole === 'team_leader') {
+      // Check if the event creator or assignee is an agent under this team leader
+      const isAgentUnderTeamLeader = await calendarEventModel.isAgentUnderTeamLeader(editorId, event.created_by);
+      const isAssignedToAgentUnderTeamLeader = await calendarEventModel.isAgentUnderTeamLeader(editorId, event.assigned_to);
+      
+      if (isAgentUnderTeamLeader || isAssignedToAgentUnderTeamLeader) {
+        return { canEdit: true, reason: 'Team Leader can edit events for their agents' };
+      }
+    }
+
+    // Agents cannot edit other users' events (their own events are handled above)
+    if (editorRole === 'agent') {
+      return { canEdit: false, reason: 'Agents can only edit their own events' };
+    }
+
+    return { canEdit: false, reason: 'Insufficient permissions based on role hierarchy' };
+
+  } catch (error) {
+    console.error('Error checking edit permissions:', error);
+    return { canEdit: false, reason: 'Error checking permissions' };
+  }
+};
+
+// Get all events (filtered by user role)
 const getAllEvents = async (req, res) => {
   try {
-    const events = await calendarEventModel.getAllEvents();
+    const { roleFilters } = req;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+    
+    let events;
+    
+    // Use hierarchy-based filtering for all roles
+    events = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
+    
     res.json({
       success: true,
       events: events.map(event => ({
@@ -20,6 +109,7 @@ const getAllEvents = async (req, res) => {
         attendees: event.attendees || [],
         notes: event.notes,
         createdBy: event.created_by,
+        assignedTo: event.assigned_to,
         createdAt: event.created_at,
         updatedAt: event.updated_at,
         propertyId: event.property_id,
@@ -39,10 +129,12 @@ const getAllEvents = async (req, res) => {
   }
 };
 
-// Get events by date range
+// Get events by date range (filtered by user role)
 const getEventsByDateRange = async (req, res) => {
   try {
     const { start, end } = req.query;
+    const { roleFilters } = req;
+    const userId = req.user.id;
     
     if (!start || !end) {
       return res.status(400).json({
@@ -61,7 +153,10 @@ const getEventsByDateRange = async (req, res) => {
       });
     }
 
-    const events = await calendarEventModel.getEventsByDateRange(startDate, endDate);
+    let events;
+    
+    // Use hierarchy-based filtering for all roles
+    events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
     res.json({
       success: true,
       events: events.map(event => ({
@@ -100,6 +195,8 @@ const getEventsByDateRange = async (req, res) => {
 const getEventsByMonth = async (req, res) => {
   try {
     const { year, month } = req.query;
+    const { roleFilters } = req;
+    const userId = req.user.id;
     
     if (!year || !month) {
       return res.status(400).json({
@@ -118,7 +215,14 @@ const getEventsByMonth = async (req, res) => {
       });
     }
 
-    const events = await calendarEventModel.getEventsByMonth(yearNum, monthNum);
+    let events;
+    
+    // Use hierarchy-based filtering for all roles
+    const allUserEvents = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
+    events = allUserEvents.filter(event => {
+      const eventDate = new Date(event.start_time);
+      return eventDate.getFullYear() === yearNum && eventDate.getMonth() + 1 === monthNum;
+    });
     res.json({
       success: true,
       events: events.map(event => ({
@@ -157,6 +261,8 @@ const getEventsByMonth = async (req, res) => {
 const getEventsByWeek = async (req, res) => {
   try {
     const { startOfWeek } = req.query;
+    const { roleFilters } = req;
+    const userId = req.user.id;
     
     if (!startOfWeek) {
       return res.status(400).json({
@@ -174,7 +280,13 @@ const getEventsByWeek = async (req, res) => {
       });
     }
 
-    const events = await calendarEventModel.getEventsByWeek(startDate);
+    let events;
+    
+    // Use hierarchy-based filtering for all roles
+    // Calculate end of week (7 days later)
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 7);
+    events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
     res.json({
       success: true,
       events: events.map(event => ({
@@ -213,6 +325,8 @@ const getEventsByWeek = async (req, res) => {
 const getEventsByDay = async (req, res) => {
   try {
     const { date } = req.query;
+    const { roleFilters } = req;
+    const userId = req.user.id;
     
     if (!date) {
       return res.status(400).json({
@@ -230,7 +344,15 @@ const getEventsByDay = async (req, res) => {
       });
     }
 
-    const events = await calendarEventModel.getEventsByDay(targetDate);
+    let events;
+    
+    // Use hierarchy-based filtering for all roles
+    // Get events for the entire day (start to end of day)
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(userId, userRole, startOfDay, endOfDay);
     res.json({
       success: true,
       events: events.map(event => ({
@@ -374,7 +496,8 @@ const createEvent = async (req, res) => {
       location: location?.trim() || null,
       attendees: attendees || [],
       notes: notes?.trim() || null,
-      created_by: req.user?.id || null, // Will be set when auth is implemented
+      created_by: req.user?.id || null,
+      assigned_to: req.user?.id || null, // Assign event to the user who creates it
       property_id: propertyId || null,
       lead_id: leadId || null
     };
@@ -429,6 +552,15 @@ const updateEvent = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Event not found'
+      });
+    }
+
+    // Check if user can edit this event based on hierarchy
+    const editPermission = await canEditEvent(req.user.id, req.user.role, id);
+    if (!editPermission.canEdit) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied: ${editPermission.reason}`
       });
     }
 
@@ -525,6 +657,15 @@ const deleteEvent = async (req, res) => {
       });
     }
 
+    // Check if user can delete this event based on hierarchy
+    const editPermission = await canEditEvent(req.user.id, req.user.role, id);
+    if (!editPermission.canEdit) {
+      return res.status(403).json({
+        success: false,
+        message: `Access denied: ${editPermission.reason}`
+      });
+    }
+
     await calendarEventModel.deleteEvent(id);
     
     res.json({
@@ -540,10 +681,57 @@ const deleteEvent = async (req, res) => {
   }
 };
 
+// Check if user can edit/delete an event
+const checkEventPermissions = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Event ID is required'
+      });
+    }
+
+    // Check if event exists
+    const existingEvent = await calendarEventModel.findById(id);
+    if (!existingEvent) {
+      return res.status(404).json({
+        success: false,
+        message: 'Event not found'
+      });
+    }
+
+    // Check if user can edit this event based on hierarchy
+    const editPermission = await canEditEvent(req.user.id, req.user.role, id);
+    
+    res.json({
+      success: true,
+      canEdit: editPermission.canEdit,
+      canDelete: editPermission.canEdit, // Same permissions for edit and delete
+      reason: editPermission.reason,
+      event: {
+        id: existingEvent.id,
+        title: existingEvent.title,
+        created_by: existingEvent.created_by,
+        assigned_to: existingEvent.assigned_to
+      }
+    });
+  } catch (error) {
+    console.error('Error checking event permissions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check event permissions'
+    });
+  }
+};
+
 // Search events
 const searchEvents = async (req, res) => {
   try {
-    const { q, userId } = req.query;
+    const { q } = req.query;
+    const { roleFilters } = req;
+    const userId = req.user.id;
     
     if (!q) {
       return res.status(400).json({
@@ -552,7 +740,10 @@ const searchEvents = async (req, res) => {
       });
     }
 
-    const events = await calendarEventModel.searchEvents(q, userId);
+    let events;
+    
+    // Use hierarchy-based filtering for all roles
+    events = await calendarEventModel.searchEventsForUserWithHierarchy(userId, userRole, q);
     res.json({
       success: true,
       events: events.map(event => ({
@@ -590,16 +781,36 @@ const searchEvents = async (req, res) => {
 // Get properties for dropdown
 const getPropertiesForDropdown = async (req, res) => {
   try {
-    const pool = require('../config/db');
-    const result = await pool.query(
-      `SELECT id, reference_number, location 
-       FROM properties 
-       ORDER BY reference_number ASC`
-    );
+    const { roleFilters } = req;
+    const userId = req.user.id;
+    const Property = require('../models/propertyModel');
+    
+    let properties;
+    
+    // All roles can see properties, but with different filtering
+    if (roleFilters.canViewAll) {
+      properties = await Property.getAllProperties();
+    } else if (roleFilters.role === 'agent') {
+      // Agents can only see their own properties and referrals
+      properties = await Property.getPropertiesAssignedOrReferredByAgent(userId);
+    } else if (roleFilters.role === 'team_leader') {
+      // Team leaders can see their own properties and their team's properties
+      properties = await Property.getPropertiesForTeamLeader(userId);
+    } else {
+      // For other roles, return empty array (they can still access calendar but won't see properties)
+      properties = [];
+    }
+    
+    // Format for dropdown
+    const dropdownProperties = properties.map(property => ({
+      id: property.id,
+      reference_number: property.reference_number,
+      location: property.location
+    }));
     
     res.json({
       success: true,
-      properties: result.rows
+      properties: dropdownProperties
     });
   } catch (error) {
     console.error('Error fetching properties for dropdown:', error);
@@ -613,16 +824,30 @@ const getPropertiesForDropdown = async (req, res) => {
 // Get leads for dropdown
 const getLeadsForDropdown = async (req, res) => {
   try {
-    const pool = require('../config/db');
-    const result = await pool.query(
-      `SELECT id, customer_name, phone_number 
-       FROM leads 
-       ORDER BY customer_name ASC`
-    );
+    const { roleFilters } = req;
+    const userId = req.user.id;
+    const Lead = require('../models/leadsModel');
+    
+    let leads;
+    
+    // All roles can see leads, but with different filtering
+    if (roleFilters.canViewLeads) {
+      leads = await Lead.getAllLeads();
+    } else {
+      // For roles without lead access, return empty array (they can still access calendar but won't see leads)
+      leads = [];
+    }
+    
+    // Format for dropdown
+    const dropdownLeads = leads.map(lead => ({
+      id: lead.id,
+      customer_name: lead.customer_name,
+      phone_number: lead.phone_number
+    }));
     
     res.json({
       success: true,
-      leads: result.rows
+      leads: dropdownLeads
     });
   } catch (error) {
     console.error('Error fetching leads for dropdown:', error);
@@ -643,6 +868,7 @@ module.exports = {
   createEvent,
   updateEvent,
   deleteEvent,
+  checkEventPermissions,
   searchEvents,
   getPropertiesForDropdown,
   getLeadsForDropdown

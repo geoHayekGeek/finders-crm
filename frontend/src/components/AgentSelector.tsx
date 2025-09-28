@@ -116,6 +116,8 @@ export function AgentSelector({
         return 'bg-purple-100 text-purple-700'
       case 'agent_manager':
         return 'bg-indigo-100 text-indigo-700'
+      case 'team_leader':
+        return 'bg-orange-100 text-orange-700'
       case 'agent':
         return 'bg-green-100 text-green-700'
       case 'operations':

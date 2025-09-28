@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useEffect } from 'react'
-import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2, User, Calendar } from 'lucide-react'
+import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2, User, Calendar, Copy } from 'lucide-react'
 import { Property, Category, Status, EditFormData, Referral } from '@/types/property'
 import { compressAndConvertToBase64, getRecommendedCompressionOptions } from '@/utils/imageCompression'
 import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, validateImageFiles, createImagePreview, getFullImageUrl } from '@/utils/imageUpload'
@@ -207,6 +207,7 @@ interface PropertyModalsProps {
   onRefreshProperties?: () => void
   backendValidationErrors?: Record<string, string>
   setBackendValidationErrors?: (errors: Record<string, string>) => void
+  canManageProperties?: boolean
 }
 
 export function PropertyModals({
@@ -239,7 +240,8 @@ export function PropertyModals({
   onRefreshStatuses,
   onRefreshProperties,
   backendValidationErrors = {},
-  setBackendValidationErrors
+  setBackendValidationErrors,
+  canManageProperties = true
 }: PropertyModalsProps) {
   const { showSuccess, showError, showWarning } = useToast()
   const [skipDuplicates, setSkipDuplicates] = useState(true)
@@ -920,7 +922,16 @@ export function PropertyModals({
     }
   }
 
-
+  // Copy to clipboard function
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      showSuccess('URL copied to clipboard!')
+    } catch (err) {
+      console.error('Failed to copy: ', err)
+      showError('Failed to copy URL to clipboard')
+    }
+  }
 
   return (
     <>
@@ -2733,14 +2744,23 @@ export function PropertyModals({
                       <label className="block text-sm font-medium text-gray-700 mb-2">Property URL</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
                         {viewPropertyData.property_url ? (
-                          <a 
-                            href={viewPropertyData.property_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:text-blue-800 underline break-all"
-                          >
-                            {viewPropertyData.property_url}
-                          </a>
+                          <div className="flex items-center justify-between">
+                            <a 
+                              href={viewPropertyData.property_url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 underline break-all flex-1 mr-2"
+                            >
+                              {viewPropertyData.property_url}
+                            </a>
+                            <button
+                              onClick={() => viewPropertyData.property_url && copyToClipboard(viewPropertyData.property_url)}
+                              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-md transition-colors"
+                              title="Copy URL to clipboard"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                          </div>
                         ) : (
                           <div className="text-gray-500">No URL provided</div>
                         )}
@@ -2822,17 +2842,19 @@ export function PropertyModals({
               >
                 Close
               </button>
-              <button
-                onClick={() => {
-                  setShowViewPropertyModal(false)
-                  if (viewingProperty) {
-                    setShowEditPropertyModal(true)
-                  }
-                }}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Edit Property
-              </button>
+              {canManageProperties && (
+                <button
+                  onClick={() => {
+                    setShowViewPropertyModal(false)
+                    if (viewingProperty) {
+                      setShowEditPropertyModal(true)
+                    }
+                  }}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Edit Property
+                </button>
+              )}
             </div>
           </div>
         </div>

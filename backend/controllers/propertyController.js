@@ -1,6 +1,7 @@
 // controllers/propertyController.js
 const Property = require('../models/propertyModel');
 const User = require('../models/userModel');
+const Notification = require('../models/notificationModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 
 // Get all properties for demo (no authentication required)
@@ -37,6 +38,9 @@ const getAllProperties = async (req, res) => {
     } else if (roleFilters.role === 'agent') {
       // Agents can only see properties assigned to them or referred by them
       properties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
+    } else if (roleFilters.role === 'team_leader') {
+      // Team leaders can see their own properties and properties of their assigned agents
+      properties = await Property.getPropertiesForTeamLeader(req.user.id);
     } else {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -68,9 +72,12 @@ const getPropertiesWithFilters = async (req, res) => {
     const { roleFilters } = req;
     const filters = req.query;
 
-    // Add role-based filtering for agents - they should see assigned or referred properties
+    console.log('🔍 getPropertiesWithFilters called with role:', roleFilters.role, 'filters:', filters);
+
+    // Add role-based filtering for agents and team leaders
     let properties;
-    if (!roleFilters.canViewAll && roleFilters.role === 'agent') {
+    
+    if (roleFilters.role === 'agent') {
       // For agents, we need to use the special method that includes referrals
       // We'll apply filters later if needed
       properties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
@@ -125,9 +132,119 @@ const getPropertiesWithFilters = async (req, res) => {
           return matches;
         });
       }
+    } else if (roleFilters.role === 'team_leader') {
+      // For team leaders, get their own properties and team properties
+      properties = await Property.getPropertiesForTeamLeader(req.user.id);
+      
+      // Apply additional filters manually if provided
+      if (Object.keys(filters).length > 0) {
+        properties = properties.filter(property => {
+          let matches = true;
+          
+          if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
+            matches = false;
+          }
+          
+          if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
+            matches = false;
+          }
+          
+          if (filters.price_min && property.price < filters.price_min) {
+            matches = false;
+          }
+          
+          if (filters.price_max && property.price > filters.price_max) {
+            matches = false;
+          }
+          
+          if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
+              !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
+              !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
+            matches = false;
+          }
+          
+          if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
+            matches = false;
+          }
+          
+          if (filters.surface_min && property.surface < filters.surface_min) {
+            matches = false;
+          }
+          
+          if (filters.surface_max && property.surface > filters.surface_max) {
+            matches = false;
+          }
+          
+          return matches;
+        });
+      }
+    } else if (roleFilters.canViewAll) {
+      // For admin, operations manager, operations, agent manager - get all properties
+      properties = await Property.getAllProperties();
+      
+      // Apply additional filters manually if provided
+      if (Object.keys(filters).length > 0) {
+        console.log('🔍 Applying filters to all properties:', filters);
+        properties = properties.filter(property => {
+          let matches = true;
+          
+          if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
+            matches = false;
+          }
+          
+          if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
+            matches = false;
+          }
+          
+          if (filters.price_min && property.price < filters.price_min) {
+            matches = false;
+          }
+          
+          if (filters.price_max && property.price > filters.price_max) {
+            matches = false;
+          }
+          
+          if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
+              !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
+              !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
+            matches = false;
+          }
+          
+          if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
+            matches = false;
+          }
+          
+          if (filters.surface_min && property.surface < filters.surface_min) {
+            matches = false;
+          }
+          
+          if (filters.surface_max && property.surface > filters.surface_max) {
+            matches = false;
+          }
+          
+          if (filters.built_year_min && property.built_year < filters.built_year_min) {
+            matches = false;
+          }
+          
+          if (filters.built_year_max && property.built_year > filters.built_year_max) {
+            matches = false;
+          }
+          
+          if (filters.property_type && filters.property_type !== 'All' && property.property_type !== filters.property_type) {
+            matches = false;
+          }
+          
+          if (filters.concierge !== undefined && property.concierge !== (filters.concierge === 'true')) {
+            matches = false;
+          }
+          
+          return matches;
+        });
+        console.log('📊 After filtering all properties:', properties.length);
+      }
     } else {
-      // For other roles, use the normal filtered method
-      properties = await Property.getPropertiesWithFilters(filters);
+      // Fallback - should not happen with proper permissions
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     res.json({
@@ -254,6 +371,52 @@ const createProperty = async (req, res) => {
       image_gallery: image_gallery || [] // Optional
     });
 
+    // Create notifications for relevant users
+    try {
+      await Notification.createPropertyNotification(
+        newProperty.id,
+        'created',
+        {
+          building_name: newProperty.building_name,
+          location: newProperty.location,
+          reference_number: newProperty.reference_number
+        },
+        req.user.id
+      );
+
+      // If an agent is assigned, create a specific "Property Assigned" notification for them
+      if (finalAgentId && finalAgentId !== req.user.id) {
+        await Notification.createNotification({
+          user_id: finalAgentId,
+          title: 'Property Assigned',
+          message: `You have been assigned to the property "${newProperty.building_name || newProperty.location}".`,
+          type: 'info',
+          entity_type: 'property',
+          entity_id: newProperty.id
+        });
+      }
+
+      // If there are referrals, create specific notifications for them
+      if (referrals && referrals.length > 0) {
+        for (const referral of referrals) {
+          if (referral.employee_id) {
+            await Notification.createReferralNotification(
+              newProperty.id,
+              referral.employee_id,
+              {
+                building_name: newProperty.building_name,
+                location: newProperty.location,
+                reference_number: newProperty.reference_number
+              }
+            );
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error creating property notifications:', notificationError);
+      // Don't fail the property creation if notifications fail
+    }
+
     res.status(201).json({
       success: true,
       message: 'Property created successfully',
@@ -313,6 +476,52 @@ const updateProperty = async (req, res) => {
     
     const updatedProperty = await Property.updateProperty(id, updates);
     console.log('🔍 Updated property returned:', JSON.stringify(updatedProperty, null, 2));
+
+    // Create notifications for relevant users
+    try {
+      await Notification.createPropertyNotification(
+        parseInt(id),
+        'updated',
+        {
+          building_name: updatedProperty.building_name,
+          location: updatedProperty.location,
+          reference_number: updatedProperty.reference_number
+        },
+        req.user.id
+      );
+
+      // If agent assignment changed, create a specific "Property Assigned" notification for the new agent
+      if (updates.agent_id && updates.agent_id !== property.agent_id && updates.agent_id !== req.user.id) {
+        await Notification.createNotification({
+          user_id: updates.agent_id,
+          title: 'Property Assigned',
+          message: `You have been assigned to the property "${updatedProperty.building_name || updatedProperty.location}".`,
+          type: 'info',
+          entity_type: 'property',
+          entity_id: parseInt(id)
+        });
+      }
+
+      // If referrals were updated, create specific notifications for new referrals
+      if (updates.referrals && updates.referrals.length > 0) {
+        for (const referral of updates.referrals) {
+          if (referral.employee_id) {
+            await Notification.createReferralNotification(
+              parseInt(id),
+              referral.employee_id,
+              {
+                building_name: updatedProperty.building_name,
+                location: updatedProperty.location,
+                reference_number: updatedProperty.reference_number
+              }
+            );
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error creating property update notifications:', notificationError);
+      // Don't fail the property update if notifications fail
+    }
 
     res.json({
       success: true,
@@ -381,6 +590,23 @@ const deleteProperty = async (req, res) => {
           message: 'Access denied. You can only delete properties assigned to agents.' 
         });
       }
+    }
+
+    // Create notifications for relevant users before deleting
+    try {
+      await Notification.createPropertyNotification(
+        propertyId,
+        'deleted',
+        {
+          building_name: property.building_name,
+          location: property.location,
+          reference_number: property.reference_number
+        },
+        req.user.id
+      );
+    } catch (notificationError) {
+      console.error('Error creating property deletion notifications:', notificationError);
+      // Don't fail the property deletion if notifications fail
     }
 
     await Property.deleteProperty(id);
