@@ -1,5 +1,7 @@
 // controllers/calendarController.js
 const calendarEventModel = require('../models/calendarEventModel');
+const Notification = require('../models/notificationModel');
+const pool = require('../config/db');
 
 // Role hierarchy levels (higher number = higher authority)
 const ROLE_HIERARCHY = {
@@ -10,6 +12,24 @@ const ROLE_HIERARCHY = {
   'team_leader': 2,
   'agent': 1,
   'accountant': 1
+};
+
+// Helper function to get user IDs from attendee names
+const getAttendeeUserIds = async (attendeeNames) => {
+  if (!attendeeNames || attendeeNames.length === 0) {
+    return [];
+  }
+  
+  try {
+    const result = await pool.query(
+      'SELECT id FROM users WHERE name = ANY($1)',
+      [attendeeNames]
+    );
+    return result.rows.map(row => row.id);
+  } catch (error) {
+    console.error('Error getting attendee user IDs:', error);
+    return [];
+  }
 };
 
 // Helper function to check if a user can edit an event based on hierarchy
@@ -504,6 +524,56 @@ const createEvent = async (req, res) => {
 
     const newEvent = await calendarEventModel.createEvent(eventData);
     
+    // Create notifications for relevant users
+    try {
+      await Notification.createCalendarEventNotification(
+        newEvent.id,
+        'created',
+        {
+          title: newEvent.title,
+          description: newEvent.description,
+          start_time: newEvent.start_time,
+          end_time: newEvent.end_time,
+          location: newEvent.location
+        },
+        req.user.id
+      );
+
+      // If event is assigned to someone other than the creator, create specific assignment notification
+      if (eventData.assigned_to && eventData.assigned_to !== req.user.id) {
+        await Notification.createCalendarEventAssignmentNotification(
+          newEvent.id,
+          eventData.assigned_to,
+          {
+            title: newEvent.title,
+            start_time: newEvent.start_time,
+            end_time: newEvent.end_time,
+            location: newEvent.location
+          }
+        );
+      }
+
+      // If there are attendees, create specific attendee notifications
+      if (eventData.attendees && eventData.attendees.length > 0) {
+        const attendeeUserIds = await getAttendeeUserIds(eventData.attendees);
+        if (attendeeUserIds.length > 0) {
+          await Notification.createCalendarEventAttendeeNotifications(
+            newEvent.id,
+            attendeeUserIds,
+            {
+              title: newEvent.title,
+              start_time: newEvent.start_time,
+              end_time: newEvent.end_time,
+              location: newEvent.location
+            }
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error creating calendar event notifications:', notificationError);
+      // Don't fail the event creation if notifications fail
+    }
+    
     res.status(201).json({
       success: true,
       message: 'Event created successfully',
@@ -601,6 +671,56 @@ const updateEvent = async (req, res) => {
 
     const updatedEvent = await calendarEventModel.updateEvent(id, updateData);
     
+    // Create notifications for relevant users
+    try {
+      await Notification.createCalendarEventNotification(
+        parseInt(id),
+        'updated',
+        {
+          title: updatedEvent.title,
+          description: updatedEvent.description,
+          start_time: updatedEvent.start_time,
+          end_time: updatedEvent.end_time,
+          location: updatedEvent.location
+        },
+        req.user.id
+      );
+
+      // If assignment changed, create specific assignment notification
+      if (updates.assignedTo && updates.assignedTo !== existingEvent.assigned_to && updates.assignedTo !== req.user.id) {
+        await Notification.createCalendarEventAssignmentNotification(
+          parseInt(id),
+          updates.assignedTo,
+          {
+            title: updatedEvent.title,
+            start_time: updatedEvent.start_time,
+            end_time: updatedEvent.end_time,
+            location: updatedEvent.location
+          }
+        );
+      }
+
+      // If attendees changed, create specific attendee notifications for new attendees
+      if (updates.attendees && updates.attendees.length > 0) {
+        const attendeeUserIds = await getAttendeeUserIds(updates.attendees);
+        if (attendeeUserIds.length > 0) {
+          await Notification.createCalendarEventAttendeeNotifications(
+            parseInt(id),
+            attendeeUserIds,
+            {
+              title: updatedEvent.title,
+              start_time: updatedEvent.start_time,
+              end_time: updatedEvent.end_time,
+              location: updatedEvent.location
+            }
+          );
+        }
+      }
+    } catch (notificationError) {
+      console.error('Error creating calendar event update notifications:', notificationError);
+      // Don't fail the event update if notifications fail
+    }
+    
     res.json({
       success: true,
       message: 'Event updated successfully',
@@ -664,6 +784,25 @@ const deleteEvent = async (req, res) => {
         success: false,
         message: `Access denied: ${editPermission.reason}`
       });
+    }
+
+    // Create notifications for relevant users before deleting
+    try {
+      await Notification.createCalendarEventNotification(
+        parseInt(id),
+        'deleted',
+        {
+          title: existingEvent.title,
+          description: existingEvent.description,
+          start_time: existingEvent.start_time,
+          end_time: existingEvent.end_time,
+          location: existingEvent.location
+        },
+        req.user.id
+      );
+    } catch (notificationError) {
+      console.error('Error creating calendar event deletion notifications:', notificationError);
+      // Don't fail the event deletion if notifications fail
     }
 
     await calendarEventModel.deleteEvent(id);

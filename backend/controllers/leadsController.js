@@ -1,5 +1,6 @@
 // controllers/leadsController.js
 const Lead = require('../models/leadsModel');
+const Notification = require('../models/notificationModel');
 const { validationResult } = require('express-validator');
 
 class LeadsController {
@@ -136,6 +137,35 @@ class LeadsController {
       const newLead = await Lead.createLead(leadData);
       
       console.log('✅ Lead created successfully:', newLead.id);
+
+      // Create notifications for relevant users
+      try {
+        await Notification.createLeadNotification(
+          newLead.id,
+          'created',
+          {
+            customer_name: newLead.customer_name,
+            phone_number: newLead.phone_number,
+            status: newLead.status
+          },
+          req.user.id
+        );
+
+        // If an agent is assigned, create a specific "Lead Assigned" notification for them
+        if (newLead.agent_id && newLead.agent_id !== req.user.id) {
+          await Notification.createLeadAssignmentNotification(
+            newLead.id,
+            newLead.agent_id,
+            {
+              customer_name: newLead.customer_name,
+              phone_number: newLead.phone_number
+            }
+          );
+        }
+      } catch (notificationError) {
+        console.error('Error creating lead notifications:', notificationError);
+        // Don't fail the lead creation if notifications fail
+      }
       
       res.status(201).json({
         success: true,
@@ -190,6 +220,47 @@ class LeadsController {
           message: 'Lead not found'
         });
       }
+
+      // Create notifications for relevant users
+      try {
+        const notificationData = {
+          customer_name: updatedLead.customer_name,
+          phone_number: updatedLead.phone_number,
+          status: updatedLead.status
+        };
+
+        // Check if status changed
+        if (req.body.status && req.body.status !== existingLead.status) {
+          await Notification.createLeadNotification(
+            parseInt(id),
+            'status_changed',
+            notificationData,
+            req.user.id
+          );
+        } else {
+          await Notification.createLeadNotification(
+            parseInt(id),
+            'updated',
+            notificationData,
+            req.user.id
+          );
+        }
+
+        // If agent assignment changed, create a specific "Lead Assigned" notification for the new agent
+        if (req.body.agent_id && req.body.agent_id !== existingLead.agent_id && req.body.agent_id !== req.user.id) {
+          await Notification.createLeadAssignmentNotification(
+            parseInt(id),
+            req.body.agent_id,
+            {
+              customer_name: updatedLead.customer_name,
+              phone_number: updatedLead.phone_number
+            }
+          );
+        }
+      } catch (notificationError) {
+        console.error('Error creating lead update notifications:', notificationError);
+        // Don't fail the lead update if notifications fail
+      }
       
       console.log('✅ Lead updated successfully:', updatedLead.id);
       
@@ -230,6 +301,23 @@ class LeadsController {
           success: false,
           message: 'You do not have permission to delete leads'
         });
+      }
+
+      // Create notifications for relevant users before deleting
+      try {
+        await Notification.createLeadNotification(
+          parseInt(id),
+          'deleted',
+          {
+            customer_name: existingLead.customer_name,
+            phone_number: existingLead.phone_number,
+            status: existingLead.status
+          },
+          req.user.id
+        );
+      } catch (notificationError) {
+        console.error('Error creating lead deletion notifications:', notificationError);
+        // Don't fail the lead deletion if notifications fail
       }
 
       const deletedLead = await Lead.deleteLead(id);

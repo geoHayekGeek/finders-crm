@@ -347,8 +347,8 @@ class CalendarEvent {
 
     // Add hierarchy-based visibility based on role
     if (userRole === 'admin') {
-      // Admin can see all events - no additional conditions needed
-      query += `)`;
+      // Admin can see all events - add condition to see all events
+      query += ` OR 1=1)`;
     } else if (userRole === 'operations manager') {
       // Operations Manager can see operations and below
       query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')
@@ -416,8 +416,8 @@ class CalendarEvent {
 
     // Add hierarchy-based visibility based on role
     if (userRole === 'admin') {
-      // Admin can see all events - no additional conditions needed
-      query += `)`;
+      // Admin can see all events - add condition to see all events
+      query += ` OR 1=1)`;
     } else if (userRole === 'operations manager') {
       // Operations Manager can see operations and below
       query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')
@@ -500,8 +500,8 @@ class CalendarEvent {
 
     // Add hierarchy-based visibility based on role
     if (userRole === 'admin') {
-      // Admin can see all events - no additional conditions needed
-      query += `)`;
+      // Admin can see all events - add condition to see all events
+      query += ` OR 1=1)`;
     } else if (userRole === 'operations manager') {
       // Operations Manager can see operations and below
       query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')

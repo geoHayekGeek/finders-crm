@@ -67,7 +67,7 @@ RETURNS TABLE(user_id INTEGER, role VARCHAR(50)) AS $$
 BEGIN
     RETURN QUERY
     WITH property_info AS (
-        SELECT p.agent_id, p.referrals
+        SELECT p.agent_id
         FROM properties p
         WHERE p.id = p_property_id
     ),
@@ -97,6 +97,50 @@ BEGIN
         SELECT ru.user_id, ru.role
         FROM referral_users ru
         WHERE (p_exclude_user_id IS NULL OR ru.user_id != p_exclude_user_id)
+        
+        UNION
+        
+        -- Management users
+        SELECT mu.user_id, mu.role
+        FROM management_users mu
+    ) u;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to get users who should be notified for lead changes
+CREATE OR REPLACE FUNCTION get_lead_notification_users(
+    p_lead_id INTEGER,
+    p_exclude_user_id INTEGER DEFAULT NULL
+)
+RETURNS TABLE(user_id INTEGER, role VARCHAR(50)) AS $$
+BEGIN
+    RETURN QUERY
+    WITH lead_info AS (
+        SELECT l.agent_id, l.operations_id
+        FROM leads l
+        WHERE l.id = p_lead_id
+    ),
+    management_users AS (
+        SELECT u.id as user_id, u.role
+        FROM users u
+        WHERE u.role IN ('admin', 'operations_manager', 'operations', 'agent_manager')
+        AND (p_exclude_user_id IS NULL OR u.id != p_exclude_user_id)
+    )
+    SELECT DISTINCT u.user_id, u.role
+    FROM (
+        -- Assigned agent
+        SELECT li.agent_id as user_id, 'agent'::VARCHAR(50) as role
+        FROM lead_info li
+        WHERE li.agent_id IS NOT NULL
+        AND (p_exclude_user_id IS NULL OR li.agent_id != p_exclude_user_id)
+        
+        UNION
+        
+        -- Operations user
+        SELECT li.operations_id as user_id, 'operations'::VARCHAR(50) as role
+        FROM lead_info li
+        WHERE li.operations_id IS NOT NULL
+        AND (p_exclude_user_id IS NULL OR li.operations_id != p_exclude_user_id)
         
         UNION
         

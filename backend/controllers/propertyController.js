@@ -2,6 +2,7 @@
 const Property = require('../models/propertyModel');
 const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
+const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 
 // Get all properties for demo (no authentication required)
@@ -394,6 +395,31 @@ const createProperty = async (req, res) => {
           entity_type: 'property',
           entity_id: newProperty.id
         });
+
+        // Create a calendar event for the assigned agent
+        try {
+          const eventData = {
+            title: `Property Assignment: ${newProperty.building_name || newProperty.location}`,
+            description: `You have been assigned to manage this property. Reference: ${newProperty.reference_number}`,
+            start_time: new Date(), // Start immediately
+            end_time: new Date(Date.now() + 24 * 60 * 60 * 1000), // End in 24 hours
+            all_day: false,
+            color: 'blue',
+            type: 'property_assignment',
+            location: newProperty.location,
+            attendees: [],
+            notes: `Property Reference: ${newProperty.reference_number}\nProperty Type: ${newProperty.property_type}\nPrice: $${newProperty.price}`,
+            created_by: req.user.id,
+            assigned_to: finalAgentId,
+            property_id: newProperty.id
+          };
+
+          await CalendarEvent.createEvent(eventData);
+          console.log('📅 Calendar event created for property assignment');
+        } catch (calendarError) {
+          console.error('❌ Error creating calendar event:', calendarError);
+          // Don't fail the property creation if calendar event creation fails
+        }
       }
 
       // If there are referrals, create specific notifications for them
@@ -500,6 +526,31 @@ const updateProperty = async (req, res) => {
           entity_type: 'property',
           entity_id: parseInt(id)
         });
+
+        // Create a calendar event for the newly assigned agent
+        try {
+          const eventData = {
+            title: `Property Assignment: ${updatedProperty.building_name || updatedProperty.location}`,
+            description: `You have been assigned to manage this property. Reference: ${updatedProperty.reference_number}`,
+            start_time: new Date(), // Start immediately
+            end_time: new Date(Date.now() + 24 * 60 * 60 * 1000), // End in 24 hours
+            all_day: false,
+            color: 'blue',
+            type: 'property_assignment',
+            location: updatedProperty.location,
+            attendees: [],
+            notes: `Property Reference: ${updatedProperty.reference_number}\nProperty Type: ${updatedProperty.property_type}\nPrice: $${updatedProperty.price}`,
+            created_by: req.user.id,
+            assigned_to: updates.agent_id,
+            property_id: parseInt(id)
+          };
+
+          await CalendarEvent.createEvent(eventData);
+          console.log('📅 Calendar event created for property reassignment');
+        } catch (calendarError) {
+          console.error('❌ Error creating calendar event for reassignment:', calendarError);
+          // Don't fail the property update if calendar event creation fails
+        }
       }
 
       // If referrals were updated, create specific notifications for new referrals

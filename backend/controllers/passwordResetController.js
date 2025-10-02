@@ -53,8 +53,8 @@ class PasswordResetController {
         message: emailSent 
           ? 'If an account with this email exists, a password reset code will be sent.'
           : 'Password reset code generated. Check your email or contact support.',
-        email: email,
-        resetCode: emailSent ? undefined : resetCode // Only return code if email failed
+        email: email
+        // Security: Never return reset code in API response
       });
 
     } catch (error) {
@@ -117,7 +117,7 @@ class PasswordResetController {
 
       const { email, code, newPassword } = req.body;
       
-      console.log('🔍 Password reset attempt:', { email, code, newPasswordLength: newPassword?.length });
+      console.log('🔍 Password reset attempt:', { email, newPasswordLength: newPassword?.length });
 
       // Verify token again
       const resetToken = await PasswordReset.findValidToken(email, code);
@@ -133,7 +133,7 @@ class PasswordResetController {
 
       // Hash new password
       const hashedPassword = await bcrypt.hash(newPassword, 12);
-      console.log('🔐 Password hashed, length:', hashedPassword.length);
+      console.log('🔐 Password hashed successfully');
 
       // Update user password
       const updateResult = await User.updatePassword(email, hashedPassword);
@@ -221,8 +221,8 @@ class PasswordResetController {
         message: emailSent 
           ? 'New password reset code sent successfully'
           : 'New password reset code generated. Check your email or contact support.',
-        email: email,
-        resetCode: emailSent ? undefined : resetCode // Only return code if email failed
+        email: email
+        // Security: Never return reset code in API response
       });
 
     } catch (error) {
