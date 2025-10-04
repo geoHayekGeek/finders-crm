@@ -131,7 +131,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
             <button
               key={option.value}
               onClick={() => setFilter(option.value as any)}
-              className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-colors ${
+              className={`flex-1 px-1 py-1 text-xs font-medium rounded transition-colors min-w-0 ${
                 filter === option.value
                   ? 'bg-white text-gray-900 shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'

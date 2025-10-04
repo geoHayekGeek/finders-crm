@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { formatRole } from '@/utils/roleFormatter'
 import { Search, Filter, X, ChevronDown, Calendar, Users, Tag } from 'lucide-react'
 import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
 import { usersApi } from '@/utils/api'
@@ -236,11 +237,11 @@ export function LeadsFilters({
                 disabled={loading}
               >
                 <option value="">All Agents</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.role})
-                  </option>
-                ))}
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({formatRole(user.role)})
+                      </option>
+                    ))}
               </select>
             </div>
 

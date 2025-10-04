@@ -6,6 +6,7 @@ require('dotenv').config();
 const indexRoutes = require('./routes/index');
 const securityHeaders = require('./middlewares/securityHeaders');
 const { errorLoggingMiddleware, errorHandler } = require('./middlewares/errorLogging');
+const reminderScheduler = require('./scheduler/reminderScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -49,4 +50,12 @@ app.use('*', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  
+  // Start the reminder scheduler
+  try {
+    reminderScheduler.start();
+    console.log('📅 Reminder scheduler started successfully');
+  } catch (error) {
+    console.error('❌ Failed to start reminder scheduler:', error);
+  }
 });

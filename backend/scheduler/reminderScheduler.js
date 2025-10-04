@@ -17,8 +17,8 @@ class ReminderScheduler {
 
     console.log('🚀 Starting reminder scheduler...');
 
-    // Run every 15 minutes to check for reminders
-    const reminderJob = cron.schedule('*/15 * * * *', async () => {
+    // Run every 1 minute to check for reminders (for testing)
+    const reminderJob = cron.schedule('* * * * *', async () => {
       console.log('⏰ Running reminder check...');
       await ReminderService.processReminders();
     }, {
@@ -41,7 +41,7 @@ class ReminderScheduler {
     this.isRunning = true;
 
     console.log('✅ Reminder scheduler started successfully');
-    console.log('📅 Reminder checks: Every 15 minutes');
+    console.log('📅 Reminder checks: Every 1 minute (testing mode)');
     console.log('🧹 Cleanup: Daily at 2:00 AM');
   }
 
@@ -69,7 +69,7 @@ class ReminderScheduler {
     return {
       isRunning: this.isRunning,
       jobsCount: this.jobs.length,
-      nextRun: this.jobs.length > 0 ? 'Every 15 minutes' : 'Not scheduled'
+      nextRun: this.jobs.length > 0 ? 'Every 1 minute' : 'Not scheduled'
     };
   }
 

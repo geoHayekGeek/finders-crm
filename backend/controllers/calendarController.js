@@ -121,11 +121,18 @@ const getAllEvents = async (req, res) => {
     const { roleFilters } = req;
     const userId = req.user.id;
     const userRole = req.user.role;
+    const query = req.query;
     
     let events;
     
-    // Use hierarchy-based filtering for all roles
-    events = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
+    // Check if admin is requesting filtered events
+    if (userRole === 'admin' && (query.createdBy || query.attendee || query.type || query.dateFrom || query.dateTo || query.search)) {
+      // Use advanced filtering for admins
+      events = await calendarEventModel.getEventsWithAdvancedFilters(query);
+    } else {
+      // Use hierarchy-based filtering for all other roles
+      events = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
+    }
     
     res.json({
       success: true,
@@ -150,7 +157,8 @@ const getAllEvents = async (req, res) => {
         propertyLocation: event.property_location,
         leadId: event.lead_id,
         leadName: event.lead_name,
-        leadPhone: event.lead_phone
+        leadPhone: event.lead_phone,
+        createdByName: event.created_by_name
       }))
     });
   } catch (error) {

@@ -540,6 +540,89 @@ class CalendarEvent {
     const result = await pool.query(query, params);
     return result.rows;
   }
+
+  // Get events with advanced filters (admin only)
+  static async getEventsWithAdvancedFilters(filters) {
+    let query = `
+      SELECT 
+        ce.*,
+        p.reference_number as property_reference,
+        p.location as property_location,
+        l.customer_name as lead_name,
+        l.phone_number as lead_phone,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
+        assignee.name as assigned_to_name,
+        assignee.role as assigned_to_role
+      FROM calendar_events ce
+      LEFT JOIN properties p ON ce.property_id = p.id
+      LEFT JOIN leads l ON ce.lead_id = l.id
+      LEFT JOIN users creator ON ce.created_by = creator.id
+      LEFT JOIN users assignee ON ce.assigned_to = assignee.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+    let paramCount = 0;
+
+    // Filter by created by user
+    if (filters.createdBy) {
+      paramCount++;
+      query += ` AND ce.created_by = $${paramCount}`;
+      params.push(parseInt(filters.createdBy));
+    }
+
+    // Filter by attendee
+    if (filters.attendee) {
+      paramCount++;
+      query += ` AND $${paramCount} = ANY(ce.attendees)`;
+      params.push(filters.attendee);
+    }
+
+    // Filter by event type
+    if (filters.type) {
+      paramCount++;
+      query += ` AND ce.type = $${paramCount}`;
+      params.push(filters.type);
+    }
+
+    // Filter by date range
+    if (filters.dateFrom) {
+      paramCount++;
+      query += ` AND ce.start_time >= $${paramCount}`;
+      params.push(new Date(filters.dateFrom));
+    }
+
+    if (filters.dateTo) {
+      paramCount++;
+      query += ` AND ce.start_time <= $${paramCount}`;
+      params.push(new Date(filters.dateTo));
+    }
+
+    // Filter by search term
+    if (filters.search) {
+      paramCount++;
+      const searchTerm = `%${filters.search}%`;
+      query += ` AND (
+        ce.title ILIKE $${paramCount} 
+        OR ce.description ILIKE $${paramCount}
+        OR ce.location ILIKE $${paramCount}
+        OR ce.notes ILIKE $${paramCount}
+        OR p.reference_number ILIKE $${paramCount}
+        OR p.location ILIKE $${paramCount}
+        OR l.customer_name ILIKE $${paramCount}
+        OR l.phone_number ILIKE $${paramCount}
+        OR creator.name ILIKE $${paramCount}
+        OR assignee.name ILIKE $${paramCount}
+      )`;
+      params.push(searchTerm);
+    }
+
+    query += ` ORDER BY ce.start_time ASC`;
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
 }
 
 module.exports = CalendarEvent;

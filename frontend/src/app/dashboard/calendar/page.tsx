@@ -1,12 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Calendar } from '@/components/Calendar'
 import { EventModal } from '@/components/EventModal'
 import { EventList } from '@/components/EventList'
 import { CalendarHeader } from '@/components/CalendarHeader'
+// import { AdminCalendarFilters, CalendarFilters } from '@/components/AdminCalendarFilters'
 import { PlusIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { formatRole } from '@/utils/roleFormatter'
+
+interface CalendarFilters {
+  createdBy?: string
+  attendee?: string
+  type?: string
+  dateFrom?: string
+  dateTo?: string
+  search?: string
+}
 
 export interface CalendarEvent {
   id: string
@@ -26,6 +38,7 @@ export interface CalendarEvent {
   leadId?: number | null
   leadName?: string
   leadPhone?: string
+  createdByName?: string
 }
 
 export interface Property {
@@ -56,7 +69,12 @@ export default function CalendarPage() {
   const [showSidebar, setShowSidebar] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [eventPermissions, setEventPermissions] = useState<Record<string, EventPermissions>>({})
+  const [adminFilters, setAdminFilters] = useState<CalendarFilters>({})
+  const [users, setUsers] = useState<any[]>([])
+  const [attendees, setAttendees] = useState<string[]>([])
+  const loadingRef = useRef(false)
   const { showSuccess, showError, showWarning, showInfo } = useToast()
+  const { user } = useAuth()
 
   // Check permissions for an event
   const checkEventPermissions = async (eventId: string): Promise<EventPermissions> => {
@@ -96,71 +114,123 @@ export default function CalendarPage() {
     }
   }
 
-  // Load events from API on component mount
-  useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        setIsLoading(true)
-        const token = localStorage.getItem('token')
-        
-        if (!token) {
-          setError('No authentication token found')
-          return
-        }
-
-        const response = await fetch('http://localhost:10000/api/calendar', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success && data.data) {
-            // Convert the events to the expected format
-            const formattedEvents: CalendarEvent[] = data.data.map((event: any) => ({
-              id: String(event.id),
-              title: event.title,
-              description: event.description,
-              start: new Date(event.start_time),
-              end: new Date(event.end_time),
-              allDay: event.all_day,
-              color: event.color || 'blue',
-              type: event.type || 'other',
-              location: event.location,
-              attendees: event.attendees || [],
-              notes: event.notes,
-              propertyId: event.property_id,
-              propertyReference: event.property_reference,
-              propertyLocation: event.property_location,
-              leadId: event.lead_id,
-              leadName: event.lead_name,
-              leadPhone: event.lead_phone
-            }))
-            
-            setEvents(formattedEvents)
-            console.log('✅ Loaded events:', formattedEvents.length)
-          } else {
-            setError('Failed to load events')
-          }
-        } else {
-          if (response.status === 401) {
-            setError('Authentication required. Please log in again.')
-          } else {
-            setError('Failed to load events')
-          }
-        }
-      } catch (error) {
-        console.error('Error loading events:', error)
-        setError('Failed to load events')
-      } finally {
-        setIsLoading(false)
-      }
+  // Load events from API
+  const loadEvents = async (filters?: CalendarFilters) => {
+    // Prevent multiple simultaneous requests
+    if (loadingRef.current) {
+      return
     }
 
+    try {
+      loadingRef.current = true
+      setIsLoading(true)
+      const token = localStorage.getItem('token')
+      
+      if (!token) {
+        setError('No authentication token found')
+        loadingRef.current = false
+        setIsLoading(false)
+        return
+      }
+
+      // Build query parameters for admin filters
+      const queryParams = new URLSearchParams()
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== '') {
+            queryParams.append(key, value)
+          }
+        })
+      }
+
+      const url = queryParams.toString() 
+        ? `http://localhost:10000/api/calendar?${queryParams.toString()}`
+        : 'http://localhost:10000/api/calendar'
+
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.events) {
+          // Convert the events to the expected format
+          const formattedEvents: CalendarEvent[] = data.events.map((event: any) => ({
+            id: String(event.id),
+            title: event.title,
+            description: event.description,
+            start: new Date(event.start),
+            end: new Date(event.end),
+            allDay: event.allDay,
+            color: event.color || 'blue',
+            type: event.type || 'other',
+            location: event.location,
+            attendees: event.attendees || [],
+            notes: event.notes,
+            propertyId: event.propertyId,
+            propertyReference: event.propertyReference,
+            propertyLocation: event.propertyLocation,
+            leadId: event.leadId,
+            leadName: event.leadName,
+            leadPhone: event.leadPhone,
+            createdByName: event.createdByName
+          }))
+          
+          setEvents(formattedEvents)
+        } else {
+          setError('Failed to load events')
+        }
+      } else {
+        if (response.status === 401) {
+          setError('Authentication required. Please log in again.')
+        } else {
+          setError('Failed to load events')
+        }
+      }
+    } catch (error) {
+      console.error('Error loading events:', error)
+      setError('Failed to load events')
+    } finally {
+      setIsLoading(false)
+      loadingRef.current = false
+    }
+  }
+
+  // Load events from API on component mount
+  useEffect(() => {
     loadEvents()
   }, [])
+
+  // Load users and attendees for admin filters
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      loadUsers()
+      loadAttendees()
+    }
+  }, [user?.role])
+
+  // Track if this is the initial load
+  const isInitialLoad = useRef(true)
+
+  // Load events when admin filters change (with debouncing)
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      // Skip the initial load since we already load events on mount
+      if (isInitialLoad.current) {
+        isInitialLoad.current = false
+        return
+      }
+      
+      const timeoutId = setTimeout(() => {
+        loadEvents(adminFilters)
+      }, 300) // 300ms debounce
+
+      return () => clearTimeout(timeoutId)
+    }
+  }, [adminFilters, user?.role])
 
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
     try {
@@ -180,7 +250,7 @@ export default function CalendarPage() {
           color: event.color,
           type: event.type,
           location: event.location,
-          attendees: event.attendees?.map(a => typeof a === 'string' ? a : a.name) || [],
+          attendees: event.attendees?.map(a => typeof a === 'string' ? a : String(a)) || [],
           notes: event.notes,
           propertyId: event.propertyId,
           leadId: event.leadId
@@ -233,7 +303,7 @@ export default function CalendarPage() {
           color: event.color,
           type: event.type,
           location: event.location,
-          attendees: event.attendees?.map(a => typeof a === 'string' ? a : a.name) || [],
+          attendees: event.attendees?.map(a => typeof a === 'string' ? a : String(a)) || [],
           notes: event.notes,
           propertyId: event.propertyId,
           leadId: event.leadId
@@ -376,6 +446,66 @@ export default function CalendarPage() {
     setIsEventModalOpen(true)
   }
 
+  const handleFiltersChange = useCallback((filters: CalendarFilters) => {
+    setAdminFilters(filters)
+  }, [])
+
+  const handleClearFilters = useCallback(() => {
+    setAdminFilters({})
+  }, [])
+
+  // Load users for the filter dropdown
+  const loadUsers = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('http://localhost:10000/api/users/all', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setUsers(data.users || [])
+      }
+    } catch (error) {
+      console.error('Error loading users:', error)
+    }
+  }
+
+  // Load attendees from existing events
+  const loadAttendees = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch('http://localhost:10000/api/calendar', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const allAttendees = new Set<string>()
+        
+        data.events?.forEach((event: any) => {
+          if (event.attendees && Array.isArray(event.attendees)) {
+            event.attendees.forEach((attendee: string) => {
+              if (attendee && typeof attendee === 'string') {
+                allAttendees.add(attendee)
+              }
+            })
+          }
+        })
+        
+        setAttendees(Array.from(allAttendees).sort())
+      }
+    } catch (error) {
+      console.error('Error loading attendees:', error)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -454,9 +584,168 @@ export default function CalendarPage() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        {/* Admin Filters */}
+        {user?.role === 'admin' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">Admin Filters</h3>
+                <button
+                  onClick={handleClearFilters}
+                  className="px-3 py-1 text-sm bg-red-100 text-red-700 hover:bg-red-200 hover:text-red-800 rounded-md transition-colors border border-red-200"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Search Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Search Events
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search by title, description..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={adminFilters.search || ''}
+                    onChange={(e) => handleFiltersChange({ ...adminFilters, search: e.target.value || undefined })}
+                  />
+                </div>
+
+                {/* Created By Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Created By
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={adminFilters.createdBy || ''}
+                    onChange={(e) => handleFiltersChange({ ...adminFilters, createdBy: e.target.value || undefined })}
+                  >
+                    <option value="">All Users</option>
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({formatRole(user.role)})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Attendee Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Attendee
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={adminFilters.attendee || ''}
+                    onChange={(e) => handleFiltersChange({ ...adminFilters, attendee: e.target.value || undefined })}
+                  >
+                    <option value="">All Attendees</option>
+                    {attendees.map(attendee => (
+                      <option key={attendee} value={attendee}>
+                        {attendee}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Event Type Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Event Type
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={adminFilters.type || ''}
+                    onChange={(e) => handleFiltersChange({ ...adminFilters, type: e.target.value || undefined })}
+                  >
+                    <option value="">All Types</option>
+                    <option value="meeting">Meeting</option>
+                    <option value="showing">Property Showing</option>
+                    <option value="inspection">Inspection</option>
+                    <option value="closing">Closing</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Date Range Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date From
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={adminFilters.dateFrom || ''}
+                    onChange={(e) => handleFiltersChange({ ...adminFilters, dateFrom: e.target.value || undefined })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Date To
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={adminFilters.dateTo || ''}
+                    onChange={(e) => handleFiltersChange({ ...adminFilters, dateTo: e.target.value || undefined })}
+                  />
+                </div>
+              </div>
+
+              {/* Active Filters Summary */}
+              {Object.keys(adminFilters).some(key => adminFilters[key as keyof CalendarFilters]) && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Active Filters:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {adminFilters.search && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Search: "{adminFilters.search}"
+                      </span>
+                    )}
+                    {adminFilters.createdBy && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Created by: {(() => {
+                          const user = users.find(u => u.id.toString() === adminFilters.createdBy)
+                          return user ? `${user.name} (${formatRole(user.role)})` : adminFilters.createdBy
+                        })()}
+                      </span>
+                    )}
+                    {adminFilters.attendee && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                        Attendee: {adminFilters.attendee}
+                      </span>
+                    )}
+                    {adminFilters.type && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        Type: {adminFilters.type}
+                      </span>
+                    )}
+                    {adminFilters.dateFrom && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        From: {adminFilters.dateFrom}
+                      </span>
+                    )}
+                    {adminFilters.dateTo && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        To: {adminFilters.dateTo}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        <div className="flex flex-col gap-8 [@media(min-width:1920px)]:flex-row">
           {/* Calendar */}
-          <div className="lg:col-span-3">
+          <div className="flex-1 [@media(min-width:1920px)]:w-3/4">
             <div className="bg-white rounded-lg shadow">
               <CalendarHeader
                 selectedDate={selectedDate}
@@ -476,19 +765,16 @@ export default function CalendarPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="lg:col-span-1">
+          <div className="w-full [@media(min-width:1920px)]:w-1/4">
             <div className="bg-white rounded-lg shadow">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Today's Events</h3>
+                <h3 className="text-lg font-medium text-gray-900">Events</h3>
               </div>
               <div className="p-6">
                 <EventList
-                  events={events.filter(event => {
-                    const today = new Date()
-                    const eventDate = new Date(event.start)
-                    return eventDate.toDateString() === today.toDateString()
-                  })}
+                  events={events}
                   onEventClick={handleEventClick}
+                  selectedDate={selectedDate}
                 />
               </div>
             </div>

@@ -5,9 +5,10 @@ import { Dialog } from '@headlessui/react'
 import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
+import { useToast } from '@/contexts/ToastContext'
 
-interface User {
-  id: string
+interface EventUser {
+  id: number
   name: string
   email: string
   role: string
@@ -40,6 +41,8 @@ export function EventModal({
   onDelete,
   permissions
 }: EventModalProps) {
+  const { showSuccess, showError, showWarning, showInfo } = useToast()
+  
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -49,7 +52,7 @@ export function EventModal({
     color: 'blue' as CalendarEvent['color'],
     type: 'other' as CalendarEvent['type'],
     location: '',
-    attendees: [] as User[],
+    attendees: [] as EventUser[],
     notes: '',
     propertyId: null as number | null,
     leadId: null as number | null
@@ -59,6 +62,7 @@ export function EventModal({
   const [properties, setProperties] = useState<Property[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
   const [loadingDropdowns, setLoadingDropdowns] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   // Debug form data changes
   useEffect(() => {
@@ -83,9 +87,9 @@ export function EventModal({
 
   useEffect(() => {
     if (event) {
-      // Editing existing event - convert attendee strings to User objects
-      const attendeeUsers: User[] = event.attendees?.map((attendee, index) => ({
-        id: `existing-${index}-${attendee}`, // Generate unique ID for existing attendees
+      // Editing existing event - convert attendee strings to EventUser objects
+      const attendeeUsers: EventUser[] = event.attendees?.map((attendee, index) => ({
+        id: index + 1000, // Generate unique ID for existing attendees
         name: attendee,
         email: '',
         role: '',
@@ -227,7 +231,7 @@ export function EventModal({
             console.log('📦 Properties API data:', propertiesData)
             if (propertiesData.success) {
               console.log('✅ PROPERTIES LOADED:', propertiesData.properties.length)
-              console.log('🏠 Properties list:', propertiesData.properties.map(p => ({ id: p.id, ref: p.reference_number })))
+              console.log('🏠 Properties list:', propertiesData.properties.map((p: any) => ({ id: p.id, ref: p.reference_number })))
               setProperties(propertiesData.properties)
             } else {
               console.error('❌ Properties API failed:', propertiesData.message)
@@ -241,7 +245,7 @@ export function EventModal({
             console.log('📦 Leads API data:', leadsData)
             if (leadsData.success) {
               console.log('✅ LEADS LOADED:', leadsData.leads.length)
-              console.log('👤 Leads list:', leadsData.leads.map(l => ({ id: l.id, name: l.customer_name })))
+              console.log('👤 Leads list:', leadsData.leads.map((l: any) => ({ id: l.id, name: l.customer_name })))
               setLeads(leadsData.leads)
             } else {
               console.error('❌ Leads API failed:', leadsData.message)
@@ -263,10 +267,16 @@ export function EventModal({
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
+    // Required field: Title
     if (!formData.title.trim()) {
-      newErrors.title = 'Title is required'
+      newErrors.title = 'Event title is required'
+    } else if (formData.title.trim().length < 3) {
+      newErrors.title = 'Event title must be at least 3 characters'
+    } else if (formData.title.trim().length > 100) {
+      newErrors.title = 'Event title must be less than 100 characters'
     }
 
+    // Required fields: Start and End time (when not all-day)
     if (!formData.allDay) {
       if (!formData.start) {
         newErrors.start = 'Start time is required'
@@ -275,69 +285,147 @@ export function EventModal({
         newErrors.end = 'End time is required'
       }
 
+      // Validate time logic
       if (formData.start && formData.end) {
         const start = new Date(formData.start)
         const end = new Date(formData.end)
+        
         if (start >= end) {
           newErrors.end = 'End time must be after start time'
         }
+        
+        // Check if event is too long (more than 24 hours)
+        const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
+        if (durationHours > 24) {
+          newErrors.end = 'Event duration cannot exceed 24 hours'
+        }
+        
+        // Check if event is in the past (more than 1 hour ago)
+        const now = new Date()
+        const oneHourAgo = new Date(now.getTime() - (60 * 60 * 1000))
+        if (start < oneHourAgo) {
+          newErrors.start = 'Event cannot be scheduled more than 1 hour in the past'
+        }
       }
+    }
+
+    // Optional field validation: Description
+    if (formData.description && formData.description.length > 500) {
+      newErrors.description = 'Description must be less than 500 characters'
+    }
+
+    // Optional field validation: Location
+    if (formData.location && formData.location.length > 200) {
+      newErrors.location = 'Location must be less than 200 characters'
+    }
+
+    // Optional field validation: Notes
+    if (formData.notes && formData.notes.length > 1000) {
+      newErrors.notes = 'Notes must be less than 1000 characters'
+    }
+
+    // Validate attendees (optional but if provided, should be valid)
+    if (formData.attendees.length > 10) {
+      newErrors.attendees = 'Maximum 10 attendees allowed'
+    }
+
+    // Validate attendees have names
+    const invalidAttendees = formData.attendees.filter(attendee => !attendee.name.trim())
+    if (invalidAttendees.length > 0) {
+      newErrors.attendees = 'All attendees must have names'
     }
 
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!validateForm()) return
-
-    const startDate = new Date(formData.start)
-    const endDate = new Date(formData.end)
-
-    // Convert attendees to array of names for backward compatibility
-    const attendeeNames = formData.attendees.map(user => user.name)
-
-    const eventData = event
-      ? { 
-          ...event, 
-          ...formData, 
-          title: formData.title.trim(), 
-          description: formData.description.trim() || undefined, 
-          start: startDate, 
-          end: endDate, 
-          allDay: formData.allDay, 
-          color: formData.color, 
-          type: formData.type, 
-          location: formData.location.trim() || undefined, 
-          attendees: attendeeNames, 
-          notes: formData.notes.trim() || undefined,
-          propertyId: formData.propertyId,
-          leadId: formData.leadId
-        }
-      : {
-          title: formData.title.trim(),
-          description: formData.description.trim() || undefined,
-          start: startDate,
-          end: endDate,
-          allDay: formData.allDay,
-          color: formData.color,
-          type: formData.type,
-          location: formData.location.trim() || undefined,
-          attendees: attendeeNames,
-          notes: formData.notes.trim() || undefined,
-          propertyId: formData.propertyId,
-          leadId: formData.leadId
-        }
-
-    onSave(eventData)
+  // Clear validation error for a specific field
+  const clearFieldError = (fieldName: string) => {
+    if (errors[fieldName]) {
+      setErrors(prev => ({
+        ...prev,
+        [fieldName]: ''
+      }))
+    }
   }
 
-  const handleDelete = () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    // Validate form first
+    if (!validateForm()) {
+      showError('Please fix the validation errors before saving')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const startDate = new Date(formData.start)
+      const endDate = new Date(formData.end)
+
+      // Convert attendees to array of names for backward compatibility
+      const attendeeNames = formData.attendees.map(user => user.name)
+
+      const eventData = event
+        ? { 
+            ...event, 
+            ...formData, 
+            title: formData.title.trim(), 
+            description: formData.description.trim() || undefined, 
+            start: startDate, 
+            end: endDate, 
+            allDay: formData.allDay, 
+            color: formData.color, 
+            type: formData.type, 
+            location: formData.location.trim() || undefined, 
+            attendees: attendeeNames, 
+            notes: formData.notes.trim() || undefined,
+            propertyId: formData.propertyId,
+            leadId: formData.leadId
+          }
+        : {
+            title: formData.title.trim(),
+            description: formData.description.trim() || undefined,
+            start: startDate,
+            end: endDate,
+            allDay: formData.allDay,
+            color: formData.color,
+            type: formData.type,
+            location: formData.location.trim() || undefined,
+            attendees: attendeeNames,
+            notes: formData.notes.trim() || undefined,
+            propertyId: formData.propertyId,
+            leadId: formData.leadId
+          }
+
+      await onSave(eventData)
+      
+      // Success toast will be shown by the parent component
+      // Clear validation errors on successful save
+      setErrors({})
+      
+    } catch (error) {
+      console.error('Error saving event:', error)
+      showError('Failed to save event. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
     if (event && onDelete) {
-      if (window.confirm('Are you sure you want to delete this event?')) {
-        onDelete(event.id)
+      const confirmed = window.confirm(
+        `Are you sure you want to delete the event "${event.title}"?\n\nThis action cannot be undone.`
+      )
+      
+      if (confirmed) {
+        try {
+          await onDelete(event.id)
+          // Success toast will be shown by the parent component
+        } catch (error) {
+          console.error('Error deleting event:', error)
+          showError('Failed to delete event. Please try again.')
+        }
       }
     }
   }
@@ -390,7 +478,10 @@ export function EventModal({
                 type="text"
                 id="title"
                 value={formData.title}
-                onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, title: e.target.value }))
+                  clearFieldError('title')
+                }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 ${errors.title ? 'border-red-300' : 'border-gray-300'
                   }`}
                 placeholder="Event title"
@@ -408,11 +499,18 @@ export function EventModal({
               <textarea
                 id="description"
                 value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, description: e.target.value }))
+                  clearFieldError('description')
+                }}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 ${errors.description ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Event description"
               />
+              {errors.description && (
+                <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+              )}
             </div>
 
             {/* All Day Toggle */}
@@ -440,7 +538,10 @@ export function EventModal({
                     type="datetime-local"
                     id="start"
                     value={formData.start}
-                    onChange={(e) => setFormData(prev => ({ ...prev, start: e.target.value }))}
+                    onChange={(e) => {
+                      setFormData(prev => ({ ...prev, start: e.target.value }))
+                      clearFieldError('start')
+                    }}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.start ? 'border-red-300' : 'border-gray-300'
                       }`}
                   />
@@ -456,7 +557,10 @@ export function EventModal({
                     type="datetime-local"
                     id="end"
                     value={formData.end}
-                    onChange={(e) => setFormData(prev => ({ ...prev, end: e.target.value }))}
+                    onChange={(e) => {
+                      setFormData(prev => ({ ...prev, end: e.target.value }))
+                      clearFieldError('end')
+                    }}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.end ? 'border-red-300' : 'border-gray-300'
                       }`}
                   />
@@ -515,10 +619,17 @@ export function EventModal({
                 type="text"
                 id="location"
                 value={formData.location}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, location: e.target.value }))
+                  clearFieldError('location')
+                }}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 ${errors.location ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Event location"
               />
+              {errors.location && (
+                <p className="mt-1 text-sm text-red-600">{errors.location}</p>
+              )}
             </div>
 
             {/* Property and Lead Selection */}
@@ -648,10 +759,16 @@ export function EventModal({
               </label>
               <UserSelector
                 selectedUsers={formData.attendees}
-                onUsersChange={(users) => setFormData(prev => ({ ...prev, attendees: users }))}
+                onUsersChange={(users) => {
+                  setFormData(prev => ({ ...prev, attendees: users }))
+                  clearFieldError('attendees')
+                }}
                 placeholder="Search and select attendees..."
                 maxUsers={20}
               />
+              {errors.attendees && (
+                <p className="mt-1 text-sm text-red-600">{errors.attendees}</p>
+              )}
             </div>
 
             {/* Notes */}
@@ -662,11 +779,18 @@ export function EventModal({
               <textarea
                 id="notes"
                 value={formData.notes}
-                onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                onChange={(e) => {
+                  setFormData(prev => ({ ...prev, notes: e.target.value }))
+                  clearFieldError('notes')
+                }}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 ${errors.notes ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Additional notes"
               />
+              {errors.notes && (
+                <p className="mt-1 text-sm text-red-600">{errors.notes}</p>
+              )}
             </div>
 
             {/* Actions */}
@@ -700,15 +824,15 @@ export function EventModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={event && !permissions?.canEdit}
+                  disabled={saving || (event && !permissions?.canEdit) || false}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    event && !permissions?.canEdit
+                    saving || (event && !permissions?.canEdit)
                       ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
                       : 'text-white bg-blue-600 hover:bg-blue-700'
                   }`}
                   title={event && !permissions?.canEdit ? permissions?.reason : undefined}
                 >
-                  {event ? 'Update' : 'Create'} Event
+                  {saving ? 'Saving...' : (event ? 'Update' : 'Create')} Event
                 </button>
               </div>
             </div>

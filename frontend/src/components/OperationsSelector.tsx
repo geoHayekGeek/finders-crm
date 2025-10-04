@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { formatRole, getRoleColor } from '@/utils/roleFormatter'
 import { X, ChevronDown, Settings, RefreshCw } from 'lucide-react'
 import { OperationsUser } from '@/types/leads'
 import { leadsApi } from '@/utils/api'
@@ -89,16 +90,6 @@ export function OperationsSelector({
 
   const selectedUser = operationsUsers.find(u => u.id === selectedOperationsId)
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'operations_manager':
-        return 'bg-purple-100 text-purple-700'
-      case 'operations':
-        return 'bg-blue-100 text-blue-700'
-      default:
-        return 'bg-gray-100 text-gray-700'
-    }
-  }
 
   return (
     <div className="space-y-2">
@@ -205,7 +196,7 @@ export function OperationsSelector({
                         </div>
                         <div className="ml-3">
                           <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(user.role)}`}>
-                            {user.role.replace('_', ' ')}
+                            {formatRole(user.role)}
                           </span>
                         </div>
                       </div>

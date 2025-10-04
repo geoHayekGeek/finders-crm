@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { formatRole } from '@/utils/roleFormatter'
 import { MagnifyingGlassIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline'
 
 interface User {
@@ -173,7 +174,7 @@ export function SingleUserSelector({
                       <div className="text-sm text-gray-600">{user.email}</div>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                          {user.role}
+                          {formatRole(user.role)}
                         </span>
                         {user.location && (
                           <span className="text-xs text-gray-500">
