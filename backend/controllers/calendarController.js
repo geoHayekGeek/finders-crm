@@ -2,6 +2,7 @@
 const calendarEventModel = require('../models/calendarEventModel');
 const Notification = require('../models/notificationModel');
 const pool = require('../config/db');
+const ReminderService = require('../services/reminderService');
 
 // Role hierarchy levels (higher number = higher authority)
 const ROLE_HIERARCHY = {
@@ -31,6 +32,18 @@ const getAttendeeUserIds = async (attendeeNames) => {
     return [];
   }
 };
+// Helper function to schedule event reminders
+const scheduleEventReminders = async (eventId, eventData) => {
+  try {
+    await ReminderService.scheduleEventReminders(eventId, eventData);
+    console.log(`✅ Reminders scheduled for event ${eventId}`);
+  } catch (error) {
+    console.error('❌ Error scheduling reminders:', error);
+    // Don't throw error - reminders are not critical for event creation
+  }
+};
+
+
 
 // Helper function to check if a user can edit an event based on hierarchy
 const canEditEvent = async (editorId, editorRole, eventId) => {
@@ -569,7 +582,23 @@ const createEvent = async (req, res) => {
           );
         }
       }
-    } catch (notificationError) {
+
+    
+    // Schedule email reminders for the event
+    try {
+      await scheduleEventReminders(newEvent.id, {
+        title: newEvent.title,
+        start_time: newEvent.start_time,
+        end_time: newEvent.end_time,
+        location: newEvent.location,
+        assigned_to: newEvent.assigned_to,
+        created_by: newEvent.created_by,
+        attendees: newEvent.attendees
+      });
+    } catch (reminderError) {
+      console.error('Error scheduling event reminders:', reminderError);
+      // Don't fail the event creation if reminders fail
+    }    } catch (notificationError) {
       console.error('Error creating calendar event notifications:', notificationError);
       // Don't fail the event creation if notifications fail
     }
@@ -716,7 +745,23 @@ const updateEvent = async (req, res) => {
           );
         }
       }
-    } catch (notificationError) {
+
+    
+    // Reschedule email reminders for the updated event
+    try {
+      await scheduleEventReminders(updatedEvent.id, {
+        title: updatedEvent.title,
+        start_time: updatedEvent.start_time,
+        end_time: updatedEvent.end_time,
+        location: updatedEvent.location,
+        assigned_to: updatedEvent.assigned_to,
+        created_by: updatedEvent.created_by,
+        attendees: updatedEvent.attendees
+      });
+    } catch (reminderError) {
+      console.error('Error rescheduling event reminders:', reminderError);
+      // Don't fail the event update if reminders fail
+    }    } catch (notificationError) {
       console.error('Error creating calendar event update notifications:', notificationError);
       // Don't fail the event update if notifications fail
     }

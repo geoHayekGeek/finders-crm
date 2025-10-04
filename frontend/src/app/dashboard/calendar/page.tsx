@@ -98,93 +98,68 @@ export default function CalendarPage() {
 
   // Load events from API on component mount
   useEffect(() => {
-    const fetchEvents = async () => {
+    const loadEvents = async () => {
       try {
         setIsLoading(true)
-        setError(null)
-        
-        console.log('🔍 FETCHING EVENTS FROM API...')
         const token = localStorage.getItem('token')
         
         if (!token) {
-          console.log('❌ No token found, skipping permission checks')
-          setError('Not authenticated')
-          showError('Please log in to view calendar events')
+          setError('No authentication token found')
           return
         }
-        
+
         const response = await fetch('http://localhost:10000/api/calendar', {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         })
-        console.log('📡 API Response status:', response.status)
-        
+
         if (response.ok) {
           const data = await response.json()
-          console.log('📦 Raw API data:', data)
-          
-          if (data.success) {
-            const eventsWithDates = data.events.map((event: { start: string; end: string; [key: string]: unknown }) => ({
-              ...event,
-              start: new Date(event.start),
-              end: new Date(event.end)
+          if (data.success && data.data) {
+            // Convert the events to the expected format
+            const formattedEvents: CalendarEvent[] = data.data.map((event: any) => ({
+              id: String(event.id),
+              title: event.title,
+              description: event.description,
+              start: new Date(event.start_time),
+              end: new Date(event.end_time),
+              allDay: event.all_day,
+              color: event.color || 'blue',
+              type: event.type || 'other',
+              location: event.location,
+              attendees: event.attendees || [],
+              notes: event.notes,
+              propertyId: event.property_id,
+              propertyReference: event.property_reference,
+              propertyLocation: event.property_location,
+              leadId: event.lead_id,
+              leadName: event.lead_name,
+              leadPhone: event.lead_phone
             }))
             
-            console.log('🎯 ALL EVENTS LOADED:', eventsWithDates.length)
-            console.log('🔗 Events with property/lead data:', eventsWithDates.filter(e => e.propertyId || e.leadId))
-            
-            // Log each event with property/lead data in detail
-            eventsWithDates.forEach(event => {
-              if (event.propertyId || event.leadId) {
-                console.log(`📋 Event "${event.title}" (ID: ${event.id}):`, {
-                  propertyId: event.propertyId,
-                  propertyReference: event.propertyReference,
-                  propertyLocation: event.propertyLocation,
-                  leadId: event.leadId,
-                  leadName: event.leadName,
-                  leadPhone: event.leadPhone
-                })
-              }
-            })
-            
-            setEvents(eventsWithDates)
-            
-            // Check permissions for each event
-            const permissions: Record<string, EventPermissions> = {}
-            for (const event of eventsWithDates) {
-              const eventId = String(event.id) // Ensure event ID is a string
-              const eventPermissions = await checkEventPermissions(eventId)
-              permissions[eventId] = eventPermissions
-            }
-            setEventPermissions(permissions)
-            
-            // Show success message for loading events
-            if (eventsWithDates.length > 0) {
-              showInfo(`Loaded ${eventsWithDates.length} event${eventsWithDates.length === 1 ? '' : 's'}`)
-            }
+            setEvents(formattedEvents)
+            console.log('✅ Loaded events:', formattedEvents.length)
           } else {
-            const errorMessage = data.message || 'Failed to fetch events'
-            setError(errorMessage)
-            showError(errorMessage)
+            setError('Failed to load events')
           }
         } else {
-          const errorMessage = 'Failed to fetch events'
-          setError(errorMessage)
-          showError(errorMessage)
+          if (response.status === 401) {
+            setError('Authentication required. Please log in again.')
+          } else {
+            setError('Failed to load events')
+          }
         }
       } catch (error) {
-        console.error('Error fetching events:', error)
-        const errorMessage = 'Failed to fetch events'
-        setError(errorMessage)
-        showError(errorMessage)
+        console.error('Error loading events:', error)
+        setError('Failed to load events')
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchEvents()
+    loadEvents()
   }, [])
 
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
@@ -194,15 +169,27 @@ export default function CalendarPage() {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(event)
+        body: JSON.stringify({
+          title: event.title,
+          description: event.description,
+          start: event.start.toISOString(),
+          end: event.end.toISOString(),
+          allDay: event.allDay,
+          color: event.color,
+          type: event.type,
+          location: event.location,
+          attendees: event.attendees?.map(a => typeof a === 'string' ? a : a.name) || [],
+          notes: event.notes,
+          propertyId: event.propertyId,
+          leadId: event.leadId
+        })
       })
 
       if (response.ok) {
         const data = await response.json()
-        if (data.success) {
-          // Convert string dates back to Date objects
+        if (data.success && data.event) {
           const newEvent: CalendarEvent = {
             ...data.event,
             start: new Date(data.event.start),
@@ -223,71 +210,47 @@ export default function CalendarPage() {
       }
     } catch (error) {
       console.error('Error creating event:', error)
-      const errorMessage = 'Failed to create event'
-      setError(errorMessage)
-      showError(errorMessage)
+      setError('Failed to create event')
+      showError('Failed to create event')
     }
   }
 
   const handleUpdateEvent = async (event: CalendarEvent) => {
     try {
-      console.log('🔄 UPDATING EVENT!')
-      console.log('📝 Event data being sent to API:', {
-        id: event.id,
-        title: event.title,
-        propertyId: event.propertyId,
-        leadId: event.leadId
-      })
-      
       const token = localStorage.getItem('token')
       const response = await fetch(`http://localhost:10000/api/calendar/${event.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(event)
+        body: JSON.stringify({
+          title: event.title,
+          description: event.description,
+          start: event.start.toISOString(),
+          end: event.end.toISOString(),
+          allDay: event.allDay,
+          color: event.color,
+          type: event.type,
+          location: event.location,
+          attendees: event.attendees?.map(a => typeof a === 'string' ? a : a.name) || [],
+          notes: event.notes,
+          propertyId: event.propertyId,
+          leadId: event.leadId
+        })
       })
-
-      console.log('📡 Update API response status:', response.status)
 
       if (response.ok) {
         const data = await response.json()
-        console.log('📦 Update API response data:', data)
-        
-        if (data.success) {
-          // Convert string dates back to Date objects
+        if (data.success && data.event) {
           const updatedEvent: CalendarEvent = {
             ...data.event,
             start: new Date(data.event.start),
             end: new Date(data.event.end)
           }
           
-          console.log('✅ UPDATED EVENT FROM API:', {
-            id: updatedEvent.id,
-            title: updatedEvent.title,
-            propertyId: updatedEvent.propertyId,
-            propertyReference: updatedEvent.propertyReference,
-            propertyLocation: updatedEvent.propertyLocation,
-            leadId: updatedEvent.leadId,
-            leadName: updatedEvent.leadName,
-            leadPhone: updatedEvent.leadPhone
-          })
-          
-          console.log('🔄 Updating events state with new data...')
-          console.log('🔍 Comparing IDs for update:')
-          console.log('  - Original event ID:', event.id, typeof event.id)
-          console.log('  - Updated event ID:', updatedEvent.id, typeof updatedEvent.id)
-          
           setEvents(prev => {
-            console.log('📋 Current events in state:', prev.map(e => ({ id: e.id, title: e.title, propertyId: e.propertyId, leadId: e.leadId })))
-            
-            const newEvents = prev.map(e => {
-              const match = String(e.id) === String(event.id)
-              console.log(`🔍 Checking event ${e.id} (${typeof e.id}) vs ${event.id} (${typeof event.id}): ${match}`)
-              return match ? updatedEvent : e
-            })
-            
+            const newEvents = prev.map(e => e.id === event.id ? updatedEvent : e)
             const updatedEventInNewState = newEvents.find(e => String(e.id) === String(event.id))
             console.log('📋 Updated event in new state:', updatedEventInNewState)
             return newEvents
@@ -308,9 +271,8 @@ export default function CalendarPage() {
       }
     } catch (error) {
       console.error('Error updating event:', error)
-      const errorMessage = 'Failed to update event'
-      setError(errorMessage)
-      showError(errorMessage)
+      setError('Failed to update event')
+      showError('Failed to update event')
     }
   }
 
@@ -321,7 +283,7 @@ export default function CalendarPage() {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         }
       })
 
@@ -344,13 +306,12 @@ export default function CalendarPage() {
       }
     } catch (error) {
       console.error('Error deleting event:', error)
-      const errorMessage = 'Failed to delete event'
-      setError(errorMessage)
-      showError(errorMessage)
+      setError('Failed to delete event')
+      showError('Failed to delete event')
     }
   }
 
-  const handleEventClick = (event: CalendarEvent) => {
+  const handleEventClick = async (event: CalendarEvent) => {
     console.log('🖱️ EVENT CLICKED!')
     console.log('📅 Clicked event details:', {
       id: event.id,
@@ -379,6 +340,17 @@ export default function CalendarPage() {
     } else {
       console.log('❌ Event NOT found in state!')
     }
+    
+    // Check permissions for this event
+    console.log('🔐 Checking permissions for event:', event.id)
+    const permissions = await checkEventPermissions(event.id)
+    console.log('📋 Permissions result:', permissions)
+    
+    // Store permissions for this event
+    setEventPermissions(prev => ({
+      ...prev,
+      [String(event.id)]: permissions
+    }))
     
     setSelectedEvent(event)
     setIsEventModalOpen(true)
@@ -415,15 +387,32 @@ export default function CalendarPage() {
     )
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-600 text-xl mb-4">⚠️ Error</div>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
-        {/* Page Header */}
-        <div className="mb-6 sm:mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+      {/* Header */}
+      <div className="bg-white shadow">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-6">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CalendarIcon className="h-6 w-6 text-blue-600" />
+              <div className="flex-shrink-0">
+                <CalendarIcon className="h-8 w-8 text-blue-600" />
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Calendar</h1>
@@ -441,80 +430,68 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Error Display */}
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-center">
+      {/* Error Display */}
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex">
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </div>
               <div className="ml-3">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-              <div className="ml-auto pl-3">
-                <button
-                  onClick={() => setError(null)}
-                  className="inline-flex text-red-400 hover:text-red-600"
-                >
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{error}</p>
+                </div>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Mobile Events Section */}
-        <div className="lg:hidden mb-4">
-          <button
-            onClick={() => setShowSidebar(!showSidebar)}
-            className="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {showSidebar ? 'Hide Events' : 'Show Events'}
-          </button>
-          
-          {/* Mobile Events List - appears directly below the button */}
-          {showSidebar && (
-            <div className="mt-4">
-              <EventList
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Calendar */}
+          <div className="lg:col-span-3">
+            <div className="bg-white rounded-lg shadow">
+              <CalendarHeader
+                selectedDate={selectedDate}
+                view={view}
+                onDateChange={setSelectedDate}
+                onViewChange={setView}
+              />
+              <Calendar
                 events={events}
                 selectedDate={selectedDate}
+                view={view}
                 onEventClick={handleEventClick}
+                onDateClick={handleDateClick}
+                onHourClick={handleHourClick}
               />
             </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-8">
-          {/* Calendar Section */}
-          <div className="lg:col-span-3">
-            <CalendarHeader
-              view={view}
-              onViewChange={setView}
-              selectedDate={selectedDate}
-              onDateChange={setSelectedDate}
-            />
-            <Calendar
-              events={events}
-              selectedDate={selectedDate}
-              view={view}
-              onEventClick={handleEventClick}
-              onDateClick={handleDateClick}
-              onHourClick={handleHourClick}
-            />
           </div>
 
-          {/* Desktop Sidebar - Hidden on mobile */}
-          <div className="hidden lg:block lg:col-span-1">
-            <EventList
-              events={events}
-              selectedDate={selectedDate}
-              onEventClick={handleEventClick}
-            />
+          {/* Sidebar */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-lg shadow">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900">Today's Events</h3>
+              </div>
+              <div className="p-6">
+                <EventList
+                  events={events.filter(event => {
+                    const today = new Date()
+                    const eventDate = new Date(event.start)
+                    return eventDate.toDateString() === today.toDateString()
+                  })}
+                  onEventClick={handleEventClick}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
