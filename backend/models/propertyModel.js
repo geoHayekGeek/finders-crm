@@ -252,6 +252,112 @@ class Property {
     return result.rows;
   }
 
+  // Get all properties with filtered owner details based on user role and permissions
+  static async getAllPropertiesWithFilteredOwnerDetails(userRole, userId) {
+    try {
+      console.log('🔍 Executing getAllPropertiesWithFilteredOwnerDetails query...');
+      const result = await pool.query(`
+        SELECT 
+          p.id,
+          p.reference_number,
+          p.status_id,
+          COALESCE(s.name, 'Uncategorized Status') as status_name,
+          COALESCE(s.color, '#6B7280') as status_color,
+          p.property_type,
+          p.location,
+          p.category_id,
+          COALESCE(c.name, 'Uncategorized') as category_name,
+          COALESCE(c.code, 'UNCAT') as category_code,
+          p.building_name,
+          p.owner_name,
+          p.phone_number,
+          p.surface,
+          p.details,
+          p.interior_details,
+          p.built_year,
+          p.view_type,
+          p.concierge,
+          p.agent_id,
+          u.name as agent_name,
+          u.role as agent_role,
+          p.price,
+          p.notes,
+          p.property_url,
+          p.main_image,
+          p.image_gallery,
+          p.created_at,
+          p.updated_at
+        FROM properties p
+        LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+        LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
+        LEFT JOIN users u ON p.agent_id = u.id
+        ORDER BY p.created_at DESC
+      `);
+      console.log('✅ Query executed successfully, rows returned:', result.rows.length);
+      
+      // Fetch referrals for each property
+      const propertiesWithReferrals = await Promise.all(
+        result.rows.map(async (property) => {
+          const referralsResult = await pool.query(
+            `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+            [property.id]
+          );
+          property.referrals = referralsResult.rows;
+          return property;
+        })
+      );
+      
+      return propertiesWithReferrals;
+    } catch (error) {
+      console.error('❌ Error in getAllPropertiesWithFilteredOwnerDetails:', error);
+      console.error('Error details:', {
+        message: error.message,
+        code: error.code,
+        detail: error.detail,
+        hint: error.hint
+      });
+      throw error;
+    }
+  }
+
+  // Helper method to check if user can see owner details for a specific property
+  static async canUserSeeOwnerDetails(userRole, userId, propertyId) {
+    // Admin, operations manager, operations, agent manager can always see owner details
+    if (['admin', 'operations manager', 'operations', 'agent manager'].includes(userRole)) {
+      return true;
+    }
+
+    // For agents and team leaders, check specific permissions
+    if (userRole === 'agent') {
+      // Agents can see owner details only for properties assigned to them
+      const result = await pool.query(
+        'SELECT agent_id FROM properties WHERE id = $1',
+        [propertyId]
+      );
+      return result.rows.length > 0 && result.rows[0].agent_id === userId;
+    }
+
+    if (userRole === 'team_leader') {
+      // Team leaders can see owner details for:
+      // 1. Properties assigned to them
+      // 2. Properties assigned to agents under them
+      const result = await pool.query(`
+        SELECT p.agent_id, ta.agent_id as team_agent_id
+        FROM properties p
+        LEFT JOIN team_agents ta ON p.agent_id = ta.agent_id AND ta.team_leader_id = $1 AND ta.is_active = true
+        WHERE p.id = $2
+      `, [userId, propertyId]);
+      
+      if (result.rows.length === 0) return false;
+      
+      const property = result.rows[0];
+      // Can see if property is assigned to them or to one of their agents
+      return property.agent_id === userId || property.team_agent_id !== null;
+    }
+
+    return false;
+  }
+
   // Get properties assigned to agents under a specific team leader
   static async getPropertiesByTeamLeader(teamLeaderId) {
     const result = await pool.query(`

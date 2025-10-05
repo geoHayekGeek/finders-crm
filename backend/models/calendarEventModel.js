@@ -340,15 +340,17 @@ class CalendarEvent {
       WHERE (
         ce.assigned_to = $1 
         OR ce.created_by = $1 
-        OR (ce.attendees IS NOT NULL AND creator.name = ANY(ce.attendees))
+        OR (ce.attendees IS NOT NULL AND EXISTS (
+          SELECT 1 FROM users u WHERE u.id = $1 AND u.name = ANY(ce.attendees)
+        ))
     `;
 
     const params = [userId];
 
     // Add hierarchy-based visibility based on role
     if (userRole === 'admin') {
-      // Admin can see all events - add condition to see all events
-      query += ` OR 1=1)`;
+      // Admin can see all events - no additional restrictions needed
+      query += `)`;
     } else if (userRole === 'operations manager') {
       // Operations Manager can see operations and below
       query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')
@@ -409,15 +411,17 @@ class CalendarEvent {
       WHERE (
         ce.assigned_to = $1 
         OR ce.created_by = $1 
-        OR (ce.attendees IS NOT NULL AND creator.name = ANY(ce.attendees))
+        OR (ce.attendees IS NOT NULL AND EXISTS (
+          SELECT 1 FROM users u WHERE u.id = $1 AND u.name = ANY(ce.attendees)
+        ))
     `;
 
     const params = [userId];
 
     // Add hierarchy-based visibility based on role
     if (userRole === 'admin') {
-      // Admin can see all events - add condition to see all events
-      query += ` OR 1=1)`;
+      // Admin can see all events - no additional restrictions needed
+      query += `)`;
     } else if (userRole === 'operations manager') {
       // Operations Manager can see operations and below
       query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')

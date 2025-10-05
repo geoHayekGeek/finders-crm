@@ -25,6 +25,7 @@ router.post('/check-exists', userController.checkUserExists);
 router.get('/all', userController.getAllUsers);
 router.get('/agents', userController.getAgents);
 router.put('/:id', userController.updateUser);
+router.delete('/:id', userController.deleteUser);
 
 // Team Leader Routes
 router.get('/team-leaders', userController.getTeamLeaders);

@@ -55,9 +55,9 @@ const PERMISSIONS = {
     statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
-  // Team Leader: Can view their own properties and assigned agents' properties, but cannot manage properties
+  // Team Leader: Can view all properties but owner details only for their own and team agent properties
   'team_leader': {
-    properties: ['read', 'view_assigned'], // Can only view their own properties and assigned agents' properties
+    properties: ['read', 'view_all_filtered'], // Can view all properties but owner details are filtered
     clients: ['read', 'view_assigned'], // Can view their own clients and assigned agents' clients
     leads: [], // No access to leads
     analytics: ['view_agent_performance'], // Can see performance of assigned agents only
@@ -68,9 +68,9 @@ const PERMISSIONS = {
     statuses: ['read'] // Can only view statuses
   },
   
-  // Agent: Limited access - only view assigned properties
+  // Agent: Can view all properties but owner details only for properties assigned to them
   agent: {
-    properties: ['read', 'view_assigned'], // Only view properties they're connected to (assigned or referred)
+    properties: ['read', 'view_all_filtered'], // Can view all properties but owner details are filtered
     clients: [], // No access to clients
     leads: [], // No access to leads
     analytics: [], // No access to analytics

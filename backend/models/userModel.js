@@ -2,12 +2,12 @@
 const pool = require('../config/db');
 
 class User {
-  static async createUser({ name, email, password, role, location, phone, dob, user_code, is_assigned = false, assigned_to = null }) {
+  static async createUser({ name, email, password, role, location, phone, dob, work_location, user_code, is_assigned = false, assigned_to = null }) {
     const result = await pool.query(
-      `INSERT INTO users (name, email, password, role, location, phone, dob, user_code, is_assigned, assigned_to)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `INSERT INTO users (name, email, password, role, location, phone, dob, work_location, user_code, is_assigned, assigned_to)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [name, email, password, role, location, phone, dob, user_code, is_assigned, assigned_to]
+      [name, email, password, role, location, phone, dob, work_location, user_code, is_assigned, assigned_to]
     );
     return result.rows[0];
   }
@@ -48,7 +48,7 @@ class User {
 
   static async getAllUsers() {
     const result = await pool.query(
-      `SELECT id, name, email, role, location, phone, dob, user_code, is_assigned, assigned_to, created_at, updated_at FROM users ORDER BY created_at DESC`
+      `SELECT id, name, email, role, location, phone, dob, work_location, user_code, is_assigned, assigned_to, is_active, created_at, updated_at FROM users ORDER BY created_at DESC`
     );
     return result.rows;
   }
@@ -62,15 +62,15 @@ class User {
   }
 
   static async updateUser(id, updates) {
-    const fields = Object.keys(updates);
-    const values = Object.values(updates);
+    const fields = Object.keys(updates).filter(key => updates[key] !== undefined);
+    const values = fields.map(key => updates[key]);
     
     const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
     const query = `
       UPDATE users 
       SET ${setClause}, updated_at = NOW()
       WHERE id = $1
-      RETURNING id, name, email, role, location, phone, dob, user_code, created_at, updated_at
+      RETURNING id, name, email, role, location, phone, dob, work_location, user_code, is_active, created_at, updated_at
     `;
     
     const result = await pool.query(query, [id, ...values]);
@@ -93,25 +93,46 @@ class User {
     return result.rows[0];
   }
 
-  static async generateUniqueUserCode() {
-    let attempts = 0;
-    const maxAttempts = 10;
+  static async generateUniqueUserCode(name) {
+    // Extract first and last name
+    const nameParts = name.trim().split(/\s+/);
+    let initials = '';
     
-    while (attempts < maxAttempts) {
-      // Generate a random 6-character alphanumeric code
-      const userCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+    if (nameParts.length === 1) {
+      // If only one name, use first 2 letters
+      initials = nameParts[0].substring(0, 2).toUpperCase();
+    } else {
+      // Use first letter of first name and first letter of last name
+      const firstName = nameParts[0];
+      const lastName = nameParts[nameParts.length - 1];
+      initials = (firstName.charAt(0) + lastName.charAt(0)).toUpperCase();
+    }
+    
+    // Try the base initials first
+    let userCode = initials;
+    let existing = await this.findByUserCode(userCode);
+    
+    if (!existing) {
+      return userCode;
+    }
+    
+    // If initials already exist, add numbers starting from 1
+    let counter = 1;
+    const maxAttempts = 100;
+    
+    while (counter < maxAttempts) {
+      userCode = initials + counter;
+      existing = await this.findByUserCode(userCode);
       
-      // Check if it already exists
-      const existing = await this.findByUserCode(userCode);
       if (!existing) {
         return userCode;
       }
       
-      attempts++;
+      counter++;
     }
     
-    // Fallback: use timestamp-based code
-    return 'U' + Date.now().toString(36).toUpperCase();
+    // Fallback: use timestamp-based code (should rarely happen)
+    return initials + Date.now().toString().slice(-4);
   }
 
   // Team Leader Methods

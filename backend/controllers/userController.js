@@ -5,7 +5,7 @@ const jwtUtil = require('../utils/jwt');
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role, location, phone, dob } = req.body;
+    const { name, email, password, role, location, phone, dob, work_location } = req.body;
 
     // Basic validation
     if (!name || !email || !password || !role) {
@@ -18,8 +18,8 @@ const registerUser = async (req, res) => {
       return res.status(409).json({ message: 'User already exists' });
     }
 
-    // Generate unique user code
-    const userCode = await userModel.generateUniqueUserCode();
+    // Generate unique user code from name initials
+    const userCode = await userModel.generateUniqueUserCode(name);
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -33,6 +33,7 @@ const registerUser = async (req, res) => {
       location,
       phone,
       dob,
+      work_location,
       user_code: userCode,
     });
 
@@ -43,6 +44,7 @@ const registerUser = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        work_location: newUser.work_location,
       },
     });
   } catch (err) {
@@ -58,6 +60,13 @@ const loginUser = async (req, res) => {
     // Check if user exists
     const user = await userModel.findByEmail(email);
     if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+
+    // Check if user account is active
+    if (user.is_active === false) {
+      return res.status(403).json({ 
+        message: 'Your account has been disabled. Please contact an administrator.' 
+      });
+    }
 
     // Check password
     const isMatch = await bcrypt.compare(password, user.password);
@@ -131,6 +140,7 @@ const checkUserExists = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const users = await userModel.getAllUsers();
+    console.log('📊 Fetched users from database:', users.length);
     res.json({
       success: true,
       users: users.map(user => ({
@@ -141,11 +151,17 @@ const getAllUsers = async (req, res) => {
         location: user.location,
         phone: user.phone,
         dob: user.dob,
-        user_code: user.user_code
+        work_location: user.work_location,
+        user_code: user.user_code,
+        is_assigned: user.is_assigned || false,
+        assigned_to: user.assigned_to || null,
+        is_active: user.is_active !== false, // Default to true if null
+        created_at: user.created_at,
+        updated_at: user.updated_at
       }))
     });
   } catch (error) {
-    console.error('Error fetching users:', error);
+    console.error('❌ Error fetching users:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch users'
@@ -156,7 +172,7 @@ const getAllUsers = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, role, location, phone, dob, user_code } = req.body;
+    const { name, email, role, location, phone, dob, work_location, user_code, is_active, password } = req.body;
 
     // Check if user exists
     const existingUser = await userModel.findById(id);
@@ -172,16 +188,27 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // Update user
-    const updatedUser = await userModel.updateUser(id, {
+    // Prepare update data
+    const updateData = {
       name,
       email,
       role,
       location,
       phone,
       dob,
-      user_code
-    });
+      work_location,
+      user_code,
+      is_active
+    };
+
+    // If password is provided, hash it and include in update
+    if (password && password.trim() !== '') {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      updateData.password = hashedPassword;
+    }
+
+    // Update user
+    const updatedUser = await userModel.updateUser(id, updateData);
 
     res.json({
       success: true,
@@ -193,6 +220,58 @@ const updateUser = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update user'
+    });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('🗑️ Deleting user:', id);
+
+    // Check if user exists
+    const existingUser = await userModel.findById(id);
+    if (!existingUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Prevent deletion of admins (optional safety check)
+    if (existingUser.role === 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Cannot delete admin users'
+      });
+    }
+
+    // Delete the user
+    const deletedUser = await userModel.deleteUser(id);
+
+    if (!deletedUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    console.log('✅ User deleted successfully:', deletedUser.id);
+
+    res.json({
+      success: true,
+      message: 'User deleted successfully',
+      user: {
+        id: deletedUser.id,
+        name: deletedUser.name,
+        email: deletedUser.email
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete user'
     });
   }
 };
@@ -506,6 +585,7 @@ module.exports = {
   checkUserExists,
   getAllUsers,
   updateUser,
+  deleteUser,
   getAgents,
   getTeamLeaders,
   getTeamLeaderAgents,

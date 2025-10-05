@@ -34,14 +34,53 @@ const getAllProperties = async (req, res) => {
     let properties;
 
     if (roleFilters.canViewAll) {
-      // Admin, operations manager, operations, agent manager can see all properties
+      // Admin, operations manager, operations, agent manager can see all properties with full owner details
       properties = await Property.getAllProperties();
     } else if (roleFilters.role === 'agent') {
-      // Agents can only see properties assigned to them or referred by them
-      properties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
+      // Agents can see all properties but owner details are filtered
+      properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
+      
+      // Filter owner details for properties not assigned to this agent
+      properties = properties.map(property => {
+        if (property.agent_id !== req.user.id) {
+          // Hide owner details for properties not assigned to this agent
+          return {
+            ...property,
+            owner_name: 'Hidden',
+            phone_number: 'Hidden'
+          };
+        }
+        return property;
+      });
     } else if (roleFilters.role === 'team_leader') {
-      // Team leaders can see their own properties and properties of their assigned agents
-      properties = await Property.getPropertiesForTeamLeader(req.user.id);
+      // Team leaders can see all properties but owner details are filtered
+      properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
+      
+      // Get agents under this team leader
+      const User = require('../models/userModel');
+      const teamAgents = await User.getTeamLeaderAgents(req.user.id);
+      const teamAgentIds = teamAgents.map(agent => agent.id);
+      
+      // Filter owner details based on permissions
+      properties = properties.map(async (property) => {
+        const canSeeOwnerDetails = await Property.canUserSeeOwnerDetails(
+          roleFilters.role, 
+          req.user.id, 
+          property.id
+        );
+        
+        if (!canSeeOwnerDetails) {
+          return {
+            ...property,
+            owner_name: 'Hidden',
+            phone_number: 'Hidden'
+          };
+        }
+        return property;
+      });
+      
+      // Wait for all async operations to complete
+      properties = await Promise.all(properties);
     } else {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -75,177 +114,115 @@ const getPropertiesWithFilters = async (req, res) => {
 
     console.log('🔍 getPropertiesWithFilters called with role:', roleFilters.role, 'filters:', filters);
 
-    // Add role-based filtering for agents and team leaders
+    // Get all properties first, then apply role-based filtering for owner details
     let properties;
     
-    if (roleFilters.role === 'agent') {
-      // For agents, we need to use the special method that includes referrals
-      // We'll apply filters later if needed
-      properties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
-      
-      // Apply additional filters manually if provided
-      if (Object.keys(filters).length > 0) {
-        properties = properties.filter(property => {
-          let matches = true;
-          
-          if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
-            matches = false;
-          }
-          
-          if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
-            matches = false;
-          }
-          
-          if (filters.price_min && property.price < filters.price_min) {
-            matches = false;
-          }
-          
-          if (filters.price_max && property.price > filters.price_max) {
-            matches = false;
-          }
-          
-          if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
-              !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
-              !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
-            matches = false;
-          }
-          
-          if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
-            matches = false;
-          }
-          
-          if (filters.surface_min && property.surface < filters.surface_min) {
-            matches = false;
-          }
-          
-          if (filters.surface_max && property.surface > filters.surface_max) {
-            matches = false;
-          }
-          
-          if (filters.built_year_min && property.built_year < filters.built_year_min) {
-            matches = false;
-          }
-          
-          if (filters.built_year_max && property.built_year > filters.built_year_max) {
-            matches = false;
-          }
-          
-          return matches;
-        });
-      }
-    } else if (roleFilters.role === 'team_leader') {
-      // For team leaders, get their own properties and team properties
-      properties = await Property.getPropertiesForTeamLeader(req.user.id);
-      
-      // Apply additional filters manually if provided
-      if (Object.keys(filters).length > 0) {
-        properties = properties.filter(property => {
-          let matches = true;
-          
-          if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
-            matches = false;
-          }
-          
-          if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
-            matches = false;
-          }
-          
-          if (filters.price_min && property.price < filters.price_min) {
-            matches = false;
-          }
-          
-          if (filters.price_max && property.price > filters.price_max) {
-            matches = false;
-          }
-          
-          if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
-              !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
-              !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
-            matches = false;
-          }
-          
-          if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
-            matches = false;
-          }
-          
-          if (filters.surface_min && property.surface < filters.surface_min) {
-            matches = false;
-          }
-          
-          if (filters.surface_max && property.surface > filters.surface_max) {
-            matches = false;
-          }
-          
-          return matches;
-        });
-      }
-    } else if (roleFilters.canViewAll) {
-      // For admin, operations manager, operations, agent manager - get all properties
+    if (roleFilters.canViewAll) {
+      // Admin, operations manager, operations, agent manager can see all properties with full owner details
       properties = await Property.getAllProperties();
+    } else if (roleFilters.role === 'agent') {
+      // Agents can see all properties but owner details are filtered
+      properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
       
-      // Apply additional filters manually if provided
-      if (Object.keys(filters).length > 0) {
-        console.log('🔍 Applying filters to all properties:', filters);
-        properties = properties.filter(property => {
-          let matches = true;
-          
-          if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
-            matches = false;
-          }
-          
-          if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
-            matches = false;
-          }
-          
-          if (filters.price_min && property.price < filters.price_min) {
-            matches = false;
-          }
-          
-          if (filters.price_max && property.price > filters.price_max) {
-            matches = false;
-          }
-          
-          if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
-              !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
-              !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
-            matches = false;
-          }
-          
-          if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
-            matches = false;
-          }
-          
-          if (filters.surface_min && property.surface < filters.surface_min) {
-            matches = false;
-          }
-          
-          if (filters.surface_max && property.surface > filters.surface_max) {
-            matches = false;
-          }
-          
-          if (filters.built_year_min && property.built_year < filters.built_year_min) {
-            matches = false;
-          }
-          
-          if (filters.built_year_max && property.built_year > filters.built_year_max) {
-            matches = false;
-          }
-          
-          if (filters.property_type && filters.property_type !== 'All' && property.property_type !== filters.property_type) {
-            matches = false;
-          }
-          
-          if (filters.concierge !== undefined && property.concierge !== (filters.concierge === 'true')) {
-            matches = false;
-          }
-          
-          return matches;
-        });
-        console.log('📊 After filtering all properties:', properties.length);
-      }
+      // Filter owner details for properties not assigned to this agent
+      properties = properties.map(property => {
+        if (property.agent_id !== req.user.id) {
+          // Hide owner details for properties not assigned to this agent
+          return {
+            ...property,
+            owner_name: 'Hidden',
+            phone_number: 'Hidden'
+          };
+        }
+        return property;
+      });
+    } else if (roleFilters.role === 'team_leader') {
+      // Team leaders can see all properties but owner details are filtered
+      properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
+      
+      // Filter owner details based on permissions
+      properties = properties.map(async (property) => {
+        const canSeeOwnerDetails = await Property.canUserSeeOwnerDetails(
+          roleFilters.role, 
+          req.user.id, 
+          property.id
+        );
+        
+        if (!canSeeOwnerDetails) {
+          return {
+            ...property,
+            owner_name: 'Hidden',
+            phone_number: 'Hidden'
+          };
+        }
+        return property;
+      });
+      
+      // Wait for all async operations to complete
+      properties = await Promise.all(properties);
     } else {
-      // Fallback - should not happen with proper permissions
       return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Apply additional filters manually if provided
+    if (Object.keys(filters).length > 0) {
+      console.log('🔍 Applying filters to properties:', filters);
+      properties = properties.filter(property => {
+        let matches = true;
+        
+        if (filters.status_id && filters.status_id !== 'All' && property.status_id != filters.status_id) {
+          matches = false;
+        }
+        
+        if (filters.category_id && filters.category_id !== 'All' && property.category_id != filters.category_id) {
+          matches = false;
+        }
+        
+        if (filters.price_min && property.price < filters.price_min) {
+          matches = false;
+        }
+        
+        if (filters.price_max && property.price > filters.price_max) {
+          matches = false;
+        }
+        
+        if (filters.search && !property.reference_number.toLowerCase().includes(filters.search.toLowerCase()) &&
+            !property.location.toLowerCase().includes(filters.search.toLowerCase()) &&
+            !property.owner_name.toLowerCase().includes(filters.search.toLowerCase())) {
+          matches = false;
+        }
+        
+        if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
+          matches = false;
+        }
+        
+        if (filters.surface_min && property.surface < filters.surface_min) {
+          matches = false;
+        }
+        
+        if (filters.surface_max && property.surface > filters.surface_max) {
+          matches = false;
+        }
+        
+        if (filters.built_year_min && property.built_year < filters.built_year_min) {
+          matches = false;
+        }
+        
+        if (filters.built_year_max && property.built_year > filters.built_year_max) {
+          matches = false;
+        }
+        
+        if (filters.property_type && filters.property_type !== 'All' && property.property_type !== filters.property_type) {
+          matches = false;
+        }
+        
+        if (filters.concierge !== undefined && property.concierge !== (filters.concierge === 'true')) {
+          matches = false;
+        }
+        
+        return matches;
+      });
+      console.log('📊 After filtering properties:', properties.length);
     }
 
     res.json({
@@ -271,14 +248,30 @@ const getPropertyById = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    // Check if agent can view this property (assigned or referred)
-    if (roleFilters.role === 'agent') {
-      const agentProperties = await Property.getPropertiesAssignedOrReferredByAgent(req.user.id);
-      const canView = agentProperties.some(p => p.id === parseInt(id));
-      
-      if (!canView) {
-        return res.status(403).json({ message: 'Access denied. You can only view properties assigned to you or referred by you.' });
+    // Apply owner detail filtering based on user role
+    if (roleFilters.canViewAll) {
+      // Admin, operations manager, operations, agent manager can see all owner details
+      // No filtering needed
+    } else if (roleFilters.role === 'agent') {
+      // Agents can only see owner details for properties assigned to them
+      if (property.agent_id !== req.user.id) {
+        property.owner_name = 'Hidden';
+        property.phone_number = 'Hidden';
       }
+    } else if (roleFilters.role === 'team_leader') {
+      // Team leaders can see owner details for their own properties and team agent properties
+      const canSeeOwnerDetails = await Property.canUserSeeOwnerDetails(
+        roleFilters.role, 
+        req.user.id, 
+        parseInt(id)
+      );
+      
+      if (!canSeeOwnerDetails) {
+        property.owner_name = 'Hidden';
+        property.phone_number = 'Hidden';
+      }
+    } else {
+      return res.status(403).json({ message: 'Access denied' });
     }
 
     res.json({

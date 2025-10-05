@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../config/db');
 const userRoutes = require('./userRoutes');
+const userDocumentRoutes = require('./userDocumentRoutes');
 const passwordResetRoutes = require('./passwordResetRoutes');
 const propertyRoutes = require('./propertyRoutes');
 const leadsRoutes = require('./leadsRoutes');
@@ -24,6 +25,7 @@ router.get('/', async (req, res) => {
 
 // Mount route modules
 router.use('/users', userRoutes);
+router.use('/users', userDocumentRoutes);
 router.use('/password-reset', passwordResetRoutes);
 router.use('/properties', propertyRoutes);
 router.use('/leads', leadsRoutes);

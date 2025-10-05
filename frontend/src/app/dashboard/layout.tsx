@@ -22,6 +22,7 @@ import {
   ChevronUp,
   Tag,
   Circle,
+  Briefcase,
   LucideIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
@@ -129,6 +130,11 @@ export default function DashboardLayout({
     // Analytics - visible to management roles and team leaders
     if (canViewAgentPerformance) {
       baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
+    }
+
+    // HR - only visible to admin and operations manager
+    if (canManageUsers) {
+      baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
     }
 
     // Settings - only visible to admin and operations manager

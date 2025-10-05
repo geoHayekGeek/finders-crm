@@ -1,5 +1,6 @@
 import { Property, Category, Status } from '@/types/property'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData } from '@/types/leads'
+import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -295,15 +296,97 @@ export const apiClient = {
 }
 
 // Users API
+interface UsersResponse {
+  success: boolean
+  users: User[]
+  message?: string
+}
+
+interface UserResponse {
+  success: boolean
+  user: User
+  message?: string
+}
+
 export const usersApi = {
-  // Get all agents
+  // Get all agents (legacy - no token required for backward compatibility)
   getAgents: () => apiRequest<{ success: boolean; agents: any[]; message?: string }>('/users/agents'),
   
-  // Get user by ID
+  // Get user by ID (legacy)
   getById: (id: number) => apiRequest<{ success: boolean; data: any }>(`/users/${id}`),
   
-  // Get users by role
+  // Get users by role (legacy)
   getByRole: (role: string) => apiRequest<{ success: boolean; data: any[] }>(`/users/role/${role}`),
+  
+  // Get all users (new - with token)
+  async getAll(token: string): Promise<UsersResponse> {
+    return apiRequest<UsersResponse>('/users/all', {
+      method: 'GET',
+    }, token)
+  },
+
+  // Get users with filters
+  async getWithFilters(filters: UserFilters, token: string): Promise<UsersResponse> {
+    const queryParams = new URLSearchParams()
+    
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        queryParams.append(key, value.toString())
+      }
+    })
+    
+    const queryString = queryParams.toString()
+    const endpoint = `/users/all${queryString ? `?${queryString}` : ''}`
+    
+    return apiRequest<UsersResponse>(endpoint, {
+      method: 'GET',
+    }, token)
+  },
+
+  // Create a new user
+  async create(userData: CreateUserFormData, token: string): Promise<UserResponse> {
+    return apiRequest<UserResponse>('/users/register', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }, token)
+  },
+
+  // Update a user
+  async update(userId: number, userData: EditUserFormData, token: string): Promise<UserResponse> {
+    return apiRequest<UserResponse>(`/users/${userId}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    }, token)
+  },
+
+  // Delete a user
+  async delete(userId: number, token: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/users/${userId}`, {
+      method: 'DELETE',
+    }, token)
+  },
+
+  // Get team leader's agents
+  async getTeamLeaderAgents(teamLeaderId: number, token: string): Promise<{ success: boolean; agents: any[] }> {
+    return apiRequest(`/users/team-leaders/${teamLeaderId}/agents`, {
+      method: 'GET',
+    }, token)
+  },
+
+  // Assign agent to team leader
+  async assignAgentToTeamLeader(teamLeaderId: number, agentId: number, token: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/users/assign-agent`, {
+      method: 'POST',
+      body: JSON.stringify({ teamLeaderId, agentId }),
+    }, token)
+  },
+
+  // Remove agent from team leader
+  async removeAgentFromTeamLeader(teamLeaderId: number, agentId: number, token: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/users/team-leaders/${teamLeaderId}/agents/${agentId}`, {
+      method: 'DELETE',
+    }, token)
+  },
 }
 
 // Properties API
@@ -823,3 +906,92 @@ export const mockStatuses: Status[] = [
   { id: 4, name: 'Under Contract', code: 'under_contract', description: 'Property is under contract', color: '#F59E0B', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
   { id: 5, name: 'Pending', code: 'pending', description: 'Property is pending approval', color: '#3B82F6', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
 ]
+
+// ======================
+// HR / User Documents API
+// ======================
+
+interface DocumentsResponse {
+  success: boolean
+  data: UserDocument[]
+  message?: string
+}
+
+interface DocumentResponse {
+  success: boolean
+  data: UserDocument
+  message?: string
+}
+
+export const userDocumentsApi = {
+  /**
+   * Upload a document for a user
+   */
+  async upload(userId: number, data: UploadDocumentData, token: string): Promise<DocumentResponse> {
+    const formData = new FormData()
+    formData.append('document', data.document)
+    formData.append('document_label', data.document_label)
+    if (data.notes) {
+      formData.append('notes', data.notes)
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/documents`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new ApiError(response.status, error.message || 'Upload failed', error.errors)
+    }
+
+    return response.json()
+  },
+
+  /**
+   * Get all documents for a user
+   */
+  async getUserDocuments(userId: number, token: string): Promise<DocumentsResponse> {
+    return apiRequest<DocumentsResponse>(`/users/${userId}/documents`, {
+      method: 'GET',
+    }, token)
+  },
+
+  /**
+   * Get a specific document
+   */
+  async getDocument(documentId: number, token: string): Promise<DocumentResponse> {
+    return apiRequest<DocumentResponse>(`/users/documents/${documentId}`, {
+      method: 'GET',
+    }, token)
+  },
+
+  /**
+   * Update document metadata
+   */
+  async update(documentId: number, data: { document_label: string; notes?: string }, token: string): Promise<DocumentResponse> {
+    return apiRequest<DocumentResponse>(`/users/documents/${documentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }, token)
+  },
+
+  /**
+   * Delete a document
+   */
+  async delete(documentId: number, hardDelete: boolean, token: string): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/users/documents/${documentId}?hardDelete=${hardDelete}`, {
+      method: 'DELETE',
+    }, token)
+  },
+
+  /**
+   * Download a document
+   */
+  getDownloadUrl(documentId: number): string {
+    return `${API_BASE_URL}/users/documents/${documentId}/download`
+  },
+}
