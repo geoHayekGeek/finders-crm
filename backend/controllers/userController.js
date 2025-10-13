@@ -9,13 +9,13 @@ const registerUser = async (req, res) => {
 
     // Basic validation
     if (!name || !email || !password || !role) {
-      return res.status(400).json({ message: 'Missing required fields' });
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
     // Check if user already exists
     const existingUser = await userModel.findByEmail(email);
     if (existingUser) {
-      return res.status(409).json({ message: 'User already exists' });
+      return res.status(409).json({ success: false, message: 'User already exists' });
     }
 
     // Generate unique user code from name initials
@@ -38,6 +38,7 @@ const registerUser = async (req, res) => {
     });
 
     res.status(201).json({
+      success: true,
       message: 'User registered successfully',
       user: {
         id: newUser.id,
@@ -49,7 +50,7 @@ const registerUser = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 };
 

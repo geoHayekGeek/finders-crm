@@ -210,10 +210,13 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               >
-                <option value="admin">Admin</option>
-                <option value="team_leader">Team Leader</option>
                 <option value="agent">Agent</option>
+                <option value="agent_manager">Agent Manager</option>
+                <option value="team_leader">Team Leader</option>
                 <option value="operations">Operations</option>
+                <option value="operations_manager">Operations Manager</option>
+                <option value="accountant">Accountant</option>
+                <option value="admin">Admin</option>
               </select>
             </div>
 

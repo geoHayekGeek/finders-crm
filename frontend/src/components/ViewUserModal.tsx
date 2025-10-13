@@ -21,15 +21,18 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
   }
 
   const getRoleDisplay = (role: string) => {
-    return role.replace('_', ' ').toUpperCase()
+    return role.replace(/_/g, ' ').toUpperCase()
   }
 
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800 border-purple-200',
+      operations_manager: 'bg-red-100 text-red-800 border-red-200',
+      operations: 'bg-orange-100 text-orange-800 border-orange-200',
+      agent_manager: 'bg-indigo-100 text-indigo-800 border-indigo-200',
       team_leader: 'bg-blue-100 text-blue-800 border-blue-200',
       agent: 'bg-green-100 text-green-800 border-green-200',
-      operations: 'bg-orange-100 text-orange-800 border-orange-200',
+      accountant: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     }
     return colors[role] || 'bg-gray-100 text-gray-800 border-gray-200'
   }

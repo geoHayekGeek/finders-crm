@@ -206,15 +206,21 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
                 required
               >
                 <option value="agent">Agent</option>
+                <option value="agent_manager">Agent Manager</option>
                 <option value="team_leader">Team Leader</option>
                 <option value="operations">Operations</option>
+                <option value="operations_manager">Operations Manager</option>
+                <option value="accountant">Accountant</option>
                 <option value="admin">Admin</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 {formData.role === 'admin' && 'Full system access'}
+                {formData.role === 'operations_manager' && 'Can manage operations team and workflows'}
+                {formData.role === 'operations' && 'Can manage system operations'}
+                {formData.role === 'agent_manager' && 'Can manage agents and sales team'}
                 {formData.role === 'team_leader' && 'Can manage agents and properties'}
                 {formData.role === 'agent' && 'Can manage assigned properties'}
-                {formData.role === 'operations' && 'Can manage system operations'}
+                {formData.role === 'accountant' && 'Can manage financial records and transactions'}
               </p>
             </div>
 

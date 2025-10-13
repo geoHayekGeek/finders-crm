@@ -331,11 +331,14 @@ export default function HRPage() {
         const user = row.original
         const roleColors: Record<string, string> = {
           admin: 'bg-purple-100 text-purple-800',
+          operations_manager: 'bg-red-100 text-red-800',
+          operations: 'bg-orange-100 text-orange-800',
+          agent_manager: 'bg-indigo-100 text-indigo-800',
           team_leader: 'bg-blue-100 text-blue-800',
           agent: 'bg-green-100 text-green-800',
-          operations: 'bg-orange-100 text-orange-800',
+          accountant: 'bg-yellow-100 text-yellow-800',
         }
-        const roleDisplay = user.role ? user.role.replace('_', ' ').toUpperCase() : 'N/A'
+        const roleDisplay = user.role ? user.role.replace(/_/g, ' ').toUpperCase() : 'N/A'
         return (
           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${roleColors[user.role] || 'bg-gray-100 text-gray-800'}`}>
             {roleDisplay}
@@ -567,9 +570,12 @@ export default function HRPage() {
             >
               <option value="All">All Roles</option>
               <option value="admin">Admin</option>
+              <option value="operations_manager">Operations Manager</option>
+              <option value="operations">Operations</option>
+              <option value="agent_manager">Agent Manager</option>
               <option value="team_leader">Team Leader</option>
               <option value="agent">Agent</option>
-              <option value="operations">Operations</option>
+              <option value="accountant">Accountant</option>
             </select>
           </div>
           
@@ -697,7 +703,7 @@ export default function HRPage() {
               <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-medium transition-colors"
               >
                 Previous
               </button>
@@ -710,7 +716,7 @@ export default function HRPage() {
               <button
                 onClick={() => setCurrentPage(Math.min(Math.ceil(filteredUsers.length / itemsPerPage), currentPage + 1))}
                 disabled={currentPage >= Math.ceil(filteredUsers.length / itemsPerPage)}
-                className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-medium transition-colors"
               >
                 Next
               </button>

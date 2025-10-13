@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Users, X, Search, Check } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Users, X, Check, ChevronDown, RefreshCw, User } from 'lucide-react'
 import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -10,6 +10,8 @@ interface Agent {
   name: string
   email: string
   user_code: string
+  role: string
+  location?: string
   is_assigned: boolean
 }
 
@@ -31,10 +33,24 @@ export function AgentMultiSelect({
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [showDropdown, setShowDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Load agents
   useEffect(() => {
     loadAgents()
+  }, [])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+        setSearchTerm('')
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
   const loadAgents = async () => {
@@ -76,6 +92,27 @@ export function AgentMultiSelect({
     onChange(selectedAgentIds.filter(id => id !== agentId))
   }
 
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return 'bg-purple-100 text-purple-700'
+      case 'operations_manager':
+        return 'bg-red-100 text-red-700'
+      case 'agent_manager':
+        return 'bg-indigo-100 text-indigo-700'
+      case 'team_leader':
+        return 'bg-blue-100 text-blue-700'
+      case 'agent':
+        return 'bg-green-100 text-green-700'
+      case 'operations':
+        return 'bg-orange-100 text-orange-700'
+      case 'accountant':
+        return 'bg-yellow-100 text-yellow-700'
+      default:
+        return 'bg-gray-100 text-gray-700'
+    }
+  }
+
   return (
     <div className={className}>
       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -85,122 +122,150 @@ export function AgentMultiSelect({
         </div>
       </label>
 
-      {/* Selected Agents Pills */}
+      {/* Display selected agents as badges */}
       {selectedAgents.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
+        <div className="space-y-2 mb-2">
           {selectedAgents.map(agent => (
             <div
               key={agent.id}
-              className="flex items-center space-x-1 bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm"
+              className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg"
             >
-              <span className="font-medium">{agent.user_code}</span>
-              <span>-</span>
-              <span>{agent.name}</span>
+              <div className="flex items-center gap-2 flex-1">
+                <Users className="h-4 w-4 text-blue-600" />
+                <div className="flex flex-col">
+                  <span className="text-sm font-medium text-blue-800">
+                    {agent.name}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-blue-600">{agent.email}</span>
+                    {agent.role && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getRoleColor(agent.role)}`}>
+                        {agent.role.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => removeAgent(agent.id)}
-                className="ml-1 hover:bg-blue-200 rounded-full p-0.5"
+                className="p-1 text-blue-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                title="Remove agent"
               >
-                <X className="h-3 w-3" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}
         </div>
       )}
 
-      {/* Dropdown Button */}
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setShowDropdown(!showDropdown)}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
-        >
-          <span className="text-gray-700">
-            {selectedAgents.length > 0
-              ? `${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} selected`
-              : 'Select agents...'}
-          </span>
-          <Users className="h-4 w-4 text-gray-400" />
-        </button>
+      {/* Dropdown selector */}
+      <div className="relative" ref={dropdownRef}>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="flex-1 px-4 py-3 text-left border border-gray-300 rounded-lg hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white"
+            disabled={loading}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-gray-600">
+                {loading ? 'Loading...' : (
+                  selectedAgents.length > 0
+                    ? `${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} selected`
+                    : 'Select agents...'
+                )}
+              </span>
+              <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+          
+          <button
+            type="button"
+            onClick={loadAgents}
+            disabled={loading}
+            className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
+            title="Refresh agents"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
 
-        {/* Dropdown Menu */}
+        {/* Dropdown */}
         {showDropdown && (
-          <>
-            {/* Backdrop to close dropdown */}
-            <div
-              className="fixed inset-0 z-10"
-              onClick={() => setShowDropdown(false)}
-            />
+          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-hidden">
+            {/* Search input */}
+            <div className="p-3 border-b border-gray-200">
+              <input
+                type="text"
+                placeholder="Search agents..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+              />
+            </div>
 
-            {/* Dropdown Content */}
-            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-hidden">
-              {/* Search Box */}
-              <div className="p-2 border-b border-gray-200">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search agents..."
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    onClick={(e) => e.stopPropagation()}
-                  />
+            {/* Agents list */}
+            <div className="max-h-48 overflow-y-auto">
+              {loading ? (
+                <div className="p-4 text-center text-gray-500">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                  Loading agents...
                 </div>
-              </div>
-
-              {/* Agent List */}
-              <div className="max-h-48 overflow-y-auto">
-                {loading ? (
-                  <div className="p-4 text-center text-gray-500 text-sm">
-                    Loading agents...
-                  </div>
-                ) : filteredAgents.length === 0 ? (
-                  <div className="p-4 text-center text-gray-500 text-sm">
-                    {searchTerm ? 'No agents found' : 'No agents available'}
-                  </div>
-                ) : (
-                  filteredAgents.map(agent => {
+              ) : filteredAgents.length === 0 ? (
+                <div className="p-4 text-center text-gray-500 text-sm">
+                  {searchTerm ? 'No agents found matching your search' : 'No agents available'}
+                </div>
+              ) : (
+                <div>
+                  {filteredAgents.map(agent => {
                     const isSelected = selectedAgentIds.includes(agent.id)
                     return (
                       <button
                         key={agent.id}
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleAgent(agent.id)
-                        }}
-                        className={`w-full px-3 py-2 text-left hover:bg-gray-50 transition-colors flex items-center justify-between ${
+                        onClick={() => toggleAgent(agent.id)}
+                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
                           isSelected ? 'bg-blue-50' : ''
                         }`}
                       >
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium text-gray-900">{agent.name}</span>
-                            <span className="text-xs text-gray-500">({agent.user_code})</span>
-                            {agent.is_assigned && (
-                              <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">
-                                Assigned
-                              </span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900 text-sm">{agent.name}</div>
+                            <div className="text-xs text-gray-600">{agent.email}</div>
+                            {agent.location && (
+                              <div className="text-xs text-gray-500">{agent.location}</div>
                             )}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">{agent.email}</div>
+                          <div className="ml-3 flex items-center gap-2">
+                            {agent.role && (
+                              <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(agent.role)}`}>
+                                {agent.role.replace('_', ' ')}
+                              </span>
+                            )}
+                            {isSelected ? (
+                              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                <Check className="h-4 w-4 text-white" />
+                              </div>
+                            ) : (
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <User className="h-4 w-4 text-blue-600" />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        {isSelected && (
-                          <Check className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                        )}
                       </button>
                     )
-                  })
-                )}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
-          </>
+          </div>
         )}
       </div>
 
       {/* Help Text */}
-      <p className="text-xs text-gray-500 mt-1">
+      <p className="text-xs text-gray-500 mt-2">
         {selectedAgents.length === 0
           ? 'Select agents to assign to this team leader'
           : `${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} will be assigned to this team leader`}
