@@ -1,5 +1,29 @@
 // types/leads.ts
 
+export interface LeadNote {
+  id: number
+  lead_id: number
+  agent_id: number
+  note_text: string
+  created_at: string
+  updated_at: string
+  agent_name?: string
+  agent_role?: string
+}
+
+export interface LeadReferral {
+  id: number
+  lead_id: number
+  agent_id: number | null
+  name: string
+  type: 'employee' | 'custom'
+  agent_name?: string
+  referral_date: string
+  external: boolean
+  created_at?: string
+  updated_at?: string
+}
+
 export interface Lead {
   id: number
   date: string
@@ -15,7 +39,9 @@ export interface Lead {
   operations_id: number  // Now required
   operations_name?: string
   operations_role?: string
-  notes?: string
+  notes?: string // Legacy notes field (deprecated)
+  agent_notes?: LeadNote[] // New agent-specific notes
+  referrals?: LeadReferral[] // Lead referral tracking
   status: string
   created_at: string
   updated_at: string
@@ -58,6 +84,14 @@ export interface LeadFilters {
   search?: string
 }
 
+export interface LeadReferralInput {
+  id?: number
+  name: string
+  type: 'employee' | 'custom'
+  employee_id?: number
+  date: string
+}
+
 export interface EditLeadFormData {
   date: string
   customer_name: string
@@ -69,6 +103,7 @@ export interface EditLeadFormData {
   operations_id: number  // Now required
   notes?: string
   status: string
+  referrals?: LeadReferralInput[]  // Optional referrals field
 }
 
 export interface CreateLeadFormData {
@@ -82,6 +117,7 @@ export interface CreateLeadFormData {
   operations_id: number  // Now required
   notes?: string
   status: string
+  referrals?: LeadReferralInput[]  // Optional referrals field
 }
 
 export interface LeadStats {
@@ -160,5 +196,39 @@ export interface LeadStatsData {
 export interface LeadStatsApiResponse {
   success: boolean
   data: LeadStatsData
+  message?: string
+}
+
+export interface LeadReferralsResponse {
+  success: boolean
+  data: LeadReferral[]
+  message?: string
+}
+
+export interface AgentReferralStats {
+  total_referrals: number
+  internal_referrals: number
+  external_referrals: number
+  first_referral_date: string | null
+  last_referral_date: string | null
+}
+
+export interface AgentReferralStatsResponse {
+  success: boolean
+  data: {
+    stats: AgentReferralStats
+    referrals: Array<{
+      id: number
+      lead_id: number
+      customer_name: string
+      phone_number: string
+      lead_status: string
+      agent_id: number
+      referral_date: string
+      external: boolean
+      created_at: string
+      updated_at: string
+    }>
+  }
   message?: string
 }

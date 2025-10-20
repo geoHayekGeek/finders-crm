@@ -302,6 +302,7 @@ const createProperty = async (req, res) => {
       location,
       category_id,
       building_name,
+      owner_id,
       owner_name,
       phone_number,
       surface,
@@ -347,8 +348,9 @@ const createProperty = async (req, res) => {
       location,
       category_id,
       building_name,
-      owner_name,
-      phone_number,
+      owner_id: owner_id || null, // Optional - link to lead
+      owner_name: owner_name || null, // Optional - for backward compatibility
+      phone_number: phone_number || null, // Optional - for backward compatibility
       surface,
       details,
       interior_details,

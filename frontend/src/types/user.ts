@@ -21,7 +21,7 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'admin' | 'team_leader' | 'agent' | 'operations'
+  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
   location?: string
   phone?: string
   dob?: string
@@ -29,12 +29,14 @@ export interface User {
   user_code: string
   is_assigned?: boolean
   assigned_to?: number
+  agent_count?: number | null
   is_active: boolean
   created_at: string
   updated_at: string
   // Runtime fields
   documents?: UserDocument[]
   document_count?: number
+  agents?: User[]
   // Action handlers (optional, added at runtime)
   onView?: (user: User) => void
   onEdit?: (user: User) => void
@@ -45,7 +47,7 @@ export interface CreateUserFormData {
   name: string
   email: string
   password: string
-  role: 'admin' | 'team_leader' | 'agent' | 'operations'
+  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
   location?: string
   phone?: string
   dob?: string
@@ -55,7 +57,7 @@ export interface CreateUserFormData {
 export interface EditUserFormData {
   name: string
   email: string
-  role: 'admin' | 'team_leader' | 'agent' | 'operations'
+  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
   location?: string
   phone?: string
   dob?: string

@@ -156,6 +156,7 @@ const getAllUsers = async (req, res) => {
         user_code: user.user_code,
         is_assigned: user.is_assigned || false,
         assigned_to: user.assigned_to || null,
+        agent_count: user.agent_count || null,
         is_active: user.is_active !== false, // Default to true if null
         created_at: user.created_at,
         updated_at: user.updated_at
@@ -304,6 +305,69 @@ const getAgents = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch agents'
+    });
+  }
+};
+
+const getUsersByRole = async (req, res) => {
+  try {
+    const { role } = req.params;
+    const { teamLeaderId, forAssignment } = req.query; // Optional: to get available agents for a specific team leader
+    
+    if (!role) {
+      return res.status(400).json({
+        success: false,
+        message: 'Role parameter is required'
+      });
+    }
+    
+    // If requesting agents for team leader assignment (either editing existing or creating new)
+    if (role === 'agent' && forAssignment === 'true') {
+      // If teamLeaderId provided: show unassigned agents + agents already assigned to THIS team leader
+      // If no teamLeaderId (new team leader): show only unassigned agents
+      const agents = await userModel.getAvailableAgentsForTeamLeader(teamLeaderId || null);
+      
+      return res.json({
+        success: true,
+        data: agents.map(user => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          location: user.location,
+          phone: user.phone,
+          user_code: user.user_code,
+          is_assigned: user.is_assigned || false,
+          assigned_to: user.assigned_to || null,
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }))
+      });
+    }
+    
+    // Default: get all users by role
+    const users = await userModel.getUsersByRole(role);
+    
+    res.json({
+      success: true,
+      data: users.map(user => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        location: user.location,
+        phone: user.phone,
+        user_code: user.user_code,
+        is_assigned: user.is_assigned || false,
+        created_at: user.created_at,
+        updated_at: user.updated_at
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching users by role:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users by role'
     });
   }
 };
@@ -588,6 +652,7 @@ module.exports = {
   updateUser,
   deleteUser,
   getAgents,
+  getUsersByRole,
   getTeamLeaders,
   getTeamLeaderAgents,
   getAgentTeamLeader,

@@ -9,6 +9,8 @@ interface PermissionContextType {
   canViewProperties: boolean
   canManageLeads: boolean
   canViewLeads: boolean
+  canManageViewings: boolean
+  canViewViewings: boolean
   canViewClients: boolean
   canManageUsers: boolean
   canViewFinancial: boolean
@@ -29,7 +31,9 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
   const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations'
-  const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
+  const canManageViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
+  const canViewViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
   const canViewClients = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader'
   const canManageUsers = role === 'admin' || role === 'operations manager'
   const canViewFinancial = role === 'admin' || role === 'operations manager'
@@ -47,6 +51,10 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
         return canManageLeads
       case 'canViewLeads':
         return canViewLeads
+      case 'canManageViewings':
+        return canManageViewings
+      case 'canViewViewings':
+        return canViewViewings
       case 'canViewClients':
         return canViewClients
       case 'canManageUsers':
@@ -70,6 +78,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     canViewProperties,
     canManageLeads,
     canViewLeads,
+    canManageViewings,
+    canViewViewings,
     canViewClients,
     canManageUsers,
     canViewFinancial,

@@ -295,48 +295,147 @@ export default function LeadsPage() {
     }
   }
 
-
+  // Handle refresh lead (fetch full lead data including referrals)
+  const handleRefreshLead = async (leadId: number): Promise<Lead | null> => {
+    try {
+      console.log('🔄 Refreshing lead:', leadId)
+      const response = await leadsApi.getById(leadId, token)
+      
+      if (response.success && response.data) {
+        console.log('✅ Refreshed lead data:', response.data)
+        console.log('✅ Agent notes in response:', response.data.agent_notes)
+        console.log('✅ Referrals in response:', response.data.referrals)
+        console.log('✅ Number of notes:', response.data.agent_notes?.length || 0)
+        console.log('✅ Number of referrals:', response.data.referrals?.length || 0)
+        
+        // Create a completely new object with new array reference to force React re-render
+        const refreshedLead: Lead = { 
+          ...response.data,
+          // Ensure agent_notes is a new array reference
+          agent_notes: response.data.agent_notes ? [...response.data.agent_notes] : [],
+          // Ensure referrals is a new array reference
+          referrals: response.data.referrals ? [...response.data.referrals] : []
+        }
+        
+        console.log('🔄 Old selectedLead notes:', selectedLead?.agent_notes?.length || 0)
+        console.log('🔄 New refreshedLead notes:', refreshedLead.agent_notes?.length || 0)
+        console.log('🔄 New refreshedLead referrals:', refreshedLead.referrals?.length || 0)
+        
+        // Update the lead in the leads array with new object reference
+        setLeads(prevLeads => {
+          return prevLeads.map(lead => 
+            lead.id === leadId ? refreshedLead : lead
+          )
+        })
+        
+        // IMPORTANT: Always update selectedLead when refreshing the lead being viewed/edited
+        if (selectedLead && selectedLead.id === leadId) {
+          console.log('🔄 Forcing selectedLead update with completely new object reference')
+          setSelectedLead(refreshedLead)
+          console.log('✅ selectedLead updated with', refreshedLead.agent_notes?.length || 0, 'notes')
+        }
+        
+        console.log('✅ Lead refreshed successfully')
+        return refreshedLead
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing lead:', error)
+    }
+    return null
+  }
 
   // Action handlers (defined before useMemo to avoid initialization issues)
-  const handleViewLead = (lead: Lead) => {
-    setSelectedLead(lead)
-    setShowViewModal(true)
-  }
-
-  const handleEditLead = (lead: Lead) => {
-    console.log('🔍 Opening edit modal for lead:', lead)
-    setSelectedLead(lead)
-    
-    // Format date properly - ensure it's in YYYY-MM-DD format for date input
-    const formattedDate = formatDateForInput(lead.date)
-    
-    // Use assigned_agent_name if agent_name is not available
-    const agentName = lead.agent_name || lead.assigned_agent_name || ''
-    
-    const formData = {
-      date: formattedDate,
-      customer_name: lead.customer_name,
-      phone_number: lead.phone_number || '',
-      agent_id: lead.agent_id,
-      agent_name: agentName,
-      price: lead.price ? parseFloat(lead.price.toString()) : undefined,
-      reference_source_id: lead.reference_source_id || 0,
-      operations_id: lead.operations_id || 0,
-      notes: lead.notes || '',
-      status: lead.status
+  const handleViewLead = useCallback(async (lead: Lead) => {
+    console.log('👁️ Opening view modal for lead:', lead.id)
+    // Fetch full lead data including referrals before opening modal
+    try {
+      const response = await leadsApi.getById(lead.id, token)
+      
+      if (response.success && response.data) {
+        console.log('✅ Refreshed lead data:', response.data)
+        console.log('✅ Referrals in response:', response.data.referrals)
+        
+        // Create a completely new object with new array reference
+        const refreshedLead: Lead = { 
+          ...response.data,
+          agent_notes: response.data.agent_notes ? [...response.data.agent_notes] : [],
+          referrals: response.data.referrals ? [...response.data.referrals] : []
+        }
+        
+        setSelectedLead(refreshedLead)
+        setShowViewModal(true)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching lead data:', error)
     }
-    
-    console.log('📝 Setting edit form data:', formData)
-    setEditFormData(formData)
-    setEditValidationErrors({}) // Clear any previous validation errors
-    setShowEditModal(true)
-  }
+  }, [token])
 
-  const handleDeleteLead = (lead: Lead) => {
+  const handleEditLead = useCallback(async (lead: Lead) => {
+    console.log('🔍 Opening edit modal for lead:', lead.id)
+    
+    try {
+      const response = await leadsApi.getById(lead.id, token)
+      
+      if (!response.success || !response.data) {
+        console.error('❌ Failed to fetch full lead data')
+        return
+      }
+      
+      const refreshedLead = { 
+        ...response.data,
+        agent_notes: response.data.agent_notes ? [...response.data.agent_notes] : [],
+        referrals: response.data.referrals ? [...response.data.referrals] : []
+      }
+      
+      console.log('📋 Full lead data fetched:', refreshedLead)
+      console.log('📋 Referrals count:', refreshedLead.referrals?.length || 0)
+      
+      setSelectedLead(refreshedLead)
+      
+      // Format date properly - ensure it's in YYYY-MM-DD format for date input
+      const formattedDate = formatDateForInput(refreshedLead.date)
+      
+      // Use assigned_agent_name if agent_name is not available
+      const agentName = refreshedLead.agent_name || refreshedLead.assigned_agent_name || ''
+      
+      // Convert referrals from backend format to frontend format
+      const convertedReferrals = (refreshedLead.referrals || []).map(ref => ({
+        id: ref.id,
+        name: ref.name,
+        type: ref.type,
+        employee_id: ref.agent_id || undefined,
+        date: ref.referral_date ? new Date(ref.referral_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+      }))
+      
+      const formData = {
+        date: formattedDate,
+        customer_name: refreshedLead.customer_name,
+        phone_number: refreshedLead.phone_number || '',
+        agent_id: refreshedLead.agent_id,
+        agent_name: agentName,
+        price: refreshedLead.price ? parseFloat(refreshedLead.price.toString()) : undefined,
+        reference_source_id: refreshedLead.reference_source_id || 0,
+        operations_id: refreshedLead.operations_id || 0,
+        notes: refreshedLead.notes || '',
+        status: refreshedLead.status,
+        referrals: convertedReferrals
+      }
+      
+      console.log('📝 Setting edit form data:', formData)
+      console.log('📝 Referrals in form data:', convertedReferrals.length)
+      setEditFormData(formData)
+      setEditValidationErrors({}) // Clear any previous validation errors
+      setShowEditModal(true)
+    } catch (error) {
+      console.error('❌ Error fetching lead data:', error)
+    }
+  }, [token])
+
+  const handleDeleteLead = useCallback((lead: Lead) => {
     setDeletingLead(lead)
     setDeleteConfirmation('')
     setShowDeleteModal(true)
-  }
+  }, [])
 
   // Clear all filters
   const handleClearFilters = () => {
@@ -412,6 +511,8 @@ export default function LeadsPage() {
       
       console.log('📡 [LeadsPage] Final clean update data:', cleanUpdateData)
       console.log('📡 [LeadsPage] Final status value:', cleanUpdateData.status)
+      console.log('📡 [LeadsPage] Referrals in update data:', cleanUpdateData.referrals)
+      console.log('📡 [LeadsPage] Number of referrals:', cleanUpdateData.referrals?.length || 0)
 
       // Send PUT request to update the lead
       console.log('📡 [LeadsPage] Calling leadsApi.update with:', {
@@ -513,7 +614,6 @@ export default function LeadsPage() {
       throw error // Re-throw so the modal knows the creation failed
     }
   }
-
 
   // Handle confirm delete
   const handleConfirmDelete = async () => {
@@ -761,7 +861,11 @@ export default function LeadsPage() {
                 <Users className="h-6 w-6 text-blue-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Leads</p>
+                <p className="text-sm font-medium text-gray-600">
+                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                    ? 'My Leads' 
+                    : 'Total Leads'}
+                </p>
                 <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
               </div>
             </div>
@@ -773,7 +877,11 @@ export default function LeadsPage() {
                 <Calendar className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">New (7 Days)</p>
+                <p className="text-sm font-medium text-gray-600">
+                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                    ? 'New Assigned (7d)' 
+                    : 'New (7 Days)'}
+                </p>
                 <p className="text-2xl font-bold text-gray-900">{stats.recentActivity.newLeads7Days}</p>
               </div>
             </div>
@@ -785,7 +893,11 @@ export default function LeadsPage() {
                 <BarChart3 className="h-6 w-6 text-purple-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Avg. Value</p>
+                <p className="text-sm font-medium text-gray-600">
+                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                    ? 'My Avg. Value' 
+                    : 'Avg. Value'}
+                </p>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(stats.pricing.averagePrice)}
                 </p>
@@ -799,7 +911,11 @@ export default function LeadsPage() {
                 <TrendingUp className="h-6 w-6 text-orange-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Value</p>
+                <p className="text-sm font-medium text-gray-600">
+                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                    ? 'My Total Value' 
+                    : 'Total Value'}
+                </p>
                 <p className="text-2xl font-bold text-gray-900">
                   {formatCurrency(stats.pricing.totalValue)}
                 </p>
@@ -963,6 +1079,7 @@ export default function LeadsPage() {
         deleteConfirmation={deleteConfirmation}
         setDeleteConfirmation={setDeleteConfirmation}
         onConfirmDelete={handleConfirmDelete}
+        onRefreshLead={handleRefreshLead}
       />
     </div>
   )

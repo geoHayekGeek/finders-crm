@@ -23,6 +23,7 @@ import {
   Tag,
   Circle,
   Briefcase,
+  Eye,
   LucideIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
@@ -52,19 +53,31 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewClients, role } = usePermissions()
+  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, canViewClients, role } = usePermissions()
 
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
     const baseNavigation: NavigationItem[] = []
 
-    // For agents: show dashboard, properties, and calendar
+    // For agents: show dashboard, properties, leads, viewings, and calendar
     if (role === 'agent') {
       baseNavigation.push({ name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true })
       baseNavigation.push({ 
         name: 'Properties', 
         href: '/dashboard/properties', 
         icon: Building2, 
+        alwaysVisible: true
+      })
+      baseNavigation.push({ 
+        name: 'Leads', 
+        href: '/dashboard/leads', 
+        icon: FileText, 
+        alwaysVisible: true
+      })
+      baseNavigation.push({ 
+        name: 'Viewings', 
+        href: '/dashboard/viewings', 
+        icon: Eye, 
         alwaysVisible: true
       })
       baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
@@ -121,6 +134,16 @@ export default function DashboardLayout({
         alwaysVisible: true,
         hasSubmenu: leadsSubmenuItems.length > 1,
         submenu: leadsSubmenuItems.length > 1 ? leadsSubmenuItems : undefined
+      })
+    }
+
+    // Viewings - visible to agents, team leaders, and management roles
+    if (canViewViewings) {
+      baseNavigation.push({ 
+        name: 'Viewings', 
+        href: '/dashboard/viewings', 
+        icon: Eye, 
+        alwaysVisible: true
       })
     }
 

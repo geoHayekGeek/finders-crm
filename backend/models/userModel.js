@@ -48,7 +48,20 @@ class User {
 
   static async getAllUsers() {
     const result = await pool.query(
-      `SELECT id, name, email, role, location, phone, dob, work_location, user_code, is_assigned, assigned_to, is_active, created_at, updated_at FROM users ORDER BY created_at DESC`
+      `SELECT 
+        u.id, u.name, u.email, u.role, u.location, u.phone, u.dob, 
+        u.work_location, u.user_code, u.is_assigned, u.assigned_to, 
+        u.is_active, u.created_at, u.updated_at,
+        CASE 
+          WHEN u.role = 'team_leader' THEN (
+            SELECT COUNT(*)::integer 
+            FROM team_agents ta 
+            WHERE ta.team_leader_id = u.id AND ta.is_active = TRUE
+          )
+          ELSE NULL
+        END as agent_count
+      FROM users u 
+      ORDER BY u.created_at DESC`
     );
     return result.rows;
   }
@@ -250,14 +263,18 @@ class User {
     let query, params;
     
     if (teamLeaderId) {
-      // Get agents not already assigned to any team leader
+      // Get agents that are either:
+      // 1. Not assigned to anyone (is_assigned = FALSE)
+      // 2. Already assigned to THIS team leader (assigned_to = teamLeaderId)
+      // This excludes agents assigned to OTHER team leaders
       query = `
         SELECT u.id, u.name, u.email, u.role, u.location, u.phone, u.user_code, u.is_assigned, u.assigned_to
         FROM users u
-        WHERE u.role = 'agent' AND u.is_assigned = FALSE
+        WHERE u.role = 'agent' 
+          AND (u.is_assigned = FALSE OR u.assigned_to = $1)
         ORDER BY u.name
       `;
-      params = [];
+      params = [teamLeaderId];
     } else {
       // Get all agents with assignment status
       query = `

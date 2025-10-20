@@ -45,6 +45,29 @@ router.get('/stats', canViewLeads, LeadsStatsController.getLeadsStats);
 // GET /api/leads/agent/:agentId - Get leads by agent (admin, operations manager, agent manager)
 router.get('/agent/:agentId', canViewLeads, validateAgentId, handleValidationErrors, canViewAgentPerformance, LeadsController.getLeadsByAgent);
 
+// Lead Notes Routes
+// GET /api/leads/:id/notes - Get notes for a lead
+router.get('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadNotesById);
+
+// POST /api/leads/:id/notes - Add or update note for a lead
+router.post('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.upsertLeadNote);
+
+// DELETE /api/leads/:id/notes - Delete note for a lead
+router.delete('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.deleteLeadNote);
+
+// Lead Referrals Routes
+// GET /api/leads/:id/referrals - Get referrals for a lead
+router.get('/:id/referrals', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadReferrals);
+
+// POST /api/leads/:id/referrals - Manually add a referral to a lead
+router.post('/:id/referrals', canManageLeads, validateLeadId, handleValidationErrors, LeadsController.addLeadReferral);
+
+// DELETE /api/leads/:id/referrals/:referralId - Delete a referral from a lead
+router.delete('/:id/referrals/:referralId', canManageLeads, validateLeadId, handleValidationErrors, LeadsController.deleteLeadReferral);
+
+// GET /api/leads/agent/:agentId/referral-stats - Get referral statistics for an agent
+router.get('/agent/:agentId/referral-stats', canViewLeads, validateAgentId, handleValidationErrors, canViewAgentPerformance, LeadsController.getAgentReferralStats);
+
 // GET /api/leads/:id - Get single lead (filtered by role) - MUST BE LAST GET route
 router.get('/:id', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadById);
 

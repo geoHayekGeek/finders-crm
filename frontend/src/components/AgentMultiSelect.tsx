@@ -20,13 +20,15 @@ interface AgentMultiSelectProps {
   onChange: (agentIds: number[]) => void
   label?: string
   className?: string
+  teamLeaderId?: number // Optional: Filter to show only available agents for this team leader
 }
 
 export function AgentMultiSelect({ 
   selectedAgentIds, 
   onChange, 
   label = "Assigned Agents",
-  className = "" 
+  className = "",
+  teamLeaderId
 }: AgentMultiSelectProps) {
   const { token } = useAuth()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -37,8 +39,10 @@ export function AgentMultiSelect({
 
   // Load agents
   useEffect(() => {
-    loadAgents()
-  }, [])
+    if (token) {
+      loadAgents()
+    }
+  }, [token, teamLeaderId])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -54,17 +58,28 @@ export function AgentMultiSelect({
   }, [])
 
   const loadAgents = async () => {
-    if (!token) return
+    if (!token) {
+      console.error('No authentication token available for loading agents')
+      return
+    }
     
     try {
       setLoading(true)
-      const response = await usersApi.getByRole('agent')
+      console.log('🔍 Loading agents with token...', teamLeaderId ? `for team leader ${teamLeaderId}` : 'for new team leader')
+      const response = await usersApi.getByRole('agent', token, teamLeaderId, true) // forAssignment=true
+      console.log('👥 Agents response:', response)
       
       if (response.success && response.data) {
         setAgents(response.data)
+        console.log('✅ Loaded agents:', response.data.length)
+        if (teamLeaderId) {
+          console.log('✅ Filtered for team leader:', teamLeaderId, '- showing unassigned agents + agents assigned to this team leader')
+        } else {
+          console.log('✅ Showing only unassigned agents (new team leader)')
+        }
       }
     } catch (error) {
-      console.error('Error loading agents:', error)
+      console.error('❌ Error loading agents:', error)
     } finally {
       setLoading(false)
     }
@@ -96,9 +111,9 @@ export function AgentMultiSelect({
     switch (role) {
       case 'admin':
         return 'bg-purple-100 text-purple-700'
-      case 'operations_manager':
+      case 'operations manager':
         return 'bg-red-100 text-red-700'
-      case 'agent_manager':
+      case 'agent manager':
         return 'bg-indigo-100 text-indigo-700'
       case 'team_leader':
         return 'bg-blue-100 text-blue-700'

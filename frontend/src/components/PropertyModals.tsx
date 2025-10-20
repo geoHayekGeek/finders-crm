@@ -9,6 +9,7 @@ import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, valida
 import { CategorySelector } from './CategorySelector'
 import { PropertyStatusSelector } from './PropertyStatusSelector'
 import { AgentSelector } from './AgentSelector'
+import { OwnerSelector } from './OwnerSelector'
 import { ReferralSelector } from './ReferralSelector'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -268,6 +269,7 @@ export function PropertyModals({
     location: '',
     category_id: undefined as number | undefined,
     building_name: '',
+    owner_id: undefined as number | undefined,
     owner_name: '',
     phone_number: '',
     surface: '',
@@ -603,6 +605,7 @@ export function PropertyModals({
               location: propertyData.location || '',
               category_id: propertyData.category_id || 0,
               building_name: propertyData.building_name || '',
+              owner_id: propertyData.owner_id ? parseInt(propertyData.owner_id.toString()) : undefined,
               owner_name: propertyData.owner_name || '',
               phone_number: propertyData.phone_number || '',
               surface: propertyData.surface,
@@ -638,6 +641,7 @@ export function PropertyModals({
               location: editingProperty.location || '',
               category_id: editingProperty.category_id || 0,
               building_name: editingProperty.building_name || '',
+              owner_id: editingProperty.owner_id ? parseInt(editingProperty.owner_id.toString()) : undefined,
               owner_name: editingProperty.owner_name || '',
               phone_number: editingProperty.phone_number || '',
               surface: editingProperty.surface,
@@ -666,6 +670,7 @@ export function PropertyModals({
             location: editingProperty.location || '',
             category_id: editingProperty.category_id || 0,
             building_name: editingProperty.building_name || '',
+            owner_id: editingProperty.owner_id ? parseInt(editingProperty.owner_id.toString()) : undefined,
             owner_name: editingProperty.owner_name || '',
             phone_number: editingProperty.phone_number || '',
             surface: editingProperty.surface,
@@ -836,6 +841,7 @@ export function PropertyModals({
       location: '',
       category_id: undefined as number | undefined,
       building_name: '',
+      owner_id: undefined as number | undefined,
       owner_name: '',
       phone_number: '',
       surface: '',
@@ -1164,8 +1170,9 @@ export function PropertyModals({
                     location: addFormData.location,
                     category_id: addFormData.category_id,
                     building_name: addFormData.building_name || undefined,
-                    owner_name: addFormData.owner_name,
-                    phone_number: addFormData.phone_number,
+                    owner_id: addFormData.owner_id || undefined,
+                    owner_name: addFormData.owner_name || undefined,
+                    phone_number: addFormData.phone_number || undefined,
                     surface: parseFloat(addFormData.surface),
                     details: addFormData.details,
                     interior_details: addFormData.interior_details,
@@ -1439,33 +1446,44 @@ export function PropertyModals({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <InputField
-                      label="Owner Name"
-                        id="add-owner-name"
-                        type="text"
-                        value={addFormData.owner_name}
-                      onChange={(e) => {
-                        const newValue = e.target.value
-                        setAddFormData(prev => ({ ...prev, owner_name: newValue }))
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Owner (Lead) <span className="text-red-500">*</span>
+                    </label>
+                    <OwnerSelector
+                      selectedOwnerId={addFormData.owner_id}
+                      onOwnerChange={(owner) => {
+                        console.log('Owner selected:', owner)
+                        if (owner) {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            owner_id: owner.id,
+                            owner_name: owner.customer_name,
+                            phone_number: owner.phone_number || ''
+                          }))
+                          // Clear validation errors for owner fields
+                          setValidationErrors(prev => ({
+                            ...prev,
+                            owner_name: '',
+                            phone_number: ''
+                          }))
+                        } else {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            owner_id: undefined,
+                            owner_name: '',
+                            phone_number: ''
+                          }))
+                        }
                       }}
-                      onBlur={(e) => validateField('owner_name', e.target.value)}
-                        placeholder="Enter owner name"
-                      errorMessage={validationErrors.owner_name}
+                      placeholder="Select owner from leads..."
                     />
-                    <InputField
-                      label="Phone Number"
-                        id="add-phone"
-                        type="tel"
-                        value={addFormData.phone_number}
-                      onChange={(e) => {
-                        const newValue = e.target.value
-                        setAddFormData(prev => ({ ...prev, phone_number: newValue }))
-                      }}
-                      onBlur={(e) => validateField('phone_number', e.target.value)}
-                        placeholder="Enter phone number"
-                      errorMessage={validationErrors.phone_number}
-                      />
+                    {(validationErrors.owner_name || validationErrors.owner_id) && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {validationErrors.owner_name || validationErrors.owner_id || 'Owner is required'}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2062,51 +2080,49 @@ export function PropertyModals({
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Owner Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={editFormData.owner_name}
-                        onChange={(e) => {
-                          const newValue = e.target.value
-                          setEditFormData((prev: EditFormData) => ({ ...prev, owner_name: newValue }))
-                        }}
-                        onBlur={(e) => validateField('owner_name', e.target.value, true)}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                      {(backendValidationErrors.owner_name || editValidationErrors.owner_name) && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
-                          {backendValidationErrors.owner_name || editValidationErrors.owner_name}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="tel"
-                        value={editFormData.phone_number || ''}
-                        onChange={(e) => {
-                          const newValue = e.target.value
-                          setEditFormData((prev: EditFormData) => ({ ...prev, phone_number: newValue }))
-                        }}
-                        onBlur={(e) => validateField('phone_number', e.target.value, true)}
-                        required
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                      {(backendValidationErrors.phone_number || editValidationErrors.phone_number) && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
-                          {backendValidationErrors.phone_number || editValidationErrors.phone_number}
-                        </p>
-                      )}
-                    </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Owner (Lead) <span className="text-red-500">*</span>
+                    </label>
+                    <OwnerSelector
+                      selectedOwnerId={editFormData.owner_id}
+                      onOwnerChange={(owner) => {
+                        console.log('Owner selected in edit:', owner)
+                        if (owner) {
+                          setEditFormData((prev: EditFormData) => ({
+                            ...prev,
+                            owner_id: owner.id,
+                            owner_name: owner.customer_name,
+                            phone_number: owner.phone_number || ''
+                          }))
+                          // Clear validation errors for owner fields
+                          setEditValidationErrors(prev => ({
+                            ...prev,
+                            owner_name: '',
+                            phone_number: ''
+                          }))
+                          setBackendValidationErrors(prev => ({
+                            ...prev,
+                            owner_name: '',
+                            phone_number: ''
+                          }))
+                        } else {
+                          setEditFormData((prev: EditFormData) => ({
+                            ...prev,
+                            owner_id: undefined,
+                            owner_name: '',
+                            phone_number: ''
+                          }))
+                        }
+                      }}
+                      placeholder="Select owner from leads..."
+                    />
+                    {(backendValidationErrors.owner_name || editValidationErrors.owner_name) && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {backendValidationErrors.owner_name || editValidationErrors.owner_name || 'Owner is required'}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

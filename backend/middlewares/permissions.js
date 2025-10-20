@@ -8,6 +8,7 @@ const PERMISSIONS = {
     properties: ['create', 'read', 'update', 'delete', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
     leads: ['create', 'read', 'update', 'delete', 'view_all'],
+    viewings: ['create', 'read', 'update', 'delete', 'view_all'],
     analytics: ['view_all', 'view_financial', 'view_agent_performance'],
     users: ['create', 'read', 'update', 'delete', 'view_all'],
     settings: ['full_access'],
@@ -21,6 +22,7 @@ const PERMISSIONS = {
     properties: ['create', 'read', 'update', 'delete', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
     leads: ['create', 'read', 'update', 'delete', 'view_all'],
+    viewings: ['create', 'read', 'update', 'delete', 'view_all'],
     analytics: ['view_all', 'view_financial', 'view_agent_performance'],
     users: ['create', 'read', 'update', 'delete', 'view_all'],
     settings: ['full_access'],
@@ -34,6 +36,7 @@ const PERMISSIONS = {
     properties: ['create', 'read', 'update', 'delete', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
     leads: ['create', 'read', 'update', 'delete', 'view_all'],
+    viewings: ['create', 'read', 'update', 'delete', 'view_all'],
     analytics: ['view_all'], // No financial or agent performance data
     users: ['read', 'view_all'], // Can view but not modify
     settings: ['read_only'],
@@ -47,6 +50,7 @@ const PERMISSIONS = {
     properties: ['create', 'read', 'update', 'delete', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
     leads: ['read', 'view_all'], // Read-only access to leads
+    viewings: ['create', 'read', 'update', 'delete', 'view_all'],
     analytics: ['view_all', 'view_agent_performance'], // Can see agent performance
     users: ['read', 'view_agents'], // Can view agents but not other roles
     settings: ['read_only'],
@@ -60,6 +64,7 @@ const PERMISSIONS = {
     properties: ['read', 'view_all_filtered'], // Can view all properties but owner details are filtered
     clients: ['read', 'view_assigned'], // Can view their own clients and assigned agents' clients
     leads: [], // No access to leads
+    viewings: ['create', 'read', 'update', 'view_assigned'], // Can manage viewings for themselves and team
     analytics: ['view_agent_performance'], // Can see performance of assigned agents only
     users: ['read', 'view_assigned_agents'], // Can view only assigned agents
     settings: ['read_self'],
@@ -73,6 +78,7 @@ const PERMISSIONS = {
     properties: ['read', 'view_all_filtered'], // Can view all properties but owner details are filtered
     clients: [], // No access to clients
     leads: [], // No access to leads
+    viewings: ['create', 'read', 'update', 'view_own'], // Can manage their own viewings only
     analytics: [], // No access to analytics
     users: ['read_self'], // Can only view their own profile
     settings: ['read_self'],
@@ -86,6 +92,7 @@ const PERMISSIONS = {
     properties: [], // No access to properties
     clients: ['read', 'view_assigned'], // Only view their assigned clients
     leads: ['read', 'view_assigned'], // Only view their assigned leads
+    viewings: [], // No access to viewings
     analytics: ['view_basic'], // Only basic analytics, no financial data
     users: ['read_self'], // Can only view their own profile
     settings: ['read_self'],
@@ -300,11 +307,12 @@ const canViewLeads = (req, res, next) => {
   }
 
   const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
+  // Agents and team leaders can view their own leads, others can view all leads
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader') {
     next();
   } else {
     return res.status(403).json({ 
-      message: 'Access denied. Lead viewing restricted to admin, operations manager, operations, and agent manager only.' 
+      message: 'Access denied. You do not have permission to view leads.' 
     });
   }
 };
@@ -334,8 +342,11 @@ const filterDataByRole = (req, res, next) => {
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
     canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),
-    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'].includes(role)
+    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
+    canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'].includes(role),
+    canManageViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
+    canViewViewings: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
+    canManageAllViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role)
   };
 
   console.log('✅ Role filters set:', req.roleFilters);

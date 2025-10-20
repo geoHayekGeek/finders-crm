@@ -9,6 +9,7 @@ class Property {
       location,
       category_id,
       building_name,
+      owner_id,
       owner_name,
       phone_number,
       surface,
@@ -47,14 +48,14 @@ class Property {
       const result = await client.query(
         `INSERT INTO properties (
           reference_number, status_id, property_type, location, category_id, building_name, 
-          owner_name, phone_number, surface, details, interior_details, 
+          owner_id, owner_name, phone_number, surface, details, interior_details, 
           built_year, view_type, concierge, agent_id, price, notes, property_url,
           main_image, image_gallery
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
         RETURNING *`,
         [
           refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
-          owner_name, phone_number, surface, details, interior_details,
+          owner_id, owner_name, phone_number, surface, details, interior_details,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
           main_image, image_gallery
         ]
@@ -112,8 +113,9 @@ class Property {
           COALESCE(c.name, 'Uncategorized') as category_name,
           COALESCE(c.code, 'UNCAT') as category_code,
           p.building_name,
-          p.owner_name,
-          p.phone_number,
+          p.owner_id,
+          COALESCE(l.customer_name, p.owner_name) as owner_name,
+          COALESCE(l.phone_number, p.phone_number) as phone_number,
           p.surface,
           p.details,
           p.interior_details,
@@ -134,6 +136,7 @@ class Property {
         LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
         LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
         LEFT JOIN users u ON p.agent_id = u.id
+        LEFT JOIN leads l ON p.owner_id = l.id
         ORDER BY p.created_at DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
@@ -177,8 +180,9 @@ class Property {
         COALESCE(c.name, 'Uncategorized') as category_name,
         COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
-        p.owner_name,
-        p.phone_number,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
         p.surface,
         p.details,
         p.interior_details,
@@ -199,6 +203,7 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
@@ -220,8 +225,9 @@ class Property {
         COALESCE(c.name, 'Uncategorized') as category_name,
         COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
-        p.owner_name,
-        p.phone_number,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
         p.surface,
         p.details,
         p.interior_details,
@@ -246,6 +252,7 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
@@ -269,8 +276,9 @@ class Property {
           COALESCE(c.name, 'Uncategorized') as category_name,
           COALESCE(c.code, 'UNCAT') as category_code,
           p.building_name,
-          p.owner_name,
-          p.phone_number,
+          p.owner_id,
+          COALESCE(l.customer_name, p.owner_name) as owner_name,
+          COALESCE(l.phone_number, p.phone_number) as phone_number,
           p.surface,
           p.details,
           p.interior_details,
@@ -291,6 +299,7 @@ class Property {
         LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
         LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
         LEFT JOIN users u ON p.agent_id = u.id
+        LEFT JOIN leads l ON p.owner_id = l.id
         ORDER BY p.created_at DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
@@ -373,8 +382,9 @@ class Property {
         COALESCE(c.name, 'Uncategorized') as category_name,
         COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
-        p.owner_name,
-        p.phone_number,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
         p.surface,
         p.details,
         p.interior_details,
@@ -396,6 +406,7 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
       INNER JOIN team_agents ta ON p.agent_id = ta.agent_id
       WHERE ta.team_leader_id = $1 AND ta.is_active = true
       ORDER BY p.created_at DESC
@@ -418,8 +429,9 @@ class Property {
         COALESCE(c.name, 'Uncategorized') as category_name,
         COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
-        p.owner_name,
-        p.phone_number,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
         p.surface,
         p.details,
         p.interior_details,
@@ -444,6 +456,7 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
       WHERE p.agent_id = $1 
          OR p.agent_id IN (
            SELECT ta.agent_id 
@@ -478,8 +491,9 @@ class Property {
         COALESCE(c.name, 'Uncategorized') as category_name,
         COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
-        p.owner_name,
-        p.phone_number,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
         p.surface,
         p.details,
         p.interior_details,
@@ -500,6 +514,7 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
       WHERE p.id = $1
     `, [propertyId]);
     
@@ -637,8 +652,9 @@ class Property {
         COALESCE(c.name, 'Uncategorized') as category_name,
         COALESCE(c.code, 'UNCAT') as category_code,
         p.building_name,
-        p.owner_name,
-        p.phone_number,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
         p.surface,
         p.details,
         p.interior_details,
@@ -659,6 +675,7 @@ class Property {
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
       WHERE 1=1
     `;
     
@@ -696,7 +713,7 @@ class Property {
     }
 
     if (filters.search) {
-      query += ` AND (p.reference_number ILIKE $${valueIndex} OR p.location ILIKE $${valueIndex} OR p.owner_name ILIKE $${valueIndex})`;
+      query += ` AND (p.reference_number ILIKE $${valueIndex} OR p.location ILIKE $${valueIndex} OR COALESCE(l.customer_name, p.owner_name) ILIKE $${valueIndex})`;
       values.push(`%${filters.search}%`);
       valueIndex++;
     }

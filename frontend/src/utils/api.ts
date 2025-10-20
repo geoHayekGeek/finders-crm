@@ -1,6 +1,7 @@
 import { Property, Category, Status } from '@/types/property'
-import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData } from '@/types/leads'
+import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
+import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -309,14 +310,36 @@ interface UserResponse {
 }
 
 export const usersApi = {
-  // Get all agents (legacy - no token required for backward compatibility)
-  getAgents: () => apiRequest<{ success: boolean; agents: any[]; message?: string }>('/users/agents'),
+  // Get all agents (with token for authentication)
+  getAgents: (token?: string) => apiRequest<{ success: boolean; agents: any[]; message?: string }>('/users/agents', {
+    method: 'GET',
+  }, token),
   
   // Get user by ID (legacy)
   getById: (id: number) => apiRequest<{ success: boolean; data: any }>(`/users/${id}`),
   
-  // Get users by role (legacy)
-  getByRole: (role: string) => apiRequest<{ success: boolean; data: any[] }>(`/users/role/${role}`),
+  // Get users by role (with token for authentication)
+  getByRole: (role: string, token?: string, teamLeaderId?: number, forAssignment: boolean = false) => {
+    let url = `/users/role/${role}`;
+    const params = new URLSearchParams();
+    
+    if (forAssignment) {
+      params.append('forAssignment', 'true');
+    }
+    
+    if (teamLeaderId) {
+      params.append('teamLeaderId', teamLeaderId.toString());
+    }
+    
+    const queryString = params.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+    
+    return apiRequest<{ success: boolean; data: any[] }>(url, {
+      method: 'GET',
+    }, token);
+  },
   
   // Get all users (new - with token)
   async getAll(token: string): Promise<UsersResponse> {
@@ -504,6 +527,94 @@ export const leadsApi = {
   
   // Get lead statistics
   getStats: (token?: string) => apiRequest<LeadStatsApiResponse>('/leads/stats', {}, token),
+  
+  // Get notes for a specific lead
+  getNotes: (leadId: number, token?: string) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/notes`, {}, token),
+  
+  // Add or update note for a lead
+  saveNote: (leadId: number, noteText: string, token?: string) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/notes`, {
+    method: 'POST',
+    body: JSON.stringify({ note_text: noteText }),
+  }, token),
+  
+  // Delete note for a lead
+  deleteNote: (leadId: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/notes`, {
+    method: 'DELETE',
+  }, token),
+  
+  // Get referrals for a specific lead
+  getReferrals: (leadId: number, token?: string) => apiRequest<LeadReferralsResponse>(`/leads/${leadId}/referrals`, {}, token),
+  
+  // Add a referral to a lead
+  addReferral: (leadId: number, referralData: { name: string; type: 'employee' | 'custom'; employee_id?: number; date: string }, token?: string) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/referrals`, {
+    method: 'POST',
+    body: JSON.stringify(referralData),
+  }, token),
+  
+  // Delete a referral from a lead
+  deleteReferral: (leadId: number, referralId: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/referrals/${referralId}`, {
+    method: 'DELETE',
+  }, token),
+  
+  // Get referral statistics for an agent
+  getAgentReferralStats: (agentId: number, token?: string) => apiRequest<AgentReferralStatsResponse>(`/leads/agent/${agentId}/referral-stats`, {}, token),
+}
+
+// Viewings API
+export const viewingsApi = {
+  // Get all viewings (requires authentication)
+  getAll: (token?: string) => apiRequest<ViewingsResponse>('/viewings', {}, token),
+  
+  // Get viewings with filters
+  getWithFilters: (filters: ViewingFilters, token?: string) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    return apiRequest<ViewingsResponse>(`/viewings/filtered?${params.toString()}`, {}, token)
+  },
+  
+  // Get viewing by ID
+  getById: (id: number, token?: string) => apiRequest<ViewingResponse>(`/viewings/${id}`, {}, token),
+  
+  // Create viewing
+  create: (data: CreateViewingFormData, token?: string) => apiRequest<ViewingResponse>('/viewings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }, token),
+  
+  // Update viewing
+  update: (id: number, data: Partial<CreateViewingFormData>, token?: string) => apiRequest<ViewingResponse>(`/viewings/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }, token),
+  
+  // Delete viewing
+  delete: (id: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/viewings/${id}`, {
+    method: 'DELETE',
+  }, token),
+  
+  // Get viewings by agent
+  getByAgent: (agentId: number, token?: string) => apiRequest<ViewingsResponse>(`/viewings/agent/${agentId}`, {}, token),
+  
+  // Get viewing statistics
+  getStats: (token?: string) => apiRequest<ViewingStatsApiResponse>('/viewings/stats', {}, token),
+  
+  // Get updates for a specific viewing
+  getUpdates: (viewingId: number, token?: string) => apiRequest<ViewingUpdatesResponse>(`/viewings/${viewingId}/updates`, {}, token),
+  
+  // Add update to a viewing
+  addUpdate: (viewingId: number, data: ViewingUpdateInput, token?: string) => apiRequest<{ success: boolean; data: any; message?: string }>(`/viewings/${viewingId}/updates`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }, token),
+  
+  // Delete viewing update
+  deleteUpdate: (viewingId: number, updateId: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
+    method: 'DELETE',
+  }, token),
 }
 
 // Categories API

@@ -24,6 +24,7 @@ router.post('/login', authLimiter, loginValidator, handleValidation, userControl
 router.post('/check-exists', userController.checkUserExists);
 router.get('/all', userController.getAllUsers);
 router.get('/agents', userController.getAgents);
+router.get('/role/:role', userController.getUsersByRole);
 router.put('/:id', userController.updateUser);
 router.delete('/:id', userController.deleteUser);
 

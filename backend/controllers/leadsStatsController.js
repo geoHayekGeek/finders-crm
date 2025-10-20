@@ -7,6 +7,14 @@ class LeadsStatsController {
     try {
       console.log('📊 Fetching leads statistics...');
 
+      const userRole = req.user.role;
+      const userId = req.user.id;
+      
+      // Determine if we need to filter by agent
+      const isAgentOrTeamLeader = ['agent', 'team_leader'].includes(userRole);
+      const whereClause = isAgentOrTeamLeader ? 'WHERE l.agent_id = $1' : '';
+      const params = isAgentOrTeamLeader ? [userId] : [];
+
       // Execute all queries in parallel for better performance
       const [
         totalResult,
@@ -18,67 +26,60 @@ class LeadsStatsController {
         monthlyResult
       ] = await Promise.all([
         // Total leads
-        pool.query('SELECT COUNT(*) as total FROM leads'),
+        pool.query(
+          isAgentOrTeamLeader 
+            ? 'SELECT COUNT(*) as total FROM leads WHERE agent_id = $1' 
+            : 'SELECT COUNT(*) as total FROM leads',
+          params
+        ),
         
         // By status
-        pool.query(`
-          SELECT status, COUNT(*) as count 
-          FROM leads 
-          GROUP BY status 
-          ORDER BY count DESC
-        `),
+        pool.query(
+          isAgentOrTeamLeader
+            ? `SELECT status, COUNT(*) as count FROM leads WHERE agent_id = $1 GROUP BY status ORDER BY count DESC`
+            : `SELECT status, COUNT(*) as count FROM leads GROUP BY status ORDER BY count DESC`,
+          params
+        ),
         
         // Price statistics
-        pool.query(`
-          SELECT 
-            COUNT(*) as with_price, 
-            AVG(price) as avg_price, 
-            SUM(price) as total_value,
-            MIN(price) as min_price,
-            MAX(price) as max_price
-          FROM leads 
-          WHERE price IS NOT NULL
-        `),
+        pool.query(
+          isAgentOrTeamLeader
+            ? `SELECT COUNT(*) as with_price, AVG(price) as avg_price, SUM(price) as total_value, MIN(price) as min_price, MAX(price) as max_price FROM leads WHERE price IS NOT NULL AND agent_id = $1`
+            : `SELECT COUNT(*) as with_price, AVG(price) as avg_price, SUM(price) as total_value, MIN(price) as min_price, MAX(price) as max_price FROM leads WHERE price IS NOT NULL`,
+          params
+        ),
         
         // Top reference sources
-        pool.query(`
-          SELECT rs.source_name, COUNT(*) as count 
-          FROM leads l 
-          LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id 
-          GROUP BY rs.source_name, rs.id 
-          ORDER BY count DESC 
-          LIMIT 5
-        `),
+        pool.query(
+          isAgentOrTeamLeader
+            ? `SELECT rs.source_name, COUNT(*) as count FROM leads l LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id WHERE l.agent_id = $1 GROUP BY rs.source_name, rs.id ORDER BY count DESC LIMIT 5`
+            : `SELECT rs.source_name, COUNT(*) as count FROM leads l LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id GROUP BY rs.source_name, rs.id ORDER BY count DESC LIMIT 5`,
+          params
+        ),
         
         // Recent activity (last 7 days)
-        pool.query(`
-          SELECT COUNT(*) as recent 
-          FROM leads 
-          WHERE created_at >= NOW() - INTERVAL '7 days'
-        `),
+        pool.query(
+          isAgentOrTeamLeader
+            ? `SELECT COUNT(*) as recent FROM leads WHERE created_at >= NOW() - INTERVAL '7 days' AND agent_id = $1`
+            : `SELECT COUNT(*) as recent FROM leads WHERE created_at >= NOW() - INTERVAL '7 days'`,
+          params
+        ),
         
-        // Top agents
-        pool.query(`
-          SELECT u.name, COUNT(*) as count 
-          FROM leads l 
-          LEFT JOIN users u ON l.agent_id = u.id 
-          WHERE u.name IS NOT NULL
-          GROUP BY u.name, u.id 
-          ORDER BY count DESC 
-          LIMIT 5
-        `),
+        // Top agents (skip for agents/team leaders, or show just themselves)
+        pool.query(
+          isAgentOrTeamLeader
+            ? `SELECT u.name, COUNT(*) as count FROM leads l LEFT JOIN users u ON l.agent_id = u.id WHERE u.name IS NOT NULL AND l.agent_id = $1 GROUP BY u.name, u.id ORDER BY count DESC LIMIT 1`
+            : `SELECT u.name, COUNT(*) as count FROM leads l LEFT JOIN users u ON l.agent_id = u.id WHERE u.name IS NOT NULL GROUP BY u.name, u.id ORDER BY count DESC LIMIT 5`,
+          params
+        ),
 
         // Monthly trends (last 6 months)
-        pool.query(`
-          SELECT 
-            DATE_TRUNC('month', created_at) as month,
-            COUNT(*) as count
-          FROM leads 
-          WHERE created_at >= NOW() - INTERVAL '6 months'
-          GROUP BY DATE_TRUNC('month', created_at)
-          ORDER BY month DESC
-          LIMIT 6
-        `)
+        pool.query(
+          isAgentOrTeamLeader
+            ? `SELECT DATE_TRUNC('month', created_at) as month, COUNT(*) as count FROM leads WHERE created_at >= NOW() - INTERVAL '6 months' AND agent_id = $1 GROUP BY DATE_TRUNC('month', created_at) ORDER BY month DESC LIMIT 6`
+            : `SELECT DATE_TRUNC('month', created_at) as month, COUNT(*) as count FROM leads WHERE created_at >= NOW() - INTERVAL '6 months' GROUP BY DATE_TRUNC('month', created_at) ORDER BY month DESC LIMIT 6`,
+          params
+        )
       ]);
 
       // Format the statistics data

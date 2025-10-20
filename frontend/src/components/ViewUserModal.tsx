@@ -1,7 +1,10 @@
 'use client'
 
-import { X, UserCircle, Mail, Phone, MapPin, Calendar, Briefcase, Shield, CheckCircle, XCircle, FolderOpen } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, UserCircle, Mail, Phone, MapPin, Calendar, Briefcase, Shield, CheckCircle, XCircle, FolderOpen, Users } from 'lucide-react'
 import { User } from '@/types/user'
+import { usersApi } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ViewUserModalProps {
   user: User
@@ -11,6 +14,31 @@ interface ViewUserModalProps {
 }
 
 export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUserModalProps) {
+  const { token } = useAuth()
+  const [agents, setAgents] = useState<User[]>([])
+  const [loadingAgents, setLoadingAgents] = useState(false)
+
+  useEffect(() => {
+    if (user.role === 'team_leader' && token) {
+      loadTeamAgents()
+    }
+  }, [user.id, user.role, token])
+
+  const loadTeamAgents = async () => {
+    if (!token) return
+    
+    try {
+      setLoadingAgents(true)
+      const response = await usersApi.getTeamLeaderAgents(user.id, token)
+      if (response.success && response.agents) {
+        setAgents(response.agents)
+      }
+    } catch (error) {
+      console.error('Error loading team agents:', error)
+    } finally {
+      setLoadingAgents(false)
+    }
+  }
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Not set'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -27,9 +55,9 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
   const getRoleColor = (role: string) => {
     const colors: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800 border-purple-200',
-      operations_manager: 'bg-red-100 text-red-800 border-red-200',
+      'operations manager': 'bg-red-100 text-red-800 border-red-200',
       operations: 'bg-orange-100 text-orange-800 border-orange-200',
-      agent_manager: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      'agent manager': 'bg-indigo-100 text-indigo-800 border-indigo-200',
       team_leader: 'bg-blue-100 text-blue-800 border-blue-200',
       agent: 'bg-green-100 text-green-800 border-green-200',
       accountant: 'bg-yellow-100 text-yellow-800 border-yellow-200',
@@ -170,6 +198,50 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                     {user.is_assigned ? 'Assigned' : 'Available'}
                   </span>
                 </div>
+              </div>
+            )}
+
+            {/* Team Leader Agents */}
+            {user.role === 'team_leader' && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-blue-900 flex items-center space-x-2">
+                    <Users className="h-4 w-4" />
+                    <span>Team Agents</span>
+                  </h4>
+                  <span className="px-2 py-1 bg-blue-600 text-white text-xs font-semibold rounded-full">
+                    {agents.length} {agents.length === 1 ? 'Agent' : 'Agents'}
+                  </span>
+                </div>
+                
+                {loadingAgents ? (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-blue-700">Loading agents...</p>
+                  </div>
+                ) : agents.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {agents.map((agent) => (
+                      <div key={agent.id} className="bg-white p-3 rounded-lg border border-blue-200 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                            <UserCircle className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{agent.name}</p>
+                            <p className="text-xs text-gray-600">{agent.email}</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+                          {agent.user_code}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-blue-700">No agents assigned yet</p>
+                  </div>
+                )}
               </div>
             )}
 

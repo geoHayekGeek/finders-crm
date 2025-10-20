@@ -162,12 +162,31 @@ class Lead {
         l.notes,
         l.status,
         l.created_at,
-        l.updated_at
+        l.updated_at,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', lr.id,
+              'agent_id', lr.agent_id,
+              'name', lr.name,
+              'type', lr.type,
+              'agent_name', ref_agent.name,
+              'referral_date', lr.referral_date,
+              'external', lr.external
+            ) ORDER BY lr.referral_date DESC
+          ) FILTER (WHERE lr.id IS NOT NULL),
+          '[]'::json
+        ) as referrals
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
       LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
+      LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
       WHERE l.id = $1
+      GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
+               u.name, u.role, l.reference_source_id, rs.source_name, l.operations_id,
+               op.name, op.role, l.notes, l.status, l.created_at, l.updated_at
     `, [id]);
     return result.rows[0];
   }
@@ -176,10 +195,12 @@ class Lead {
     console.log('🔧 [Backend] Updating lead:', id);
     console.log('🔧 [Backend] Raw updates:', updates);
     
-    // Filter out undefined values and handle null values properly
+    // Filter out undefined values and fields that don't belong in the leads table
     const cleanUpdates = {};
+    const nonTableFields = ['referrals']; // Fields handled separately, not in leads table
+    
     Object.entries(updates).forEach(([key, value]) => {
-      if (value !== undefined) {
+      if (value !== undefined && !nonTableFields.includes(key)) {
         cleanUpdates[key] = value;
       }
     });
@@ -263,11 +284,27 @@ class Lead {
         l.notes,
         l.status,
         l.created_at,
-        l.updated_at
+        l.updated_at,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', lr.id,
+              'agent_id', lr.agent_id,
+              'name', lr.name,
+              'type', lr.type,
+              'agent_name', ref_agent.name,
+              'referral_date', lr.referral_date,
+              'external', lr.external
+            ) ORDER BY lr.referral_date DESC
+          ) FILTER (WHERE lr.id IS NOT NULL),
+          '[]'::json
+        ) as referrals
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
       LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
+      LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
       WHERE 1=1
     `;
     
@@ -314,7 +351,12 @@ class Lead {
       valueIndex++;
     }
 
-    query += ` ORDER BY l.created_at DESC`;
+    query += ` 
+      GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
+               u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
+               op.name, op.role, l.notes, l.status, l.created_at, l.updated_at
+      ORDER BY l.created_at DESC
+    `;
 
     console.log('🔍 [Backend] Final query:', query);
     console.log('🔍 [Backend] Query values:', values);
@@ -416,8 +458,8 @@ class Lead {
 
   // Get leads for a specific agent based on role permissions
   static async getLeadsForAgent(agentId, userRole) {
-    // Agents see leads assigned to them or that they referred
-    if (userRole === 'agent') {
+    // Agents and team leaders see leads assigned to them
+    if (userRole === 'agent' || userRole === 'team_leader') {
       return this.getLeadsAssignedOrReferredByAgent(agentId);
     }
     
@@ -444,6 +486,94 @@ class Lead {
       ORDER BY name
     `);
     return result.rows;
+  }
+
+  // Get agent-specific notes for a lead
+  // Admin, operations, operations_manager can see all notes
+  // Agents and team leaders can only see their own notes
+  static async getLeadNotes(leadId, userId, userRole) {
+    let query;
+    let params;
+
+    if (['admin', 'operations', 'operations_manager'].includes(userRole)) {
+      // Admin and operations can see ALL notes
+      query = `
+        SELECT 
+          ln.id,
+          ln.lead_id,
+          ln.agent_id,
+          ln.note_text,
+          ln.created_at,
+          ln.updated_at,
+          u.name as agent_name,
+          u.role as agent_role
+        FROM lead_notes ln
+        LEFT JOIN users u ON ln.agent_id = u.id
+        WHERE ln.lead_id = $1
+        ORDER BY ln.updated_at DESC
+      `;
+      params = [leadId];
+    } else {
+      // Agents and team leaders only see their own notes
+      query = `
+        SELECT 
+          ln.id,
+          ln.lead_id,
+          ln.agent_id,
+          ln.note_text,
+          ln.created_at,
+          ln.updated_at,
+          u.name as agent_name,
+          u.role as agent_role
+        FROM lead_notes ln
+        LEFT JOIN users u ON ln.agent_id = u.id
+        WHERE ln.lead_id = $1 AND ln.agent_id = $2
+        ORDER BY ln.updated_at DESC
+      `;
+      params = [leadId, userId];
+    }
+
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
+  // Add or update agent note for a lead
+  static async upsertLeadNote(leadId, agentId, noteText) {
+    const result = await pool.query(`
+      INSERT INTO lead_notes (lead_id, agent_id, note_text)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (lead_id, agent_id)
+      DO UPDATE SET 
+        note_text = $3,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `, [leadId, agentId, noteText]);
+    return result.rows[0];
+  }
+
+  // Delete agent note
+  static async deleteLeadNote(leadId, agentId) {
+    const result = await pool.query(`
+      DELETE FROM lead_notes
+      WHERE lead_id = $1 AND agent_id = $2
+      RETURNING *
+    `, [leadId, agentId]);
+    return result.rows[0];
+  }
+
+  // Get leads with notes for specific user
+  // This modifies the lead data to include only appropriate notes based on role
+  static async getLeadsWithNotes(leads, userId, userRole) {
+    const leadsWithNotes = await Promise.all(
+      leads.map(async (lead) => {
+        const notes = await this.getLeadNotes(lead.id, userId, userRole);
+        return {
+          ...lead,
+          agent_notes: notes
+        };
+      })
+    );
+    return leadsWithNotes;
   }
 }
 

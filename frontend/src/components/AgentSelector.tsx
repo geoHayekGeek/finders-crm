@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Users, RefreshCw, User } from 'lucide-react'
 import { usersApi } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Agent {
   id: number
@@ -24,6 +25,7 @@ export function AgentSelector({
   onAgentChange, 
   placeholder = "Select an agent..."
 }: AgentSelectorProps) {
+  const { token } = useAuth()
   const [agents, setAgents] = useState<Agent[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -34,11 +36,16 @@ export function AgentSelector({
 
   // Fetch agents from database
   const fetchAgents = async () => {
+    if (!token) {
+      setError('No authentication token available')
+      return
+    }
+    
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching agents...')
-      const data = await usersApi.getAgents()
+      console.log('🔍 Fetching agents with token...')
+      const data = await usersApi.getAgents(token)
       console.log('👥 Agents data:', data)
       
       if (data.success) {
@@ -60,8 +67,10 @@ export function AgentSelector({
   }
 
   useEffect(() => {
-    fetchAgents()
-  }, [])
+    if (token) {
+      fetchAgents()
+    }
+  }, [token])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -112,9 +121,9 @@ export function AgentSelector({
     switch (role) {
       case 'admin':
         return 'bg-red-100 text-red-700'
-      case 'operations_manager':
+      case 'operations manager':
         return 'bg-purple-100 text-purple-700'
-      case 'agent_manager':
+      case 'agent manager':
         return 'bg-indigo-100 text-indigo-700'
       case 'team_leader':
         return 'bg-orange-100 text-orange-700'

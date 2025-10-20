@@ -211,10 +211,10 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
                 required
               >
                 <option value="agent">Agent</option>
-                <option value="agent_manager">Agent Manager</option>
+                <option value="agent manager">Agent Manager</option>
                 <option value="team_leader">Team Leader</option>
                 <option value="operations">Operations</option>
-                <option value="operations_manager">Operations Manager</option>
+                <option value="operations manager">Operations Manager</option>
                 <option value="accountant">Accountant</option>
                 <option value="admin">Admin</option>
               </select>
@@ -232,6 +232,7 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
                     selectedAgentIds={assignedAgentIds}
                     onChange={setAssignedAgentIds}
                     label="Assign Agents to Team Leader"
+                    teamLeaderId={user.id}
                   />
                 )}
               </div>

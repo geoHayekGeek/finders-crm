@@ -18,8 +18,9 @@ export interface Property {
   category_name: string
   category_code: string
   building_name?: string
-  owner_name: string
-  phone_number: string
+  owner_id?: number // Foreign key to leads table - the customer (buyer/seller)
+  owner_name: string // Fetched from leads or stored directly for backward compatibility
+  phone_number: string // Fetched from leads or stored directly for backward compatibility
   surface: number
   details: string | object // Can be either string or object (legacy support)
   interior_details: string
@@ -46,6 +47,7 @@ export interface Property {
 export interface EditFormData {
   reference_number: string
   status_id: number
+  owner_id?: number
   property_type: 'sale' | 'rent'
   location: string
   category_id: number
