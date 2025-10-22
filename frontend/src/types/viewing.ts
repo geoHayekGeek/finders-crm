@@ -64,6 +64,9 @@ export interface EditViewingFormData {
   viewing_time: string
   status: string
   notes?: string
+  update_title?: string
+  update_description?: string
+  update_date?: string
 }
 
 export interface CreateViewingFormData {
@@ -74,6 +77,8 @@ export interface CreateViewingFormData {
   viewing_time: string
   status: string
   notes?: string
+  initial_update_title?: string
+  initial_update_description?: string
 }
 
 export interface ViewingStats {
