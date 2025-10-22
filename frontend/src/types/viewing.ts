@@ -85,6 +85,7 @@ export interface ViewingStats {
   total_viewings: number
   scheduled: number
   completed: number
+  follow_up: number
   cancelled: number
   no_show: number
   rescheduled: number
@@ -94,6 +95,7 @@ export interface ViewingStats {
 export const VIEWING_STATUSES = [
   { value: 'Scheduled', label: 'Scheduled', color: '#3B82F6' },
   { value: 'Completed', label: 'Completed', color: '#10B981' },
+  { value: 'Follow-up', label: 'Follow-up', color: '#F59E0B' },
   { value: 'Cancelled', label: 'Cancelled', color: '#EF4444' },
   { value: 'No Show', label: 'No Show', color: '#F59E0B' },
   { value: 'Rescheduled', label: 'Rescheduled', color: '#8B5CF6' }
