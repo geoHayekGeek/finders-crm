@@ -31,7 +31,7 @@ export default function ViewingsCard({
   }
 
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border border-gray-200">
+    <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border border-gray-200 flex flex-col h-full">
       {/* Header with Status */}
       <div className="p-4 border-b border-gray-200">
         <div className="flex justify-between items-start">
@@ -57,7 +57,7 @@ export default function ViewingsCard({
       </div>
 
       {/* Content */}
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3 flex-1">
         {/* Property Type */}
         {viewing.property_type && (
           <div className="flex items-center text-sm text-gray-600">
@@ -103,19 +103,6 @@ export default function ViewingsCard({
           </div>
         </div>
 
-        {/* Notes Preview */}
-        {viewing.notes && (
-          <div className="text-sm text-gray-600 bg-blue-50 rounded p-2 border border-blue-100">
-            <p className="line-clamp-2">{viewing.notes}</p>
-          </div>
-        )}
-
-        {/* Updates Count */}
-        {viewing.updates && viewing.updates.length > 0 && (
-          <div className="text-xs text-gray-500 bg-gray-50 rounded px-2 py-1 inline-block">
-            {viewing.updates.length} update{viewing.updates.length !== 1 ? 's' : ''}
-          </div>
-        )}
       </div>
 
       {/* Actions Footer */}
