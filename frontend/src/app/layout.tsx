@@ -4,6 +4,7 @@ import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { PermissionProvider } from '@/contexts/PermissionContext'
 import { ToastProvider } from '@/contexts/ToastContext'
+import { SettingsProvider } from '@/contexts/SettingsContext'
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -26,9 +27,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <PermissionProvider>
-            <ToastProvider>
-              {children}
-            </ToastProvider>
+            <SettingsProvider>
+              <ToastProvider>
+                {children}
+              </ToastProvider>
+            </SettingsProvider>
           </PermissionProvider>
         </AuthProvider>
       </body>

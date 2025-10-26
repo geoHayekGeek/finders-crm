@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import { apiClient, ApiError } from '@/utils/api'
 import { useRouter } from 'next/navigation'
 import { 
@@ -36,6 +37,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const { login } = useAuth()
+  const { settings } = useSettings()
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -88,8 +90,18 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
-              <Building2 className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">Finders CRM</span>
+              {settings.company_logo ? (
+                <img 
+                  src={settings.company_logo} 
+                  alt={settings.company_name} 
+                  className="h-8 w-auto max-w-[150px] object-contain"
+                />
+              ) : (
+                <>
+                  <Building2 className="h-8 w-8" style={{ color: settings.primary_color }} />
+                  <span className="text-xl font-bold text-gray-900">{settings.company_name}</span>
+                </>
+              )}
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-600">Admin access only</span>

@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary-color: #3B82F6;
+  --primary-hover: #2563EB;
+  --primary-light: #60A5FA;
+  --primary-dark: #1D4ED8;
 }
 
 @theme inline {
@@ -70,6 +74,58 @@ input[type="search"]::placeholder,
 textarea::placeholder {
   color: #6b7280 !important; /* text-gray-500 */
   opacity: 1 !important;
+}
+
+/* Primary color overrides for buttons and links */
+.bg-blue-600,
+button.bg-blue-600,
+a.bg-blue-600 {
+  background-color: var(--primary-color) !important;
+}
+
+.bg-blue-700,
+button.bg-blue-700,
+.hover\:bg-blue-700:hover {
+  background-color: var(--primary-hover) !important;
+}
+
+.bg-blue-500 {
+  background-color: var(--primary-light) !important;
+}
+
+.bg-blue-400 {
+  background-color: var(--primary-light) !important;
+  opacity: 0.8;
+}
+
+.text-blue-600,
+a.text-blue-600 {
+  color: var(--primary-color) !important;
+}
+
+.text-blue-700,
+.hover\:text-blue-700:hover {
+  color: var(--primary-hover) !important;
+}
+
+.text-blue-500 {
+  color: var(--primary-light) !important;
+}
+
+.border-blue-500,
+.focus\:border-blue-500:focus,
+.peer-checked\:border-blue-500 {
+  border-color: var(--primary-color) !important;
+}
+
+.ring-blue-500,
+.focus\:ring-blue-500:focus,
+.peer-focus\:ring-blue-300 {
+  --tw-ring-color: var(--primary-color) !important;
+}
+
+.peer-checked\:bg-blue-600 {
+  background-color: var(--primary-color) !important;
 }
 
 /* Error state for input fields */

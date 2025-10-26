@@ -36,6 +36,7 @@ app.use((req, res, next) => {
 // Serve static files from the public directory
 app.use('/assets', express.static('public/assets'));
 app.use('/images', express.static('public/images'));
+app.use('/uploads', express.static('public/uploads'));
 
 app.use('/api', indexRoutes);
 

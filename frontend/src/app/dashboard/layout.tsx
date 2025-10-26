@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   Home, 
@@ -54,6 +55,7 @@ export default function DashboardLayout({
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
   const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, canViewClients, role } = usePermissions()
+  const { settings } = useSettings()
 
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
@@ -181,14 +183,24 @@ export default function DashboardLayout({
         <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
           <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
           <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
-            <div className="flex h-16 items-center justify-between px-4">
-              <div className="flex items-center space-x-2">
-                <Building2 className="h-8 w-8 text-blue-600" />
-                <span className="text-xl font-bold text-gray-900">Finders CRM</span>
+            <div className="flex h-20 items-center justify-between px-4 border-b border-gray-200">
+              <div className="flex items-center justify-center flex-1">
+                {settings.company_logo ? (
+                  <img 
+                    src={settings.company_logo} 
+                    alt={settings.company_name} 
+                    className="h-12 w-auto max-w-[200px] object-contain"
+                  />
+                ) : (
+                  <div className="flex items-center space-x-2">
+                    <Building2 className="h-8 w-8" style={{ color: settings.primary_color }} />
+                    <span className="text-xl font-bold text-gray-900">{settings.company_name}</span>
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setSidebarOpen(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 ml-2"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -269,13 +281,27 @@ export default function DashboardLayout({
           sidebarExpanded ? 'lg:w-64' : 'lg:w-16'
         }`}>
           <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
-            <div className="flex h-16 items-center px-4">
-              <div className="flex items-center space-x-2">
-                <Building2 className="h-8 w-8 text-blue-600 flex-shrink-0" />
-                {sidebarExpanded && (
-                  <span className="text-xl font-bold text-gray-900 transition-opacity duration-300">
-                    Finders CRM
-                  </span>
+            <div className={`flex items-center justify-center border-b border-gray-200 transition-all duration-300 ${
+              sidebarExpanded ? 'h-20 px-4' : 'h-16 px-2'
+            }`}>
+              <div className="flex items-center justify-center w-full">
+                {settings.company_logo ? (
+                  <img 
+                    src={settings.company_logo} 
+                    alt={settings.company_name} 
+                    className={`object-contain transition-all duration-300 ${
+                      sidebarExpanded ? 'h-12 w-auto max-w-[200px]' : 'h-8 w-8'
+                    }`}
+                  />
+                ) : (
+                  <>
+                    <Building2 className="h-8 w-8 flex-shrink-0" style={{ color: settings.primary_color }} />
+                    {sidebarExpanded && (
+                      <span className="text-xl font-bold text-gray-900 transition-opacity duration-300 ml-2">
+                        {settings.company_name}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             </div>

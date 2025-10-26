@@ -2,6 +2,7 @@
 const pool = require('../config/db');
 const Notification = require('../models/notificationModel');
 const EmailService = require('./emailService');
+const Settings = require('../models/settingsModel');
 
 class ReminderService {
   constructor() {
@@ -272,6 +273,27 @@ class ReminderService {
   // Send email reminder
   async sendEmailReminder(userEmail, userName, eventTitle, eventStartTime, eventEndTime, eventLocation, eventDescription, reminderType) {
     try {
+      // Check if email notifications are enabled
+      const emailEnabled = await Settings.isEmailNotificationsEnabled();
+      if (!emailEnabled) {
+        console.log('📧 Email notifications are disabled globally, skipping email');
+        return;
+      }
+
+      // Check if calendar event notifications are enabled
+      const calendarNotificationsEnabled = await Settings.isEmailNotificationTypeEnabled('calendar_events');
+      if (!calendarNotificationsEnabled) {
+        console.log('📧 Calendar event email notifications are disabled, skipping email');
+        return;
+      }
+
+      // Check if this specific reminder type is enabled
+      const reminderEnabled = await Settings.isReminderEnabled(reminderType);
+      if (!reminderEnabled) {
+        console.log(`📧 ${reminderType} reminder is disabled, skipping email`);
+        return;
+      }
+
       console.log(`📧 Sending email reminder to ${userEmail} for ${eventTitle}`);
       
       // Fix: Use the correct EmailService method signature
