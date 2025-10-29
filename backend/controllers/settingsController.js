@@ -1,5 +1,6 @@
 // controllers/settingsController.js
 const Settings = require('../models/settingsModel');
+const emailService = require('../services/emailService');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -260,6 +261,56 @@ const deleteFavicon = async (req, res) => {
   }
 };
 
+// Test email configuration
+const testEmailConfiguration = async (req, res) => {
+  try {
+    const { host, port, user, pass, secure, from, fromName } = req.body;
+
+    // Validate required fields
+    if (!host || !port || !user || !pass) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required email configuration fields'
+      });
+    }
+
+    // Create test configuration
+    const testConfig = {
+      host,
+      port: parseInt(port),
+      user,
+      pass,
+      secure: secure || false,
+      from: from || user,
+      fromName: fromName || 'Finders CRM'
+    };
+
+    // Test the configuration first
+    const isValid = await emailService.testEmailConfiguration(testConfig);
+    
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email configuration test failed. Please check your settings.'
+      });
+    }
+
+    // Send a test email to the user
+    await emailService.sendTestEmail(user, testConfig);
+
+    res.json({
+      success: true,
+      message: 'Test email sent successfully! Check your inbox.'
+    });
+  } catch (error) {
+    console.error('Error testing email configuration:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send test email. Please check your configuration.'
+    });
+  }
+};
+
 module.exports = {
   getAllSettings,
   getSettingsByCategory,
@@ -268,5 +319,6 @@ module.exports = {
   uploadLogo,
   uploadFavicon,
   deleteLogo,
-  deleteFavicon
+  deleteFavicon,
+  testEmailConfiguration
 };

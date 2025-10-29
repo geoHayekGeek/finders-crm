@@ -88,13 +88,20 @@ export default function SettingsPageContent() {
     reminder_1_hour_before: true
   })
 
-  // Email configuration
+  // Email configuration (SMTP)
   const [emailFromName, setEmailFromName] = useState('Finders CRM')
   const [emailFromAddress, setEmailFromAddress] = useState('noreply@finderscrm.com')
+  const [smtpHost, setSmtpHost] = useState('smtp.gmail.com')
+  const [smtpPort, setSmtpPort] = useState('587')
+  const [smtpUser, setSmtpUser] = useState('')
+  const [smtpPass, setSmtpPass] = useState('')
+  const [smtpSecure, setSmtpSecure] = useState(false)
+  const [testingEmail, setTestingEmail] = useState(false)
 
   const tabs = [
     { id: 'company', name: 'Company & Branding', icon: Building2 },
     { id: 'email', name: 'Email Automation', icon: Mail },
+    { id: 'smtp', name: 'Email Configuration', icon: Mail },
     { id: 'notifications', name: 'Notifications', icon: Bell },
   ]
 
@@ -170,6 +177,13 @@ export default function SettingsPageContent() {
       // Set email config
       setEmailFromName(settingsObj.email_from_name || 'Finders CRM')
       setEmailFromAddress(settingsObj.email_from_address || 'noreply@finderscrm.com')
+      
+      // Set SMTP config
+      setSmtpHost(settingsObj.smtp_host || 'smtp.gmail.com')
+      setSmtpPort(settingsObj.smtp_port || '587')
+      setSmtpUser(settingsObj.smtp_user || '')
+      setSmtpPass(settingsObj.smtp_pass || '')
+      setSmtpSecure(settingsObj.smtp_secure === 'true')
     } catch (error) {
       console.error('Error loading settings:', error)
       showToast('error', 'Failed to load settings. Please refresh the page.')
@@ -205,6 +219,11 @@ export default function SettingsPageContent() {
         { key: 'primary_color', value: primaryColor },
         { key: 'email_from_name', value: emailFromName },
         { key: 'email_from_address', value: emailFromAddress },
+        { key: 'smtp_host', value: smtpHost },
+        { key: 'smtp_port', value: smtpPort },
+        { key: 'smtp_user', value: smtpUser },
+        { key: 'smtp_pass', value: smtpPass },
+        { key: 'smtp_secure', value: smtpSecure.toString() },
         ...Object.entries(emailSettings).map(([key, value]) => ({ key, value: value.toString() })),
         ...Object.entries(reminderSettings).map(([key, value]) => ({ key, value: value.toString() }))
       ]
@@ -432,6 +451,42 @@ export default function SettingsPageContent() {
   const handleResetColor = () => {
     setPrimaryColor(DEFAULT_PRIMARY_COLOR)
     showToast('success', 'Color reset to default')
+  }
+
+  const handleTestEmail = async () => {
+    try {
+      setTestingEmail(true)
+      
+      const response = await fetch(`${API_BASE_URL}/api/settings/email/test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          host: smtpHost,
+          port: smtpPort,
+          user: smtpUser,
+          pass: smtpPass,
+          secure: smtpSecure,
+          from: emailFromAddress,
+          fromName: emailFromName
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to test email configuration')
+      }
+      
+      showToast('success', 'Test email sent successfully! Check your inbox.')
+    } catch (error: any) {
+      console.error('Error testing email:', error)
+      showToast('error', error.message || 'Failed to send test email. Please check your configuration.')
+    } finally {
+      setTestingEmail(false)
+    }
   }
 
   if (loading) {
@@ -665,6 +720,149 @@ export default function SettingsPageContent() {
             </div>
           )}
 
+          {/* SMTP Configuration Tab */}
+          {activeTab === 'smtp' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Email Configuration (SMTP)</h3>
+                <p className="text-sm text-gray-500">Configure your email server settings for sending emails</p>
+              </div>
+
+              {/* SMTP Server Settings */}
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      SMTP Host <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="smtp.gmail.com"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      SMTP Port <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="587"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    SMTP Username <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={smtpUser}
+                    onChange={(e) => setSmtpUser(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="your-email@gmail.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    SMTP Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={smtpPass}
+                    onChange={(e) => setSmtpPass(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="••••••••••••••••"
+                  />
+                  <p className="mt-1 text-sm text-gray-500">
+                    For Gmail, use an App Password. Never use your actual Gmail password.
+                  </p>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="smtp-secure"
+                    checked={smtpSecure}
+                    onChange={(e) => setSmtpSecure(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="smtp-secure" className="ml-2 block text-sm text-gray-700">
+                    Use SSL/TLS (Port 465)
+                  </label>
+                </div>
+              </div>
+
+              {/* From Email Settings */}
+              <div className="border-t border-gray-200 pt-6">
+                <h4 className="text-sm font-medium text-gray-900 mb-4">Email Sender Information</h4>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      From Name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={emailFromName}
+                      onChange={(e) => setEmailFromName(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Finders CRM"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      From Email <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={emailFromAddress}
+                      onChange={(e) => setEmailFromAddress(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="noreply@finderscrm.com"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Email Connection */}
+              <div className="border-t border-gray-200 pt-6">
+                <h4 className="text-sm font-medium text-gray-900 mb-4">Test Email Configuration</h4>
+                <button
+                  onClick={handleTestEmail}
+                  disabled={testingEmail}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {testingEmail ? 'Testing...' : 'Test Email Connection'}
+                </button>
+                <p className="mt-2 text-sm text-gray-500">
+                  Send a test email to verify your SMTP configuration is working correctly
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="text-sm font-medium text-yellow-900">Important Notes</h4>
+                    <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside space-y-1">
+                      <li>For Gmail: Enable 2-factor authentication and use an App Password</li>
+                      <li>Port 587 is recommended for most SMTP servers (STARTTLS)</li>
+                      <li>Port 465 requires SSL/TLS checkbox to be enabled</li>
+                      <li>Changes take effect immediately after saving</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Email Automation Settings */}
           {activeTab === 'email' && (
             <div className="space-y-6">
@@ -779,33 +977,6 @@ export default function SettingsPageContent() {
                           />
                           <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                         </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Email Configuration */}
-                  <div className="border-t border-gray-200 pt-6">
-                    <h4 className="text-sm font-medium text-gray-900 mb-4">Email Configuration</h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">From Name</label>
-                        <input
-                          type="text"
-                          value={emailFromName}
-                          onChange={(e) => setEmailFromName(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Finders CRM"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">From Email</label>
-                        <input
-                          type="email"
-                          value={emailFromAddress}
-                          onChange={(e) => setEmailFromAddress(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="noreply@finderscrm.com"
-                        />
                       </div>
                     </div>
                   </div>

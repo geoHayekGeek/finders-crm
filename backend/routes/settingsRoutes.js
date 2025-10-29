@@ -15,4 +15,7 @@ router.post('/favicon/upload', settingsController.uploadFavicon);
 router.delete('/logo', settingsController.deleteLogo);
 router.delete('/favicon', settingsController.deleteFavicon);
 
+// Email configuration test
+router.post('/email/test', settingsController.testEmailConfiguration);
+
 module.exports = router;
