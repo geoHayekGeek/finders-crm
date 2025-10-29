@@ -119,9 +119,26 @@ class ReminderService {
           SELECT 
             eu.*,
             'same_day' as reminder_type,
-            DATE(eu.event_start_time) as scheduled_time
+            CASE 
+              WHEN EXTRACT(HOUR FROM eu.event_start_time) >= 9 
+              THEN (DATE(eu.event_start_time) + INTERVAL '9 hours')::timestamp
+              ELSE (DATE(eu.event_start_time) - INTERVAL '4 hours')::timestamp
+            END as scheduled_time
           FROM event_users eu
-          WHERE DATE(eu.event_start_time) = CURRENT_DATE
+          WHERE (
+            CASE 
+              WHEN EXTRACT(HOUR FROM eu.event_start_time) >= 9 
+              THEN (DATE(eu.event_start_time) + INTERVAL '9 hours')::timestamp
+              ELSE (DATE(eu.event_start_time) - INTERVAL '4 hours')::timestamp
+            END
+          ) >= NOW() - INTERVAL '30 minutes'
+            AND (
+            CASE 
+              WHEN EXTRACT(HOUR FROM eu.event_start_time) >= 9 
+              THEN (DATE(eu.event_start_time) + INTERVAL '9 hours')::timestamp
+              ELSE (DATE(eu.event_start_time) - INTERVAL '4 hours')::timestamp
+            END
+          ) <= NOW() + INTERVAL '30 minutes'
             AND eu.event_start_time > NOW()
           
           UNION
@@ -131,8 +148,8 @@ class ReminderService {
             '1_hour' as reminder_type,
             eu.event_start_time - INTERVAL '1 hour' as scheduled_time
           FROM event_users eu
-          WHERE eu.event_start_time > NOW() + INTERVAL '55 minutes'
-            AND eu.event_start_time <= NOW() + INTERVAL '65 minutes'
+          WHERE eu.event_start_time > NOW() + INTERVAL '50 minutes'
+            AND eu.event_start_time <= NOW() + INTERVAL '70 minutes'
         )
         SELECT 
           rs.event_id,
@@ -216,7 +233,11 @@ class ReminderService {
         `INSERT INTO reminder_tracking (event_id, user_id, reminder_type, scheduled_time)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (event_id, user_id, reminder_type) 
-         DO UPDATE SET scheduled_time = EXCLUDED.scheduled_time
+         DO UPDATE SET 
+           scheduled_time = EXCLUDED.scheduled_time,
+           email_sent = false,
+           notification_sent = false,
+           sent_at = NULL
          RETURNING id`,
         [eventId, userId, reminderType, scheduledTime]
       );
@@ -352,10 +373,27 @@ class ReminderService {
         const oneDayBefore = new Date(eventStartTime.getTime() - 24 * 60 * 60 * 1000);
         await this.scheduleReminder(eventId, user.id, '1_day', oneDayBefore);
 
-        // Same day (morning of event)
-        const sameDay = new Date(eventStartTime);
-        sameDay.setHours(9, 0, 0, 0); // 9 AM
-        await this.scheduleReminder(eventId, user.id, 'same_day', sameDay);
+        // Same day reminder logic:
+        // - If event is after 9 AM: send at 9 AM same day
+        // - If event is before 9 AM: send at 8 PM the evening before
+        const eventHour = eventStartTime.getHours();
+        let sameDay;
+        
+        if (eventHour >= 9) {
+          // Event is after 9 AM, send reminder at 9 AM same day
+          sameDay = new Date(eventStartTime);
+          sameDay.setHours(9, 0, 0, 0);
+        } else {
+          // Event is before 9 AM, send reminder at 8 PM the evening before
+          sameDay = new Date(eventStartTime);
+          sameDay.setDate(sameDay.getDate() - 1); // Previous day
+          sameDay.setHours(20, 0, 0, 0); // 8 PM
+        }
+        
+        // Only schedule if reminder time is before event and in the future
+        if (sameDay < eventStartTime && sameDay > new Date()) {
+          await this.scheduleReminder(eventId, user.id, 'same_day', sameDay);
+        }
 
         // 1 hour before
         const oneHourBefore = new Date(eventStartTime.getTime() - 60 * 60 * 1000);
@@ -394,11 +432,16 @@ class ReminderService {
     try {
       console.log(`📅 Scheduled ${reminderType} reminder for user ${userId} at ${scheduledTime}`);
       
+      // When rescheduling (ON CONFLICT), reset the sent flags so reminders can be sent again
       await pool.query(
         `INSERT INTO reminder_tracking (event_id, user_id, reminder_type, scheduled_time)
          VALUES ($1, $2, $3, $4)
          ON CONFLICT (event_id, user_id, reminder_type) 
-         DO UPDATE SET scheduled_time = EXCLUDED.scheduled_time`,
+         DO UPDATE SET 
+           scheduled_time = EXCLUDED.scheduled_time,
+           email_sent = false,
+           notification_sent = false,
+           sent_at = NULL`,
         [eventId, userId, reminderType, scheduledTime]
       );
     } catch (error) {

@@ -132,9 +132,26 @@ BEGIN
     SELECT 
       eu.*,
       'same_day' as reminder_type,
-      DATE(eu.event_start_time) as scheduled_time
+      CASE 
+        WHEN EXTRACT(HOUR FROM eu.event_start_time) >= 9 
+        THEN (DATE(eu.event_start_time) + INTERVAL '9 hours')::timestamp
+        ELSE (DATE(eu.event_start_time) - INTERVAL '4 hours')::timestamp
+      END as scheduled_time
     FROM event_users eu
-    WHERE DATE(eu.event_start_time) = CURRENT_DATE
+    WHERE (
+      CASE 
+        WHEN EXTRACT(HOUR FROM eu.event_start_time) >= 9 
+        THEN (DATE(eu.event_start_time) + INTERVAL '9 hours')::timestamp
+        ELSE (DATE(eu.event_start_time) - INTERVAL '4 hours')::timestamp
+      END
+    ) >= NOW() - INTERVAL '30 minutes'
+      AND (
+      CASE 
+        WHEN EXTRACT(HOUR FROM eu.event_start_time) >= 9 
+        THEN (DATE(eu.event_start_time) + INTERVAL '9 hours')::timestamp
+        ELSE (DATE(eu.event_start_time) - INTERVAL '4 hours')::timestamp
+      END
+    ) <= NOW() + INTERVAL '30 minutes'
       AND eu.event_start_time > NOW()
     
     UNION
@@ -144,8 +161,8 @@ BEGIN
       '1_hour' as reminder_type,
       eu.event_start_time - INTERVAL '1 hour' as scheduled_time
     FROM event_users eu
-    WHERE eu.event_start_time > NOW() + INTERVAL '55 minutes'
-      AND eu.event_start_time <= NOW() + INTERVAL '65 minutes'
+    WHERE eu.event_start_time > NOW() + INTERVAL '50 minutes'
+      AND eu.event_start_time <= NOW() + INTERVAL '70 minutes'
   )
   SELECT 
     rs.event_id,

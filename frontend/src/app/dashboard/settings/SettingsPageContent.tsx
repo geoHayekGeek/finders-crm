@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { 
   User, 
-  Bell, 
   Shield, 
   Palette, 
   Building2,
@@ -102,7 +101,6 @@ export default function SettingsPageContent() {
     { id: 'company', name: 'Company & Branding', icon: Building2 },
     { id: 'email', name: 'Email Automation', icon: Mail },
     { id: 'smtp', name: 'Email Configuration', icon: Mail },
-    { id: 'notifications', name: 'Notifications', icon: Bell },
   ]
 
   // Load settings on mount
