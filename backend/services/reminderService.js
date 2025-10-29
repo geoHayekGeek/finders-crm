@@ -181,16 +181,20 @@ class ReminderService {
       // Create reminder tracking record
       const trackingId = await this.createReminderTracking(event_id, user_id, reminder_type, scheduled_time);
 
-      // Send in-app notification
-      await this.sendInAppNotification(event_id, user_id, event_title, event_start_time, event_location, reminder_type);
+      // Send in-app notification and capture result
+      const notificationSent = await this.sendInAppNotification(event_id, user_id, event_title, event_start_time, event_location, reminder_type);
 
-      // Send email reminder
-      await this.sendEmailReminder(user_email, user_name, event_title, event_start_time, event_end_time, event_location, event_description, reminder_type);
+      // Send email reminder and capture result
+      const emailSent = await this.sendEmailReminder(user_email, user_name, event_title, event_start_time, event_end_time, event_location, event_description, reminder_type);
 
-      // Update tracking record
-      await this.updateReminderTracking(trackingId, true, true);
+      // Update tracking record with actual send status
+      await this.updateReminderTracking(trackingId, emailSent, notificationSent);
 
-      console.log(`✅ ${reminder_type} reminder sent to ${user_name}`);
+      if (emailSent || notificationSent) {
+        console.log(`✅ ${reminder_type} reminder sent to ${user_name} (Email: ${emailSent}, Notification: ${notificationSent})`);
+      } else {
+        console.log(`⚠️ ${reminder_type} reminder skipped for ${user_name} (reminders disabled or failed)`);
+      }
 
     } catch (error) {
       console.error(`❌ Error processing ${reminder_type} reminder for ${user_name}:`, error);
@@ -264,9 +268,10 @@ class ReminderService {
       });
 
       console.log(`📱 In-app notification sent to user ${userId}`);
+      return true;
     } catch (error) {
       console.error('Error sending in-app notification:', error);
-      throw error;
+      return false;
     }
   }
 
@@ -277,21 +282,21 @@ class ReminderService {
       const emailEnabled = await Settings.isEmailNotificationsEnabled();
       if (!emailEnabled) {
         console.log('📧 Email notifications are disabled globally, skipping email');
-        return;
+        return false;
       }
 
       // Check if calendar event notifications are enabled
       const calendarNotificationsEnabled = await Settings.isEmailNotificationTypeEnabled('calendar_events');
       if (!calendarNotificationsEnabled) {
         console.log('📧 Calendar event email notifications are disabled, skipping email');
-        return;
+        return false;
       }
 
       // Check if this specific reminder type is enabled
       const reminderEnabled = await Settings.isReminderEnabled(reminderType);
       if (!reminderEnabled) {
         console.log(`📧 ${reminderType} reminder is disabled, skipping email`);
-        return;
+        return false;
       }
 
       console.log(`📧 Sending email reminder to ${userEmail} for ${eventTitle}`);
@@ -307,9 +312,10 @@ class ReminderService {
 
       await EmailService.sendReminderEmail(userEmail, userName, eventData, reminderType);
       console.log(`📧 Email reminder sent to ${userEmail}`);
+      return true;
     } catch (error) {
       console.error('Error sending email reminder:', error);
-      throw error;
+      return false;
     }
   }
 
@@ -412,6 +418,27 @@ class ReminderService {
       console.log(`🧹 Cleaned up ${result.rowCount} old reminder records`);
     } catch (error) {
       console.error('Error cleaning up old reminders:', error);
+    }
+  }
+
+  // Reset reminder tracking for a specific reminder type
+  // Useful when an admin re-enables a previously disabled reminder setting
+  async resetReminderTrackingForType(reminderType) {
+    try {
+      const result = await pool.query(
+        `DELETE FROM reminder_tracking rt
+         USING calendar_events ce
+         WHERE rt.event_id = ce.id
+           AND rt.reminder_type = $1
+           AND ce.start_time > NOW()
+           AND rt.email_sent = false`,
+        [reminderType]
+      );
+      console.log(`🔄 Reset ${result.rowCount} tracking records for ${reminderType} reminders`);
+      return result.rowCount;
+    } catch (error) {
+      console.error('Error resetting reminder tracking:', error);
+      throw error;
     }
   }
 

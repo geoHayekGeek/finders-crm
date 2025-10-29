@@ -181,7 +181,15 @@ class SettingsModel {
    * Check if a specific reminder type is enabled
    */
   static async isReminderEnabled(type) {
-    const setting = await this.getByKey(`reminder_${type}`);
+    // Map reminder types to database keys
+    const reminderKeyMap = {
+      '1_day': 'reminder_1_day_before',
+      'same_day': 'reminder_same_day',
+      '1_hour': 'reminder_1_hour_before'
+    };
+    
+    const settingKey = reminderKeyMap[type] || `reminder_${type}`;
+    const setting = await this.getByKey(settingKey);
     return setting ? this.convertValue(setting.setting_value, setting.setting_type) : true;
   }
 }

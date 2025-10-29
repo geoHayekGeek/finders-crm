@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS reminder_tracking (
   email_sent BOOLEAN DEFAULT FALSE,
   notification_sent BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE (event_id, user_id, reminder_type)
 );
 
 -- Indexes for better performance
