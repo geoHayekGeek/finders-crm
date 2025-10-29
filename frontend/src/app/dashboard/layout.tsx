@@ -8,9 +8,7 @@ import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
   Home, 
   Building2, 
-  Users, 
   FileText, 
-  BarChart3, 
   Settings, 
   Menu, 
   X,
@@ -54,7 +52,7 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, canViewClients, role } = usePermissions()
+  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
   const { settings } = useSettings()
 
   // Permission-based navigation
@@ -111,11 +109,6 @@ export default function DashboardLayout({
       submenu: submenuItems.length > 1 ? submenuItems : undefined
     })
 
-    // Clients - visible to management roles and team leaders
-    if (canViewClients) {
-      baseNavigation.push({ name: 'Clients', href: '/dashboard/clients', icon: Users, alwaysVisible: true })
-    }
-
     // Leads with submenu for management roles only
     if (canViewLeads) {
       const leadsSubmenuItems = [
@@ -151,11 +144,6 @@ export default function DashboardLayout({
 
     // Calendar - visible to all roles
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
-
-    // Analytics - visible to management roles and team leaders
-    if (canViewAgentPerformance) {
-      baseNavigation.push({ name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3, alwaysVisible: true })
-    }
 
     // HR - only visible to admin and operations manager
     if (canManageUsers) {
