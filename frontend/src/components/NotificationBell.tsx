@@ -57,6 +57,16 @@ const NotificationBell = () => {
     }
   }, [isOpen])
 
+  // Auto-refresh notifications every 1 minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchNotifications()
+    }, 10000) // 60000ms = 1 minute
+
+    // Cleanup interval on component unmount
+    return () => clearInterval(interval)
+  }, []) // Empty dependency array means this runs once on mount
+
   const markAsRead = async (id: number) => {
     try {
       console.log('🔔 Marking notification as read:', id, 'with token:', token ? 'present' : 'missing')

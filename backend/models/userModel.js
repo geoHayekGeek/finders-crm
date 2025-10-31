@@ -59,7 +59,12 @@ class User {
             WHERE ta.team_leader_id = u.id AND ta.is_active = TRUE
           )
           ELSE NULL
-        END as agent_count
+        END as agent_count,
+        (
+          SELECT COUNT(*)::integer 
+          FROM properties p 
+          WHERE p.agent_id = u.id
+        ) as properties_count
       FROM users u 
       ORDER BY u.created_at DESC`
     );

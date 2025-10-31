@@ -204,11 +204,10 @@ export default function CalendarPage() {
     loadEvents()
   }, [])
 
-  // Load users and attendees for admin filters
+  // Load users for admin filters
   useEffect(() => {
     if (user?.role === 'admin') {
       loadUsers()
-      loadAttendees()
     }
   }, [user?.role])
 
@@ -633,7 +632,7 @@ export default function CalendarPage() {
                   </select>
                 </div>
 
-                {/* Attendee Filter */}
+                {/* Attendee Filter (same dataset as Created By) */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Attendee
@@ -644,9 +643,9 @@ export default function CalendarPage() {
                     onChange={(e) => handleFiltersChange({ ...adminFilters, attendee: e.target.value || undefined })}
                   >
                     <option value="">All Attendees</option>
-                    {attendees.map(attendee => (
-                      <option key={attendee} value={attendee}>
-                        {attendee}
+                    {users.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.name} ({formatRole(user.role)})
                       </option>
                     ))}
                   </select>
@@ -718,7 +717,10 @@ export default function CalendarPage() {
                     )}
                     {adminFilters.attendee && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                        Attendee: {adminFilters.attendee}
+                        Attendee: {(() => {
+                          const u = users.find(u => u.id.toString() === adminFilters.attendee)
+                          return u ? `${u.name} (${formatRole(u.role)})` : adminFilters.attendee
+                        })()}
                       </span>
                     )}
                     {adminFilters.type && (

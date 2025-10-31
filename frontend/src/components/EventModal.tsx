@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Dialog } from '@headlessui/react'
-import { XMarkIcon, TrashIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
 import { useToast } from '@/contexts/ToastContext'
@@ -455,9 +455,14 @@ export function EventModal({
         <Dialog.Panel className="mx-auto w-full max-w-lg max-h-[90vh] bg-white rounded-xl shadow-2xl flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-200">
-            <Dialog.Title className="text-base sm:text-lg font-semibold text-gray-900">
-              {event ? 'Edit Event' : 'New Event'}
-            </Dialog.Title>
+            <div>
+              <Dialog.Title className="text-base sm:text-lg font-semibold text-gray-900">
+                {event ? 'Edit Event' : 'New Event'}
+              </Dialog.Title>
+              {event?.createdByName && (
+                <div className="mt-0.5 text-xs text-gray-500">Created by {event.createdByName}</div>
+              )}
+            </div>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors bg-gray-50 border border-gray-200 hover:border-gray-300"
@@ -490,6 +495,17 @@ export function EventModal({
                 <p className="mt-1 text-sm text-red-600">{errors.title}</p>
               )}
             </div>
+
+            {/* Created by (read-only) */}
+            {event?.createdByName && (
+              <div className="-mt-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Created by</label>
+                <div className="flex items-center space-x-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-700">
+                  <UserIcon className="h-4 w-4 text-gray-500" />
+                  <span className="truncate">{event.createdByName}</span>
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             <div>
@@ -652,8 +668,7 @@ export function EventModal({
                     console.log('🏠 Property selected:', value)
                     setFormData(prev => ({ 
                       ...prev, 
-                      propertyId: value ? parseInt(value) : null,
-                      leadId: null // Clear lead selection when property is selected
+                      propertyId: value ? parseInt(value) : null
                     }))
                   }}
                   disabled={loadingDropdowns}
@@ -692,8 +707,7 @@ export function EventModal({
                     console.log('👤 Lead selected:', value)
                     setFormData(prev => ({ 
                       ...prev, 
-                      leadId: value ? parseInt(value) : null,
-                      propertyId: null // Clear property selection when lead is selected
+                      leadId: value ? parseInt(value) : null
                     }))
                   }}
                   disabled={loadingDropdowns}

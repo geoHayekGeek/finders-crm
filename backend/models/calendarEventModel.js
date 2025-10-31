@@ -38,10 +38,16 @@ class CalendarEvent {
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
-        l.phone_number as lead_phone
+        l.phone_number as lead_phone,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
+        assignee.name as assigned_to_name,
+        assignee.role as assigned_to_role
       FROM calendar_events ce
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
+      LEFT JOIN users creator ON ce.created_by = creator.id
+      LEFT JOIN users assignee ON ce.assigned_to = assignee.id
       WHERE ce.id = $1`,
       [id]
     );
@@ -55,10 +61,16 @@ class CalendarEvent {
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
-        l.phone_number as lead_phone
+        l.phone_number as lead_phone,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
+        assignee.name as assigned_to_name,
+        assignee.role as assigned_to_role
       FROM calendar_events ce
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
+      LEFT JOIN users creator ON ce.created_by = creator.id
+      LEFT JOIN users assignee ON ce.assigned_to = assignee.id
       ORDER BY ce.start_time ASC`
     );
     return result.rows;
@@ -576,11 +588,14 @@ class CalendarEvent {
       params.push(parseInt(filters.createdBy));
     }
 
-    // Filter by attendee
+    // Filter by attendee (passed as user ID, match by user name in attendees array)
     if (filters.attendee) {
       paramCount++;
-      query += ` AND $${paramCount} = ANY(ce.attendees)`;
-      params.push(filters.attendee);
+      query += ` AND EXISTS (
+        SELECT 1 FROM users u
+        WHERE u.id = $${paramCount} AND u.name = ANY(ce.attendees)
+      )`;
+      params.push(parseInt(filters.attendee));
     }
 
     // Filter by event type

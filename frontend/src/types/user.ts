@@ -30,6 +30,7 @@ export interface User {
   is_assigned?: boolean
   assigned_to?: number
   agent_count?: number | null
+  properties_count?: number | null
   is_active: boolean
   created_at: string
   updated_at: string

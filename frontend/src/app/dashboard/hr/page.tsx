@@ -458,18 +458,40 @@ export default function HRPage() {
       ),
     },
     {
-      header: 'Assignment',
+      header: 'Assignment / Properties',
       accessorKey: 'is_assigned',
       cell: ({ row }: any) => {
         const user = row.original
-        if (user.role !== 'agent') return <span className="text-gray-400">-</span>
-        return (
-          <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-            user.is_assigned ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-          }`}>
-            {user.is_assigned ? 'Assigned' : 'Available'}
-          </span>
-        )
+        const propertiesCount = user.properties_count || 0
+        
+        // For agents: show team assignment status
+        if (user.role === 'agent') {
+          return (
+            <div className="flex flex-col gap-1">
+              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                user.is_assigned ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {user.is_assigned ? 'Assigned to Team' : 'Available'}
+              </span>
+              {propertiesCount > 0 && (
+                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                  {propertiesCount} {propertiesCount === 1 ? 'Property' : 'Properties'}
+                </span>
+              )}
+            </div>
+          )
+        }
+        
+        // For team leaders and other roles: show property assignments
+        if (propertiesCount > 0) {
+          return (
+            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+              {propertiesCount} {propertiesCount === 1 ? 'Property' : 'Properties'}
+            </span>
+          )
+        }
+        
+        return <span className="text-gray-400">-</span>
       },
     },
     {

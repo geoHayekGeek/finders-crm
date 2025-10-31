@@ -50,4 +50,7 @@ router.put('/:id', calendarController.updateEvent);
 // Delete event
 router.delete('/:id', calendarController.deleteEvent);
 
+// Admin: reset and seed events
+router.post('/seed/reset', calendarController.resetAndSeedEvents);
+
 module.exports = router;

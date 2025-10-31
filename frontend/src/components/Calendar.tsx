@@ -250,7 +250,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                                   {event.leadId && (
                                     <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
                                   )}
-                                  <span className="truncate">{event.title}</span>
+                                  <span className="truncate">{event.title}{event.createdByName ? ` · ${event.createdByName}` : ''}</span>
                                 </div>
                               </div>
                             ))}
@@ -393,7 +393,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                               {event.leadId && (
                                 <div className="w-1 h-1 bg-white rounded-full opacity-75"></div>
                               )}
-                              <span className="truncate">{event.title}</span>
+                              <span className="truncate">{event.title}{event.createdByName ? ` · ${event.createdByName}` : ''}</span>
                             </div>
                           </div>
                         ))}
@@ -511,7 +511,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                         {event.leadId && (
                           <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
                         )}
-                        <span>{event.title}</span>
+                        <span>{event.title}{event.createdByName ? ` · ${event.createdByName}` : ''}</span>
                       </div>
                       {event.location && (
                         <div className="text-xs opacity-90">{event.location}</div>

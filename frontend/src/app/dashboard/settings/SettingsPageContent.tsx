@@ -52,6 +52,9 @@ interface Toast {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000'
 const DEFAULT_PRIMARY_COLOR = '#3B82F6'
 
+// Commission state
+const formatPercent = (v: string) => v
+
 export default function SettingsPageContent() {
   const { token } = useAuth()
   const { refreshSettings } = useSettings()
@@ -97,10 +100,19 @@ export default function SettingsPageContent() {
   const [smtpSecure, setSmtpSecure] = useState(false)
   const [testingEmail, setTestingEmail] = useState(false)
 
+  // Commissions
+  const [commissionAgent, setCommissionAgent] = useState('2')
+  const [commissionFinders, setCommissionFinders] = useState('1')
+  const [commissionReferral, setCommissionReferral] = useState('0.5')
+  const [commissionTeamLeader, setCommissionTeamLeader] = useState('1')
+  const [commissionAdministration, setCommissionAdministration] = useState('4')
+  const [operationsManagerShareOfAdmin, setOperationsManagerShareOfAdmin] = useState('0.5')
+
   const tabs = [
     { id: 'company', name: 'Company & Branding', icon: Building2 },
     { id: 'email', name: 'Email Automation', icon: Mail },
     { id: 'smtp', name: 'Email Configuration', icon: Mail },
+    { id: 'commissions', name: 'Commissions', icon: Shield },
   ]
 
   // Load settings on mount
@@ -182,6 +194,14 @@ export default function SettingsPageContent() {
       setSmtpUser(settingsObj.smtp_user || '')
       setSmtpPass(settingsObj.smtp_pass || '')
       setSmtpSecure(settingsObj.smtp_secure === 'true')
+
+      // Set commissions with defaults
+      setCommissionAgent(settingsObj.commission_agent_percentage ?? '2')
+      setCommissionFinders(settingsObj.commission_finders_percentage ?? '1')
+      setCommissionReferral(settingsObj.commission_referral_percentage ?? '0.5')
+      setCommissionTeamLeader(settingsObj.commission_team_leader_percentage ?? '1')
+      setCommissionAdministration(settingsObj.commission_administration_percentage ?? '4')
+      setOperationsManagerShareOfAdmin(settingsObj.commission_operations_manager_share_of_admin ?? '0.5')
     } catch (error) {
       console.error('Error loading settings:', error)
       showToast('error', 'Failed to load settings. Please refresh the page.')
@@ -223,7 +243,13 @@ export default function SettingsPageContent() {
         { key: 'smtp_pass', value: smtpPass },
         { key: 'smtp_secure', value: smtpSecure.toString() },
         ...Object.entries(emailSettings).map(([key, value]) => ({ key, value: value.toString() })),
-        ...Object.entries(reminderSettings).map(([key, value]) => ({ key, value: value.toString() }))
+        ...Object.entries(reminderSettings).map(([key, value]) => ({ key, value: value.toString() })),
+        { key: 'commission_agent_percentage', value: commissionAgent },
+        { key: 'commission_finders_percentage', value: commissionFinders },
+        { key: 'commission_referral_percentage', value: commissionReferral },
+        { key: 'commission_team_leader_percentage', value: commissionTeamLeader },
+        { key: 'commission_administration_percentage', value: commissionAdministration },
+        { key: 'commission_operations_manager_share_of_admin', value: operationsManagerShareOfAdmin }
       ]
       
       // Update settings via API
@@ -713,6 +739,102 @@ export default function SettingsPageContent() {
                       Upload a logo to replace the default Finders CRM branding. Use PNG format with transparent background for best results.
                     </p>
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Commissions Tab */}
+          {activeTab === 'commissions' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Commissions</h3>
+                <p className="text-sm text-gray-500">Configure default commission percentages applied across the system.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Agent Commission (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commissionAgent}
+                    onChange={(e) => setCommissionAgent(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="2"
+                  />
+                  <p className="text-xs text-gray-500">Default share for agents.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Finders Commission (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commissionFinders}
+                    onChange={(e) => setCommissionFinders(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-gray-500">Applied to finders.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Referral Commission (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commissionReferral}
+                    onChange={(e) => setCommissionReferral(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.5"
+                  />
+                  <p className="text-xs text-gray-500">External referral share.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Team Leader Commission (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commissionTeamLeader}
+                    onChange={(e) => setCommissionTeamLeader(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="1"
+                  />
+                  <p className="text-xs text-gray-500">Share for team leaders.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Administration (Operations) Commission (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commissionAdministration}
+                    onChange={(e) => setCommissionAdministration(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="4"
+                  />
+                  <p className="text-xs text-gray-500">Total operations department commission. The operations manager's fixed share is deducted first, then the remainder is shared among all operations employees (including the operations manager).</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Operations Manager Fixed Share (% of Administration)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={operationsManagerShareOfAdmin}
+                    onChange={(e) => setOperationsManagerShareOfAdmin(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.5"
+                  />
+                  <p className="text-xs text-gray-500">Fixed commission taken directly from the administration commission. The operations manager also participates in sharing the remaining administration commission with other operations employees.</p>
                 </div>
               </div>
             </div>

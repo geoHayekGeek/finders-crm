@@ -125,12 +125,15 @@ const getAllEvents = async (req, res) => {
     
     let events;
     
-    // Check if admin is requesting filtered events
-    if (userRole === 'admin' && (query.createdBy || query.attendee || query.type || query.dateFrom || query.dateTo || query.search)) {
-      // Use advanced filtering for admins
-      events = await calendarEventModel.getEventsWithAdvancedFilters(query);
+    // Admins: return all events when no filters are provided; otherwise use advanced filters
+    if (userRole === 'admin') {
+      if (query.createdBy || query.attendee || query.type || query.dateFrom || query.dateTo || query.search) {
+        events = await calendarEventModel.getEventsWithAdvancedFilters(query);
+      } else {
+        events = await calendarEventModel.getAllEvents();
+      }
     } else {
-      // Use hierarchy-based filtering for all other roles
+      // Non-admins use hierarchy-based filtering
       events = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
     }
     
@@ -544,6 +547,8 @@ const createEvent = async (req, res) => {
     };
 
     const newEvent = await calendarEventModel.createEvent(eventData);
+    // Re-fetch with joins to include creator/assignee names
+    const enrichedNewEvent = await calendarEventModel.findById(newEvent.id);
     
     // Create notifications for relevant users
     try {
@@ -615,20 +620,27 @@ const createEvent = async (req, res) => {
       success: true,
       message: 'Event created successfully',
       event: {
-        id: newEvent.id,
-        title: newEvent.title,
-        description: newEvent.description,
-        start: newEvent.start_time,
-        end: newEvent.end_time,
-        allDay: newEvent.all_day,
-        color: newEvent.color,
-        type: newEvent.type,
-        location: newEvent.location,
-        attendees: newEvent.attendees || [],
-        notes: newEvent.notes,
-        createdBy: newEvent.created_by,
-        createdAt: newEvent.created_at,
-        updatedAt: newEvent.updated_at
+        id: enrichedNewEvent.id,
+        title: enrichedNewEvent.title,
+        description: enrichedNewEvent.description,
+        start: enrichedNewEvent.start_time,
+        end: enrichedNewEvent.end_time,
+        allDay: enrichedNewEvent.all_day,
+        color: enrichedNewEvent.color,
+        type: enrichedNewEvent.type,
+        location: enrichedNewEvent.location,
+        attendees: enrichedNewEvent.attendees || [],
+        notes: enrichedNewEvent.notes,
+        createdBy: enrichedNewEvent.created_by,
+        createdByName: enrichedNewEvent.created_by_name,
+        createdAt: enrichedNewEvent.created_at,
+        updatedAt: enrichedNewEvent.updated_at,
+        propertyId: enrichedNewEvent.property_id,
+        propertyReference: enrichedNewEvent.property_reference,
+        propertyLocation: enrichedNewEvent.property_location,
+        leadId: enrichedNewEvent.lead_id,
+        leadName: enrichedNewEvent.lead_name,
+        leadPhone: enrichedNewEvent.lead_phone
       }
     });
   } catch (error) {
@@ -790,6 +802,7 @@ const updateEvent = async (req, res) => {
         attendees: updatedEvent.attendees || [],
         notes: updatedEvent.notes,
         createdBy: updatedEvent.created_by,
+        createdByName: updatedEvent.created_by_name,
         createdAt: updatedEvent.created_at,
         updatedAt: updatedEvent.updated_at,
         propertyId: updatedEvent.property_id,
@@ -1050,6 +1063,88 @@ const getLeadsForDropdown = async (req, res) => {
   }
 };
 
+// Admin-only: delete all events and seed new demo events
+const resetAndSeedEvents = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only admins can reset and seed events' });
+    }
+
+    const { count = 40 } = req.body || {};
+    const usersResult = await pool.query(`SELECT id, name, role FROM users`);
+    const users = usersResult.rows;
+
+    const propertiesResult = await pool.query(`SELECT id FROM properties`);
+    const properties = propertiesResult.rows;
+
+    const leadsResult = await pool.query(`SELECT id FROM leads`);
+    const leads = leadsResult.rows;
+
+    // Clear all existing events
+    await pool.query('DELETE FROM calendar_events');
+
+    const colors = ['blue', 'green', 'red', 'yellow', 'purple', 'pink'];
+    const types = ['meeting', 'showing', 'inspection', 'closing', 'other'];
+
+    const now = new Date();
+    const created = [];
+
+    const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+    const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+    for (let i = 0; i < count; i++) {
+      const creator = pick(users);
+      const assignedTo = pick(users);
+
+      // random date within +/- 30 days
+      const dayOffset = randomInt(-30, 30);
+      const startHour = randomInt(8, 17);
+      const durationHours = [1, 1, 2, 2, 3][randomInt(0, 4)];
+
+      const start = new Date(now);
+      start.setDate(now.getDate() + dayOffset);
+      start.setHours(startHour, 0, 0, 0);
+      const end = new Date(start);
+      end.setHours(startHour + durationHours);
+
+      // attendees by user names
+      const attendeeCount = randomInt(0, Math.min(4, users.length));
+      const shuffled = [...users].sort(() => Math.random() - 0.5);
+      const attendeeUsers = shuffled.slice(0, attendeeCount);
+      const attendees = attendeeUsers.map(u => u.name);
+
+      // randomly add property and/or lead (including both at once)
+      const propertyId = properties.length && Math.random() < 0.7 ? pick(properties).id : null;
+      const leadId = leads.length && Math.random() < 0.7 ? pick(leads).id : null;
+
+      const eventData = {
+        title: `${pick(['Meeting','Showing','Inspection','Call','Follow-up'])} #${i + 1}`,
+        description: Math.random() < 0.5 ? 'Auto-seeded demo event.' : null,
+        start_time: start,
+        end_time: end,
+        all_day: false,
+        color: pick(colors),
+        type: pick(types),
+        location: Math.random() < 0.5 ? 'Office' : 'On-site',
+        attendees,
+        notes: Math.random() < 0.4 ? 'Bring documents.' : null,
+        created_by: creator.id,
+        assigned_to: assignedTo.id,
+        property_id: propertyId,
+        lead_id: leadId
+      };
+
+      const createdEvent = await calendarEventModel.createEvent(eventData);
+      created.push(createdEvent.id);
+    }
+
+    return res.json({ success: true, message: 'Events reset and seeded', count: created.length });
+  } catch (error) {
+    console.error('Error resetting and seeding events:', error);
+    return res.status(500).json({ success: false, message: 'Failed to reset and seed events' });
+  }
+};
+
 module.exports = {
   getAllEvents,
   getEventsByDateRange,
@@ -1063,5 +1158,6 @@ module.exports = {
   checkEventPermissions,
   searchEvents,
   getPropertiesForDropdown,
-  getLeadsForDropdown
+  getLeadsForDropdown,
+  resetAndSeedEvents
 };

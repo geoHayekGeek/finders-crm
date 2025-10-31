@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { CalendarEvent } from '@/app/dashboard/calendar/page'
-import { ClockIcon, MapPinIcon, UserGroupIcon } from '@heroicons/react/24/outline'
+import { ClockIcon, MapPinIcon, UserGroupIcon, UserIcon } from '@heroicons/react/24/outline'
 
 interface EventListProps {
   events: CalendarEvent[]
@@ -182,6 +182,13 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
 
                   {/* Event Details */}
                   <div className="space-y-1 text-xs text-gray-600">
+                    {/* Creator */}
+                    {event.createdByName && (
+                      <div className="flex items-center space-x-1">
+                        <UserIcon className="h-3 w-3" />
+                        <span className="truncate">{event.createdByName}</span>
+                      </div>
+                    )}
                     {/* Time */}
                     <div className="flex items-center space-x-1">
                       <ClockIcon className="h-3 w-3" />

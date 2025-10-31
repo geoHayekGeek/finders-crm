@@ -157,6 +157,7 @@ const getAllUsers = async (req, res) => {
         is_assigned: user.is_assigned || false,
         assigned_to: user.assigned_to || null,
         agent_count: user.agent_count || null,
+        properties_count: user.properties_count || 0,
         is_active: user.is_active !== false, // Default to true if null
         created_at: user.created_at,
         updated_at: user.updated_at
