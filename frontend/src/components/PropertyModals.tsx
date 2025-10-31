@@ -596,6 +596,20 @@ export function PropertyModals({
             console.log('🔍 Interior details field value:', propertyData.interior_details)
             console.log('🔍 Notes field value:', propertyData.notes)
             console.log('🔍 Referrals field value:', propertyData.referrals)
+            console.log('🔍 Closed date field value:', propertyData.closed_date)
+            console.log('🔍 Status ID:', propertyData.status_id)
+            console.log('🔍 Status Code:', statuses.find(s => s.id === propertyData.status_id)?.code)
+            
+            // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
+            const formatClosedDate = (dateStr: string) => {
+              if (!dateStr) return '';
+              try {
+                const date = new Date(dateStr);
+                return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+              } catch (e) {
+                return dateStr; // Return as-is if parsing fails
+              }
+            };
 
 
             const formData = {
@@ -618,6 +632,7 @@ export function PropertyModals({
               price: propertyData.price,
               notes: propertyData.notes || '',
               property_url: propertyData.property_url || '',
+              closed_date: formatClosedDate(propertyData.closed_date || ''),
               referrals: propertyData.referrals || [],
 
               main_image: propertyData.main_image || '',
@@ -654,6 +669,7 @@ export function PropertyModals({
               price: editingProperty.price,
               notes: editingProperty.notes || '',
               property_url: editingProperty.property_url || '',
+              closed_date: editingProperty.closed_date || '',
               referrals: editingProperty.referrals || [],
 
               main_image: editingProperty.main_image || '',
@@ -683,6 +699,7 @@ export function PropertyModals({
             price: editingProperty.price,
             notes: editingProperty.notes || '',
             property_url: editingProperty.property_url || '',
+            closed_date: editingProperty.closed_date || '',
             referrals: editingProperty.referrals || [],
 
             main_image: editingProperty.main_image || '',
@@ -1985,7 +2002,19 @@ export function PropertyModals({
                       <PropertyStatusSelector
                         selectedStatusId={editFormData.status_id}
                         onStatusChange={(statusId) => {
-                          setEditFormData((prev: EditFormData) => ({ ...prev, status_id: statusId }))
+                          setEditFormData((prev: EditFormData) => {
+                            const newStatus = statuses.find(s => s.id === statusId);
+                            const shouldAutoFillClosedDate = newStatus && newStatus.code === 'closed';
+                            
+                            return {
+                              ...prev, 
+                              status_id: statusId,
+                              // Auto-fill closed_date if changing to closed and it's empty
+                              closed_date: shouldAutoFillClosedDate && !prev.closed_date 
+                                ? new Date().toISOString().split('T')[0] 
+                                : prev.closed_date
+                            };
+                          });
                         }}
                         placeholder="Select status..."
                         required={true}
@@ -2012,6 +2041,36 @@ export function PropertyModals({
                       </select>
                     </div>
                   </div>
+
+                  {/* Closed Date field - only show when status is 'closed' */}
+                  {(() => {
+                    const selectedStatus = statuses.find(s => s.id === editFormData.status_id);
+                    const shouldShowClosedDate = selectedStatus && selectedStatus.code === 'closed';
+                    
+                    console.log('🔍 Render check - Status ID:', editFormData.status_id, 'Selected Status:', selectedStatus?.code, 'Should Show:', shouldShowClosedDate, 'Closed Date Value:', editFormData.closed_date);
+                    
+                    if (shouldShowClosedDate) {
+                      return (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <Calendar className="inline h-4 w-4 mr-1" />
+                            Closed Date
+                          </label>
+                          <input
+                            type="date"
+                            value={editFormData.closed_date || ''}
+                            onChange={(e) => {
+                              const newValue = e.target.value;
+                              console.log('📅 Closed date input changed:', newValue);
+                              setEditFormData((prev: EditFormData) => ({ ...prev, closed_date: newValue }));
+                            }}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          />
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -2101,11 +2160,13 @@ export function PropertyModals({
                             owner_name: '',
                             phone_number: ''
                           }))
-                          setBackendValidationErrors(prev => ({
-                            ...prev,
-                            owner_name: '',
-                            phone_number: ''
-                          }))
+                          if (setBackendValidationErrors) {
+                            setBackendValidationErrors({
+                              ...backendValidationErrors,
+                              owner_name: '',
+                              phone_number: ''
+                            })
+                          }
                         } else {
                           setEditFormData((prev: EditFormData) => ({
                             ...prev,
@@ -2604,6 +2665,29 @@ export function PropertyModals({
                       </div>
                     </div>
                   </div>
+
+                  {/* Closed Date - only show if status is 'closed' */}
+                  {(() => {
+                    const selectedStatus = statuses.find(s => s.id === viewPropertyData.status_id);
+                    if (selectedStatus && selectedStatus.code === 'closed' && viewPropertyData.closed_date) {
+                      return (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <Calendar className="inline h-4 w-4 mr-1" />
+                            Closed Date
+                          </label>
+                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                            {new Date(viewPropertyData.closed_date).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>

@@ -1,5 +1,6 @@
 // controllers/propertyController.js
 const Property = require('../models/propertyModel');
+const Status = require('../models/statusModel');
 const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
 const CalendarEvent = require('../models/calendarEventModel');
@@ -494,6 +495,26 @@ const updateProperty = async (req, res) => {
     const updates = req.body;
     console.log('🔍 Updates being sent to updateProperty:', JSON.stringify(updates, null, 2));
     console.log('🔍 Referrals in updates:', updates.referrals);
+    
+    // If status_id is being updated, check if it's 'closed' and set closed_date
+    if (updates.status_id && updates.status_id !== property.status_id) {
+      const newStatus = await Status.getStatusById(updates.status_id);
+      console.log('📊 New status:', newStatus);
+      
+      if (newStatus && newStatus.code === 'closed') {
+        // Set closed_date to today if not already set (either not present or empty string)
+        if (!updates.closed_date || updates.closed_date === '') {
+          updates.closed_date = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+          console.log('📅 Auto-setting closed_date to today:', updates.closed_date);
+        } else {
+          console.log('📅 Using provided closed_date:', updates.closed_date);
+        }
+      } else if (newStatus && newStatus.code !== 'closed') {
+        // If changing away from closed, clear the closed_date
+        updates.closed_date = null;
+        console.log('📅 Clearing closed_date (moving away from closed)');
+      }
+    }
     
     const updatedProperty = await Property.updateProperty(id, updates);
     console.log('🔍 Updated property returned:', JSON.stringify(updatedProperty, null, 2));

@@ -35,6 +35,7 @@ export interface Property {
   property_url?: string // Optional property URL (e.g., listing URL from external sites)
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of image URLs
+  closed_date?: string // Date when property was sold or rented
   created_at: string
   updated_at: string
   referrals?: Referral[]
@@ -68,6 +69,7 @@ export interface EditFormData {
   main_image_file?: File // File object for upload
   main_image_preview?: string // Preview URL for display
   image_gallery?: string[] // Array of image URLs
+  closed_date?: string // Date when property was sold or rented
   referrals?: Referral[]
 }
 

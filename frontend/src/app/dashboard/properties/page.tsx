@@ -76,6 +76,7 @@ export default function PropertiesPage() {
     agent_id: 0,
     price: 0,
     notes: '',
+    closed_date: '',
     main_image: '',
     image_gallery: [],
     referrals: []

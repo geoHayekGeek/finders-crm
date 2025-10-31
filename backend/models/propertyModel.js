@@ -130,6 +130,7 @@ class Property {
           p.property_url,
           p.main_image,
           p.image_gallery,
+          p.closed_date,
           p.created_at,
           p.updated_at
         FROM properties p
@@ -197,6 +198,7 @@ class Property {
         p.property_url,
         p.main_image,
         p.image_gallery,
+        p.closed_date,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -242,6 +244,7 @@ class Property {
         p.property_url,
         p.main_image,
         p.image_gallery,
+        p.closed_date,
         p.created_at,
         p.updated_at,
         CASE 
@@ -293,6 +296,7 @@ class Property {
           p.property_url,
           p.main_image,
           p.image_gallery,
+          p.closed_date,
           p.created_at,
           p.updated_at
         FROM properties p
@@ -399,6 +403,7 @@ class Property {
         p.property_url,
         p.main_image,
         p.image_gallery,
+        p.closed_date,
         p.created_at,
         p.updated_at,
         'team_agent' as agent_relationship
@@ -446,6 +451,7 @@ class Property {
         p.property_url,
         p.main_image,
         p.image_gallery,
+        p.closed_date,
         p.created_at,
         p.updated_at,
         CASE 
@@ -508,6 +514,7 @@ class Property {
         p.property_url,
         p.main_image,
         p.image_gallery,
+        p.closed_date,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -669,6 +676,7 @@ class Property {
         p.property_url,
         p.main_image,
         p.image_gallery,
+        p.closed_date,
         p.created_at,
         p.updated_at
       FROM properties p
