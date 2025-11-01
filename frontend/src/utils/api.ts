@@ -2,6 +2,7 @@ import { Property, Category, Status } from '@/types/property'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
+import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData } from '@/types/reports'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -1026,6 +1027,77 @@ interface DocumentsResponse {
   success: boolean
   data: UserDocument[]
   message?: string
+}
+
+// Reports API
+export const reportsApi = {
+  // Get all monthly reports with optional filters
+  getAll: (filters: ReportFilters = {}, token?: string) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: MonthlyAgentReport[]; count: number; message: string }>(
+      `/reports/monthly${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  // Get a single report by ID
+  getById: (id: number, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+    `/reports/monthly/${id}`,
+    {},
+    token
+  ),
+
+  // Create a new monthly report
+  create: (data: CreateReportData, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+    '/reports/monthly',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Update a report (mainly manual fields like boosts)
+  update: (id: number, data: UpdateReportData, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+    `/reports/monthly/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Recalculate report automatic values
+  recalculate: (id: number, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+    `/reports/monthly/${id}/recalculate`,
+    {
+      method: 'POST',
+    },
+    token
+  ),
+
+  // Delete a report
+  delete: (id: number, token?: string) => apiRequest<{ success: boolean; message: string }>(
+    `/reports/monthly/${id}`,
+    {
+      method: 'DELETE',
+    },
+    token
+  ),
+
+  // Get available lead sources
+  getLeadSources: (token?: string) => apiRequest<{ success: boolean; data: string[]; message: string }>(
+    '/reports/lead-sources',
+    {},
+    token
+  ),
 }
 
 interface DocumentResponse {

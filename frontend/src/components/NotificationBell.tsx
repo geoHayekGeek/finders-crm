@@ -61,7 +61,7 @@ const NotificationBell = () => {
   useEffect(() => {
     const interval = setInterval(() => {
       fetchNotifications()
-    }, 2000) // 60000ms = 1 minute
+    }, 60000) // 60000ms = 1 minute
 
     // Cleanup interval on component unmount
     return () => clearInterval(interval)

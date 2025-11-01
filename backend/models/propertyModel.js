@@ -22,10 +22,28 @@ class Property {
       price,
       notes,
       property_url,
+      closed_date,
       referrals,
       main_image,
       image_gallery
     } = propertyData;
+
+    // VALIDATION: If creating property with closed status, ensure closed_date is set
+    const statusCheck = await pool.query(
+      `SELECT code, name FROM statuses WHERE id = $1`,
+      [status_id]
+    );
+    
+    if (statusCheck.rows.length > 0) {
+      const status = statusCheck.rows[0];
+      const isClosedStatus = 
+        ['sold', 'rented', 'closed'].includes(status.code?.toLowerCase()) ||
+        ['sold', 'rented', 'closed'].includes(status.name?.toLowerCase());
+      
+      if (isClosedStatus && !closed_date) {
+        throw new Error('Properties with closed status (Sold/Rented/Closed) must have a closed_date set. Please provide a closed_date.');
+      }
+    }
 
     // Generate reference number
     const category = await pool.query('SELECT code FROM categories WHERE id = $1', [category_id]);
@@ -50,14 +68,14 @@ class Property {
           reference_number, status_id, property_type, location, category_id, building_name, 
           owner_id, owner_name, phone_number, surface, details, interior_details, 
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          main_image, image_gallery
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+          closed_date, main_image, image_gallery
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING *`,
         [
           refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
           owner_id, owner_name, phone_number, surface, details, interior_details,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          main_image, image_gallery
+          closed_date, main_image, image_gallery
         ]
       );
       
@@ -146,7 +164,7 @@ class Property {
       const propertiesWithReferrals = await Promise.all(
         result.rows.map(async (property) => {
           const referralsResult = await pool.query(
-            `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+            `SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
             [property.id]
           );
           property.referrals = referralsResult.rows;
@@ -312,7 +330,7 @@ class Property {
       const propertiesWithReferrals = await Promise.all(
         result.rows.map(async (property) => {
           const referralsResult = await pool.query(
-            `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+            `SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
             [property.id]
           );
           property.referrals = referralsResult.rows;
@@ -539,7 +557,7 @@ class Property {
     
     // Fetch referrals for this property
     const referralsResult = await pool.query(
-      `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+      `SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
       [propertyId]
     );
     console.log('🔍 Referrals fetched for property', propertyId, ':', referralsResult.rows);
@@ -558,6 +576,38 @@ class Property {
       const { referrals, ...propertyUpdates } = updates;
       console.log('🔍 Extracted referrals:', referrals);
       console.log('🔍 Property updates (without referrals):', propertyUpdates);
+      
+      // Sanitize date fields: convert empty strings to null
+      if (propertyUpdates.closed_date === '') {
+        propertyUpdates.closed_date = null;
+      }
+      
+      // VALIDATION: If setting property to closed status, ensure closed_date is set
+      if (propertyUpdates.status_id) {
+        const statusCheck = await client.query(
+          `SELECT code, name FROM statuses WHERE id = $1`,
+          [propertyUpdates.status_id]
+        );
+        
+        if (statusCheck.rows.length > 0) {
+          const status = statusCheck.rows[0];
+          const isClosedStatus = 
+            ['sold', 'rented', 'closed'].includes(status.code?.toLowerCase()) ||
+            ['sold', 'rented', 'closed'].includes(status.name?.toLowerCase());
+          
+          if (isClosedStatus && !propertyUpdates.closed_date) {
+            // Check if property already has a closed_date
+            const existingProperty = await client.query(
+              'SELECT closed_date FROM properties WHERE id = $1',
+              [id]
+            );
+            
+            if (!existingProperty.rows[0]?.closed_date) {
+              throw new Error('Properties with closed status (Sold/Rented/Closed) must have a closed_date set. Please provide a closed_date.');
+            }
+          }
+        }
+      }
       
       // Update property fields (excluding referrals)
       if (Object.keys(propertyUpdates).length > 0) {
@@ -620,7 +670,7 @@ class Property {
       );
       
       const referralsResult = await client.query(
-        'SELECT * FROM referrals WHERE property_id = $1 ORDER BY date',
+        'SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC',
         [id]
       );
       

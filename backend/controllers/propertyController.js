@@ -1,5 +1,6 @@
 // controllers/propertyController.js
 const Property = require('../models/propertyModel');
+const PropertyReferral = require('../models/propertyReferralModel');
 const Status = require('../models/statusModel');
 const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
@@ -368,6 +369,21 @@ const createProperty = async (req, res) => {
       image_gallery: image_gallery || [] // Optional
     });
 
+    // Apply the 30-day external rule to all referrals for this property
+    if (referrals && referrals.length > 0) {
+      try {
+        console.log(`🔄 Applying 30-day external rule to property ${newProperty.id} referrals...`);
+        const ruleResult = await PropertyReferral.applyExternalRuleToPropertyReferrals(newProperty.id);
+        console.log(`✅ External rule applied: ${ruleResult.message}`);
+        if (ruleResult.markedExternalReferrals.length > 0) {
+          console.log(`   Marked ${ruleResult.markedExternalReferrals.length} referral(s) as external`);
+        }
+      } catch (referralError) {
+        console.error('Error applying external rule to property referrals:', referralError);
+        // Don't fail the property creation if referral rule application fails
+      }
+    }
+
     // Create notifications for relevant users
     try {
       await Notification.createPropertyNotification(
@@ -518,6 +534,22 @@ const updateProperty = async (req, res) => {
     
     const updatedProperty = await Property.updateProperty(id, updates);
     console.log('🔍 Updated property returned:', JSON.stringify(updatedProperty, null, 2));
+
+    // Apply the 30-day external rule to all referrals for this property if referrals were updated
+    if (updates.referrals !== undefined) {
+      try {
+        console.log(`🔄 Applying 30-day external rule to property ${id} referrals...`);
+        const ruleResult = await PropertyReferral.applyExternalRuleToPropertyReferrals(parseInt(id));
+        console.log(`✅ External rule applied: ${ruleResult.message}`);
+        if (ruleResult.markedExternalReferrals.length > 0) {
+          console.log(`   Marked ${ruleResult.markedExternalReferrals.length} referral(s) as external`);
+        }
+      } catch (referralError) {
+        console.error('❌ Error updating property referrals:', referralError);
+        console.error('❌ Error stack:', referralError.stack);
+        // Don't fail the property update if referral rule application fails
+      }
+    }
 
     // Create notifications for relevant users
     try {

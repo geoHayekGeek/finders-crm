@@ -14,6 +14,7 @@ const leadStatusRoutes = require('./leadStatusRoutes');
 const notificationRoutes = require('./notificationRoutes');
 const viewingsRoutes = require('./viewingsRoutes');
 const settingsRoutes = require('./settingsRoutes');
+const reportsRoutes = require('./reportsRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -39,5 +40,6 @@ router.use('/lead-statuses', leadStatusRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/viewings', viewingsRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/reports', reportsRoutes);
 
 module.exports = router;

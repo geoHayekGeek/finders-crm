@@ -23,6 +23,7 @@ import {
   Circle,
   Briefcase,
   Eye,
+  BarChart3,
   LucideIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
@@ -144,6 +145,11 @@ export default function DashboardLayout({
 
     // Calendar - visible to all roles
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
+
+    // Reports - visible to roles with agent performance viewing permissions
+    if (canViewAgentPerformance) {
+      baseNavigation.push({ name: 'Reports', href: '/dashboard/reports', icon: BarChart3, alwaysVisible: true })
+    }
 
     // HR - only visible to admin and operations manager
     if (canManageUsers) {

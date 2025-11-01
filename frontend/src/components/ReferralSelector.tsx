@@ -268,12 +268,24 @@ export function ReferralSelector({
                         }`} />
                       </div>
                       <div>
+                        <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-900">
                           {referral.type === 'employee' && referral.employee_id
                             ? getEmployeeName(referral.employee_id)
                             : referral.name
                           }
                         </span>
+                          {referral.external && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                              External
+                            </span>
+                          )}
+                          {!referral.external && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              Internal
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center space-x-1 text-xs text-gray-500">
                           <Calendar className="h-3 w-3" />
                           <span>{new Date(referral.date).toLocaleDateString()}</span>

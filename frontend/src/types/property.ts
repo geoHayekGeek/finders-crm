@@ -4,6 +4,7 @@ export interface Referral {
   type: 'employee' | 'custom'
   employee_id?: number
   date: string
+  external?: boolean // Whether the referral is external (no longer earns commission)
 }
 
 export interface Property {

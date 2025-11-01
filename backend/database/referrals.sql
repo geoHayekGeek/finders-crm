@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS referrals (
   type VARCHAR(20) NOT NULL DEFAULT 'custom' CHECK (type IN ('employee', 'custom')),
   employee_id INTEGER NULL,
   date DATE NOT NULL,
+  external BOOLEAN DEFAULT FALSE NOT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
@@ -13,6 +14,12 @@ CREATE TABLE IF NOT EXISTS referrals (
   FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
   FOREIGN KEY (employee_id) REFERENCES users(id) ON DELETE SET NULL
 );
+
+-- Add external column if it doesn't exist (for existing tables)
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS external BOOLEAN DEFAULT FALSE NOT NULL;
+
+-- Create index for external column
+CREATE INDEX IF NOT EXISTS idx_referrals_external ON referrals(external);
 
 -- Add referrals column to properties table if it doesn't exist
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS referrals_count INTEGER DEFAULT 0;
