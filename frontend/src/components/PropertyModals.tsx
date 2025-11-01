@@ -612,6 +612,14 @@ export function PropertyModals({
               }
             };
 
+            // Format referral dates to YYYY-MM-DD format for date inputs
+            const formatReferralDates = (referrals: any[]) => {
+              if (!referrals || !Array.isArray(referrals)) return [];
+              return referrals.map(ref => ({
+                ...ref,
+                date: formatClosedDate(ref.date || '')
+              }));
+            };
 
             const formData = {
               reference_number: propertyData.reference_number || '',
@@ -634,7 +642,7 @@ export function PropertyModals({
               notes: propertyData.notes || '',
               property_url: propertyData.property_url || '',
               closed_date: formatClosedDate(propertyData.closed_date || ''),
-              referrals: propertyData.referrals || [],
+              referrals: formatReferralDates(propertyData.referrals || []),
 
               main_image: propertyData.main_image || '',
               image_gallery: galleryModified ? editFormData.image_gallery : (propertyData.image_gallery || [])
@@ -649,6 +657,26 @@ export function PropertyModals({
           } else {
             console.error('❌ Failed to fetch property details:', result.message)
             console.log('🎯 Using fallback data. Agent ID from editingProperty:', editingProperty.agent_id)
+            // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
+            const formatClosedDate = (dateStr: string) => {
+              if (!dateStr) return '';
+              try {
+                const date = new Date(dateStr);
+                return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+              } catch (e) {
+                return dateStr; // Return as-is if parsing fails
+              }
+            };
+
+            // Format referral dates to YYYY-MM-DD format for date inputs
+            const formatReferralDates = (referrals: any[]) => {
+              if (!referrals || !Array.isArray(referrals)) return [];
+              return referrals.map(ref => ({
+                ...ref,
+                date: formatClosedDate(ref.date || '')
+              }));
+            };
+
             // Fallback to existing property data
             setEditFormData({
               reference_number: editingProperty.reference_number || '',
@@ -670,8 +698,8 @@ export function PropertyModals({
               price: editingProperty.price,
               notes: editingProperty.notes || '',
               property_url: editingProperty.property_url || '',
-              closed_date: editingProperty.closed_date || '',
-              referrals: editingProperty.referrals || [],
+              closed_date: formatClosedDate(editingProperty.closed_date || ''),
+              referrals: formatReferralDates(editingProperty.referrals || []),
 
               main_image: editingProperty.main_image || '',
               image_gallery: editingProperty.image_gallery || []
@@ -679,6 +707,26 @@ export function PropertyModals({
           }
         } catch (error) {
           console.error('❌ Error fetching property details:', error)
+          // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
+          const formatClosedDate = (dateStr: string) => {
+            if (!dateStr) return '';
+            try {
+              const date = new Date(dateStr);
+              return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
+            } catch (e) {
+              return dateStr; // Return as-is if parsing fails
+            }
+          };
+
+          // Format referral dates to YYYY-MM-DD format for date inputs
+          const formatReferralDates = (referrals: any[]) => {
+            if (!referrals || !Array.isArray(referrals)) return [];
+            return referrals.map(ref => ({
+              ...ref,
+              date: formatClosedDate(ref.date || '')
+            }));
+          };
+
           // Fallback to existing property data
           setEditFormData({
             reference_number: editingProperty.reference_number || '',
@@ -700,8 +748,8 @@ export function PropertyModals({
             price: editingProperty.price,
             notes: editingProperty.notes || '',
             property_url: editingProperty.property_url || '',
-            closed_date: editingProperty.closed_date || '',
-            referrals: editingProperty.referrals || [],
+            closed_date: formatClosedDate(editingProperty.closed_date || ''),
+            referrals: formatReferralDates(editingProperty.referrals || []),
 
             main_image: editingProperty.main_image || '',
             image_gallery: editingProperty.image_gallery || []

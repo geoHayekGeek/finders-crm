@@ -16,6 +16,7 @@ interface Referral {
   type: 'employee' | 'custom'
   employee_id?: number
   date: string
+  external?: boolean
 }
 
 interface ReferralSelectorProps {
