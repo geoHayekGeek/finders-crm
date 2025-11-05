@@ -132,6 +132,12 @@ const validateCreateLead = [
     .isInt({ min: 1 })
     .withMessage('Operations ID must be a positive integer'),
     
+  // Contact source (optional, defaults to 'unknown')
+  body('contact_source')
+    .optional({ nullable: true, checkFalsy: true })
+    .isIn(['call', 'unknown'])
+    .withMessage('Contact source must be either "call" or "unknown"'),
+    
   body('notes')
     .optional({ nullable: true, checkFalsy: true })
     .isLength({ max: 2000 })
@@ -231,6 +237,12 @@ const validateUpdateLead = [
     .isInt({ min: 1 })
     .withMessage('Operations ID must be a positive integer'),
     
+  // Contact source (optional, defaults to 'unknown')
+  body('contact_source')
+    .optional({ nullable: true, checkFalsy: true })
+    .isIn(['call', 'unknown'])
+    .withMessage('Contact source must be either "call" or "unknown"'),
+    
   body('notes')
     .optional({ nullable: true, checkFalsy: true })
     .isLength({ max: 2000 })
@@ -257,7 +269,7 @@ const validateUpdateLead = [
     
   // Ensure at least one field is being updated
   body().custom((body) => {
-    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'operations_id', 'notes', 'status'];
+    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'operations_id', 'contact_source', 'notes', 'status'];
     const hasUpdate = updatableFields.some(field => body.hasOwnProperty(field));
     
     if (!hasUpdate) {

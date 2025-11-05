@@ -13,6 +13,11 @@ async function ensureExternalColumnExists() {
   }
 }
 
+// Helper function to round monetary values to 2 decimal places
+function roundMoney(value) {
+  return Math.round(value * 100) / 100;
+}
+
 class Report {
   /**
    * Create a new monthly agent report
@@ -191,11 +196,12 @@ class Report {
       const sales_amount = parseFloat(salesResult.rows[0].total_amount) || 0;
 
       // 5. Calculate commissions based on sales amount
-      const agent_commission = (sales_amount * (commissions.agent || 2)) / 100;
-      const finders_commission = (sales_amount * (commissions.finders || 1)) / 100;
-      const referral_commission = (sales_amount * (commissions.referral || 0.5)) / 100;
-      const team_leader_commission = (sales_amount * (commissions.team_leader || 1)) / 100;
-      const administration_commission = (sales_amount * (commissions.administration || 4)) / 100;
+      // Round to 2 decimal places to avoid floating point precision issues
+      const agent_commission = roundMoney((sales_amount * (commissions.agent || 2)) / 100);
+      const finders_commission = roundMoney((sales_amount * (commissions.finders || 1)) / 100);
+      const referral_commission = roundMoney((sales_amount * (commissions.referral || 0.5)) / 100);
+      const team_leader_commission = roundMoney((sales_amount * (commissions.team_leader || 1)) / 100);
+      const administration_commission = roundMoney((sales_amount * (commissions.administration || 4)) / 100);
       // Note: total_commission will be calculated after referrals_on_properties_commission
 
       // 6. Calculate referral commission from two sources:
@@ -282,7 +288,7 @@ class Report {
       // Total referral commission from both sources
       const referral_received_count = property_referral_count + lead_referral_count;
       const referral_received_amount = property_referral_amount + lead_referral_amount;
-      const referral_received_commission = (referral_received_amount * (commissions.referral || 0.5)) / 100;
+      const referral_received_commission = roundMoney((referral_received_amount * (commissions.referral || 0.5)) / 100);
 
       // 7. Calculate referrals ON this agent's properties (people who referred TO this agent)
       // Count total internal referrals on agent's properties where the referral date is in the report month
@@ -378,11 +384,48 @@ class Report {
       }
       
       const referrals_on_properties_amount = parseFloat(referralsAmountResult.rows[0].total_amount) || 0;
-      const referrals_on_properties_commission = (referrals_on_properties_amount * (commissions.referral || 0.5)) / 100;
+      const referrals_on_properties_commission = roundMoney((referrals_on_properties_amount * (commissions.referral || 0.5)) / 100);
 
       // Calculate total commission including referrals on properties commission
-      const total_commission = agent_commission + finders_commission + referral_commission + 
-                              team_leader_commission + administration_commission + referrals_on_properties_commission;
+      // Sum all individual commissions and round to 2 decimal places
+      let total_commission = roundMoney(
+        agent_commission + 
+        finders_commission + 
+        referral_commission + 
+        team_leader_commission + 
+        administration_commission + 
+        referrals_on_properties_commission
+      );
+      
+      // Validation: Verify total matches sum of individual commissions
+      const calculatedSum = roundMoney(
+        agent_commission + 
+        finders_commission + 
+        referral_commission + 
+        team_leader_commission + 
+        administration_commission + 
+        referrals_on_properties_commission
+      );
+      
+      // Log calculation details for debugging
+      console.log('💰 Commission Calculation Details:', {
+        sales_amount,
+        agent_commission,
+        finders_commission,
+        referral_commission,
+        team_leader_commission,
+        administration_commission,
+        referrals_on_properties_commission,
+        calculatedSum,
+        total_commission,
+        difference: Math.abs(calculatedSum - total_commission)
+      });
+      
+      // Ensure total matches the sum (should be identical with proper rounding)
+      if (Math.abs(calculatedSum - total_commission) > 0.01) {
+        console.warn('⚠️ Warning: Total commission does not match sum of individual commissions. Using calculated sum.');
+        total_commission = calculatedSum;
+      }
 
       return {
         listings_count,

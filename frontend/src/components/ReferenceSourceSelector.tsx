@@ -83,7 +83,10 @@ export function ReferenceSourceSelector({
     onReferenceSourceChange(undefined)
   }
 
-  const selectedSource = referenceSources.find(s => s.id === selectedReferenceSourceId)
+  // Only find source if reference_source_id is a valid positive number
+  const selectedSource = selectedReferenceSourceId && selectedReferenceSourceId > 0 
+    ? referenceSources.find(s => s.id === selectedReferenceSourceId)
+    : undefined
 
   return (
     <div className="space-y-2">

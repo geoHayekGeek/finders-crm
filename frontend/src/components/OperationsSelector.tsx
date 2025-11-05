@@ -88,7 +88,10 @@ export function OperationsSelector({
     onOperationsChange(undefined)
   }
 
-  const selectedUser = operationsUsers.find(u => u.id === selectedOperationsId)
+  // Only find user if operations_id is a valid positive number
+  const selectedUser = selectedOperationsId && selectedOperationsId > 0 
+    ? operationsUsers.find(u => u.id === selectedOperationsId)
+    : undefined
 
 
   return (

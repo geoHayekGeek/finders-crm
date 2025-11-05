@@ -26,6 +26,13 @@ class LeadsController {
           phone_number: lead.phone_number,
           agent_id: lead.agent_id,
           assigned_agent_name: lead.assigned_agent_name,
+          operations_id: lead.operations_id,
+          operations_name: lead.operations_name,
+          operations_role: lead.operations_role,
+          reference_source_id: lead.reference_source_id,
+          reference_source_name: lead.reference_source_name,
+          contact_source: lead.contact_source,
+          price: lead.price,
           status: lead.status,
           agent_notes: lead.agent_notes, // Include agent-specific notes
           created_at: lead.created_at,
@@ -100,6 +107,13 @@ class LeadsController {
           phone_number: lead.phone_number,
           agent_id: lead.agent_id,
           assigned_agent_name: lead.assigned_agent_name,
+          operations_id: lead.operations_id,
+          operations_name: lead.operations_name,
+          operations_role: lead.operations_role,
+          reference_source_id: lead.reference_source_id,
+          reference_source_name: lead.reference_source_name,
+          contact_source: lead.contact_source,
+          price: lead.price,
           status: lead.status,
           agent_notes: lead.agent_notes,
           created_at: lead.created_at,
@@ -146,6 +160,13 @@ class LeadsController {
         // Add all notes
         const notes = await Lead.getLeadNotes(lead.id, userId, userRole);
         console.log('📝 Admin getLeadById - fetched', notes?.length || 0, 'notes for lead', lead.id);
+        console.log('📝 Full lead data for admin:', {
+          id: lead.id,
+          operations_id: lead.operations_id,
+          reference_source_id: lead.reference_source_id,
+          contact_source: lead.contact_source,
+          price: lead.price
+        });
         lead.agent_notes = notes;
       } else if (userRole === 'agent' && lead.agent_id !== userId) {
         // Agents can only view leads they're assigned to

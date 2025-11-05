@@ -1,5 +1,6 @@
 // backend/controllers/reportsController.js
 const Report = require('../models/reportsModel');
+const { exportToExcel, exportToPDF } = require('../utils/reportExporter');
 
 class ReportsController {
   /**
@@ -269,6 +270,102 @@ class ReportsController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve lead sources',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Export report to Excel
+   */
+  static async exportReportToExcel(req, res) {
+    try {
+      const { id } = req.params;
+      console.log('📊 Exporting report to Excel:', id);
+      
+      const report = await Report.getReportById(parseInt(id));
+      
+      if (!report) {
+        return res.status(404).json({
+          success: false,
+          message: 'Report not found'
+        });
+      }
+
+      // Parse lead_sources if it's a string
+      if (report.lead_sources && typeof report.lead_sources === 'string') {
+        try {
+          report.lead_sources = JSON.parse(report.lead_sources);
+        } catch (e) {
+          console.warn('Failed to parse lead_sources:', e);
+          report.lead_sources = {};
+        }
+      }
+
+      const buffer = await exportToExcel(report);
+      
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.xlsx`;
+      
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+      
+      console.log('✅ Report exported to Excel successfully');
+    } catch (error) {
+      console.error('❌ Error exporting report to Excel:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export report to Excel',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Export report to PDF
+   */
+  static async exportReportToPDF(req, res) {
+    try {
+      const { id } = req.params;
+      console.log('📊 Exporting report to PDF:', id);
+      
+      const report = await Report.getReportById(parseInt(id));
+      
+      if (!report) {
+        return res.status(404).json({
+          success: false,
+          message: 'Report not found'
+        });
+      }
+
+      // Parse lead_sources if it's a string
+      if (report.lead_sources && typeof report.lead_sources === 'string') {
+        try {
+          report.lead_sources = JSON.parse(report.lead_sources);
+        } catch (e) {
+          console.warn('Failed to parse lead_sources:', e);
+          report.lead_sources = {};
+        }
+      }
+
+      const buffer = await exportToPDF(report);
+      
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.pdf`;
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+      
+      console.log('✅ Report exported to PDF successfully');
+    } catch (error) {
+      console.error('❌ Error exporting report to PDF:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export report to PDF',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }

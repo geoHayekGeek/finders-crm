@@ -59,5 +59,19 @@ router.delete('/monthly/:id', ReportsController.deleteReport);
  */
 router.get('/lead-sources', ReportsController.getLeadSources);
 
+/**
+ * @route   GET /api/reports/monthly/:id/export/excel
+ * @desc    Export a monthly report to Excel
+ * @access  Private
+ */
+router.get('/monthly/:id/export/excel', ReportsController.exportReportToExcel);
+
+/**
+ * @route   GET /api/reports/monthly/:id/export/pdf
+ * @desc    Export a monthly report to PDF
+ * @access  Private
+ */
+router.get('/monthly/:id/export/pdf', ReportsController.exportReportToPDF);
+
 module.exports = router;
 

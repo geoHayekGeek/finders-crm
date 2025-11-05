@@ -78,8 +78,9 @@ export default function LeadsPage() {
     agent_id: undefined,
     agent_name: '',
     price: undefined,
-    reference_source_id: 0,
-    operations_id: 0,
+    reference_source_id: undefined,
+    operations_id: undefined,
+    contact_source: 'unknown',
     notes: '',
     status: 'Active'
   })
@@ -407,22 +408,36 @@ export default function LeadsPage() {
         date: ref.referral_date ? new Date(ref.referral_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
       }))
       
+      // Helper function to safely convert to number or undefined
+      const safeNumber = (value: number | null | undefined): number | undefined => {
+        if (value === null || value === undefined || value === 0) return undefined;
+        return Number(value);
+      };
+
       const formData = {
         date: formattedDate,
-        customer_name: refreshedLead.customer_name,
+        customer_name: refreshedLead.customer_name || '',
         phone_number: refreshedLead.phone_number || '',
-        agent_id: refreshedLead.agent_id,
+        agent_id: safeNumber(refreshedLead.agent_id),
         agent_name: agentName,
-        price: refreshedLead.price ? parseFloat(refreshedLead.price.toString()) : undefined,
-        reference_source_id: refreshedLead.reference_source_id || 0,
-        operations_id: refreshedLead.operations_id || 0,
+        price: refreshedLead.price !== null && refreshedLead.price !== undefined && refreshedLead.price !== 0 
+          ? parseFloat(refreshedLead.price.toString()) 
+          : undefined,
+        reference_source_id: safeNumber(refreshedLead.reference_source_id),
+        operations_id: safeNumber(refreshedLead.operations_id),
+        contact_source: refreshedLead.contact_source || 'unknown',
         notes: refreshedLead.notes || '',
-        status: refreshedLead.status,
+        status: refreshedLead.status || 'Active',
         referrals: convertedReferrals
       }
       
+      console.log('📝 Full refreshed lead data:', refreshedLead)
       console.log('📝 Setting edit form data:', formData)
       console.log('📝 Referrals in form data:', convertedReferrals.length)
+      console.log('📝 operations_id from backend:', refreshedLead.operations_id, '-> form:', formData.operations_id)
+      console.log('📝 reference_source_id from backend:', refreshedLead.reference_source_id, '-> form:', formData.reference_source_id)
+      console.log('📝 contact_source from backend:', refreshedLead.contact_source, '-> form:', formData.contact_source)
+      console.log('📝 price from backend:', refreshedLead.price, '-> form:', formData.price)
       setEditFormData(formData)
       setEditValidationErrors({}) // Clear any previous validation errors
       setShowEditModal(true)

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, RefreshCw, Download, FileSpreadsheet, Edit, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Edit, Trash2 } from 'lucide-react'
 import { MonthlyAgentReport, ReportFilters } from '@/types/reports'
 import { reportsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -89,6 +89,62 @@ export default function MonthlyAgentStatsTab() {
     } catch (error: any) {
       console.error('Error deleting report:', error)
       showError(error.message || 'Failed to delete report')
+    }
+  }
+
+  // Handle export to Excel
+  const handleExportExcel = async (reportId: number) => {
+    try {
+      const blob = await reportsApi.exportToExcel(reportId, token)
+      
+      // Get filename from report data
+      const report = reports.find(r => r.id === reportId)
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+      const filename = report 
+        ? `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.xlsx`
+        : 'report.xlsx'
+
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      showSuccess('Report exported to Excel successfully')
+    } catch (error: any) {
+      console.error('Error exporting to Excel:', error)
+      showError(error.message || 'Failed to export report to Excel')
+    }
+  }
+
+  // Handle export to PDF
+  const handleExportPDF = async (reportId: number) => {
+    try {
+      const blob = await reportsApi.exportToPDF(reportId, token)
+      
+      // Get filename from report data
+      const report = reports.find(r => r.id === reportId)
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+      const filename = report 
+        ? `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.pdf`
+        : 'report.pdf'
+
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      showSuccess('Report exported to PDF successfully')
+    } catch (error: any) {
+      console.error('Error exporting to PDF:', error)
+      showError(error.message || 'Failed to export report to PDF')
     }
   }
 
@@ -340,6 +396,20 @@ export default function MonthlyAgentStatsTab() {
                           title="Recalculate"
                         >
                           <RefreshCw className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleExportExcel(report.id)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Export to Excel"
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleExportPDF(report.id)}
+                          className="text-purple-600 hover:text-purple-900"
+                          title="Export to PDF"
+                        >
+                          <FileText className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(report.id)}

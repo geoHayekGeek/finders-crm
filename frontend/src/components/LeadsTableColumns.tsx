@@ -99,6 +99,31 @@ export const getLeadsColumns = (canManageLeads: boolean = true): ColumnDef<Lead>
     }
   },
   {
+    accessorKey: 'operations_name',
+    header: 'Operations',
+    cell: ({ row }) => {
+      const lead = row.original
+      return (
+        <div className="text-sm">
+          {lead.operations_name ? (
+            <div>
+              <div className="font-medium text-gray-900 text-xs">{lead.operations_name}</div>
+              {lead.operations_role && (
+                <div className="text-xs text-gray-500 capitalize">
+                  {lead.operations_role.replace('_', ' ')}
+                </div>
+              )}
+            </div>
+          ) : lead.operations_id ? (
+            <span className="text-gray-400">ID: {lead.operations_id}</span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      )
+    }
+  },
+  {
     accessorKey: 'reference_source_name',
     header: 'Reference Source',
     cell: ({ row }) => {
@@ -107,6 +132,22 @@ export const getLeadsColumns = (canManageLeads: boolean = true): ColumnDef<Lead>
         <div className="text-sm">
           {lead.reference_source_name ? (
             <span className="text-gray-900 text-xs">{lead.reference_source_name}</span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      )
+    }
+  },
+  {
+    accessorKey: 'contact_source',
+    header: 'Contact Source',
+    cell: ({ row }) => {
+      const lead = row.original
+      return (
+        <div className="text-sm">
+          {lead.contact_source ? (
+            <span className="text-gray-900 text-xs capitalize">{lead.contact_source}</span>
           ) : (
             <span className="text-gray-400">-</span>
           )}

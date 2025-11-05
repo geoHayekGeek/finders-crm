@@ -12,15 +12,21 @@ class Lead {
       price,
       reference_source_id,
       operations_id,
+      contact_source,
       notes,
       status
     } = leadData;
 
+    // Validate required fields
+    if (!operations_id) {
+      throw new Error('operations_id is required and cannot be null');
+    }
+
     const result = await pool.query(
       `INSERT INTO leads (
         date, customer_name, phone_number, agent_id, agent_name,
-        price, reference_source_id, operations_id, notes, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        price, reference_source_id, operations_id, contact_source, notes, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *`,
       [
         date || new Date().toISOString().split('T')[0],
@@ -30,7 +36,8 @@ class Lead {
         agent_name,
         price,
         reference_source_id,
-        operations_id,
+        operations_id, // This is now required and validated
+        contact_source || 'unknown',
         notes,
         status || 'Active'
       ]
@@ -57,6 +64,7 @@ class Lead {
           l.operations_id,
           op.name as operations_name,
           op.role as operations_role,
+          l.contact_source,
           l.notes,
           l.status,
           l.created_at,
@@ -97,6 +105,7 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
+        l.contact_source,
         l.notes,
         l.status,
         l.created_at,
@@ -128,6 +137,7 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
+        l.contact_source,
         l.notes,
         l.status,
         l.created_at,
@@ -159,6 +169,7 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
+        l.contact_source,
         l.notes,
         l.status,
         l.created_at,
@@ -186,7 +197,7 @@ class Lead {
       WHERE l.id = $1
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.notes, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.contact_source, l.notes, l.status, l.created_at, l.updated_at
     `, [id]);
     return result.rows[0];
   }
@@ -194,6 +205,11 @@ class Lead {
   static async updateLead(id, updates) {
     console.log('🔧 [Backend] Updating lead:', id);
     console.log('🔧 [Backend] Raw updates:', updates);
+    
+    // Validate operations_id if it's being updated - it cannot be null
+    if (updates.hasOwnProperty('operations_id') && (!updates.operations_id || updates.operations_id === null)) {
+      throw new Error('operations_id is required and cannot be null');
+    }
     
     // Filter out undefined values and fields that don't belong in the leads table
     const cleanUpdates = {};
@@ -281,6 +297,7 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
+        l.contact_source,
         l.notes,
         l.status,
         l.created_at,
@@ -354,7 +371,7 @@ class Lead {
     query += ` 
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.notes, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.contact_source, l.notes, l.status, l.created_at, l.updated_at
       ORDER BY l.created_at DESC
     `;
 
@@ -442,6 +459,7 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
+        l.contact_source,
         l.notes,
         l.status,
         l.created_at,

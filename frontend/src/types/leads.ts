@@ -39,6 +39,7 @@ export interface Lead {
   operations_id: number  // Now required
   operations_name?: string
   operations_role?: string
+  contact_source?: 'call' | 'unknown'  // How the lead was initially contacted
   notes?: string // Legacy notes field (deprecated)
   agent_notes?: LeadNote[] // New agent-specific notes
   referrals?: LeadReferral[] // Lead referral tracking
@@ -101,6 +102,7 @@ export interface EditLeadFormData {
   price?: number  // New optional field
   reference_source_id: number  // Now required
   operations_id: number  // Now required
+  contact_source?: 'call' | 'unknown'  // How the lead was initially contacted
   notes?: string
   status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
@@ -115,6 +117,7 @@ export interface CreateLeadFormData {
   price?: number  // New optional field
   reference_source_id: number  // Now required
   operations_id: number  // Now required
+  contact_source?: 'call' | 'unknown'  // How the lead was initially contacted
   notes?: string
   status: string
   referrals?: LeadReferralInput[]  // Optional referrals field

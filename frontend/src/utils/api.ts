@@ -1098,6 +1098,46 @@ export const reportsApi = {
     {},
     token
   ),
+
+  // Export report to Excel
+  exportToExcel: async (id: number, token?: string): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = token || storedToken || ''
+    
+    const response = await fetch(`${API_BASE_URL}/reports/monthly/${id}/export/excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export report to Excel')
+    }
+
+    return response.blob()
+  },
+
+  // Export report to PDF
+  exportToPDF: async (id: number, token?: string): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = token || storedToken || ''
+    
+    const response = await fetch(`${API_BASE_URL}/reports/monthly/${id}/export/pdf`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export report to PDF')
+    }
+
+    return response.blob()
+  },
 }
 
 interface DocumentResponse {

@@ -76,11 +76,40 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       </div>
 
+      {/* Operations */}
+      {(lead.operations_id || lead.operations_name) && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-gray-500 mb-1">Operations</div>
+          <div className="text-sm">
+            {lead.operations_name ? (
+              <>
+                <span className="text-gray-900 font-medium">{lead.operations_name}</span>
+                {lead.operations_role && (
+                  <span className="text-gray-500 ml-1 capitalize">
+                    ({lead.operations_role.replace('_', ' ')})
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-gray-400">ID: {lead.operations_id}</span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Reference Source */}
       {lead.reference_source_name && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Reference Source</div>
           <div className="text-sm text-gray-700">{lead.reference_source_name}</div>
+        </div>
+      )}
+
+      {/* Contact Source */}
+      {lead.contact_source && (
+        <div className="mb-4">
+          <div className="text-xs font-medium text-gray-500 mb-1">Contact Source</div>
+          <div className="text-sm text-gray-700 capitalize">{lead.contact_source}</div>
         </div>
       )}
 
