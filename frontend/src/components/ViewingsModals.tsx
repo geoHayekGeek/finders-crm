@@ -8,6 +8,7 @@ import LeadSelectorForViewings from './LeadSelectorForViewings'
 import { AgentSelector } from './AgentSelector'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole } from '@/utils/roleUtils'
 import { viewingsApi } from '@/utils/api'
 import { formatDateForInput } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
@@ -92,7 +93,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     const [formData, setFormData] = useState<CreateViewingFormData>({
       property_id: 0,
       lead_id: 0,
-      agent_id: (user?.role === 'agent' || user?.role === 'team_leader') ? user.id : undefined,
+      agent_id: (isAgentRole(user?.role) || isTeamLeaderRole(user?.role)) ? user?.id : undefined,
       viewing_date: '',
       viewing_time: '',
       status: 'Scheduled',
@@ -128,7 +129,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setFormData({
           property_id: 0,
           lead_id: 0,
-          agent_id: (user?.role === 'agent' || user?.role === 'team_leader') ? user.id : undefined,
+          agent_id: (isAgentRole(user?.role) || isTeamLeaderRole(user?.role)) ? user?.id : undefined,
           viewing_date: '',
           viewing_time: '',
           status: 'Scheduled',
@@ -180,7 +181,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Agent <span className="text-red-500">*</span>
               </label>
-              {canManageViewings && user?.role !== 'agent' && user?.role !== 'team_leader' ? (
+              {canManageViewings && !isAgentRole(user?.role) && !isTeamLeaderRole(user?.role) ? (
                 <AgentSelector
                   selectedAgentId={formData.agent_id}
                   onAgentChange={(agent) => setFormData({ ...formData, agent_id: agent?.id })}

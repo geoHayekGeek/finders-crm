@@ -16,6 +16,7 @@
 const pool = require('../config/db');
 
 const tablesToClear = [
+  { table: 'viewing_update_reminders', label: 'viewing update reminder entries' },
   { table: 'reminder_tracking', label: 'reminder tracking entries' },
   { table: 'viewing_updates', label: 'viewing updates' },
   { table: 'viewings', label: 'viewings' },

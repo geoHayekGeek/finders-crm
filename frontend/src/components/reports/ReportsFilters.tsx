@@ -11,12 +11,16 @@ interface ReportsFiltersProps {
   filters: ReportFiltersType
   setFilters: (filters: ReportFiltersType) => void
   onClearFilters: () => void
+  agentFilterDisabled?: boolean
+  lockedAgentId?: number
 }
 
 export default function ReportsFilters({
   filters,
   setFilters,
-  onClearFilters
+  onClearFilters,
+  agentFilterDisabled = false,
+  lockedAgentId
 }: ReportsFiltersProps) {
   const { token } = useAuth()
   const [agents, setAgents] = useState<User[]>([])
@@ -29,6 +33,8 @@ export default function ReportsFilters({
   }, [token])
 
   const loadAgents = async () => {
+    if (!token) return
+
     try {
       const response = await usersApi.getAll(token)
       if (response.success) {
@@ -95,16 +101,22 @@ export default function ReportsFilters({
             Focus on an agent
           </label>
           <select
-            value={filters.agent_id || ''}
+            value={lockedAgentId ?? filters.agent_id ?? ''}
             onChange={(e) => handleFilterChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
-            className="w-full appearance-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+            className="w-full appearance-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white disabled:bg-gray-100 disabled:text-gray-500"
+            disabled={agentFilterDisabled || !!lockedAgentId}
           >
             <option value="">All Agents</option>
-            {agents.map((agent) => (
+            {(lockedAgentId ? agents.filter(agent => agent.id === lockedAgentId) : agents).map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
               </option>
             ))}
+            {lockedAgentId && !agents.find(agent => agent.id === lockedAgentId) && (
+              <option value={lockedAgentId}>
+                Agent #{lockedAgentId}
+              </option>
+            )}
           </select>
         </div>
 

@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react'
 import { Search, Filter, X, Calendar, Users } from 'lucide-react'
 import { ViewingFilters, VIEWING_STATUSES } from '@/types/viewing'
 import { usersApi } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
+import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
 
 interface User {
   id: number
@@ -28,15 +30,48 @@ export function ViewingsFilters({
   setShowAdvancedFilters,
   onClearFilters
 }: ViewingsFiltersProps) {
+  const { user, token } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(false)
 
   // Load agents for agent filter
   useEffect(() => {
     const fetchAgents = async () => {
+      if (!token || !user) {
+        setUsers([])
+        return
+      }
+
       setLoading(true)
       try {
-        const data = await usersApi.getAgents()
+        if (isAgentRole(user.role)) {
+          setUsers([{ id: user.id, name: user.name, email: user.email, role: user.role }])
+          return
+        }
+
+        if (isTeamLeaderRole(user.role)) {
+          const response = await usersApi.getTeamLeaderAgents(user.id, token)
+          if (response.success && Array.isArray(response.agents)) {
+            const mappedAgents = response.agents
+              .map((agent: any) => ({
+                id: agent.id,
+                name: agent.name,
+                email: agent.email,
+                role: agent.role || 'agent'
+              }))
+              .filter(agent => typeof agent.id === 'number')
+
+            setUsers([
+              { id: user.id, name: user.name, email: user.email, role: user.role },
+              ...mappedAgents
+            ])
+          } else {
+            setUsers([{ id: user.id, name: user.name, email: user.email, role: user.role }])
+          }
+          return
+        }
+
+        const data = await usersApi.getAgents(token)
         if (data.success) {
           setUsers(data.agents)
         }
@@ -48,7 +83,7 @@ export function ViewingsFilters({
     }
 
     fetchAgents()
-  }, [])
+  }, [token, user?.id, user?.name, user?.email, user?.role])
 
   const handleFilterChange = (key: keyof ViewingFilters, value: string | number | undefined) => {
     let newValue = value === '' ? undefined : value
@@ -157,19 +192,27 @@ export function ViewingsFilters({
                 <Users className="h-4 w-4 inline mr-1" />
                 Agent
               </label>
-              <select
-                value={filters.agent_id || 'All'}
-                onChange={(e) => handleFilterChange('agent_id', e.target.value === 'All' ? undefined : parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                disabled={loading}
-              >
-                <option value="All">All Agents</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.id}>
-                    {user.name}
+              {isAgentRole(user?.role) ? (
+                <div className="px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-sm text-gray-600">
+                  You are viewing your own viewings.
+                </div>
+              ) : (
+                <select
+                  value={filters.agent_id || 'All'}
+                  onChange={(e) => handleFilterChange('agent_id', e.target.value === 'All' ? undefined : parseInt(e.target.value))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  disabled={loading || users.length === 0}
+                >
+                  <option value="All">
+                    {isTeamLeaderRole(user?.role) ? 'All My Agents' : 'All Agents'}
                   </option>
-                ))}
-              </select>
+                  {users.map(agent => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </>
         )}

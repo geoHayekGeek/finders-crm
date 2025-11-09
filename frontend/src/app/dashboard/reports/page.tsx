@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
@@ -44,10 +44,26 @@ const TABS: Tab[] = [
 function ReportsPageContent() {
   const { user } = useAuth()
   const { role } = usePermissions()
-  const [activeTab, setActiveTab] = useState<TabId>('monthly-agent-stats')
 
-  // Get active tab configuration
-  const activeTabConfig = TABS.find(tab => tab.id === activeTab)
+  const availableTabs = useMemo(() => {
+    if (role === 'agent' || role === 'team_leader') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats')
+    }
+    return TABS
+  }, [role])
+
+  const [activeTab, setActiveTab] = useState<TabId>(
+    availableTabs[0]?.id ?? 'monthly-agent-stats'
+  )
+
+  useEffect(() => {
+    if (!availableTabs.find(tab => tab.id === activeTab)) {
+      const fallback = availableTabs[0]?.id ?? 'monthly-agent-stats'
+      setActiveTab(fallback)
+    }
+  }, [availableTabs, activeTab])
+
+  const activeTabConfig = availableTabs.find(tab => tab.id === activeTab)
 
   return (
     <div className="space-y-6">
@@ -63,7 +79,7 @@ function ReportsPageContent() {
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
-            {TABS.map((tab) => {
+            {availableTabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
               const isDisabled = tab.comingSoon
@@ -154,7 +170,7 @@ function ReportsPageContent() {
 
 export default function ReportsPage() {
   return (
-    <ProtectedRoute requiredPermissions={{ canViewAgentPerformance: true }}>
+    <ProtectedRoute>
       <ReportsPageContent />
     </ProtectedRoute>
   )

@@ -5,7 +5,10 @@ import { ColumnDef } from '@tanstack/react-table'
 import { Viewing, VIEWING_STATUSES } from '@/types/viewing'
 import { Eye, Edit, Trash2 } from 'lucide-react'
 
-export const getViewingsColumns = (canManageViewings: boolean): ColumnDef<Viewing>[] => {
+export const getViewingsColumns = (
+  canManageViewings: boolean,
+  canDeleteViewings: boolean
+): ColumnDef<Viewing>[] => {
   const columns: ColumnDef<Viewing>[] = [
     {
       accessorKey: 'viewing_date',
@@ -109,14 +112,16 @@ export const getViewingsColumns = (canManageViewings: boolean): ColumnDef<Viewin
               >
                 <Edit className="h-4 w-4 text-gray-600" />
               </button>
-              <button
-                onClick={() => row.original.onDelete?.(row.original)}
-                className="p-1 hover:bg-red-50 rounded transition-colors"
-                title="Delete Viewing"
-              >
-                <Trash2 className="h-4 w-4 text-red-600" />
-              </button>
             </>
+          )}
+          {(canManageViewings || canDeleteViewings) && (
+            <button
+              onClick={() => row.original.onDelete?.(row.original)}
+              className="p-1 hover:bg-red-50 rounded transition-colors"
+              title="Delete Viewing"
+            >
+              <Trash2 className="h-4 w-4 text-red-600" />
+            </button>
           )}
         </div>
       )
@@ -126,7 +131,10 @@ export const getViewingsColumns = (canManageViewings: boolean): ColumnDef<Viewin
   return columns
 }
 
-export const getViewingsDetailedColumns = (canManageViewings: boolean): ColumnDef<Viewing>[] => {
-  return getViewingsColumns(canManageViewings)
+export const getViewingsDetailedColumns = (
+  canManageViewings: boolean,
+  canDeleteViewings: boolean
+): ColumnDef<Viewing>[] => {
+  return getViewingsColumns(canManageViewings, canDeleteViewings)
 }
 

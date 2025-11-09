@@ -5,8 +5,16 @@ import { Eye, Edit3, Trash2, Phone, Calendar, User } from 'lucide-react'
 import { ColumnDef } from '@tanstack/react-table'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
+interface LeadsColumnOptions {
+  limitedAccess?: boolean
+}
+
 // Function to generate columns with permission-based actions
-export const getLeadsColumns = (canManageLeads: boolean = true): ColumnDef<Lead>[] => [
+export const getLeadsColumns = (
+  canManageLeads: boolean = true,
+  options: LeadsColumnOptions = {}
+): ColumnDef<Lead>[] => {
+  const columns: ColumnDef<Lead>[] = [
   {
     accessorKey: 'date',
     header: 'Date',
@@ -203,12 +211,43 @@ export const getLeadsColumns = (canManageLeads: boolean = true): ColumnDef<Lead>
       )
     }
   }
-]
+  ]
 
-export const getLeadsDetailedColumns = (canManageLeads: boolean = true): ColumnDef<Lead>[] => {
-  const columns = getLeadsColumns(canManageLeads)
+  if (options.limitedAccess) {
+    const hiddenKeys = new Set([
+      'date',
+      'assigned_agent_name',
+      'operations_name',
+      'reference_source_name',
+      'contact_source',
+      'created_at'
+    ])
+    return columns.filter(column => {
+      const key = 'accessorKey' in column ? (column.accessorKey as string | undefined) : undefined
+      if (key && hiddenKeys.has(key)) {
+        return false
+      }
+      return key !== 'operations_name'
+    })
+  }
+
+  return columns
+}
+
+export const getLeadsDetailedColumns = (
+  canManageLeads: boolean = true,
+  options: LeadsColumnOptions = {}
+): ColumnDef<Lead>[] => {
+  const columns = getLeadsColumns(canManageLeads, options)
+  const actionColumn = columns.find(column => column.id === 'actions')
+  const baseColumns = columns.filter(column => column.id !== 'actions')
+
+  if (options.limitedAccess) {
+    return [...baseColumns, ...(actionColumn ? [actionColumn] : [])]
+  }
+
   return [
-    ...columns.slice(0, -1), // All columns except actions
+    ...baseColumns,
     {
       accessorKey: 'notes',
       header: 'Notes',
@@ -225,7 +264,7 @@ export const getLeadsDetailedColumns = (canManageLeads: boolean = true): ColumnD
         )
       }
     },
-    columns[columns.length - 1] // Actions column
+    ...(actionColumn ? [actionColumn] : [])
   ]
 }
 

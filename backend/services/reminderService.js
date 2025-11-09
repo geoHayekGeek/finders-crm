@@ -7,6 +7,7 @@ const Settings = require('../models/settingsModel');
 class ReminderService {
   constructor() {
     this.isRunning = false;
+    this.viewingReminderTableEnsured = false;
   }
 
   // Main method to process all pending reminders
@@ -20,19 +21,87 @@ class ReminderService {
     console.log('🔄 Starting reminder processing...');
 
     try {
-      // Get events that need reminders using direct SQL instead of function
-      const eventsNeedingReminders = await this.getEventsNeedingRemindersDirect();
-      console.log(`📋 Found ${eventsNeedingReminders.length} events needing reminders`);
-
-      for (const event of eventsNeedingReminders) {
-        await this.processEventReminder(event);
-      }
-
+      await this.processCalendarEventReminders();
+      await this.processViewingUpdateReminders();
       console.log('✅ Reminder processing completed');
     } catch (error) {
       console.error('❌ Error processing reminders:', error);
     } finally {
       this.isRunning = false;
+    }
+  }
+
+  async processCalendarEventReminders() {
+    // Get events that need reminders using direct SQL instead of function
+    const eventsNeedingReminders = await this.getEventsNeedingRemindersDirect();
+    console.log(`📋 Found ${eventsNeedingReminders.length} events needing reminders`);
+
+    for (const event of eventsNeedingReminders) {
+      await this.processEventReminder(event);
+    }
+  }
+
+  async processViewingUpdateReminders() {
+    try {
+      const viewingsNeedingReminders = await this.getViewingsNeedingUpdateReminders();
+      console.log(`👀 Found ${viewingsNeedingReminders.length} viewings needing update reminders`);
+
+      for (const viewing of viewingsNeedingReminders) {
+        await this.sendViewingUpdateReminder(viewing);
+      }
+    } catch (error) {
+      console.error('❌ Error processing viewing update reminders:', error);
+      throw error;
+    }
+  }
+
+  async ensureViewingReminderTable() {
+    if (this.viewingReminderTableEnsured) {
+      return;
+    }
+
+    const sql = `
+      CREATE OR REPLACE FUNCTION update_updated_at_column()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        NEW.updated_at = NOW();
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+
+      CREATE TABLE IF NOT EXISTS viewing_update_reminders (
+        id SERIAL PRIMARY KEY,
+        viewing_id INTEGER NOT NULL REFERENCES viewings(id) ON DELETE CASCADE,
+        agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        last_reminder_sent_at TIMESTAMP WITH TIME ZONE,
+        last_email_sent_at TIMESTAMP WITH TIME ZONE,
+        last_notification_sent_at TIMESTAMP WITH TIME ZONE,
+        reminder_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+        UNIQUE(viewing_id, agent_id)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_viewing_update_reminders_viewing_id
+        ON viewing_update_reminders(viewing_id);
+      CREATE INDEX IF NOT EXISTS idx_viewing_update_reminders_agent_id
+        ON viewing_update_reminders(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_viewing_update_reminders_last_sent
+        ON viewing_update_reminders(last_reminder_sent_at);
+
+      DROP TRIGGER IF EXISTS update_viewing_update_reminders_timestamp ON viewing_update_reminders;
+      CREATE TRIGGER update_viewing_update_reminders_timestamp
+        BEFORE UPDATE ON viewing_update_reminders
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `;
+
+    try {
+      await pool.query(sql);
+      this.viewingReminderTableEnsured = true;
+    } catch (error) {
+      console.error('Error ensuring viewing update reminder table:', error);
+      throw error;
     }
   }
 
@@ -453,12 +522,22 @@ class ReminderService {
   // Clean up old reminders
   async cleanupOldReminders() {
     try {
-      const result = await pool.query(
+      const eventCleanup = await pool.query(
         `DELETE FROM reminder_tracking 
          WHERE created_at < NOW() - INTERVAL '7 days'`,
         []
       );
-      console.log(`🧹 Cleaned up ${result.rowCount} old reminder records`);
+      console.log(`🧹 Cleaned up ${eventCleanup.rowCount} old reminder records`);
+
+      await this.ensureViewingReminderTable();
+
+      const viewingCleanup = await pool.query(
+        `DELETE FROM viewing_update_reminders
+         WHERE last_reminder_sent_at IS NOT NULL
+           AND last_reminder_sent_at < NOW() - INTERVAL '90 days'`,
+        []
+      );
+      console.log(`🧹 Cleaned up ${viewingCleanup.rowCount} old viewing update reminder records`);
     } catch (error) {
       console.error('Error cleaning up old reminders:', error);
     }
@@ -488,6 +567,249 @@ class ReminderService {
   // Test email configuration
   async testEmailConfiguration() {
     return await EmailService.testEmailConfiguration();
+  }
+
+  async getViewingsNeedingUpdateReminders() {
+    await this.ensureViewingReminderTable();
+
+    const query = `
+      SELECT
+        v.id AS viewing_id,
+        v.agent_id,
+        v.status,
+        u.name AS agent_name,
+        u.email AS agent_email,
+        p.reference_number AS property_reference,
+        p.location AS property_location,
+        l.customer_name AS lead_name,
+        v.viewing_date,
+        v.viewing_time,
+        GREATEST(
+          COALESCE(MAX(vu.update_date), v.created_at::date),
+          v.updated_at::date
+        ) AS last_activity_date,
+        vr.last_reminder_sent_at,
+        vr.last_email_sent_at,
+        vr.last_notification_sent_at,
+        vr.reminder_count
+      FROM viewings v
+      JOIN users u ON u.id = v.agent_id
+      LEFT JOIN viewing_updates vu ON vu.viewing_id = v.id
+      LEFT JOIN viewing_update_reminders vr
+        ON vr.viewing_id = v.id
+       AND vr.agent_id = v.agent_id
+      LEFT JOIN properties p ON p.id = v.property_id
+      LEFT JOIN leads l ON l.id = v.lead_id
+      WHERE v.status NOT IN ('Completed', 'Cancelled')
+        AND u.email IS NOT NULL
+        AND TRIM(u.email) <> ''
+      GROUP BY
+        v.id,
+        v.agent_id,
+        v.status,
+        u.name,
+        u.email,
+        p.reference_number,
+        p.location,
+        l.customer_name,
+        v.viewing_date,
+        v.viewing_time,
+        v.created_at,
+        v.updated_at,
+        vr.last_reminder_sent_at,
+        vr.last_email_sent_at,
+        vr.last_notification_sent_at,
+        vr.reminder_count
+      HAVING GREATEST(
+        COALESCE(MAX(vu.update_date), v.created_at::date),
+        v.updated_at::date
+      ) <= CURRENT_DATE - INTERVAL '1 month'
+        AND (
+          vr.last_reminder_sent_at IS NULL
+          OR vr.last_reminder_sent_at::date < CURRENT_DATE
+        )
+    `;
+
+    const result = await pool.query(query);
+    return result.rows;
+  }
+
+  async sendViewingUpdateReminder(viewing) {
+    const {
+      viewing_id,
+      agent_id,
+      agent_name,
+      agent_email,
+      property_reference,
+      property_location,
+      lead_name,
+      viewing_date,
+      viewing_time,
+      last_activity_date,
+      reminder_count = 0
+    } = viewing;
+
+    if (!agent_id) {
+      console.warn(`⚠️ Viewing ${viewing_id} has no assigned agent, skipping reminder`);
+      return;
+    }
+
+    let emailSent = false;
+    let notificationSent = false;
+
+    try {
+      notificationSent = await this.createViewingUpdateNotification({
+        viewingId: viewing_id,
+        agentId: agent_id,
+        propertyReference: property_reference,
+        propertyLocation: property_location,
+        leadName: lead_name,
+        lastActivityDate: last_activity_date
+      });
+    } catch (error) {
+      console.error(`Error sending viewing update notification for viewing ${viewing_id}:`, error);
+    }
+
+    try {
+      emailSent = await this.trySendViewingUpdateEmail(
+        agent_email,
+        agent_name,
+        {
+          propertyReference: property_reference,
+          propertyLocation: property_location,
+          leadName: lead_name,
+          viewingDate: viewing_date,
+          viewingTime: viewing_time,
+          lastActivityDate: last_activity_date,
+          reminderCount
+        }
+      );
+    } catch (error) {
+      console.error(`Error sending viewing update email for viewing ${viewing_id}:`, error);
+    }
+
+    if (emailSent || notificationSent) {
+      await this.recordViewingReminder(viewing_id, agent_id, emailSent, notificationSent);
+      console.log(`✅ Viewing update reminder sent to agent ${agent_id} for viewing ${viewing_id} (email: ${emailSent}, notification: ${notificationSent})`);
+    } else {
+      console.log(`⚠️ No viewing update reminder sent for viewing ${viewing_id} (email and notification skipped or failed)`);
+    }
+  }
+
+  async createViewingUpdateNotification({
+    viewingId,
+    agentId,
+    propertyReference,
+    propertyLocation,
+    leadName,
+    lastActivityDate
+  }) {
+    try {
+      const lastActivityDateStr = lastActivityDate
+        ? new Date(lastActivityDate).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        : null;
+
+      const propertyLabel = propertyReference || propertyLocation || `Viewing #${viewingId}`;
+      const leadLabel = leadName ? ` for ${leadName}` : '';
+      const message = [
+        `Please add an update for viewing ${propertyLabel}${leadLabel}.`,
+        lastActivityDateStr ? `Last activity recorded on ${lastActivityDateStr}.` : null,
+        `Reminders will continue daily until an update is submitted.`
+      ]
+        .filter(Boolean)
+        .join(' ');
+
+      await Notification.createNotification({
+        user_id: agentId,
+        title: 'Viewing Update Required',
+        message,
+        type: 'warning',
+        entity_type: 'viewing',
+        entity_id: viewingId
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error creating viewing update notification:', error);
+      return false;
+    }
+  }
+
+  async trySendViewingUpdateEmail(agentEmail, agentName, viewingData) {
+    if (!agentEmail) {
+      return false;
+    }
+
+    const emailEnabled = await Settings.isEmailNotificationsEnabled();
+    if (!emailEnabled) {
+      console.log('📧 Email notifications are globally disabled, skipping viewing update email');
+      return false;
+    }
+
+    const viewingsEmailEnabled = await Settings.isEmailNotificationTypeEnabled('viewings');
+    if (!viewingsEmailEnabled) {
+      console.log('📧 Viewing email notifications are disabled, skipping viewing update email');
+      return false;
+    }
+
+    await EmailService.sendViewingUpdateReminderEmail(agentEmail, agentName, viewingData);
+    return true;
+  }
+
+  async recordViewingReminder(viewingId, agentId, emailSent, notificationSent) {
+    await this.ensureViewingReminderTable();
+
+    await pool.query(
+      `INSERT INTO viewing_update_reminders (
+        viewing_id,
+        agent_id,
+        last_reminder_sent_at,
+        last_email_sent_at,
+        last_notification_sent_at,
+        reminder_count
+      ) VALUES (
+        $1,
+        $2,
+        NOW(),
+        CASE WHEN $3 THEN NOW() ELSE NULL END,
+        CASE WHEN $4 THEN NOW() ELSE NULL END,
+        1
+      )
+      ON CONFLICT (viewing_id, agent_id)
+      DO UPDATE SET
+        last_reminder_sent_at = NOW(),
+        last_email_sent_at = CASE WHEN $3 THEN NOW() ELSE viewing_update_reminders.last_email_sent_at END,
+        last_notification_sent_at = CASE WHEN $4 THEN NOW() ELSE viewing_update_reminders.last_notification_sent_at END,
+        reminder_count = viewing_update_reminders.reminder_count + 1,
+        updated_at = NOW()`,
+      [viewingId, agentId, emailSent, notificationSent]
+    );
+  }
+
+  async clearViewingReminder(viewingId, agentId = null) {
+    try {
+      await this.ensureViewingReminderTable();
+
+      if (agentId) {
+        await pool.query(
+          `DELETE FROM viewing_update_reminders
+           WHERE viewing_id = $1 AND agent_id = $2`,
+          [viewingId, agentId]
+        );
+      } else {
+        await pool.query(
+          `DELETE FROM viewing_update_reminders
+           WHERE viewing_id = $1`,
+          [viewingId]
+        );
+      }
+    } catch (error) {
+      console.error('Error clearing viewing reminder tracking:', error);
+    }
   }
 }
 

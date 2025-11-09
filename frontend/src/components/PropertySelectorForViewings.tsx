@@ -3,8 +3,9 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Building2, RefreshCw } from 'lucide-react'
-import { propertiesApi } from '@/utils/api'
+import { propertiesApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
 
 interface Property {
   id: number
@@ -20,12 +21,14 @@ interface PropertySelectorProps {
 }
 
 export default function PropertySelectorForViewings({ selectedPropertyId, onSelect, error }: PropertySelectorProps) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [allowedAgentIds, setAllowedAgentIds] = useState<number[] | null>(null)
+  const [teamAgentsLoading, setTeamAgentsLoading] = useState(false)
 
   // Fetch properties from database
   const fetchProperties = async () => {
@@ -33,7 +36,7 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
     
     setLoading(true)
     try {
-      const response = await propertiesApi.getAll(token)
+      const response = await propertiesApi.getAll()
       if (response.success) {
         setProperties(response.data)
       }
@@ -50,6 +53,46 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
     }
   }, [token])
 
+  useEffect(() => {
+    if (!user?.id) {
+      setAllowedAgentIds(null)
+      return
+    }
+
+    if (isAgentRole(user.role)) {
+      setAllowedAgentIds([user.id])
+      return
+    }
+
+    if (isTeamLeaderRole(user.role)) {
+      if (!token) {
+        setAllowedAgentIds([user.id])
+        return
+      }
+
+      setTeamAgentsLoading(true)
+      ;(async () => {
+        try {
+          const response = await usersApi.getTeamLeaderAgents(user.id, token)
+          if (response.success && Array.isArray(response.agents)) {
+            const agentIds = response.agents.map((agent: any) => agent.id).filter((id: any) => typeof id === 'number')
+            setAllowedAgentIds([user.id, ...agentIds])
+          } else {
+            setAllowedAgentIds([user.id])
+          }
+        } catch (error) {
+          console.error('Error loading team leader agents:', error)
+          setAllowedAgentIds([user.id])
+        } finally {
+          setTeamAgentsLoading(false)
+        }
+      })()
+      return
+    }
+
+    setAllowedAgentIds(null)
+  }, [user?.id, user?.role, token])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -63,7 +106,15 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const shouldRestrictByAssignment = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
+
   const filteredProperties = properties.filter(property => {
+    if (shouldRestrictByAssignment && Array.isArray(allowedAgentIds)) {
+      if (!property.agent_id || !allowedAgentIds.includes(property.agent_id)) {
+        return false
+      }
+    }
+
     const searchLower = searchTerm.toLowerCase()
     return (
       property.reference_number.toLowerCase().includes(searchLower) ||
@@ -169,10 +220,10 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
 
             {/* Properties list */}
             <div className="max-h-48 overflow-y-auto">
-              {loading ? (
+          {loading || teamAgentsLoading ? (
                 <div className="p-4 text-center text-gray-500">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600 mx-auto mb-2"></div>
-                  Loading properties...
+              Loading properties...
                 </div>
               ) : filteredProperties.length === 0 ? (
                 <div className="p-4 text-center text-gray-500 text-sm">

@@ -21,12 +21,22 @@ import { Viewing, ViewingFilters as ViewingFiltersType, CreateViewingFormData } 
 import { viewingsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { isAgentRole, isTeamLeaderRole, normalizeRole, isOperationsRole, isAdminRole, isAgentManagerRole } from '@/utils/roleUtils'
 import { useToast } from '@/contexts/ToastContext'
 
 export default function ViewingsPage() {
-  const { token, isAuthenticated } = useAuth()
+  const { token, isAuthenticated, user } = useAuth()
   const { canManageViewings, canViewViewings } = usePermissions()
   const { showSuccess, showError } = useToast()
+  const normalizedRole = normalizeRole(user?.role)
+  const canDeleteViewings = canManageViewings || isOperationsRole(user?.role)
+  const canCreateViewings = useMemo(() => {
+    if (!user) return false
+    if (normalizedRole === 'accountant') return false
+    if (isAgentRole(user.role) || isTeamLeaderRole(user.role)) return true
+    if (isAgentManagerRole(user.role) || isOperationsRole(user.role) || isAdminRole(user.role)) return true
+    return false
+  }, [user, normalizedRole])
   
   // State management
   const [viewings, setViewings] = useState<Viewing[]>([])
@@ -43,6 +53,7 @@ export default function ViewingsPage() {
   const isInitialLoad = useRef(true)
   const prevFiltersRef = useRef<string>('')
   const loadViewingsRef = useRef<(() => Promise<void>) | null>(null)
+  const agentFilterInitialized = useRef(false)
   
   // Modal state
   const [showAddModal, setShowAddModal] = useState(false)
@@ -68,7 +79,7 @@ export default function ViewingsPage() {
       setViewingsLoading(true)
       setError(null)
       
-      if (!isAuthenticated || !token) {
+      if (!isAuthenticated || !token || !user) {
         setError('You must be logged in to view viewings')
         return
       }
@@ -83,10 +94,16 @@ export default function ViewingsPage() {
         value !== undefined && value !== null && value !== '' && value !== 'All' && value !== 0
       )
       
+      let scopedFilters = { ...filters }
+
+      if (!canManageViewings && isAgentRole(user.role)) {
+        scopedFilters.agent_id = user.id
+      }
+      
       let response
-      if (hasActiveFilters) {
+      if (hasActiveFilters || scopedFilters.agent_id) {
         console.log('🔍 Using filtered API call')
-        response = await viewingsApi.getWithFilters(filters, token)
+        response = await viewingsApi.getWithFilters(scopedFilters, token)
       } else {
         console.log('🔍 Using getAll API call')
         response = await viewingsApi.getAll(token)
@@ -95,7 +112,24 @@ export default function ViewingsPage() {
       console.log('📡 API response received', { success: response.success, dataLength: response.data?.length })
       
       if (response.success) {
-        setViewings(response.data || [])
+        if (isTeamLeaderRole(user.role)) {
+          const teamLeadId = user.id
+          const scoped = (response.data || []).filter(viewing => {
+            if (viewing.agent_id === teamLeadId) return true
+            const agentTeamLeaderId =
+              viewing.agent_team_leader_id ??
+              (viewing as any).agent_team_leader_id ??
+              (viewing as any).team_leader_id ??
+              (viewing as any).agent?.team_leader_id
+            return agentTeamLeaderId === teamLeadId
+          })
+          setViewings(scoped)
+        } else if (isAgentRole(user.role)) {
+          const scoped = (response.data || []).filter(viewing => viewing.agent_id === user.id)
+          setViewings(scoped)
+        } else {
+          setViewings(response.data || [])
+        }
         console.log('✅ Viewings updated successfully')
       } else {
         setError(response.message || 'Failed to load viewings')
@@ -108,7 +142,7 @@ export default function ViewingsPage() {
       setViewingsLoading(false)
       setLoading(false)
     }
-  }, [isAuthenticated, token, canViewViewings, filters])
+  }, [isAuthenticated, token, canViewViewings, canManageViewings, filters, user])
 
   // Store the latest loadViewings function in ref
   loadViewingsRef.current = loadViewings
@@ -164,7 +198,20 @@ export default function ViewingsPage() {
         prevFiltersRef.current = currentFiltersStr
       }
     }
-  }, [isAuthenticated, filters])
+  }, [isAuthenticated, filters, canManageViewings, user?.id, user?.role])
+
+  useEffect(() => {
+    if (!user) return
+    if (isAgentRole(user.role) && !agentFilterInitialized.current) {
+      setFilters(prev => {
+        if (prev.agent_id === user.id) {
+          return prev
+        }
+        return { ...prev, agent_id: user.id }
+      })
+      agentFilterInitialized.current = true
+    }
+  }, [user])
 
   // Action handlers
   const handleViewViewing = useCallback(async (viewing: Viewing) => {
@@ -205,7 +252,11 @@ export default function ViewingsPage() {
   }, [])
 
   const handleClearFilters = () => {
+    if (user && isAgentRole(user.role)) {
+      setFilters({ agent_id: user.id })
+    } else {
     setFilters({})
+    }
     setCurrentPage(1)
   }
 
@@ -242,7 +293,8 @@ export default function ViewingsPage() {
     try {
       console.log('Adding new viewing:', viewingData)
       
-      if (!isAuthenticated || !token) {
+      if (!isAuthenticated || !token || !canCreateViewings) {
+        showError('You do not have permission to create viewings')
         return
       }
       
@@ -399,9 +451,9 @@ export default function ViewingsPage() {
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
           <button
             onClick={() => setShowAddModal(true)}
-            disabled={!isAuthenticated || !canViewViewings}
+            disabled={!isAuthenticated || !canCreateViewings}
             className={`px-4 py-3 rounded-lg transition-colors flex items-center space-x-2 ${
-              isAuthenticated && canViewViewings
+              isAuthenticated && canCreateViewings
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
@@ -531,12 +583,13 @@ export default function ViewingsPage() {
               onEdit={handleEditViewing}
               onDelete={handleDeleteViewing}
               canManageViewings={canManageViewings}
+              canDeleteViewings={canDeleteViewings}
             />
           ))}
         </div>
       ) : (
         <DataTable
-          columns={getViewingsColumns(canManageViewings)}
+          columns={getViewingsColumns(canManageViewings, canDeleteViewings)}
           data={paginatedViewings}
         />
       )}

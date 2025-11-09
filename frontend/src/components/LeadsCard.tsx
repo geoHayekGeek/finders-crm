@@ -10,9 +10,10 @@ interface LeadsCardProps {
   onEdit: (lead: Lead) => void
   onDelete: (lead: Lead) => void
   canManageLeads?: boolean
+  limitedAccess?: boolean
 }
 
-export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true }: LeadsCardProps) {
+export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true, limitedAccess = false }: LeadsCardProps) {
   const statusConfig = LEAD_STATUSES.find(s => s.value === lead.status)
   const statusColor = statusConfig?.color || '#6B7280'
   const statusLabel = statusConfig?.label || lead.status
@@ -21,12 +22,14 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
       {/* Header with status and date */}
       <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium text-gray-600">
-            {formatDateForDisplay(lead.date)}
-          </span>
-        </div>
+        {!limitedAccess && (
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <span className="text-sm font-medium text-gray-600">
+              {formatDateForDisplay(lead.date)}
+            </span>
+          </div>
+        )}
         <span 
           className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
           style={{ backgroundColor: statusColor }}
@@ -54,30 +57,32 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
       )}
 
       {/* Agent Information */}
-      <div className="mb-3">
-        <div className="flex items-center gap-2">
-          <Users className="h-4 w-4 text-gray-400" />
-          <div className="text-sm">
-            {lead.assigned_agent_name || lead.agent_name ? (
-              <div>
-                <span className="font-medium text-gray-900">
-                  {lead.assigned_agent_name || lead.agent_name}
-                </span>
-                {lead.agent_role && (
-                  <span className="text-gray-500 ml-1 capitalize">
-                    ({lead.agent_role.replace('_', ' ')})
+      {!limitedAccess && (
+        <div className="mb-3">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-gray-400" />
+            <div className="text-sm">
+              {lead.assigned_agent_name || lead.agent_name ? (
+                <div>
+                  <span className="font-medium text-gray-900">
+                    {lead.assigned_agent_name || lead.agent_name}
                   </span>
-                )}
-              </div>
-            ) : (
-              <span className="text-gray-400">Unassigned</span>
-            )}
+                  {lead.agent_role && (
+                    <span className="text-gray-500 ml-1 capitalize">
+                      ({lead.agent_role.replace('_', ' ')})
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <span className="text-gray-400">Unassigned</span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Operations */}
-      {(lead.operations_id || lead.operations_name) && (
+      {!limitedAccess && (lead.operations_id || lead.operations_name) && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Operations</div>
           <div className="text-sm">
@@ -98,7 +103,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
       )}
 
       {/* Reference Source */}
-      {lead.reference_source_name && (
+      {!limitedAccess && lead.reference_source_name && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Reference Source</div>
           <div className="text-sm text-gray-700">{lead.reference_source_name}</div>
@@ -106,7 +111,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
       )}
 
       {/* Contact Source */}
-      {lead.contact_source && (
+      {!limitedAccess && lead.contact_source && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Contact Source</div>
           <div className="text-sm text-gray-700 capitalize">{lead.contact_source}</div>
@@ -124,9 +129,11 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
       )}
 
       {/* Created Date */}
-      <div className="text-xs text-gray-400 mb-4">
-        Created {formatDateForDisplay(lead.created_at)}
-      </div>
+      {!limitedAccess && (
+        <div className="text-xs text-gray-400 mb-4">
+          Created {formatDateForDisplay(lead.created_at)}
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">

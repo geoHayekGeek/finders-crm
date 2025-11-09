@@ -1,18 +1,21 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Edit, Trash2 } from 'lucide-react'
+import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Edit, Trash2, Eye } from 'lucide-react'
 import { MonthlyAgentReport, ReportFilters } from '@/types/reports'
 import { reportsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import ReportsFilters from './ReportsFilters'
 import CreateReportModal from './CreateReportModal'
 import EditReportModal from './EditReportModal'
+import AgentEarningsModal from './AgentEarningsModal'
 import { formatCurrency } from '@/utils/formatters'
 
 export default function MonthlyAgentStatsTab() {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const { role } = usePermissions()
   const { showSuccess, showError } = useToast()
 
   // State
@@ -25,6 +28,13 @@ export default function MonthlyAgentStatsTab() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingReport, setEditingReport] = useState<MonthlyAgentReport | null>(null)
+  const [showEarningsModal, setShowEarningsModal] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<MonthlyAgentReport | null>(null)
+
+  const canCreateReport =
+    role === 'admin' || role === 'operations manager' || role === 'operations'
+  const isLimitedView = role === 'agent' || role === 'team_leader'
+  const lockedAgentId = isLimitedView && user ? user.id : undefined
 
   // Load data
   useEffect(() => {
@@ -33,6 +43,30 @@ export default function MonthlyAgentStatsTab() {
       loadLeadSources()
     }
   }, [token, filters])
+
+  useEffect(() => {
+    if (lockedAgentId) {
+      setFilters(prev =>
+        prev.agent_id === lockedAgentId ? prev : { ...prev, agent_id: lockedAgentId }
+      )
+    } else {
+      setFilters(prev => {
+        if (prev.agent_id === undefined) {
+          return prev
+        }
+        const { agent_id, ...rest } = prev
+        return rest
+      })
+    }
+  }, [lockedAgentId])
+
+  const setFiltersSafe = (next: ReportFilters) => {
+    if (lockedAgentId) {
+      setFilters({ ...next, agent_id: lockedAgentId })
+    } else {
+      setFilters(next)
+    }
+  }
 
   const loadReports = async () => {
     try {
@@ -147,15 +181,21 @@ export default function MonthlyAgentStatsTab() {
   }
 
   // Get all unique lead sources from reports
+  const visibleReports = useMemo(() => {
+    if (lockedAgentId) {
+      return reports.filter(report => report.agent_id === lockedAgentId)
+    }
+    return reports
+  }, [reports, lockedAgentId])
+
   const allLeadSources = useMemo(() => {
     const sourcesSet = new Set<string>()
-    reports.forEach(report => {
+    visibleReports.forEach(report => {
       Object.keys(report.lead_sources || {}).forEach(source => sourcesSet.add(source))
     })
-    // Merge with available sources from settings
     leadSources.forEach(source => sourcesSet.add(source))
     return Array.from(sourcesSet).sort()
-  }, [reports, leadSources])
+  }, [visibleReports, leadSources])
 
   const rangeFormatter = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
@@ -212,7 +252,7 @@ export default function MonthlyAgentStatsTab() {
       'Ref Received'
     ]
 
-    const rows = reports.map(report => {
+    const rows = visibleReports.map(report => {
       const start = report.start_date
         ? report.start_date
         : new Date(report.year ?? new Date().getFullYear(), (report.month ?? 1) - 1, 1)
@@ -260,25 +300,144 @@ export default function MonthlyAgentStatsTab() {
     document.body.removeChild(link)
   }
 
+  if (isLimitedView) {
+    const handleViewEarnings = (report: MonthlyAgentReport) => {
+      setSelectedReport(report)
+      setShowEarningsModal(true)
+    }
+
+    return (
+      <div className="space-y-6">
+        <ReportsFilters
+          filters={filters}
+          setFilters={setFiltersSafe}
+          onClearFilters={() =>
+            lockedAgentId ? setFilters({ agent_id: lockedAgentId }) : setFilters({})
+          }
+          agentFilterDisabled
+          lockedAgentId={lockedAgentId}
+        />
+
+        <div className="flex items-center justify-end">
+          <button
+            onClick={loadReports}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            Loading your reports...
+          </div>
+        ) : visibleReports.length === 0 ? (
+          <div className="bg-white rounded-lg shadow p-12 text-center text-gray-500">
+            No reports found for the selected period.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {visibleReports.map(report => {
+              const toNumber = (value: unknown): number => {
+                const numeric = Number(value)
+                return Number.isFinite(numeric) ? numeric : 0
+              }
+
+              const closureCommission = toNumber(report.agent_commission)
+              const referralCommission = toNumber(
+                report.referral_received_commission ?? report.referral_commission
+              )
+              const totalCommission = closureCommission + referralCommission
+
+              return (
+                <div
+                  key={report.id}
+                  className="bg-white rounded-lg shadow border border-gray-200 p-6 flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Reporting Period</p>
+                      <p className="text-lg font-semibold text-gray-900">
+                        {formatRangeDisplay(report)}
+                      </p>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+                        <p className="text-sm text-blue-800 font-medium">
+                          Commission from Closures
+                        </p>
+                        <p className="text-2xl font-bold text-blue-900">
+                          {formatCurrency(closureCommission)}
+                        </p>
+                      </div>
+                      <div className="bg-purple-50 border border-purple-100 rounded-lg p-4">
+                        <p className="text-sm text-purple-800 font-medium">
+                          Commission from Referred Leads
+                        </p>
+                        <p className="text-2xl font-bold text-purple-900">
+                          {formatCurrency(referralCommission)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-500">
+                        Total Earnings
+                      </p>
+                      <p className="text-xl font-semibold text-gray-900">
+                        {formatCurrency(totalCommission)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleViewEarnings(report)}
+                      className="inline-flex items-center px-3 py-2 text-sm font-semibold text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {showEarningsModal && selectedReport && (
+          <AgentEarningsModal
+            report={selectedReport}
+            onClose={() => {
+              setShowEarningsModal(false)
+              setSelectedReport(null)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
-      {/* Filters */}
       <ReportsFilters
         filters={filters}
-        setFilters={setFilters}
+        setFilters={setFiltersSafe}
         onClearFilters={() => setFilters({})}
       />
 
-      {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Create Report
-          </button>
+          {canCreateReport && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Create Report
+            </button>
+          )}
           <button
             onClick={loadReports}
             disabled={loading}
@@ -298,7 +457,6 @@ export default function MonthlyAgentStatsTab() {
         </button>
       </div>
 
-      {/* Reports Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
@@ -364,14 +522,14 @@ export default function MonthlyAgentStatsTab() {
                     Loading reports...
                   </td>
                 </tr>
-              ) : reports.length === 0 ? (
+              ) : visibleReports.length === 0 ? (
                 <tr>
                   <td colSpan={15 + allLeadSources.length} className="px-6 py-12 text-center text-gray-500">
                     No reports found. Create your first report to get started.
                   </td>
                 </tr>
               ) : (
-                reports.map((report) => (
+                visibleReports.map((report) => (
                   <tr key={report.id} className="hover:bg-gray-50">
                     <td className="sticky left-0 z-10 bg-white px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {report.agent_name}
@@ -467,8 +625,7 @@ export default function MonthlyAgentStatsTab() {
         </div>
       </div>
 
-      {/* Modals */}
-      {showCreateModal && (
+      {showCreateModal && canCreateReport && (
         <CreateReportModal
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {

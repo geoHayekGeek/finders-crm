@@ -32,7 +32,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const canAccessHR = role === 'admin' || role === 'operations manager' || role === 'operations'
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
-  const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations'
+  const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
   const canManageViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'

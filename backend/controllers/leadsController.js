@@ -5,20 +5,25 @@ const Notification = require('../models/notificationModel');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/\s+/g, '_') : '';
+
 class LeadsController {
   // Get all leads (with role-based filtering applied by middleware)
   static async getAllLeads(req, res) {
     try {
       console.log('📋 Getting all leads for user:', req.user?.name, 'Role:', req.user?.role);
       
-      let leads = await Lead.getLeadsForAgent(req.user.id, req.user.role);
+      const normalizedRole = normalizeRole(req.user.role);
+
+      let leads = await Lead.getLeadsForAgent(req.user.id, normalizedRole);
       
       // Add agent-specific notes
       leads = await Lead.getLeadsWithNotes(leads, req.user.id, req.user.role);
       console.log('📝 Added notes to', leads.length, 'leads. First lead has', leads[0]?.agent_notes?.length || 0, 'notes');
       
       // Filter data for agents and team leaders
-      if (['agent', 'team_leader'].includes(req.user.role)) {
+      if (['agent', 'team_leader'].includes(normalizedRole)) {
         leads = leads.map(lead => ({
           id: lead.id,
           date: lead.date,
@@ -70,9 +75,10 @@ class LeadsController {
       
       let leads;
       const userRole = req.user.role;
+      const normalizedRole = normalizeRole(userRole);
       const userId = req.user.id;
       
-      if (userRole === 'agent') {
+      if (normalizedRole === 'agent') {
         console.log('🔍 Agent user - complex filtering logic');
         // Agents see leads assigned to them or that they referred, with filters
         leads = await Lead.getLeadsAssignedOrReferredByAgent(userId);
@@ -99,7 +105,7 @@ class LeadsController {
       leads = await Lead.getLeadsWithNotes(leads, req.user.id, req.user.role);
       
       // Filter data for agents and team leaders
-      if (['agent', 'team_leader'].includes(req.user.role)) {
+      if (['agent', 'team_leader'].includes(normalizedRole)) {
         leads = leads.map(lead => ({
           id: lead.id,
           date: lead.date,
@@ -152,13 +158,13 @@ class LeadsController {
 
       // Check if user has permission to view this lead
       const userRole = req.user.role;
+      const normalizedRole = normalizeRole(userRole);
       const userId = req.user.id;
       
-      // Admin, operations, operations manager, and agent manager have full access
-      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
-        // Full access - no restrictions
-        // Add all notes
-        const notes = await Lead.getLeadNotes(lead.id, userId, userRole);
+      // Admin, operations, operations manager, and agent manager have full access to lead data
+      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
+        // Full access to lead fields, but notes remain scoped per author
+      const notes = await Lead.getLeadNotes(lead.id, userId, userRole);
         console.log('📝 Admin getLeadById - fetched', notes?.length || 0, 'notes for lead', lead.id);
         console.log('📝 Full lead data for admin:', {
           id: lead.id,
@@ -168,19 +174,19 @@ class LeadsController {
           price: lead.price
         });
         lead.agent_notes = notes;
-      } else if (userRole === 'agent' && lead.agent_id !== userId) {
+      } else if (normalizedRole === 'agent' && lead.agent_id !== userId) {
         // Agents can only view leads they're assigned to
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to view this lead'
         });
-      } else if (userRole === 'team_leader' && lead.agent_id !== userId) {
+      } else if (normalizedRole === 'team_leader' && lead.agent_id !== userId) {
         // Team leaders can only view leads assigned to them
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to view this lead'
         });
-      } else if (['agent', 'team_leader'].includes(userRole)) {
+      } else if (['agent', 'team_leader'].includes(normalizedRole)) {
         // Add agent-specific notes and filter data
         const notes = await Lead.getLeadNotes(lead.id, userId, userRole);
         lead = {
@@ -338,12 +344,13 @@ class LeadsController {
 
       // Check permissions
       const userRole = req.user.role;
+      const normalizedRole = normalizeRole(userRole);
       const userId = req.user.id;
       
       // Admin, operations, operations manager, and agent manager have full access
-      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
+      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
         // Full access - no restrictions
-      } else if (userRole === 'agent' && existingLead.agent_id !== userId) {
+      } else if (normalizedRole === 'agent' && existingLead.agent_id !== userId) {
         // Agents can only update leads they're assigned to
         return res.status(403).json({
           success: false,
@@ -520,7 +527,8 @@ class LeadsController {
 
       // Check permissions - only admins, operations, operations managers, and agent managers can delete leads
       const userRole = req.user.role;
-      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
+      const normalizedRole = normalizeRole(userRole);
+      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete leads'
@@ -691,7 +699,7 @@ class LeadsController {
       }
 
       // Check permissions - agents and team leaders can only update notes for leads assigned to them
-      if (['agent', 'team_leader'].includes(userRole) && lead.agent_id !== userId) {
+      if (['agent', 'team_leader'].includes(normalizedRole) && lead.agent_id !== userId) {
         return res.status(403).json({
           success: false,
           message: 'You can only add notes to leads assigned to you'
@@ -859,7 +867,8 @@ class LeadsController {
 
       // Check permissions - only admins, operations, operations managers, and agent managers can manually add referrals
       const userRole = req.user.role;
-      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
+      const normalizedRole = normalizeRole(userRole);
+      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to add referrals'
@@ -929,7 +938,8 @@ class LeadsController {
 
       // Check permissions - only admins, operations, operations managers, and agent managers can delete referrals
       const userRole = req.user.role;
-      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(userRole)) {
+      const normalizedRole = normalizeRole(userRole);
+      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete referrals'

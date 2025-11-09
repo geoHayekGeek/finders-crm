@@ -10,6 +10,7 @@ interface ViewingsCardProps {
   onEdit: (viewing: Viewing) => void
   onDelete: (viewing: Viewing) => void
   canManageViewings: boolean
+  canDeleteViewings: boolean
 }
 
 export default function ViewingsCard({ 
@@ -17,7 +18,8 @@ export default function ViewingsCard({
   onView, 
   onEdit, 
   onDelete, 
-  canManageViewings 
+  canManageViewings,
+  canDeleteViewings
 }: ViewingsCardProps) {
   const statusInfo = VIEWING_STATUSES.find(s => s.value === viewing.status)
   
@@ -125,6 +127,10 @@ export default function ViewingsCard({
                 <Edit className="h-4 w-4 mr-1" />
                 Edit
               </button>
+            </>
+          )}
+          {(canManageViewings || canDeleteViewings) && (
+            <>
               <button
                 onClick={() => onDelete(viewing)}
                 className="px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"

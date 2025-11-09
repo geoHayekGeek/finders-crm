@@ -31,6 +31,7 @@ export interface Viewing {
   lead_phone?: string
   agent_name?: string
   agent_role?: string
+  agent_team_leader_id?: number
   
   // Updates array
   updates?: ViewingUpdate[]

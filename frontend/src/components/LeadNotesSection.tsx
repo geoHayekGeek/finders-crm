@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronDown, ChevronUp, User, Calendar, Edit2, Save, X } from 'lucide-react'
 import { LeadNote } from '@/types/leads'
+import { normalizeRole } from '@/utils/roleUtils'
 
 // Simple date formatting utility
 function formatTimeAgo(date: string): string {
@@ -26,12 +27,11 @@ function formatTimeAgo(date: string): string {
 interface LeadNotesSectionProps {
   notes: LeadNote[]
   canEdit: boolean
-  userRole: string
   currentUserId: number
   onSaveNote: (noteText: string) => Promise<void>
 }
 
-export function LeadNotesSection({ notes, canEdit, userRole, currentUserId, onSaveNote }: LeadNotesSectionProps) {
+export function LeadNotesSection({ notes, canEdit, currentUserId, onSaveNote }: LeadNotesSectionProps) {
   // Auto-expand if user can edit and doesn't have a note yet (encourage adding notes)
   const myNote = notes.find(note => note.agent_id === currentUserId)
   const [isExpanded, setIsExpanded] = useState(canEdit && !myNote)
@@ -60,10 +60,7 @@ export function LeadNotesSection({ notes, canEdit, userRole, currentUserId, onSa
     }
   }, [notes, currentUserId, pendingNoteText, saving])
   
-  // Admin/operations can see all notes, agents see only their own
-  const visibleNotes = ['admin', 'operations', 'operations_manager'].includes(userRole)
-    ? notes
-    : notes.filter(note => note.agent_id === currentUserId)
+  const visibleNotes = notes
 
   const handleStartEdit = () => {
     setNoteText(myNote?.note_text || '')
@@ -102,16 +99,19 @@ export function LeadNotesSection({ notes, canEdit, userRole, currentUserId, onSa
   }
 
   const getRoleColor = (role?: string) => {
-    switch (role) {
+    const normalized = normalizeRole(role)
+    switch (normalized) {
       case 'admin':
         return 'bg-red-100 text-red-700'
       case 'operations':
         return 'bg-blue-100 text-blue-700'
-      case 'operations_manager':
+      case 'operations manager':
         return 'bg-purple-100 text-purple-700'
+      case 'agent manager':
+        return 'bg-amber-100 text-amber-700'
       case 'agent':
         return 'bg-green-100 text-green-700'
-      case 'team_leader':
+      case 'team leader':
         return 'bg-orange-100 text-orange-700'
       default:
         return 'bg-gray-100 text-gray-700'

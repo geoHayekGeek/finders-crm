@@ -5,7 +5,7 @@ import SettingsPageContent from './SettingsPageContent'
 
 export default function SettingsPage() {
   return (
-    <ProtectedRoute requiredPermissions={{ canManageUsers: true }}>
+    <ProtectedRoute allowedRoles={['admin']}>
       <SettingsPageContent />
     </ProtectedRoute>
   )

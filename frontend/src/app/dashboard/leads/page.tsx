@@ -21,16 +21,18 @@ import { LeadsCard } from '@/components/LeadsCard'
 import { LeadsFilters } from '@/components/LeadsFilters'
 import { LeadsModals } from '@/components/LeadsModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
-import { getLeadsColumns, getLeadsDetailedColumns } from '@/components/LeadsTableColumns'
+import { getLeadsColumns } from '@/components/LeadsTableColumns'
 import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData, LeadStatsData } from '@/types/leads'
 import { leadsApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { formatDateForInput } from '@/utils/dateUtils'
+import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
 
 export default function LeadsPage() {
   const { user, token, isAuthenticated } = useAuth()
   const { canManageLeads, canViewLeads } = usePermissions()
+  const limitedLeadAccess = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
   
   // State management
   const [leads, setLeads] = useState<Lead[]>([])
@@ -42,6 +44,12 @@ export default function LeadsPage() {
   // View and display state
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
+
+useEffect(() => {
+  if (limitedLeadAccess && showAdvancedFilters) {
+    setShowAdvancedFilters(false)
+  }
+}, [limitedLeadAccess, showAdvancedFilters])
   
   // Filters state
   const [filters, setFilters] = useState<LeadFiltersType>({})
@@ -947,6 +955,7 @@ export default function LeadsPage() {
         showAdvancedFilters={showAdvancedFilters}
         setShowAdvancedFilters={setShowAdvancedFilters}
         onClearFilters={handleClearFilters}
+        limitedAccess={limitedLeadAccess}
       />
 
       {/* View Toggle and Actions */}
@@ -1046,13 +1055,14 @@ export default function LeadsPage() {
               onEdit={handleEditLead}
               onDelete={handleDeleteLead}
               canManageLeads={canManageLeads}
+              limitedAccess={limitedLeadAccess}
             />
           ))}
         </div>
       ) : (
         // Table View
         <DataTable
-          columns={getLeadsColumns(canManageLeads)}
+          columns={getLeadsColumns(canManageLeads, { limitedAccess: limitedLeadAccess })}
           data={paginatedLeads}
         />
       )}

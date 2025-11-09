@@ -124,6 +124,85 @@ class EmailService {
     }
   }
 
+  async sendViewingUpdateReminderEmail(userEmail, userName, viewingData) {
+    try {
+      const settings = await this.getEmailSettings();
+      const transporter = await this.getTransporter();
+
+      const {
+        propertyReference,
+        propertyLocation,
+        leadName,
+        viewingDate,
+        viewingTime,
+        lastActivityDate,
+        reminderCount = 0
+      } = viewingData;
+
+      const formattedViewingDate = viewingDate
+        ? new Date(viewingDate).toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        : null;
+
+      const viewingTimeString = viewingTime
+        ? (() => {
+            const [hours, minutes] = viewingTime.toString().split(':');
+            const date = new Date();
+            date.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+            return date.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true
+            });
+          })()
+        : null;
+
+      const lastActivityDateString = lastActivityDate
+        ? new Date(lastActivityDate).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        : null;
+
+      const subjectProperty =
+        propertyReference || propertyLocation || leadName || 'assigned viewing';
+
+      const subject = `Reminder: Add update for ${subjectProperty}`;
+
+      const message = this.getViewingUpdateReminderTemplate(userName, {
+        propertyReference,
+        propertyLocation,
+        leadName,
+        formattedViewingDate,
+        viewingTimeString,
+        lastActivityDateString,
+        reminderCount: reminderCount + 1
+      });
+
+      const fromEmail = settings.email_from_address || 'noreply@finderscrm.com';
+      const fromName = settings.email_from_name || 'Finders CRM';
+
+      const mailOptions = {
+        from: `${fromName} <${fromEmail}>`,
+        to: userEmail,
+        subject,
+        html: message
+      };
+
+      const result = await transporter.sendMail(mailOptions);
+      console.log(`✅ Viewing update reminder email sent to ${userEmail}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ Error sending viewing update reminder email to ${userEmail}:`, error);
+      throw error;
+    }
+  }
+
   getOneDayReminderTemplate(userName, title, eventDate, eventTime, location, description) {
     return `
       <!DOCTYPE html>
@@ -276,6 +355,94 @@ class EmailService {
           </div>
           <div class="footer">
             <p>This is an automated reminder from Finders CRM</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  getViewingUpdateReminderTemplate(userName, data) {
+    const {
+      propertyReference,
+      propertyLocation,
+      leadName,
+      formattedViewingDate,
+      viewingTimeString,
+      lastActivityDateString,
+      reminderCount
+    } = data;
+
+    const propertyDetails = propertyReference
+      ? `<p><strong>📄 Reference:</strong> ${propertyReference}</p>`
+      : '';
+
+    const locationDetails = propertyLocation
+      ? `<p><strong>📍 Location:</strong> ${propertyLocation}</p>`
+      : '';
+
+    const leadDetails = leadName
+      ? `<p><strong>🧑 Client:</strong> ${leadName}</p>`
+      : '';
+
+    const viewingDateDetails = formattedViewingDate
+      ? `<p><strong>📅 Viewing Date:</strong> ${formattedViewingDate}${viewingTimeString ? ` at <span class="time-badge">${viewingTimeString}</span>` : ''}</p>`
+      : '';
+
+    const lastActivityDetails = lastActivityDateString
+      ? `<p><strong>⏱ Last Update:</strong> ${lastActivityDateString}</p>`
+      : '<p><strong>⏱ Last Update:</strong> Not recorded</p>';
+
+    const reminderCountText =
+      reminderCount > 1
+        ? `<p class="reminder-count">This is reminder #${reminderCount}. Please submit an update to reset reminders.</p>`
+        : `<p>Please add your first update so we can keep this viewing on track.</p>`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #1f2937; background: #f3f4f6; }
+          .container { max-width: 620px; margin: 0 auto; padding: 24px; }
+          .card { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08); }
+          .header { background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; padding: 28px 32px; }
+          .header h2 { margin: 0 0 8px 0; font-size: 24px; }
+          .header p { margin: 0; font-size: 16px; opacity: 0.9; }
+          .content { padding: 24px 32px; }
+          .viewing-details { border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; margin-bottom: 20px; background: #f9fafb; }
+          .viewing-details h3 { margin-top: 0; color: #111827; }
+          .time-badge { display: inline-block; background: #2563eb; color: white; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-left: 6px; }
+          .cta { display: block; text-align: center; background: #2563eb; color: white; padding: 14px 24px; border-radius: 999px; text-decoration: none; font-weight: 600; margin: 20px 0; }
+          .cta:hover { background: #1d4ed8; }
+          .reminder-count { background: #fef3c7; padding: 12px 16px; border-radius: 8px; border: 1px solid #f59e0b33; color: #b45309; font-size: 14px; }
+          .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="card">
+            <div class="header">
+              <h2>Viewing Update Needed</h2>
+              <p>Hi ${userName}, please add a progress update for this viewing.</p>
+            </div>
+            <div class="content">
+              <div class="viewing-details">
+                <h3>Viewing Details</h3>
+                ${propertyDetails}
+                ${locationDetails}
+                ${leadDetails}
+                ${viewingDateDetails}
+                ${lastActivityDetails}
+              </div>
+              <p>Keeping your viewings up to date helps the operations team track progress and provide timely support. Please add a note summarizing the latest activity or outcome.</p>
+              ${reminderCountText}
+              <p>If this viewing has been completed or cancelled, update the status so we can stop sending reminders.</p>
+              <p>Thank you!</p>
+            </div>
+            <div class="footer">
+              <p>This is an automated reminder from Finders CRM.</p>
+            </div>
           </div>
         </div>
       </body>

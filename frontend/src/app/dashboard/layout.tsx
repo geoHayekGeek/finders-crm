@@ -152,8 +152,8 @@ export default function DashboardLayout({
       baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
     }
 
-    // Settings - only visible to admin and operations manager
-    if (role === 'admin' || role === 'operations manager') {
+    // Settings - only visible to admin
+    if (role === 'admin') {
       baseNavigation.push({ name: 'Settings', href: '/dashboard/settings', icon: Settings, alwaysVisible: false })
     }
 

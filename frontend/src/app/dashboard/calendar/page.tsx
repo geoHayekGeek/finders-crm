@@ -38,6 +38,7 @@ export interface CalendarEvent {
   leadId?: number | null
   leadName?: string
   leadPhone?: string
+  createdById?: string
   createdByName?: string
 }
 
@@ -143,6 +144,12 @@ export default function CalendarPage() {
         })
       }
 
+      if (user?.role !== 'admin' && user?.id) {
+        if (!queryParams.has('attendee')) {
+          queryParams.append('attendee', String(user.id))
+        }
+      }
+
       const url = queryParams.toString() 
         ? `http://localhost:10000/api/calendar?${queryParams.toString()}`
         : 'http://localhost:10000/api/calendar'
@@ -168,7 +175,9 @@ export default function CalendarPage() {
             color: event.color || 'blue',
             type: event.type || 'other',
             location: event.location,
-            attendees: event.attendees || [],
+            attendees: Array.isArray(event.attendees)
+              ? event.attendees.map((att: any) => String(att))
+              : [],
             notes: event.notes,
             propertyId: event.propertyId,
             propertyReference: event.propertyReference,
@@ -176,10 +185,23 @@ export default function CalendarPage() {
             leadId: event.leadId,
             leadName: event.leadName,
             leadPhone: event.leadPhone,
+            createdById: event.createdById ? String(event.createdById) : undefined,
             createdByName: event.createdByName
           }))
-          
-          setEvents(formattedEvents)
+
+          if (user?.role === 'admin') {
+            setEvents(formattedEvents)
+          } else if (user?.id) {
+            const currentUserId = String(user.id)
+            const scopedEvents = formattedEvents.filter(evt => {
+              const attendeeMatch = evt.attendees?.some(att => att === currentUserId)
+              const creatorMatch = evt.createdById === currentUserId
+              return attendeeMatch || creatorMatch
+            })
+            setEvents(scopedEvents)
+          } else {
+            setEvents(formattedEvents)
+          }
         } else {
           setError('Failed to load events')
         }
@@ -199,10 +221,11 @@ export default function CalendarPage() {
     }
   }
 
-  // Load events from API on component mount
+  // Load events when user context is available
   useEffect(() => {
+    if (!user) return
     loadEvents()
-  }, [])
+  }, [user?.id, user?.role])
 
   // Load users for admin filters
   useEffect(() => {

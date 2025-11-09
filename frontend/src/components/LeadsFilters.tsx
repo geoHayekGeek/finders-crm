@@ -21,6 +21,7 @@ interface LeadsFiltersProps {
   showAdvancedFilters: boolean
   setShowAdvancedFilters: (show: boolean) => void
   onClearFilters: () => void
+  limitedAccess?: boolean
 }
 
 export function LeadsFilters({
@@ -28,7 +29,8 @@ export function LeadsFilters({
   setFilters,
   showAdvancedFilters,
   setShowAdvancedFilters,
-  onClearFilters
+  onClearFilters,
+  limitedAccess = false
 }: LeadsFiltersProps) {
   const [users, setUsers] = useState<User[]>([])
   const [referenceSources, setReferenceSources] = useState<ReferenceSource[]>([])
@@ -38,6 +40,8 @@ export function LeadsFilters({
 
   // Load agents for agent filter
   useEffect(() => {
+    if (limitedAccess) return
+
     const fetchAgents = async () => {
       setLoading(true)
       try {
@@ -53,10 +57,12 @@ export function LeadsFilters({
     }
 
     fetchAgents()
-  }, [])
+  }, [limitedAccess])
 
   // Load reference sources for reference source filter
   useEffect(() => {
+    if (limitedAccess) return
+
     const fetchReferenceSources = async () => {
       setLoadingRefSources(true)
       try {
@@ -81,7 +87,7 @@ export function LeadsFilters({
     }
 
     fetchReferenceSources()
-  }, [])
+  }, [limitedAccess])
 
   const handleFilterChange = (key: keyof LeadFilters, value: string | number | undefined) => {
     // For date inputs, ensure we handle empty strings properly
@@ -158,18 +164,20 @@ export function LeadsFilters({
 
           {/* Advanced Filters Toggle */}
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-              className={`px-4 py-2 rounded-lg border transition-colors flex items-center space-x-2 ${
-                showAdvancedFilters
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <Filter className="h-4 w-4" />
-              <span>Filters</span>
-              <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
-            </button>
+            {!limitedAccess && (
+              <button
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className={`px-4 py-2 rounded-lg border transition-colors flex items-center space-x-2 ${
+                  showAdvancedFilters
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <Filter className="h-4 w-4" />
+                <span>Filters</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+              </button>
+            )}
 
             {hasActiveFilters && (
               <button
@@ -186,7 +194,7 @@ export function LeadsFilters({
       </div>
 
       {/* Advanced Filters */}
-      {showAdvancedFilters && (
+      {showAdvancedFilters && !limitedAccess && (
         <div ref={filtersRef} className="mt-6 pt-6 border-t border-gray-200">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Date From */}

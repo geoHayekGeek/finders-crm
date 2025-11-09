@@ -4,6 +4,7 @@ const CalendarEvent = require('../models/calendarEventModel');
 const Notification = require('../models/notificationModel');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
+const ReminderService = require('../services/reminderService');
 
 class ViewingsController {
   // Helper function to find calendar event by viewing ID
@@ -425,6 +426,21 @@ class ViewingsController {
 
       const viewing = await Viewing.updateViewing(id, updatesToApply);
       console.log('✅ Viewing updated successfully');
+
+      // Handle reminder tracking when status changes or agents are reassigned
+      try {
+        if (['Completed', 'Cancelled'].includes(viewing.status)) {
+          await ReminderService.clearViewingReminder(id);
+        } else if (
+          Object.prototype.hasOwnProperty.call(updatesToApply, 'agent_id') &&
+          updatesToApply.agent_id &&
+          updatesToApply.agent_id !== existingViewing.agent_id
+        ) {
+          await ReminderService.clearViewingReminder(id, existingViewing.agent_id);
+        }
+      } catch (reminderError) {
+        console.error('⚠️ Failed to update viewing reminder tracking:', reminderError);
+      }
       
       // Update the corresponding calendar event if date/time changed
       try {
@@ -542,11 +558,11 @@ class ViewingsController {
       const { id } = req.params;
       console.log('🗑️ Deleting viewing:', id);
       
-      // Only admins and operations managers can delete viewings
-      if (!['admin', 'operations manager'].includes(req.user.role)) {
+      // Only admins, operations managers, and operations can delete viewings
+      if (!['admin', 'operations manager', 'operations'].includes(req.user.role)) {
         return res.status(403).json({
           success: false,
-          message: 'Only admins and operations managers can delete viewings'
+          message: 'Only admins, operations managers, and operations can delete viewings'
         });
       }
       
@@ -690,6 +706,12 @@ class ViewingsController {
       const update = await Viewing.addViewingUpdate(id, updateData);
       
       console.log('✅ Viewing update added successfully');
+
+      try {
+        await ReminderService.clearViewingReminder(id);
+      } catch (reminderError) {
+        console.error('⚠️ Failed to reset viewing reminder tracking after update:', reminderError);
+      }
       
       res.status(201).json({
         success: true,

@@ -14,6 +14,7 @@ import { formatDateForDisplay } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
 import { leadStatusesApi, leadsApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
 
 interface User {
   id: number
@@ -82,6 +83,7 @@ export function LeadsModals({
 }: LeadsModalsProps) {
   const { showSuccess, showError } = useToast()
   const { token, user } = useAuth()
+  const limitedAccess = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
   
   // Lead statuses state
   const [leadStatuses, setLeadStatuses] = useState<Array<{ value: string; label: string; color: string }>>([])
@@ -817,7 +819,7 @@ export function LeadsModals({
 
               <form onSubmit={handleEditSubmit} className="space-y-6">
                 {/* For agents/team leaders: Show read-only view */}
-                {['agent', 'team_leader'].includes(user?.role || '') ? (
+                {limitedAccess ? (
                   <>
                     {/* Read-only Information for Agents/Team Leaders */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -826,10 +828,6 @@ export function LeadsModals({
                       </p>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-                          <p className="text-sm text-gray-900">{formatDateForDisplay(editFormData.date)}</p>
-                        </div>
                         <div>
                           <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
                           <span 
@@ -1090,7 +1088,7 @@ export function LeadsModals({
                 )}
 
                 {/* Legacy Notes - Only for admin/operations */}
-                {!['agent', 'team_leader'].includes(user?.role || '') && (
+                {!limitedAccess && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       <MessageSquare className="inline h-4 w-4 mr-1" />
@@ -1113,7 +1111,6 @@ export function LeadsModals({
                       key={`edit-notes-${editingLead.id}`}
                       notes={editingLead.agent_notes || []}
                       canEdit={true}
-                      userRole={user?.role || ''}
                       currentUserId={user?.id || 0}
                       onSaveNote={async (noteText) => {
                         await handleSaveNote(editingLead.id, noteText)
@@ -1124,7 +1121,7 @@ export function LeadsModals({
 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
-                  {['agent', 'team_leader'].includes(user?.role || '') ? (
+                  {limitedAccess ? (
                     // Agents/Team Leaders only get a Close button (they edit notes inline)
                     <button
                       type="button"
@@ -1177,10 +1174,12 @@ export function LeadsModals({
               <div className="space-y-6">
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                    <p className="text-gray-900">{formatDateForDisplay(viewingLead.date)}</p>
-                  </div>
+                  {!limitedAccess && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                      <p className="text-gray-900">{formatDateForDisplay(viewingLead.date)}</p>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     <span 
@@ -1211,39 +1210,43 @@ export function LeadsModals({
                   </p>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Agent</label>
-                  <p className="text-gray-900">
-                    {viewingLead.assigned_agent_name || viewingLead.agent_name || 'Not assigned'}
-                    {viewingLead.agent_role && (
-                      <span className="text-gray-500 ml-1 capitalize">
-                        ({viewingLead.agent_role.replace('_', ' ')})
-                      </span>
-                    )}
-                  </p>
-                </div>
+                {!limitedAccess && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Agent</label>
+                      <p className="text-gray-900">
+                        {viewingLead.assigned_agent_name || viewingLead.agent_name || 'Not assigned'}
+                        {viewingLead.agent_role && (
+                          <span className="text-gray-500 ml-1 capitalize">
+                            ({viewingLead.agent_role.replace('_', ' ')})
+                          </span>
+                        )}
+                      </p>
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>
-                  <p className="text-gray-900">{viewingLead.reference_source_name || 'Not assigned'}</p>
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>
+                      <p className="text-gray-900">{viewingLead.reference_source_name || 'Not assigned'}</p>
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Contact Source</label>
-                  <p className="text-gray-900 capitalize">{viewingLead.contact_source || 'Unknown'}</p>
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Source</label>
+                      <p className="text-gray-900 capitalize">{viewingLead.contact_source || 'Unknown'}</p>
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Operations</label>
-                  <p className="text-gray-900">
-                    {viewingLead.operations_name || 'Not assigned'}
-                    {viewingLead.operations_role && (
-                      <span className="text-gray-500 ml-1 capitalize">
-                        ({viewingLead.operations_role.replace('_', ' ')})
-                      </span>
-                    )}
-                  </p>
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Operations</label>
+                      <p className="text-gray-900">
+                        {viewingLead.operations_name || 'Not assigned'}
+                        {viewingLead.operations_role && (
+                          <span className="text-gray-500 ml-1 capitalize">
+                            ({viewingLead.operations_role.replace('_', ' ')})
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </>
+                )}
 
 
 
@@ -1260,7 +1263,6 @@ export function LeadsModals({
                     key={`view-notes-${viewingLead.id}`}
                     notes={viewingLead.agent_notes || []}
                     canEdit={true}
-                    userRole={user?.role || ''}
                     currentUserId={user?.id || 0}
                     onSaveNote={async (noteText) => {
                       await handleSaveNote(viewingLead.id, noteText)
@@ -1269,33 +1271,37 @@ export function LeadsModals({
                 </div>
 
                 {/* Lead Referrals Section - Read Only in View Mode */}
-                <div className="pt-4 border-t border-gray-200">
-                  <LeadReferralsSection
-                    leadId={viewingLead.id}
-                    referrals={viewingLead.referrals || []}
-                    isLoading={loadingAgents}
-                    canEdit={false}
-                    agents={agents}
-                    onAddReferral={async (agentId, referralDate) => {
-                      // No-op: View mode is read-only
-                    }}
-                    onDeleteReferral={async (referralId) => {
-                      // No-op: View mode is read-only
-                    }}
-                  />
-                </div>
+                {!limitedAccess && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <LeadReferralsSection
+                      leadId={viewingLead.id}
+                      referrals={viewingLead.referrals || []}
+                      isLoading={loadingAgents}
+                      canEdit={false}
+                      agents={agents}
+                      onAddReferral={async (_agentId, _referralDate) => {
+                        // read-only
+                      }}
+                      onDeleteReferral={async (_referralId) => {
+                        // read-only
+                      }}
+                    />
+                  </div>
+                )}
 
                 {/* Timestamps */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
-                    <p className="text-gray-600">{new Date(viewingLead.created_at).toLocaleString()}</p>
+                {!limitedAccess && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-gray-200">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
+                      <p className="text-gray-600">{new Date(viewingLead.created_at).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Last Updated</label>
+                      <p className="text-gray-600">{new Date(viewingLead.updated_at).toLocaleString()}</p>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Updated</label>
-                    <p className="text-gray-600">{new Date(viewingLead.updated_at).toLocaleString()}</p>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* Close Button */}

@@ -507,14 +507,13 @@ class Lead {
   }
 
   // Get agent-specific notes for a lead
-  // Admin, operations, operations_manager can see all notes
-  // Agents and team leaders can only see their own notes
+  // Admin can see all notes; operations managers and agent managers see all except admin notes; others see only their own
   static async getLeadNotes(leadId, userId, userRole) {
+    const normalizedRole = (userRole || '').toLowerCase().replace(/\s+/g, '_');
     let query;
     let params;
 
-    if (['admin', 'operations', 'operations_manager'].includes(userRole)) {
-      // Admin and operations can see ALL notes
+    if (normalizedRole === 'admin') {
       query = `
         SELECT 
           ln.id,
@@ -531,8 +530,25 @@ class Lead {
         ORDER BY ln.updated_at DESC
       `;
       params = [leadId];
+    } else if (['operations_manager', 'agent_manager'].includes(normalizedRole)) {
+      query = `
+        SELECT 
+          ln.id,
+          ln.lead_id,
+          ln.agent_id,
+          ln.note_text,
+          ln.created_at,
+          ln.updated_at,
+          u.name as agent_name,
+          u.role as agent_role
+        FROM lead_notes ln
+        LEFT JOIN users u ON ln.agent_id = u.id
+        WHERE ln.lead_id = $1
+          AND COALESCE(LOWER(REPLACE(u.role, ' ', '_')), '') <> 'admin'
+        ORDER BY ln.updated_at DESC
+      `;
+      params = [leadId];
     } else {
-      // Agents and team leaders only see their own notes
       query = `
         SELECT 
           ln.id,
