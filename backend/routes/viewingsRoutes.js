@@ -29,6 +29,9 @@ router.get('/:id/updates', ViewingsController.getViewingUpdates);
 // POST /api/viewings/:id/updates - Add update to a viewing
 router.post('/:id/updates', ViewingsController.addViewingUpdate);
 
+// PUT /api/viewings/:id/updates/:updateId - Update a viewing update
+router.put('/:id/updates/:updateId', ViewingsController.updateViewingUpdate);
+
 // DELETE /api/viewings/:id/updates/:updateId - Delete a viewing update
 router.delete('/:id/updates/:updateId', ViewingsController.deleteViewingUpdate);
 

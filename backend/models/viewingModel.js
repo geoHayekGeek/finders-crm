@@ -416,6 +416,57 @@ class Viewing {
     return result.rows[0];
   }
 
+  // Get single viewing update by ID
+  static async getViewingUpdateById(updateId) {
+    const result = await pool.query(
+      `SELECT 
+        vu.id,
+        vu.viewing_id,
+        vu.update_text,
+        vu.update_date,
+        vu.created_by,
+        vu.created_at,
+        u.name as created_by_name,
+        u.role as created_by_role
+      FROM viewing_updates vu
+      LEFT JOIN users u ON vu.created_by = u.id
+      WHERE vu.id = $1`,
+      [updateId]
+    );
+    return result.rows[0];
+  }
+
+  // Update an existing viewing update
+  static async updateViewingUpdate(updateId, updateData) {
+    const fields = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'update_text')) {
+      fields.push(`update_text = $${paramIndex++}`);
+      values.push(updateData.update_text);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updateData, 'update_date')) {
+      fields.push(`update_date = $${paramIndex++}`);
+      values.push(updateData.update_date);
+    }
+
+    if (fields.length === 0) {
+      return await Viewing.getViewingUpdateById(updateId);
+    }
+
+    const query = `
+      UPDATE viewing_updates
+      SET ${fields.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, [...values, updateId]);
+    return result.rows[0];
+  }
+
   // Get updates for a viewing
   static async getViewingUpdates(viewingId) {
     const result = await pool.query(

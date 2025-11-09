@@ -1,8 +1,43 @@
 // controllers/viewingsController.js
 const Viewing = require('../models/viewingModel');
+const CalendarEvent = require('../models/calendarEventModel');
 const { validationResult } = require('express-validator');
+const pool = require('../config/db');
 
 class ViewingsController {
+  // Helper function to find calendar event by viewing ID
+  static async findCalendarEventByViewingId(viewingId) {
+    try {
+      // First try to find by the exact pattern in notes
+      const result = await pool.query(
+        `SELECT * FROM calendar_events 
+         WHERE type = 'showing' 
+         AND notes LIKE $1
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        [`%Viewing ID: ${viewingId}%`]
+      );
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error finding calendar event by viewing ID:', error);
+      return null;
+    }
+  }
+  
+  // Helper function to store calendar event ID with viewing
+  static async linkCalendarEventToViewing(viewingId, calendarEventId) {
+    try {
+      // Store the calendar event ID in the viewing notes for future reference
+      await pool.query(
+        `UPDATE viewings 
+         SET notes = CONCAT(COALESCE(notes, ''), ' | Calendar Event ID: ', $1)
+         WHERE id = $2`,
+        [calendarEventId, viewingId]
+      );
+    } catch (error) {
+      console.error('Error linking calendar event to viewing:', error);
+    }
+  }
   // Get all viewings (with role-based filtering)
   static async getAllViewings(req, res) {
     try {
@@ -175,13 +210,58 @@ class ViewingsController {
         });
       }
       
+      // Create the viewing
       const viewing = await Viewing.createViewing(req.body);
-      
       console.log('✅ Viewing created successfully:', viewing.id);
+      
+      // Get the full viewing details with property and lead information
+      const fullViewing = await Viewing.getViewingById(viewing.id);
+      
+      // Create a calendar event for this viewing
+      try {
+        console.log('📅 Creating calendar event for viewing...');
+        
+        // Combine date and time to create start_time
+        const viewingDate = new Date(req.body.viewing_date);
+        const [hours, minutes] = req.body.viewing_time.split(':');
+        viewingDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        // Set end_time to 1 hour after start_time (default viewing duration)
+        const endTime = new Date(viewingDate);
+        endTime.setHours(endTime.getHours() + 1);
+        
+        // Create calendar event data
+        const calendarEventData = {
+          title: `Property Viewing - ${fullViewing.property_reference || 'N/A'}`,
+          description: `Viewing with ${fullViewing.lead_name || 'N/A'} for property at ${fullViewing.property_location || 'N/A'}`,
+          start_time: viewingDate,
+          end_time: endTime,
+          all_day: false,
+          color: 'blue',
+          type: 'showing',
+          location: fullViewing.property_location || '',
+          attendees: fullViewing.lead_name ? [fullViewing.lead_name] : [],
+          notes: req.body.notes || `Viewing ID: ${viewing.id}`,
+          created_by: userId,
+          assigned_to: req.body.agent_id || userId,
+          property_id: req.body.property_id,
+          lead_id: req.body.lead_id
+        };
+        
+        const calendarEvent = await CalendarEvent.createEvent(calendarEventData);
+        console.log('✅ Calendar event created successfully:', calendarEvent.id);
+        
+        // Link the calendar event ID to the viewing for future reference
+        await ViewingsController.linkCalendarEventToViewing(viewing.id, calendarEvent.id);
+      } catch (calendarError) {
+        // Log the error but don't fail the viewing creation
+        console.error('⚠️ Failed to create calendar event, but viewing was created:', calendarError);
+        console.error('Calendar error details:', calendarError.message);
+      }
       
       res.status(201).json({
         success: true,
-        data: viewing,
+        data: fullViewing,
         message: 'Viewing created successfully'
       });
     } catch (error) {
@@ -250,9 +330,131 @@ class ViewingsController {
         });
       }
       
-      const viewing = await Viewing.updateViewing(id, req.body);
-      
+      // Normalize update payload to avoid accidental data resets
+      const updatesToApply = { ...req.body };
+
+      if (updatesToApply.viewing_date) {
+        try {
+          // Ensure date stays in YYYY-MM-DD format
+          const parsedDate = new Date(updatesToApply.viewing_date);
+          if (!isNaN(parsedDate.getTime())) {
+            updatesToApply.viewing_date = parsedDate.toISOString().split('T')[0];
+          } else {
+            console.warn('⚠️ Invalid viewing_date format provided, keeping original value');
+            delete updatesToApply.viewing_date;
+          }
+        } catch (dateError) {
+          console.warn('⚠️ Error normalizing viewing_date, keeping original value:', dateError);
+          delete updatesToApply.viewing_date;
+        }
+      } else if (updatesToApply.viewing_date === '' || updatesToApply.viewing_date === null) {
+        // Prevent empty strings/null from clearing the date
+        delete updatesToApply.viewing_date;
+      }
+
+      if (updatesToApply.viewing_time) {
+        updatesToApply.viewing_time = updatesToApply.viewing_time.toString().slice(0, 5);
+      } else if (updatesToApply.viewing_time === '' || updatesToApply.viewing_time === null) {
+        delete updatesToApply.viewing_time;
+      }
+
+      const viewing = await Viewing.updateViewing(id, updatesToApply);
       console.log('✅ Viewing updated successfully');
+      
+      // Update the corresponding calendar event if date/time changed
+      try {
+        const calendarEvent = await ViewingsController.findCalendarEventByViewingId(id);
+        
+        if (calendarEvent) {
+          console.log('📅 Updating calendar event for viewing...');
+          
+          // Get updated viewing details
+          const updatedViewing = await Viewing.getViewingById(id);
+          
+          // Prepare calendar event updates
+          const calendarUpdates = {};
+          
+          // Update date/time if changed
+          if (updatesToApply.viewing_date || updatesToApply.viewing_time) {
+            // Get the base date - use the updated viewing's date if not provided in request
+            let dateStr = updatesToApply.viewing_date || updatedViewing.viewing_date;
+            
+            // Parse date properly - if it's already a Date object, format it
+            if (dateStr instanceof Date) {
+              dateStr = dateStr.toISOString().split('T')[0];
+            } else if (typeof dateStr === 'string' && dateStr.includes('T')) {
+              // If it's an ISO string, extract just the date part
+              dateStr = dateStr.split('T')[0];
+            }
+            
+            // Get the time - use the updated viewing's time if not provided in request  
+            let timeStr = updatesToApply.viewing_time || updatedViewing.viewing_time;
+            
+            // Handle time format (could be HH:MM:SS or HH:MM)
+            if (timeStr && timeStr.length > 5) {
+              timeStr = timeStr.substring(0, 5); // Extract HH:MM part only
+            }
+            
+            // Create a new date with the specified date and time
+            const [hours, minutes] = timeStr.split(':');
+            const viewingDate = new Date(`${dateStr}T00:00:00`);
+            viewingDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            
+            const endTime = new Date(viewingDate);
+            endTime.setHours(endTime.getHours() + 1);
+            
+            calendarUpdates.start_time = viewingDate;
+            calendarUpdates.end_time = endTime;
+            
+            console.log(`📅 Date/Time update: Date=${dateStr}, Time=${timeStr}, Result=${viewingDate.toISOString()}`);
+          }
+          
+          // Update title if property changed
+          if (updatesToApply.property_id) {
+            calendarUpdates.title = `Property Viewing - ${updatedViewing.property_reference || 'N/A'}`;
+            calendarUpdates.description = `Viewing with ${updatedViewing.lead_name || 'N/A'} for property at ${updatedViewing.property_location || 'N/A'}`;
+            calendarUpdates.location = updatedViewing.property_location || '';
+            calendarUpdates.property_id = updatesToApply.property_id;
+          }
+          
+          // Update lead if changed
+          if (updatesToApply.lead_id) {
+            calendarUpdates.lead_id = updatesToApply.lead_id;
+            calendarUpdates.description = `Viewing with ${updatedViewing.lead_name || 'N/A'} for property at ${updatedViewing.property_location || 'N/A'}`;
+            calendarUpdates.attendees = updatedViewing.lead_name ? [updatedViewing.lead_name] : [];
+          }
+          
+          // Update agent assignment if changed
+          if (updatesToApply.agent_id) {
+            calendarUpdates.assigned_to = updatesToApply.agent_id;
+          }
+          
+          // Update notes if changed
+          if (updatesToApply.notes) {
+            calendarUpdates.notes = updatesToApply.notes + ` | Viewing ID: ${id}`;
+          }
+          
+          // Update status-based color
+          if (updatesToApply.status) {
+            if (updatesToApply.status === 'Completed') {
+              calendarUpdates.color = 'green';
+            } else if (updatesToApply.status === 'Cancelled' || updatesToApply.status === 'No Show') {
+              calendarUpdates.color = 'red';
+            } else if (updatesToApply.status === 'Rescheduled') {
+              calendarUpdates.color = 'yellow';
+            }
+          }
+          
+          if (Object.keys(calendarUpdates).length > 0) {
+            await CalendarEvent.updateEvent(calendarEvent.id, calendarUpdates);
+            console.log('✅ Calendar event updated successfully');
+          }
+        } else {
+          console.log('⚠️ No calendar event found for this viewing');
+        }
+      } catch (calendarError) {
+        console.error('⚠️ Failed to update calendar event:', calendarError);
+      }
       
       res.json({
         success: true,
@@ -281,6 +483,22 @@ class ViewingsController {
           success: false,
           message: 'Only admins and operations managers can delete viewings'
         });
+      }
+      
+      // Try to delete the corresponding calendar event first
+      try {
+        const calendarEvent = await ViewingsController.findCalendarEventByViewingId(id);
+        
+        if (calendarEvent) {
+          console.log('📅 Deleting calendar event for viewing...');
+          await CalendarEvent.deleteEvent(calendarEvent.id);
+          console.log('✅ Calendar event deleted successfully');
+        } else {
+          console.log('⚠️ No calendar event found for this viewing');
+        }
+      } catch (calendarError) {
+        console.error('⚠️ Failed to delete calendar event:', calendarError);
+        // Continue with viewing deletion even if calendar deletion fails
       }
       
       const viewing = await Viewing.deleteViewing(id);
@@ -418,6 +636,116 @@ class ViewingsController {
       res.status(500).json({
         success: false,
         message: 'Failed to add viewing update',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  // Update viewing update
+  static async updateViewingUpdate(req, res) {
+    try {
+      const { id, updateId } = req.params;
+      console.log('✏️ Updating viewing update:', updateId, 'for viewing:', id);
+
+      const viewingId = parseInt(id, 10);
+      const viewingUpdateId = parseInt(updateId, 10);
+
+      if (Number.isNaN(viewingId) || Number.isNaN(viewingUpdateId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid viewing or update identifier'
+        });
+      }
+
+      const { update_text, update_date } = req.body;
+
+      if (update_text !== undefined && (!update_text || !update_text.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Update text cannot be empty'
+        });
+      }
+
+      const viewing = await Viewing.getViewingById(viewingId);
+      if (!viewing) {
+        return res.status(404).json({
+          success: false,
+          message: 'Viewing not found'
+        });
+      }
+
+      const existingUpdate = await Viewing.getViewingUpdateById(viewingUpdateId);
+      if (!existingUpdate || existingUpdate.viewing_id !== viewingId) {
+        return res.status(404).json({
+          success: false,
+          message: 'Viewing update not found'
+        });
+      }
+
+      const userRole = req.user.role;
+      const userId = req.user.id;
+      const privilegedRoles = ['admin', 'operations manager', 'operations', 'agent manager'];
+
+      let hasAccess = false;
+
+      if (privilegedRoles.includes(userRole)) {
+        hasAccess = true;
+      } else if (userRole === 'agent') {
+        hasAccess = viewing.agent_id === userId && existingUpdate.created_by === userId;
+      } else if (userRole === 'team_leader') {
+        const teamViewings = await Viewing.getViewingsForTeamLeader(userId);
+        const canAccessViewing = teamViewings.some(v => v.id === viewing.id);
+        hasAccess = canAccessViewing && existingUpdate.created_by === userId;
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to edit this update'
+        });
+      }
+
+      const updatePayload = {};
+
+      if (update_text !== undefined) {
+        updatePayload.update_text = update_text.trim();
+      }
+
+      if (update_date !== undefined) {
+        if (!update_date) {
+          return res.status(400).json({
+            success: false,
+            message: 'Update date cannot be empty'
+          });
+        }
+
+        const parsedDate = new Date(update_date);
+
+        if (Number.isNaN(parsedDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid update date provided'
+          });
+        }
+
+        updatePayload.update_date = parsedDate.toISOString().split('T')[0];
+      }
+
+      await Viewing.updateViewingUpdate(viewingUpdateId, updatePayload);
+      const refreshedUpdate = await Viewing.getViewingUpdateById(viewingUpdateId);
+
+      console.log('✅ Viewing update edited successfully');
+
+      res.json({
+        success: true,
+        data: refreshedUpdate,
+        message: 'Update edited successfully'
+      });
+    } catch (error) {
+      console.error('❌ Error updating viewing update:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update viewing update',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }

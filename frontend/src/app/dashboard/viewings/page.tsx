@@ -6,10 +6,7 @@ import {
   Plus,
   Grid3X3,
   List,
-  Download,
   RefreshCw,
-  ChevronDown,
-  Calendar,
   CheckCircle,
   Clock,
   XCircle
@@ -24,10 +21,12 @@ import { Viewing, ViewingFilters as ViewingFiltersType, CreateViewingFormData } 
 import { viewingsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { useToast } from '@/contexts/ToastContext'
 
 export default function ViewingsPage() {
-  const { user, token, isAuthenticated } = useAuth()
+  const { token, isAuthenticated } = useAuth()
   const { canManageViewings, canViewViewings } = usePermissions()
+  const { showSuccess, showError } = useToast()
   
   // State management
   const [viewings, setViewings] = useState<Viewing[]>([])
@@ -250,13 +249,22 @@ export default function ViewingsPage() {
       const response = await viewingsApi.create(viewingData, token)
       console.log('✅ Viewing created successfully:', response.data)
 
+      if (!response.success) {
+        const errorMessage = response.message || 'Failed to create viewing'
+        showError(errorMessage)
+        throw new Error(errorMessage)
+      }
+
       // Refresh the viewings list
       await loadViewings()
       await loadStats()
       
+      showSuccess('Viewing created successfully')
+
       return response.data
     } catch (error) {
       console.error('Error adding viewing:', error)
+      showError(error instanceof Error ? error.message : 'Failed to create viewing')
       throw error
     }
   }
@@ -278,9 +286,16 @@ export default function ViewingsPage() {
         // Refresh the viewings list
         await loadViewings()
         await loadStats()
+
+        showSuccess('Viewing updated successfully')
+      } else {
+        const errorMessage = response.message || 'Failed to update viewing'
+        showError(errorMessage)
+        throw new Error(errorMessage)
       }
     } catch (error) {
       console.error('❌ Error updating viewing:', error)
+      showError(error instanceof Error ? error.message : 'Failed to update viewing')
       throw error
     }
   }
@@ -300,6 +315,8 @@ export default function ViewingsPage() {
         // Refresh the viewings list
         await loadViewings()
         await loadStats()
+
+        showSuccess('Viewing deleted successfully')
         
         // Close modal and reset state
         setShowDeleteModal(false)
@@ -307,6 +324,7 @@ export default function ViewingsPage() {
         setDeleteConfirmation('')
       } catch (error) {
         console.error('Error deleting viewing:', error)
+        showError(error instanceof Error ? error.message : 'Failed to delete viewing')
       }
     }
   }
@@ -535,6 +553,7 @@ export default function ViewingsPage() {
           onPageChange={setCurrentPage}
           onItemsPerPageChange={handleItemsPerPageChange}
           viewMode={viewMode}
+          entityName="viewings"
         />
       )}
 

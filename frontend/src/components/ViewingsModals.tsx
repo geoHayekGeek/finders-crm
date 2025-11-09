@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Calendar, Clock, MapPin, User, Building2, Phone, Plus, Trash2, ChevronDown, ChevronUp, MessageSquare, Edit3 } from 'lucide-react'
+import { X, Calendar, Clock, User, Building2, Phone, Plus, ChevronDown, ChevronUp, MessageSquare, Edit3 } from 'lucide-react'
 import { Viewing, CreateViewingFormData, EditViewingFormData, VIEWING_STATUSES, ViewingUpdate } from '@/types/viewing'
 import PropertySelectorForViewings from './PropertySelectorForViewings'
 import LeadSelectorForViewings from './LeadSelectorForViewings'
@@ -9,6 +9,8 @@ import { AgentSelector } from './AgentSelector'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { viewingsApi } from '@/utils/api'
+import { formatDateForInput } from '@/utils/dateUtils'
+import { useToast } from '@/contexts/ToastContext'
 
 interface ViewingsModalsProps {
   // Add Modal
@@ -40,6 +42,50 @@ interface ViewingsModalsProps {
 export function ViewingsModals(props: ViewingsModalsProps) {
   const { user, token } = useAuth()
   const { canManageViewings } = usePermissions()
+  const { showSuccess, showError } = useToast()
+
+  const createDefaultUpdateState = () => ({
+    title: '',
+    description: '',
+    date: new Date().toISOString().split('T')[0]
+  })
+
+  const parseUpdateContent = (text: string) => {
+    const normalizedText = text || ''
+    const segments = normalizedText.split('\n\n')
+
+    if (segments.length >= 2) {
+      const [title, ...rest] = segments
+      return {
+        title: title.trim(),
+        description: rest.join('\n\n').trim()
+      }
+    }
+
+    return {
+      title: '',
+      description: normalizedText.trim()
+    }
+  }
+
+  const getFormattedUpdateContent = (text: string) => {
+    const parsed = parseUpdateContent(text)
+    const description = parsed.description
+    let title = parsed.title
+
+    if (!title) {
+      if (description.length > 0) {
+        title = description.length > 50 ? `${description.substring(0, 50)}...` : description
+      } else {
+        title = 'Update'
+      }
+    }
+
+    return {
+      title,
+      description
+    }
+  }
 
   // Add Modal Component
   const AddViewingModal = () => {
@@ -266,25 +312,44 @@ export function ViewingsModals(props: ViewingsModalsProps) {
   }
 
   // Edit Modal Component
+  const formatTimeForInput = (timeString?: string | null) => {
+    if (!timeString) return ''
+
+    try {
+      // If we receive an ISO datetime, extract the time portion
+      if (timeString.includes('T')) {
+        const dateObj = new Date(timeString)
+        if (!isNaN(dateObj.getTime())) {
+          return dateObj.toISOString().split('T')[1].slice(0, 5)
+        }
+      }
+
+      // Otherwise assume HH:mm:ss or HH:mm format
+      return timeString.slice(0, 5)
+    } catch (error) {
+      console.warn('Error formatting time for input:', timeString, error)
+      return ''
+    }
+  }
+
   const EditViewingModal = () => {
     const [formData, setFormData] = useState<EditViewingFormData>({
       property_id: props.editingViewing?.property_id || 0,
       lead_id: props.editingViewing?.lead_id || 0,
       agent_id: props.editingViewing?.agent_id || 0,
-      viewing_date: props.editingViewing?.viewing_date ? new Date(props.editingViewing.viewing_date).toISOString().split('T')[0] : '',
-      viewing_time: props.editingViewing?.viewing_time || '',
+      viewing_date: props.editingViewing?.viewing_date ? formatDateForInput(props.editingViewing.viewing_date) : '',
+      viewing_time: formatTimeForInput(props.editingViewing?.viewing_time),
       status: props.editingViewing?.status || 'Scheduled',
       notes: props.editingViewing?.notes
     })
     
     const [saving, setSaving] = useState(false)
-    const [newUpdate, setNewUpdate] = useState({ 
-      title: '', 
-      description: '', 
-      date: new Date().toISOString().split('T')[0] 
-    })
+    const [newUpdate, setNewUpdate] = useState(() => createDefaultUpdateState())
     const [addingUpdate, setAddingUpdate] = useState(false)
     const [savingUpdate, setSavingUpdate] = useState(false)
+    const [editingExistingUpdateId, setEditingExistingUpdateId] = useState<number | null>(null)
+    const [editingExistingUpdate, setEditingExistingUpdate] = useState(() => createDefaultUpdateState())
+    const [savingExistingUpdate, setSavingExistingUpdate] = useState(false)
     
     // Update form data when editingViewing changes
     useEffect(() => {
@@ -293,16 +358,25 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           property_id: props.editingViewing.property_id,
           lead_id: props.editingViewing.lead_id,
           agent_id: props.editingViewing.agent_id,
-          viewing_date: props.editingViewing.viewing_date ? new Date(props.editingViewing.viewing_date).toISOString().split('T')[0] : '',
-          viewing_time: props.editingViewing.viewing_time,
+          viewing_date: props.editingViewing.viewing_date ? formatDateForInput(props.editingViewing.viewing_date) : '',
+          viewing_time: formatTimeForInput(props.editingViewing.viewing_time),
           status: props.editingViewing.status,
           notes: props.editingViewing.notes
         })
+        setAddingUpdate(false)
+        setNewUpdate(createDefaultUpdateState())
+        setEditingExistingUpdateId(null)
+        setEditingExistingUpdate(createDefaultUpdateState())
       }
     }, [props.editingViewing])
     
     const handleAddUpdate = async () => {
-      if (!props.editingViewing || !newUpdate.title.trim() || !newUpdate.description.trim()) return
+      if (!props.editingViewing) return
+
+      if (!newUpdate.title.trim() || !newUpdate.description.trim()) {
+        showError('Update title and description are required')
+        return
+      }
       
       setSavingUpdate(true)
       try {
@@ -311,13 +385,66 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           update_date: newUpdate.date
         }, token || undefined)
         
+        showSuccess('Update added successfully')
+
+        await props.onRefreshViewing(props.editingViewing.id)
+
         // Reset form
-        setNewUpdate({ title: '', description: '', date: new Date().toISOString().split('T')[0] })
+        setNewUpdate(createDefaultUpdateState())
         setAddingUpdate(false)
       } catch (error) {
         console.error('Error adding update:', error)
+        showError(error instanceof Error ? error.message : 'Failed to add update')
       } finally {
         setSavingUpdate(false)
+      }
+    }
+
+    const canEditUpdate = (update: ViewingUpdate) => {
+      if (!user) return false
+      return canManageViewings || update.created_by === user.id
+    }
+
+    const startEditingExistingUpdate = (update: ViewingUpdate) => {
+      const parsed = parseUpdateContent(update.update_text || '')
+      setEditingExistingUpdateId(update.id)
+      setEditingExistingUpdate({
+        title: parsed.title,
+        description: parsed.description,
+        date: formatDateForInput(update.update_date || '') || createDefaultUpdateState().date
+      })
+      setAddingUpdate(false)
+    }
+
+    const resetEditingExistingUpdate = () => {
+      setEditingExistingUpdateId(null)
+      setEditingExistingUpdate(createDefaultUpdateState())
+    }
+
+    const handleSaveExistingUpdate = async (updateId: number) => {
+      if (!props.editingViewing) return
+
+      if (!editingExistingUpdate.title.trim() || !editingExistingUpdate.description.trim()) {
+        showError('Update title and description are required')
+        return
+      }
+
+      setSavingExistingUpdate(true)
+      try {
+        await viewingsApi.updateUpdate(props.editingViewing.id, updateId, {
+          update_text: `${editingExistingUpdate.title.trim()}\n\n${editingExistingUpdate.description.trim()}`,
+          update_date: editingExistingUpdate.date
+        }, token || undefined)
+
+        showSuccess('Update edited successfully')
+
+        await props.onRefreshViewing(props.editingViewing.id)
+        resetEditingExistingUpdate()
+      } catch (error) {
+        console.error('Error updating viewing update:', error)
+        showError(error instanceof Error ? error.message : 'Failed to update viewing update')
+      } finally {
+        setSavingExistingUpdate(false)
       }
     }
 
@@ -494,7 +621,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                       <button
                         onClick={() => {
                           setAddingUpdate(false)
-                          setNewUpdate({ title: '', description: '', date: new Date().toISOString().split('T')[0] })
+                          setNewUpdate(createDefaultUpdateState())
                         }}
                         className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
                       >
@@ -502,6 +629,129 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                       </button>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {props.editingViewing.updates && props.editingViewing.updates.length > 0 ? (
+                <div className="space-y-2">
+                  {[...(props.editingViewing.updates || [])]
+                    .sort((a, b) => new Date(b.update_date).getTime() - new Date(a.update_date).getTime())
+                    .map((update: ViewingUpdate, index) => {
+                      const updateDate = new Date(update.update_date)
+                      const isRecent = index === 0
+                      const formatted = getFormattedUpdateContent(update.update_text)
+                      const isEditing = editingExistingUpdateId === update.id
+
+                      return (
+                        <div
+                          key={update.id}
+                          className={`p-3 rounded-lg border ${
+                            isRecent
+                              ? 'border-blue-200 bg-blue-50'
+                              : 'border-gray-200 bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Update Date
+                                    </label>
+                                    <input
+                                      type="date"
+                                      value={editingExistingUpdate.date}
+                                      onChange={(e) => setEditingExistingUpdate({ ...editingExistingUpdate, date: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Update Title <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={editingExistingUpdate.title}
+                                      onChange={(e) => setEditingExistingUpdate({ ...editingExistingUpdate, title: e.target.value })}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                      placeholder="Brief title for this update..."
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      Description <span className="text-red-500">*</span>
+                                    </label>
+                                    <textarea
+                                      value={editingExistingUpdate.description}
+                                      onChange={(e) => setEditingExistingUpdate({ ...editingExistingUpdate, description: e.target.value })}
+                                      rows={3}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                      placeholder="Describe what happened or any changes..."
+                                    />
+                                  </div>
+                                  <div className="flex gap-2 justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveExistingUpdate(update.id)}
+                                      disabled={!editingExistingUpdate.title.trim() || !editingExistingUpdate.description.trim() || savingExistingUpdate}
+                                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                      {savingExistingUpdate ? 'Saving...' : 'Save'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={resetEditingExistingUpdate}
+                                      className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-gray-900">
+                                      {formatted.title}
+                                    </span>
+                                    {isRecent && (
+                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Latest
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="mt-1 text-sm text-gray-600">
+                                    {updateDate.toLocaleDateString()} at {updateDate.toLocaleTimeString()}
+                                  </div>
+                                  {formatted.description && (
+                                    <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                                      {formatted.description}
+                                    </div>
+                                  )}
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    by {update.created_by_name}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            {canEditUpdate(update) && !isEditing && (
+                              <button
+                                type="button"
+                                onClick={() => startEditingExistingUpdate(update)}
+                                className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+                                title="Edit update"
+                              >
+                                <Edit3 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  No updates available
                 </div>
               )}
             </div>
@@ -533,17 +783,30 @@ export function ViewingsModals(props: ViewingsModalsProps) {
 
   // View Modal Component with Updates
   const ViewViewingModal = () => {
-    const [newUpdate, setNewUpdate] = useState({ 
-      title: '', 
-      description: '', 
-      date: new Date().toISOString().split('T')[0] 
-    })
+    const [newUpdate, setNewUpdate] = useState(() => createDefaultUpdateState())
     const [addingUpdate, setAddingUpdate] = useState(false)
     const [savingUpdate, setSavingUpdate] = useState(false)
     const [showUpdates, setShowUpdates] = useState(true)
-    
+    const [editingUpdateId, setEditingUpdateId] = useState<number | null>(null)
+    const [editingUpdate, setEditingUpdate] = useState(() => createDefaultUpdateState())
+    const [savingEditedUpdate, setSavingEditedUpdate] = useState(false)
+
+    const resetNewUpdateState = () => setNewUpdate(createDefaultUpdateState())
+    const resetEditingUpdateState = () => {
+      setEditingUpdateId(null)
+      setEditingUpdate(createDefaultUpdateState())
+    }
+
+    const canEditUpdate = (update: ViewingUpdate) => {
+      if (!user) return false
+      return canManageViewings || update.created_by === user.id
+    }
+
     const handleAddUpdate = async () => {
-      if (!props.viewingViewing || !newUpdate.title.trim() || !newUpdate.description.trim()) return
+      if (!props.viewingViewing || !newUpdate.title.trim() || !newUpdate.description.trim()) {
+        showError('Update title and description are required')
+        return
+      }
       
       setSavingUpdate(true)
       try {
@@ -551,35 +814,61 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           update_text: `${newUpdate.title}\n\n${newUpdate.description}`,
           update_date: newUpdate.date
         }, token || undefined)
+
+        showSuccess('Update added successfully')
         
         // Refresh the viewing
         await props.onRefreshViewing(props.viewingViewing.id)
         
         // Reset form
-        setNewUpdate({ title: '', description: '', date: new Date().toISOString().split('T')[0] })
+        resetNewUpdateState()
         setAddingUpdate(false)
       } catch (error) {
         console.error('Error adding update:', error)
+        showError(error instanceof Error ? error.message : 'Failed to add update')
       } finally {
         setSavingUpdate(false)
       }
     }
-    
-    
-    const formatUpdateText = (text: string) => {
-      const lines = text.split('\n')
-      if (lines.length >= 2) {
-        return {
-          title: lines[0],
-          description: lines.slice(2).join('\n').trim()
-        }
+
+    const startEditingUpdate = (update: ViewingUpdate) => {
+      const parsed = parseUpdateContent(update.update_text || '')
+      setEditingUpdateId(update.id)
+      setEditingUpdate({
+        title: parsed.title,
+        description: parsed.description,
+        date: formatDateForInput(update.update_date || '') || createDefaultUpdateState().date
+      })
+      setAddingUpdate(false)
+    }
+
+    const handleUpdateViewingUpdate = async (updateId: number) => {
+      if (!props.viewingViewing) return
+
+      if (!editingUpdate.title.trim() || !editingUpdate.description.trim()) {
+        showError('Update title and description are required')
+        return
       }
-      return {
-        title: text.substring(0, 50) + (text.length > 50 ? '...' : ''),
-        description: text
+
+      setSavingEditedUpdate(true)
+      try {
+        await viewingsApi.updateUpdate(props.viewingViewing.id, updateId, {
+          update_text: `${editingUpdate.title.trim()}\n\n${editingUpdate.description.trim()}`,
+          update_date: editingUpdate.date
+        }, token || undefined)
+
+        showSuccess('Update edited successfully')
+
+        await props.onRefreshViewing(props.viewingViewing.id)
+        resetEditingUpdateState()
+      } catch (error) {
+        console.error('Error updating viewing update:', error)
+        showError(error instanceof Error ? error.message : 'Failed to update viewing update')
+      } finally {
+        setSavingEditedUpdate(false)
       }
     }
-    
+
     if (!props.showViewModal || !props.viewingViewing) return null
     
     const statusInfo = VIEWING_STATUSES.find(s => s.value === props.viewingViewing?.status)
@@ -705,7 +994,12 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setAddingUpdate(!addingUpdate)}
+                  onClick={() => {
+                    if (!addingUpdate) {
+                      resetEditingUpdateState()
+                    }
+                    setAddingUpdate(!addingUpdate)
+                  }}
                     className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                   >
                     <Plus className="w-4 h-4" />
@@ -764,7 +1058,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                       <button
                         onClick={() => {
                           setAddingUpdate(false)
-                          setNewUpdate({ title: '', description: '', date: new Date().toISOString().split('T')[0] })
+                          resetNewUpdateState()
                         }}
                         className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
                       >
@@ -789,7 +1083,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                         .map((update: ViewingUpdate, index) => {
                           const updateDate = new Date(update.update_date)
                           const isRecent = index === 0
-                          const formatted = formatUpdateText(update.update_text)
+                      const formatted = getFormattedUpdateContent(update.update_text)
                           
                           return (
                             <div
@@ -802,26 +1096,94 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-gray-900">
-                                      {formatted.title}
-                                    </span>
-                                    {isRecent && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                        Latest
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="mt-1 text-sm text-gray-600">
-                                    {updateDate.toLocaleDateString()} at {updateDate.toLocaleTimeString()}
-                                  </div>
-                                  <div className="mt-1 text-sm text-gray-700">
-                                    {formatted.description}
-                                  </div>
-                                  <div className="mt-1 text-xs text-gray-500">
-                                    by {update.created_by_name}
-                                  </div>
+                                  {editingUpdateId === update.id ? (
+                                    <div className="space-y-2">
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                                          Update Date
+                                        </label>
+                                        <input
+                                          type="date"
+                                          value={editingUpdate.date}
+                                          onChange={(e) => setEditingUpdate({ ...editingUpdate, date: e.target.value })}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                                          Update Title <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={editingUpdate.title}
+                                          onChange={(e) => setEditingUpdate({ ...editingUpdate, title: e.target.value })}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                          placeholder="Brief title for this update..."
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium text-gray-600 mb-1">
+                                          Description <span className="text-red-500">*</span>
+                                        </label>
+                                        <textarea
+                                          value={editingUpdate.description}
+                                          onChange={(e) => setEditingUpdate({ ...editingUpdate, description: e.target.value })}
+                                          rows={3}
+                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                          placeholder="Describe what happened or any changes..."
+                                        />
+                                      </div>
+                                      <div className="flex gap-2 justify-end">
+                                        <button
+                                          onClick={() => handleUpdateViewingUpdate(update.id)}
+                                          disabled={!editingUpdate.title.trim() || !editingUpdate.description.trim() || savingEditedUpdate}
+                                          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                          {savingEditedUpdate ? 'Saving...' : 'Save'}
+                                        </button>
+                                        <button
+                                          onClick={resetEditingUpdateState}
+                                          className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-900">
+                                          {formatted.title}
+                                        </span>
+                                        {isRecent && (
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                            Latest
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="mt-1 text-sm text-gray-600">
+                                        {updateDate.toLocaleDateString()} at {updateDate.toLocaleTimeString()}
+                                      </div>
+                                      {formatted.description && (
+                                        <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                                          {formatted.description}
+                                        </div>
+                                      )}
+                                      <div className="mt-1 text-xs text-gray-500">
+                                        by {update.created_by_name}
+                                      </div>
+                                    </>
+                                  )}
                                 </div>
+                                {canEditUpdate(update) && editingUpdateId !== update.id && (
+                                  <button
+                                    onClick={() => startEditingUpdate(update)}
+                                    className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
+                                    title="Edit update"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )

@@ -10,6 +10,7 @@ interface PropertyPaginationProps {
   onPageChange: (page: number) => void
   onItemsPerPageChange: (itemsPerPage: number) => void
   viewMode: 'grid' | 'table'
+  entityName?: string // Optional prop to customize the entity name (default: 'properties')
 }
 
 export function PropertyPagination({
@@ -21,7 +22,8 @@ export function PropertyPagination({
   endIndex,
   onPageChange,
   onItemsPerPageChange,
-  viewMode
+  viewMode,
+  entityName = 'properties'
 }: PropertyPaginationProps) {
   if (viewMode === 'grid') {
     return (
@@ -33,22 +35,22 @@ export function PropertyPagination({
               onClick={() => onPageChange(currentPage + 1)}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 font-medium"
             >
-              <span>Load More Properties</span>
+              <span>Load More {entityName.charAt(0).toUpperCase() + entityName.slice(1)}</span>
             </button>
           </div>
         ) : (
           <div className="flex justify-center">
             <div className="text-center text-sm text-gray-500 bg-gray-50 px-6 py-3 rounded-lg border border-gray-200">
-              <span>All properties loaded</span>
+              <span>All {entityName} loaded</span>
             </div>
           </div>
         )}
         
         {/* Pagination Info for Grid View - Always show */}
         <div className="text-center text-sm text-gray-600">
-          Showing {Math.min(totalItems, currentPage * itemsPerPage)} of {totalItems} properties
+          Showing {Math.min(totalItems, currentPage * itemsPerPage)} of {totalItems} {entityName}
           {currentPage >= totalPages && (
-            <span className="block mt-1 text-green-600 font-medium">✓ All properties loaded</span>
+            <span className="block mt-1 text-green-600 font-medium">✓ All {entityName} loaded</span>
           )}
         </div>
       </div>

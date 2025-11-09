@@ -615,6 +615,12 @@ export const viewingsApi = {
     method: 'POST',
     body: JSON.stringify(data),
   }, token),
+
+  // Update a viewing update
+  updateUpdate: (viewingId: number, updateId: number, data: ViewingUpdateInput, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message?: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }, token),
   
   // Delete viewing update
   deleteUpdate: (viewingId: number, updateId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
