@@ -1,14 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { BarChart3, FileText, TrendingUp, DollarSign } from 'lucide-react'
+import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import MonthlyAgentStatsTab from '@/components/reports/MonthlyAgentStatsTab'
+import DCSRTab from '@/components/reports/DCSRTab'
+import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
 
 // Tab configuration
-type TabId = 'monthly-agent-stats' | 'leads-report' | 'revenue-report' | 'performance-report'
+type TabId = 'monthly-agent-stats' | 'dcsr-report' | 'operations-commission' | 'leads-report' | 'revenue-report' | 'performance-report'
 
 interface Tab {
   id: TabId
@@ -26,25 +28,16 @@ const TABS: Tab[] = [
     description: 'View and manage monthly performance reports for each agent'
   },
   {
-    id: 'leads-report',
-    name: 'Leads Report',
-    icon: FileText,
-    description: 'Analyze lead conversion and sources',
-    comingSoon: true
+    id: 'dcsr-report',
+    name: 'DCSR Report',
+    icon: ClipboardList,
+    description: 'Daily Client/Sales Report - Track listings, leads, closures, and viewings'
   },
   {
-    id: 'revenue-report',
-    name: 'Revenue Report',
+    id: 'operations-commission',
+    name: 'Operations Commission',
     icon: DollarSign,
-    description: 'Track revenue and sales performance',
-    comingSoon: true
-  },
-  {
-    id: 'performance-report',
-    name: 'Performance Report',
-    icon: TrendingUp,
-    description: 'Evaluate overall team and individual performance',
-    comingSoon: true
+    description: 'Total operations commission from all closed properties (sales and rentals)'
   }
 ]
 
@@ -119,6 +112,10 @@ function ReportsPageContent() {
         {/* Tab Content */}
         <div className="p-6">
           {activeTab === 'monthly-agent-stats' && <MonthlyAgentStatsTab />}
+          
+          {activeTab === 'dcsr-report' && <DCSRTab />}
+          
+          {activeTab === 'operations-commission' && <OperationsCommissionTab />}
           
           {activeTab === 'leads-report' && (
             <div className="text-center py-12">

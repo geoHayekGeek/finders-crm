@@ -6,8 +6,10 @@ export interface MonthlyAgentReport {
   agent_name: string
   agent_code?: string
   agent_role?: string
-  month: number
-  year: number
+  month?: number
+  year?: number
+  start_date: string
+  end_date: string
   
   // Calculated fields
   listings_count: number
@@ -45,14 +47,14 @@ export interface MonthlyAgentReport {
 
 export interface ReportFilters {
   agent_id?: number
-  month?: number
-  year?: number
+  start_date?: string
+  end_date?: string
 }
 
 export interface CreateReportData {
   agent_id: number
-  month: number
-  year: number
+  start_date: string
+  end_date: string
   boosts?: number
 }
 
@@ -62,8 +64,117 @@ export interface UpdateReportData {
 
 export interface ReportFormData {
   agent_id: number | undefined
-  month: number
-  year: number
+  start_date: string
+  end_date: string
   boosts: number
+}
+
+// DCSR (Daily Client/Sales Report) Types - Company-wide totals
+export interface DCSRMonthlyReport {
+  id: number
+  month?: number
+  year?: number
+  start_date: string
+  end_date: string
+  
+  // Description (company-wide totals)
+  listings_count: number
+  leads_count: number
+  
+  // Closures (company-wide totals)
+  sales_count: number
+  rent_count: number
+  
+  // Viewings (company-wide total)
+  viewings_count: number
+  
+  // Metadata
+  created_at: string
+  updated_at: string
+  created_by?: number
+}
+
+export interface DCSRReportFilters {
+  start_date?: string
+  end_date?: string
+  date_from?: string
+  date_to?: string
+  month?: number
+  year?: number
+}
+
+export interface CreateDCSRData {
+  start_date: string
+  end_date: string
+}
+
+export interface UpdateDCSRData {
+  listings_count?: number
+  leads_count?: number
+  sales_count?: number
+  rent_count?: number
+  viewings_count?: number
+}
+
+export interface DCSRFormData {
+  start_date: string
+  end_date: string
+  listings_count?: number
+  leads_count?: number
+  sales_count?: number
+  rent_count?: number
+  viewings_count?: number
+}
+
+// Operations Commission Reports Types
+export interface OperationsCommissionProperty {
+  id: number
+  reference_number: string
+  property_type: 'sale' | 'rent'
+  price: number
+  commission: number
+  closed_date: string
+}
+
+export interface OperationsCommissionReport {
+  id: number
+  month?: number
+  year?: number
+  start_date: string
+  end_date: string
+  commission_percentage: number
+  total_properties_count: number
+  total_sales_count: number
+  total_rent_count: number
+  total_sales_value: number
+  total_rent_value: number
+  total_commission_amount: number
+  properties?: OperationsCommissionProperty[]
+  created_at: string
+  updated_at: string
+}
+
+export interface OperationsCommissionFilters {
+  start_date?: string
+  end_date?: string
+  date_from?: string
+  date_to?: string
+  month?: number
+  year?: number
+}
+
+export interface CreateOperationsCommissionData {
+  start_date: string
+  end_date: string
+}
+
+export interface UpdateOperationsCommissionData {
+  commission_percentage: number
+  total_properties_count: number
+  total_sales_count: number
+  total_rent_count: number
+  total_sales_value: number
+  total_rent_value: number
+  total_commission_amount: number
 }
 

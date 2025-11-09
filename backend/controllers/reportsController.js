@@ -10,32 +10,35 @@ class ReportsController {
     try {
       console.log('📊 Creating monthly report:', req.body);
       
-      const { agent_id, month, year, boosts } = req.body;
+      const { agent_id, start_date, end_date, boosts } = req.body;
       
       // Validation
-      if (!agent_id || !month || !year) {
+      if (!agent_id || !start_date || !end_date) {
         return res.status(400).json({
           success: false,
-          message: 'Agent ID, month, and year are required'
+          message: 'Agent ID, start date, and end date are required'
         });
       }
 
-      if (month < 1 || month > 12) {
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
         return res.status(400).json({
           success: false,
-          message: 'Month must be between 1 and 12'
+          message: 'Invalid date format. Please use YYYY-MM-DD.'
         });
       }
 
-      if (year < 2000 || year > 2100) {
+      if (endDate < startDate) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid year'
+          message: 'End date cannot be before start date'
         });
       }
 
       const report = await Report.createMonthlyReport(
-        { agent_id, month, year, boosts },
+        { agent_id, start_date, end_date, boosts },
         req.user.id
       );
 
@@ -52,7 +55,7 @@ class ReportsController {
       if (error.message.includes('already exists')) {
         return res.status(409).json({
           success: false,
-          message: 'A report already exists for this agent and month'
+          message: 'A report already exists for this agent and date range'
         });
       }
       
@@ -77,12 +80,21 @@ class ReportsController {
         filters.agent_id = parseInt(req.query.agent_id);
       }
       
-      if (req.query.month) {
-        filters.month = parseInt(req.query.month);
+      if (req.query.start_date) {
+        filters.start_date = req.query.start_date;
       }
-      
-      if (req.query.year) {
-        filters.year = parseInt(req.query.year);
+
+      if (req.query.end_date) {
+        filters.end_date = req.query.end_date;
+      }
+
+      // Backwards compatibility for old parameter names
+      if (req.query.date_from && !filters.start_date) {
+        filters.start_date = req.query.date_from;
+      }
+
+      if (req.query.date_to && !filters.end_date) {
+        filters.end_date = req.query.date_to;
       }
 
       const reports = await Report.getAllReports(filters);
@@ -304,9 +316,17 @@ class ReportsController {
 
       const buffer = await exportToExcel(report);
       
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.xlsx`;
+      const formatRangeLabel = () => {
+        const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
+        const endDate = report.end_date
+          ? new Date(report.end_date)
+          : new Date(report.year, report.month, 0);
+
+        const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+        return `${formatter.format(startDate).replace(/[, ]/g, '-')}_to_${formatter.format(endDate).replace(/[, ]/g, '-')}`;
+      };
+
+      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${formatRangeLabel()}.xlsx`;
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -352,9 +372,17 @@ class ReportsController {
 
       const buffer = await exportToPDF(report);
       
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.pdf`;
+      const formatRangeLabel = () => {
+        const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
+        const endDate = report.end_date
+          ? new Date(report.end_date)
+          : new Date(report.year, report.month, 0);
+
+        const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+        return `${formatter.format(startDate).replace(/[, ]/g, '-')}_to_${formatter.format(endDate).replace(/[, ]/g, '-')}`;
+      };
+
+      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${formatRangeLabel()}.pdf`;
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

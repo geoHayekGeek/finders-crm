@@ -15,6 +15,8 @@ const notificationRoutes = require('./notificationRoutes');
 const viewingsRoutes = require('./viewingsRoutes');
 const settingsRoutes = require('./settingsRoutes');
 const reportsRoutes = require('./reportsRoutes');
+const dcsrReportsRoutes = require('./dcsrReportsRoutes');
+const operationsCommissionRoutes = require('./operationsCommissionRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -41,5 +43,7 @@ router.use('/notifications', notificationRoutes);
 router.use('/viewings', viewingsRoutes);
 router.use('/settings', settingsRoutes);
 router.use('/reports', reportsRoutes);
+router.use('/dcsr-reports', dcsrReportsRoutes);
+router.use('/operations-commission', operationsCommissionRoutes);
 
 module.exports = router;

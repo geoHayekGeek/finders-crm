@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS monthly_agent_reports (
   agent_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
   year INTEGER NOT NULL CHECK (year >= 2000 AND year <= 2100),
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
   
   -- Listing count (auto-calculated)
   listings_count INTEGER DEFAULT 0,
@@ -42,13 +44,14 @@ CREATE TABLE IF NOT EXISTS monthly_agent_reports (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   
-  -- Ensure one report per agent per month
-  UNIQUE(agent_id, month, year)
+  -- Ensure one report per agent per date range
+  UNIQUE(agent_id, start_date, end_date)
 );
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_monthly_reports_agent_id ON monthly_agent_reports(agent_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_reports_month_year ON monthly_agent_reports(month, year);
+CREATE INDEX IF NOT EXISTS idx_monthly_reports_date_range ON monthly_agent_reports(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_monthly_reports_created_at ON monthly_agent_reports(created_at);
 
 -- Create trigger to update updated_at timestamp
@@ -70,7 +73,9 @@ COMMENT ON TABLE monthly_agent_reports IS 'Stores monthly performance reports fo
 COMMENT ON COLUMN monthly_agent_reports.agent_id IS 'Reference to the agent (user) this report is for';
 COMMENT ON COLUMN monthly_agent_reports.month IS 'Month of the report (1-12)';
 COMMENT ON COLUMN monthly_agent_reports.year IS 'Year of the report';
-COMMENT ON COLUMN monthly_agent_reports.listings_count IS 'Number of listings created by agent in this month';
+COMMENT ON COLUMN monthly_agent_reports.start_date IS 'Inclusive start date for the reporting period';
+COMMENT ON COLUMN monthly_agent_reports.end_date IS 'Inclusive end date for the reporting period';
+COMMENT ON COLUMN monthly_agent_reports.listings_count IS 'Number of listings created by agent in this period';
 COMMENT ON COLUMN monthly_agent_reports.lead_sources IS 'Count of leads by source (dynamic JSONB structure)';
 COMMENT ON COLUMN monthly_agent_reports.viewings_count IS 'Number of viewings conducted by agent';
 COMMENT ON COLUMN monthly_agent_reports.boosts IS 'Manual field for boosts (can be edited)';

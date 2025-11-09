@@ -17,16 +17,17 @@ async function exportToExcel(report) {
   // Title
   worksheet.mergeCells('A1:B1');
   const titleCell = worksheet.getCell('A1');
-  titleCell.value = `Monthly Agent Report - ${report.agent_name}`;
+  titleCell.value = `Agent Report - ${report.agent_name}`;
   titleCell.font = { size: 16, bold: true };
   titleCell.alignment = { horizontal: 'center' };
 
   // Report period
   worksheet.mergeCells('A2:B2');
   const periodCell = worksheet.getCell('A2');
-  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                      'July', 'August', 'September', 'October', 'November', 'December'];
-  periodCell.value = `${monthNames[report.month - 1]} ${report.year}`;
+  const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
+  const endDate = report.end_date ? new Date(report.end_date) : new Date(report.year, report.month, 0);
+  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+  periodCell.value = `${formatter.format(startDate)} - ${formatter.format(endDate)}`;
   periodCell.font = { size: 12, italic: true };
   periodCell.alignment = { horizontal: 'center' };
 
@@ -122,17 +123,18 @@ function exportToPDF(report) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
+      const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
+      const endDate = report.end_date ? new Date(report.end_date) : new Date(report.year, report.month, 0);
+      const formatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
 
       // Title Section
       doc.fontSize(24).font('Helvetica-Bold').fillColor('#000000')
-         .text('Monthly Agent Report', { align: 'center' });
+         .text('Agent Report', { align: 'center' });
       doc.moveDown(0.3);
       doc.fontSize(18).font('Helvetica').text(report.agent_name, { align: 'center' });
       doc.moveDown(0.2);
       doc.fontSize(14).font('Helvetica-Oblique').fillColor('#666666')
-         .text(`${monthNames[report.month - 1]} ${report.year}`, { align: 'center' });
+         .text(`${formatter.format(startDate)} - ${formatter.format(endDate)}`, { align: 'center' });
       doc.moveDown(1.5);
       doc.fillColor('#000000');
 

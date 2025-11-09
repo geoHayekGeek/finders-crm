@@ -9,7 +9,7 @@ A comprehensive Reports page has been successfully implemented for the Finders C
 ### 1. Database Schema
 - **Table**: `monthly_agent_reports`
 - **Fields**:
-  - Agent information and time period (month/year)
+  - Agent information and time period (`start_date`, `end_date`)
   - Auto-calculated metrics:
     - Listings count
     - Lead sources (dynamic JSONB field)
@@ -20,7 +20,7 @@ A comprehensive Reports page has been successfully implemented for the Finders C
     - Referrals received
   - Manual field: Boosts (editable)
 - **Features**:
-  - Unique constraint per agent/month/year
+  - Unique constraint per agent/date-range
   - Automatic timestamp updates
   - Indexes for performance
 
@@ -88,21 +88,19 @@ A comprehensive Reports page has been successfully implemented for the Finders C
   - Referrals Received
   - Actions (Recalculate, Delete)
 
-#### Filters Component (`frontend/src/components/reports/ReportsFilters.tsx`)
-- **Filter Options**:
+- Redesigned Filters Component (`frontend/src/components/reports/ReportsFilters.tsx`)
   - Agent dropdown (agents and team leaders)
-  - Month dropdown (all 12 months)
-  - Year dropdown (last 10 years)
+  - Calendar-style date range (any custom window, quick presets)
 - Active filters display with remove badges
 - Clear all filters button
 - Consistent design with other pages
 
-#### Create Report Modal (`frontend/src/components/reports/CreateReportModal.tsx`)
+- Create Report Modal (`frontend/src/components/reports/CreateReportModal.tsx`)
 - **Features**:
   - Agent selection dropdown
-  - Month/Year selection (defaults to previous month)
+  - Flexible date range selection (defaults to previous month, includes quick presets)
   - Optional Boosts input
-  - Validation for duplicate reports
+  - Validation preventing duplicate agent/date-range combinations
   - Auto-calculation notification
   - Report summary preview
   - Error handling with user-friendly messages

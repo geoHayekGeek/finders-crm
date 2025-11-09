@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, AlertCircle, RefreshCw } from 'lucide-react'
+import { X, AlertCircle, RefreshCw, CalendarRange } from 'lucide-react'
 import { ReportFormData, MonthlyAgentReport } from '@/types/reports'
 import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -25,16 +25,17 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
   const [error, setError] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<Partial<MonthlyAgentReport> | null>(null)
 
-  // Get previous month as default
+  // Get previous calendar month as default range
   const now = new Date()
-  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const defaultMonth = previousMonth.getMonth() + 1
-  const defaultYear = previousMonth.getFullYear()
+  const previousMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  const previousMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
+  const defaultStartDate = previousMonthStart.toISOString().split('T')[0]
+  const defaultEndDate = previousMonthEnd.toISOString().split('T')[0]
 
   const [formData, setFormData] = useState<ReportFormData>({
     agent_id: undefined,
-    month: defaultMonth,
-    year: defaultYear,
+    start_date: defaultStartDate,
+    end_date: defaultEndDate,
     boosts: 0
   })
 
@@ -67,10 +68,10 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
 
   // Calculate preview when agent/month/year changes
   useEffect(() => {
-    if (formData.agent_id && formData.month && formData.year && token) {
+    if (formData.agent_id && formData.start_date && formData.end_date && token) {
       calculatePreview()
     }
-  }, [formData.agent_id, formData.month, formData.year, token])
+  }, [formData.agent_id, formData.start_date, formData.end_date, token])
 
   const loadAgents = async () => {
     try {
@@ -106,8 +107,8 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       const tempReport = await reportsApi.create(
         {
           agent_id: formData.agent_id!,
-          month: formData.month,
-          year: formData.year,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
           boosts: formData.boosts
         },
         token
@@ -139,7 +140,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     } catch (error: any) {
       // If report already exists, show specific message
       if (error.message?.includes('already exists')) {
-        setError('A report already exists for this agent and month. Please select a different agent or month.')
+        setError('A report already exists for this agent and date range. Try adjusting the window or pick another agent.')
       } else {
         console.error('Error calculating preview:', error)
       }
@@ -158,13 +159,26 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       return
     }
 
-    if (!formData.month || formData.month < 1 || formData.month > 12) {
-      setError('Please select a valid month')
+    if (!formData.start_date) {
+      setError('Pick a start date for the report')
       return
     }
 
-    if (!formData.year || formData.year < 2000) {
-      setError('Please select a valid year')
+    if (!formData.end_date) {
+      setError('Pick an end date for the report')
+      return
+    }
+
+    const startDate = new Date(formData.start_date)
+    const endDate = new Date(formData.end_date)
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      setError('Make sure the date range is valid')
+      return
+    }
+
+    if (endDate < startDate) {
+      setError('End date cannot be before the start date')
       return
     }
 
@@ -175,8 +189,8 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       const response = await reportsApi.create(
         {
           agent_id: formData.agent_id,
-          month: formData.month,
-          year: formData.year,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
           boosts: formData.boosts
         },
         token
@@ -206,7 +220,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       console.error('Error creating report:', error)
       
       if (error.message?.includes('already exists')) {
-        setError('A report already exists for this agent and month. Please select a different agent or month.')
+        setError('A report already exists for this agent within the same date range. Please adjust the period.')
       } else {
         setError(error.message || 'Failed to create report')
       }
@@ -216,7 +230,17 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
   }
 
   const handleChange = (field: keyof ReportFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData(prev => {
+      if (field === 'start_date' && value && prev.end_date && value > prev.end_date) {
+        return { ...prev, start_date: value, end_date: value }
+      }
+
+      if (field === 'end_date' && value && prev.start_date && value < prev.start_date) {
+        return { ...prev, start_date: value, end_date: value }
+      }
+
+      return { ...prev, [field]: value }
+    })
     setError(null)
     setPreviewData(null) // Clear preview when changing selection
   }
@@ -232,24 +256,6 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     }))
   }
 
-  // Generate month/year options
-  const currentYear = new Date().getFullYear()
-  const years = Array.from({ length: 10 }, (_, i) => currentYear - i)
-  const months = [
-    { value: 1, label: 'January' },
-    { value: 2, label: 'February' },
-    { value: 3, label: 'March' },
-    { value: 4, label: 'April' },
-    { value: 5, label: 'May' },
-    { value: 6, label: 'June' },
-    { value: 7, label: 'July' },
-    { value: 8, label: 'August' },
-    { value: 9, label: 'September' },
-    { value: 10, label: 'October' },
-    { value: 11, label: 'November' },
-    { value: 12, label: 'December' }
-  ]
-
   const allLeadSources = leadSources.length > 0 ? leadSources : Object.keys(editableData.lead_sources)
 
   return (
@@ -257,7 +263,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-lg z-10">
-          <h2 className="text-xl font-semibold text-gray-900">Create Monthly Report</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Create Agent Report</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -280,66 +286,99 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           )}
 
           {/* Selection Section */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-blue-800 mb-4">Report Period</h3>
+          <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-200 rounded-lg p-5 shadow-sm">
+            <h3 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wider">Choose what to generate</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {/* Agent Selection */}
-              <div>
+              <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:border-blue-300 transition-colors">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Agent <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={formData.agent_id || ''}
-                  onChange={(e) => handleChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                >
-                  <option value="">Select an agent...</option>
-                  {agents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={formData.agent_id || ''}
+                    onChange={(e) => handleChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
+                    required
+                    className="w-full appearance-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  >
+                    <option value="">Select an agent...</option>
+                    {agents.map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
+                    ▼
+                  </div>
+                </div>
               </div>
 
-              {/* Month Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Month <span className="text-red-500">*</span>
+              {/* Date Range Selection */}
+              <div className="lg:col-span-2 bg-white rounded-lg border border-blue-200 p-4 shadow-sm hover:border-blue-400 transition-colors">
+                <label className="block text-sm font-medium text-blue-900 mb-3 flex items-center gap-2">
+                  <CalendarRange className="h-4 w-4 text-blue-600" />
+                  Reporting window <span className="text-red-500">*</span>
                 </label>
-                <select
-                  value={formData.month}
-                  onChange={(e) => handleChange('month', parseInt(e.target.value))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                >
-                  {months.map((month) => (
-                    <option key={month.value} value={month.value}>
-                      {month.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs uppercase tracking-wide text-blue-500 font-semibold">
+                      From
+                    </span>
+                    <input
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => handleChange('start_date', e.target.value || undefined)}
+                      className="mt-5 w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                      max={formData.end_date || undefined}
+                      required
+                    />
+                  </div>
 
-              {/* Year Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Year <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.year}
-                  onChange={(e) => handleChange('year', parseInt(e.target.value))}
-                  required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                >
-                  {years.map((year) => (
-                    <option key={year} value={year}>
-                      {year}
-                    </option>
+                  <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
+                    —
+                  </div>
+
+                  <div className="relative">
+                    <span className="absolute left-3 top-2 text-xs uppercase tracking-wide text-blue-500 font-semibold">
+                      To
+                    </span>
+                    <input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) => handleChange('end_date', e.target.value || undefined)}
+                      className="mt-5 w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                      min={formData.start_date || undefined}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {[
+                    { label: 'Previous Month', start: defaultStartDate, end: defaultEndDate },
+                    { label: 'Last 30 Days', start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: new Date().toISOString().split('T')[0] },
+                    { label: 'Quarter to Date', start: (() => {
+                      const d = new Date()
+                      const quarterStartMonth = Math.floor(d.getMonth() / 3) * 3
+                      return new Date(d.getFullYear(), quarterStartMonth, 1).toISOString().split('T')[0]
+                    })(), end: new Date().toISOString().split('T')[0] }
+                  ].map((preset) => (
+                    <button
+                      type="button"
+                      key={preset.label}
+                      onClick={() => {
+                        handleChange('start_date', preset.start)
+                        handleChange('end_date', preset.end)
+                      }}
+                      className="px-3 py-1 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
+                    >
+                      {preset.label}
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
             </div>
           </div>
@@ -357,7 +396,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
             <div className="space-y-6">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h3 className="text-sm font-medium text-gray-900 mb-4">
-                  📊 Calculated Values (All Editable)
+                  
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

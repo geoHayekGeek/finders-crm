@@ -20,51 +20,129 @@ function roundMoney(value) {
 
 class Report {
   /**
-   * Create a new monthly agent report
-   * @param {Object} reportData - Report data including agent_id, month, year
+   * Create a new agent report for a date range
+   * @param {Object} reportData - Report data including agent_id, start_date, end_date
    * @param {number} createdBy - ID of user creating the report
    * @returns {Promise<Object>} Created report with calculated data
    */
   static async createMonthlyReport(reportData, createdBy) {
     // Ensure external column exists
     await ensureExternalColumnExists();
-    
+
     const {
       agent_id,
-      month,
-      year,
+      start_date,
+      end_date,
       boosts = 0
     } = reportData;
 
     try {
-      // Check if report already exists
+      if (!start_date || !end_date) {
+        throw new Error('Start date and end date are required');
+      }
+
+      const startDateObj = new Date(start_date);
+      const endDateObj = new Date(end_date);
+
+      if (Number.isNaN(startDateObj.getTime()) || Number.isNaN(endDateObj.getTime())) {
+        throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
+      }
+
+      if (endDateObj < startDateObj) {
+        throw new Error('End date cannot be before start date');
+      }
+
+      // Normalize to full inclusive days in UTC
+      const normalizedStart = new Date(Date.UTC(
+        startDateObj.getUTCFullYear(),
+        startDateObj.getUTCMonth(),
+        startDateObj.getUTCDate(),
+        0, 0, 0, 0
+      ));
+      const normalizedEnd = new Date(Date.UTC(
+        endDateObj.getUTCFullYear(),
+        endDateObj.getUTCMonth(),
+        endDateObj.getUTCDate(),
+        23, 59, 59, 999
+      ));
+
+      const startDateStr = normalizedStart.toISOString().split('T')[0];
+      const endDateStr = normalizedEnd.toISOString().split('T')[0];
+
+      // Check if report already exists for this exact range
       const existing = await pool.query(
-        'SELECT id FROM monthly_agent_reports WHERE agent_id = $1 AND month = $2 AND year = $3',
-        [agent_id, month, year]
+        'SELECT id FROM monthly_agent_reports WHERE agent_id = $1 AND start_date = $2::date AND end_date = $3::date',
+        [agent_id, startDateStr, endDateStr]
       );
 
       if (existing.rows.length > 0) {
-        throw new Error('Report already exists for this agent and month');
+        throw new Error('Report already exists for this agent and date range');
       }
 
+      // Derive month/year (legacy columns) from the start date for backwards compatibility
+      const derivedMonth = normalizedStart.getUTCMonth() + 1;
+      const derivedYear = normalizedStart.getUTCFullYear();
+
       // Calculate report data
-      const calculatedData = await this.calculateReportData(agent_id, month, year);
+      const calculatedData = await this.calculateReportData(agent_id, normalizedStart, normalizedEnd);
 
       // Insert new report
       const result = await pool.query(
         `INSERT INTO monthly_agent_reports (
-          agent_id, month, year, boosts, 
-          listings_count, lead_sources, viewings_count,
-          sales_count, sales_amount,
-          agent_commission, finders_commission, referral_commission,
-          team_leader_commission, administration_commission, total_commission,
-          referral_received_count, referral_received_commission,
-          referrals_on_properties_count, referrals_on_properties_commission,
+          agent_id,
+          month,
+          year,
+          start_date,
+          end_date,
+          boosts,
+          listings_count,
+          lead_sources,
+          viewings_count,
+          sales_count,
+          sales_amount,
+          agent_commission,
+          finders_commission,
+          referral_commission,
+          team_leader_commission,
+          administration_commission,
+          total_commission,
+          referral_received_count,
+          referral_received_commission,
+          referrals_on_properties_count,
+          referrals_on_properties_commission,
           created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+        ) VALUES (
+          $1,
+          $2,
+          $3,
+          $4,
+          $5,
+          $6,
+          $7,
+          $8,
+          $9,
+          $10,
+          $11,
+          $12,
+          $13,
+          $14,
+          $15,
+          $16,
+          $17,
+          $18,
+          $19,
+          $20,
+          $21,
+          $22
+        )
         RETURNING *`,
         [
-          agent_id, month, year, boosts,
+          agent_id,
+          derivedMonth,
+          derivedYear,
+          startDateStr,
+          endDateStr,
+          boosts,
           calculatedData.listings_count,
           JSON.stringify(calculatedData.lead_sources),
           calculatedData.viewings_count,
@@ -86,19 +164,19 @@ class Report {
 
       return result.rows[0];
     } catch (error) {
-      console.error('Error creating monthly report:', error);
+      console.error('Error creating agent report:', error);
       throw error;
     }
   }
 
   /**
-   * Calculate all report data for an agent in a specific month/year
+   * Calculate all report data for an agent in a specific date range
    * @param {number} agentId - Agent ID
-   * @param {number} month - Month (1-12)
-   * @param {number} year - Year
+   * @param {Date|string} startDateInput - Start date of range
+   * @param {Date|string} endDateInput - End date of range
    * @returns {Promise<Object>} Calculated report data
    */
-  static async calculateReportData(agentId, month, year) {
+  static async calculateReportData(agentId, startDateInput, endDateInput) {
     try {
       // Get commission settings
       const commissionsResult = await pool.query(
@@ -113,18 +191,31 @@ class Report {
         commissions[key] = parseFloat(row.setting_value) || 0;
       });
 
-      // Calculate date range for the month
-      // month is 1-12, JavaScript months are 0-11
-      const startDate = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
-      // Get last day of the month by going to first day of next month and subtracting 1 day
-      const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+      const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
+      const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
+
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        throw new Error('Invalid date range supplied for calculation');
+      }
+
+      const startDateUtc = new Date(Date.UTC(
+        startDate.getFullYear(),
+        startDate.getMonth(),
+        startDate.getDate(),
+        0, 0, 0, 0
+      ));
+      const endDateUtc = new Date(Date.UTC(
+        endDate.getFullYear(),
+        endDate.getMonth(),
+        endDate.getDate(),
+        23, 59, 59, 999
+      ));
       
       // Format dates as YYYY-MM-DD strings for SQL comparison
-      const startDateStr = `${year}-${String(month).padStart(2, '0')}-01`;
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const startDateStr = startDateUtc.toISOString().split('T')[0];
+      const endDateStr = endDateUtc.toISOString().split('T')[0];
       
-      console.log(`📅 Calculating report for agent ${agentId}, month ${month}, year ${year}`);
-      console.log(`📅 Date range: ${startDateStr} to ${endDateStr}`);
+      console.log(`📅 Calculating report for agent ${agentId}, range ${startDateStr} to ${endDateStr}`);
 
       // 1. Count listings created by agent in this month
       const listingsResult = await pool.query(
@@ -133,7 +224,7 @@ class Report {
          WHERE agent_id = $1 
          AND created_at >= $2::timestamp
          AND created_at <= $3::timestamp`,
-        [agentId, startDate.toISOString(), endDate.toISOString()]
+        [agentId, startDateUtc.toISOString(), endDateUtc.toISOString()]
       );
       const listings_count = parseInt(listingsResult.rows[0].count) || 0;
       
@@ -146,7 +237,7 @@ class Report {
          WHERE agent_id = $1`,
         [agentId]
       );
-      console.log(`📊 Agent ${agentId}: Total properties = ${debugResult.rows[0].total}, Date range: ${debugResult.rows[0].earliest} to ${debugResult.rows[0].latest}, Count in ${month}/${year} = ${listings_count}`);
+      console.log(`📊 Agent ${agentId}: Total properties = ${debugResult.rows[0].total}, Date range: ${debugResult.rows[0].earliest} to ${debugResult.rows[0].latest}, Count in selected range = ${listings_count}`);
 
       // 2. Count leads by source for this agent in this month
       const leadsResult = await pool.query(
@@ -473,10 +564,21 @@ class Report {
       const report = existing.rows[0];
       
       // Recalculate data (preserving manual fields)
+      let recalculationStart = report.start_date;
+      let recalculationEnd = report.end_date;
+
+      if (!recalculationStart || !recalculationEnd) {
+        // Fallback for legacy rows without explicit dates
+        const fallbackStart = new Date(Date.UTC(report.year, report.month - 1, 1, 0, 0, 0, 0));
+        const fallbackEnd = new Date(Date.UTC(report.year, report.month, 0, 23, 59, 59, 999));
+        recalculationStart = fallbackStart.toISOString().split('T')[0];
+        recalculationEnd = fallbackEnd.toISOString().split('T')[0];
+      }
+
       const calculatedData = await this.calculateReportData(
         report.agent_id,
-        report.month,
-        report.year
+        recalculationStart,
+        recalculationEnd
       );
 
       // Update report with new calculations, keeping manual fields
@@ -497,8 +599,10 @@ class Report {
           referral_received_commission = $13,
           referrals_on_properties_count = $14,
           referrals_on_properties_commission = $15,
+          start_date = COALESCE(start_date, $16::date),
+          end_date = COALESCE(end_date, $17::date),
           updated_at = NOW()
-        WHERE id = $16
+        WHERE id = $18
         RETURNING *`,
         [
           calculatedData.listings_count,
@@ -516,6 +620,8 @@ class Report {
           calculatedData.referral_received_commission,
           calculatedData.referrals_on_properties_count,
           calculatedData.referrals_on_properties_commission,
+          recalculationStart,
+          recalculationEnd,
           reportId
         ]
       );
@@ -554,19 +660,22 @@ class Report {
         valueIndex++;
       }
 
-      if (filters.month) {
-        query += ` AND r.month = $${valueIndex}`;
-        values.push(filters.month);
+      const startDateFilter = filters.start_date || filters.date_from;
+      const endDateFilter = filters.end_date || filters.date_to;
+
+      if (startDateFilter) {
+        query += ` AND r.start_date >= $${valueIndex}`;
+        values.push(startDateFilter);
         valueIndex++;
       }
 
-      if (filters.year) {
-        query += ` AND r.year = $${valueIndex}`;
-        values.push(filters.year);
+      if (endDateFilter) {
+        query += ` AND r.end_date <= $${valueIndex}`;
+        values.push(endDateFilter);
         valueIndex++;
       }
 
-      query += ' ORDER BY r.year DESC, r.month DESC, u.name ASC';
+      query += ' ORDER BY r.start_date DESC, r.end_date DESC, u.name ASC';
 
       const result = await pool.query(query, values);
       return result.rows;

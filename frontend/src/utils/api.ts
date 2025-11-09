@@ -2,7 +2,7 @@ import { Property, Category, Status } from '@/types/property'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData } from '@/types/reports'
+import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData } from '@/types/reports'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -12,6 +12,9 @@ export class ApiError extends Error {
     this.name = 'ApiError'
   }
 }
+
+// Token type that accepts string, null, or undefined (for useAuth compatibility)
+type AuthToken = string | null | undefined
 
 // CSRF token cache
 let csrfToken: string | null = null
@@ -64,7 +67,7 @@ function clearCSRFToken() {
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
-  token?: string
+  token?: AuthToken
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   
@@ -94,8 +97,9 @@ async function apiRequest<T>(
   }
   
   // Auto-get token from localStorage if not provided
+  // Convert null to undefined for consistency (localStorage.getItem returns null, but we prefer undefined)
   const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-  const authToken = token || storedToken
+  const authToken = token ?? storedToken ?? undefined
   console.log('🔑 Token check:', { 
     hasToken: !!token, 
     hasLocalStorageToken: !!storedToken, 
@@ -312,7 +316,7 @@ interface UserResponse {
 
 export const usersApi = {
   // Get all agents (with token for authentication)
-  getAgents: (token?: string) => apiRequest<{ success: boolean; agents: any[]; message?: string }>('/users/agents', {
+  getAgents: (token?: AuthToken) => apiRequest<{ success: boolean; agents: any[]; message?: string }>('/users/agents', {
     method: 'GET',
   }, token),
   
@@ -320,7 +324,7 @@ export const usersApi = {
   getById: (id: number) => apiRequest<{ success: boolean; data: any }>(`/users/${id}`),
   
   // Get users by role (with token for authentication)
-  getByRole: (role: string, token?: string, teamLeaderId?: number, forAssignment: boolean = false) => {
+  getByRole: (role: string, token?: AuthToken, teamLeaderId?: number, forAssignment: boolean = false) => {
     let url = `/users/role/${role}`;
     const params = new URLSearchParams();
     
@@ -484,7 +488,7 @@ export const propertiesApi = {
 // Leads API
 export const leadsApi = {
   // Get all leads (requires authentication)
-  getAll: (token?: string) => apiRequest<LeadsResponse>('/leads', {}, token),
+  getAll: (token?: AuthToken) => apiRequest<LeadsResponse>('/leads', {}, token),
   
   // Get reference sources
   getReferenceSources: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/leads/reference-sources'),
@@ -493,7 +497,7 @@ export const leadsApi = {
   getOperationsUsers: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/leads/operations-users'),
   
   // Get leads with filters
-  getWithFilters: (filters: LeadFilters, token?: string) => {
+  getWithFilters: (filters: LeadFilters, token?: AuthToken) => {
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -504,70 +508,70 @@ export const leadsApi = {
   },
   
   // Get lead by ID
-  getById: (id: number, token?: string) => apiRequest<LeadResponse>(`/leads/${id}`, {}, token),
+  getById: (id: number, token?: AuthToken) => apiRequest<LeadResponse>(`/leads/${id}`, {}, token),
   
   // Create lead
-  create: (data: CreateLeadFormData, token?: string) => apiRequest<LeadResponse>('/leads', {
+  create: (data: CreateLeadFormData, token?: AuthToken) => apiRequest<LeadResponse>('/leads', {
     method: 'POST',
     body: JSON.stringify(data),
   }, token),
   
   // Update lead
-  update: (id: number, data: Partial<CreateLeadFormData>, token?: string) => apiRequest<LeadResponse>(`/leads/${id}`, {
+  update: (id: number, data: Partial<CreateLeadFormData>, token?: AuthToken) => apiRequest<LeadResponse>(`/leads/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }, token),
   
   // Delete lead
-  delete: (id: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/leads/${id}`, {
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/leads/${id}`, {
     method: 'DELETE',
   }, token),
   
   // Get leads by agent
-  getByAgent: (agentId: number, token?: string) => apiRequest<LeadsResponse>(`/leads/agent/${agentId}`, {}, token),
+  getByAgent: (agentId: number, token?: AuthToken) => apiRequest<LeadsResponse>(`/leads/agent/${agentId}`, {}, token),
   
   // Get lead statistics
-  getStats: (token?: string) => apiRequest<LeadStatsApiResponse>('/leads/stats', {}, token),
+  getStats: (token?: AuthToken) => apiRequest<LeadStatsApiResponse>('/leads/stats', {}, token),
   
   // Get notes for a specific lead
-  getNotes: (leadId: number, token?: string) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/notes`, {}, token),
+  getNotes: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/notes`, {}, token),
   
   // Add or update note for a lead
-  saveNote: (leadId: number, noteText: string, token?: string) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/notes`, {
+  saveNote: (leadId: number, noteText: string, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/notes`, {
     method: 'POST',
     body: JSON.stringify({ note_text: noteText }),
   }, token),
   
   // Delete note for a lead
-  deleteNote: (leadId: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/notes`, {
+  deleteNote: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/notes`, {
     method: 'DELETE',
   }, token),
   
   // Get referrals for a specific lead
-  getReferrals: (leadId: number, token?: string) => apiRequest<LeadReferralsResponse>(`/leads/${leadId}/referrals`, {}, token),
+  getReferrals: (leadId: number, token?: AuthToken) => apiRequest<LeadReferralsResponse>(`/leads/${leadId}/referrals`, {}, token),
   
   // Add a referral to a lead
-  addReferral: (leadId: number, referralData: { name: string; type: 'employee' | 'custom'; employee_id?: number; date: string }, token?: string) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/referrals`, {
+  addReferral: (leadId: number, referralData: { name: string; type: 'employee' | 'custom'; employee_id?: number; date: string }, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/referrals`, {
     method: 'POST',
     body: JSON.stringify(referralData),
   }, token),
   
   // Delete a referral from a lead
-  deleteReferral: (leadId: number, referralId: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/referrals/${referralId}`, {
+  deleteReferral: (leadId: number, referralId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/referrals/${referralId}`, {
     method: 'DELETE',
   }, token),
   
   // Get referral statistics for an agent
-  getAgentReferralStats: (agentId: number, token?: string) => apiRequest<AgentReferralStatsResponse>(`/leads/agent/${agentId}/referral-stats`, {}, token),
+  getAgentReferralStats: (agentId: number, token?: AuthToken) => apiRequest<AgentReferralStatsResponse>(`/leads/agent/${agentId}/referral-stats`, {}, token),
 }
 
 // Viewings API
 export const viewingsApi = {
   // Get all viewings (requires authentication)
-  getAll: (token?: string) => apiRequest<ViewingsResponse>('/viewings', {}, token),
+  getAll: (token?: AuthToken) => apiRequest<ViewingsResponse>('/viewings', {}, token),
   
   // Get viewings with filters
-  getWithFilters: (filters: ViewingFilters, token?: string) => {
+  getWithFilters: (filters: ViewingFilters, token?: AuthToken) => {
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -578,65 +582,65 @@ export const viewingsApi = {
   },
   
   // Get viewing by ID
-  getById: (id: number, token?: string) => apiRequest<ViewingResponse>(`/viewings/${id}`, {}, token),
+  getById: (id: number, token?: AuthToken) => apiRequest<ViewingResponse>(`/viewings/${id}`, {}, token),
   
   // Create viewing
-  create: (data: CreateViewingFormData, token?: string) => apiRequest<ViewingResponse>('/viewings', {
+  create: (data: CreateViewingFormData, token?: AuthToken) => apiRequest<ViewingResponse>('/viewings', {
     method: 'POST',
     body: JSON.stringify(data),
   }, token),
   
   // Update viewing
-  update: (id: number, data: Partial<CreateViewingFormData>, token?: string) => apiRequest<ViewingResponse>(`/viewings/${id}`, {
+  update: (id: number, data: Partial<CreateViewingFormData>, token?: AuthToken) => apiRequest<ViewingResponse>(`/viewings/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }, token),
   
   // Delete viewing
-  delete: (id: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/viewings/${id}`, {
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/viewings/${id}`, {
     method: 'DELETE',
   }, token),
   
   // Get viewings by agent
-  getByAgent: (agentId: number, token?: string) => apiRequest<ViewingsResponse>(`/viewings/agent/${agentId}`, {}, token),
+  getByAgent: (agentId: number, token?: AuthToken) => apiRequest<ViewingsResponse>(`/viewings/agent/${agentId}`, {}, token),
   
   // Get viewing statistics
-  getStats: (token?: string) => apiRequest<ViewingStatsApiResponse>('/viewings/stats', {}, token),
+  getStats: (token?: AuthToken) => apiRequest<ViewingStatsApiResponse>('/viewings/stats', {}, token),
   
   // Get updates for a specific viewing
-  getUpdates: (viewingId: number, token?: string) => apiRequest<ViewingUpdatesResponse>(`/viewings/${viewingId}/updates`, {}, token),
+  getUpdates: (viewingId: number, token?: AuthToken) => apiRequest<ViewingUpdatesResponse>(`/viewings/${viewingId}/updates`, {}, token),
   
   // Add update to a viewing
-  addUpdate: (viewingId: number, data: ViewingUpdateInput, token?: string) => apiRequest<{ success: boolean; data: any; message?: string }>(`/viewings/${viewingId}/updates`, {
+  addUpdate: (viewingId: number, data: ViewingUpdateInput, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message?: string }>(`/viewings/${viewingId}/updates`, {
     method: 'POST',
     body: JSON.stringify(data),
   }, token),
   
   // Delete viewing update
-  deleteUpdate: (viewingId: number, updateId: number, token?: string) => apiRequest<{ success: boolean; message: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
+  deleteUpdate: (viewingId: number, updateId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
     method: 'DELETE',
   }, token),
 }
 
 // Categories API
 export const categoriesApi = {
-  getAll: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/categories', {}, token),
-  getAllForAdmin: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/categories/admin', {}, token),
+  getAll: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/categories', {}, token),
+  getAllForAdmin: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/categories/admin', {}, token),
   getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/categories/demo'),
-  getWithCount: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/categories/with-count', {}, token),
-  search: (query: string, token?: string) => apiRequest<{ success: boolean; data: any[] }>(`/categories/search?q=${encodeURIComponent(query)}`, {}, token),
-  getById: (id: number, token?: string) => apiRequest<{ success: boolean; data: any }>(`/categories/${id}`, {}, token),
-  create: (data: { name: string; code: string; description?: string; is_active?: boolean }, token?: string) => 
+  getWithCount: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/categories/with-count', {}, token),
+  search: (query: string, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/categories/search?q=${encodeURIComponent(query)}`, {}, token),
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any }>(`/categories/${id}`, {}, token),
+  create: (data: { name: string; code: string; description?: string; is_active?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message: string }>('/categories', {
       method: 'POST',
       body: JSON.stringify(data),
     }, token),
-  update: (id: number, data: { name?: string; code?: string; description?: string; is_active?: boolean }, token?: string) => 
+  update: (id: number, data: { name?: string; code?: string; description?: string; is_active?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message: string }>(`/categories/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }, token),
-  delete: (id: number, token?: string) => 
+  delete: (id: number, token?: AuthToken) => 
     apiRequest<{ success: boolean; message: string }>(`/categories/${id}`, {
       method: 'DELETE',
     }, token),
@@ -644,24 +648,24 @@ export const categoriesApi = {
 
 // Statuses API
 export const statusesApi = {
-  getAll: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses', {}, token),
-  getAllForAdmin: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses/admin', {}, token),
+  getAll: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/statuses', {}, token),
+  getAllForAdmin: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/statuses/admin', {}, token),
   getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/statuses/demo'),
-  getWithCount: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses/with-count', {}, token),
-  getStats: (token?: string) => apiRequest<{ success: boolean; data: any[] }>('/statuses/stats', {}, token),
-  search: (query: string, token?: string) => apiRequest<{ success: boolean; data: any[] }>(`/statuses/search?q=${encodeURIComponent(query)}`, {}, token),
-  getById: (id: number, token?: string) => apiRequest<{ success: boolean; data: any }>(`/statuses/${id}`, {}, token),
-  create: (data: { name: string; code: string; description?: string; color?: string; is_active?: boolean }, token?: string) => 
+  getWithCount: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/statuses/with-count', {}, token),
+  getStats: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/statuses/stats', {}, token),
+  search: (query: string, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/statuses/search?q=${encodeURIComponent(query)}`, {}, token),
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any }>(`/statuses/${id}`, {}, token),
+  create: (data: { name: string; code: string; description?: string; color?: string; is_active?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message: string }>('/statuses', {
       method: 'POST',
       body: JSON.stringify(data),
     }, token),
-  update: (id: number, data: { name?: string; code?: string; description?: string; color?: string; is_active?: boolean }, token?: string) => 
+  update: (id: number, data: { name?: string; code?: string; description?: string; color?: string; is_active?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message: string }>(`/statuses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
     }, token),
-  delete: (id: number, token?: string) => 
+  delete: (id: number, token?: AuthToken) => 
     apiRequest<{ success: boolean; message: string }>(`/statuses/${id}`, {
       method: 'DELETE',
     }, token),
@@ -676,7 +680,7 @@ export const leadStatusesApi = {
   getById: (id: number) => apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`),
   
   // Create new lead status
-  create: (data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: string) => 
+  create: (data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message?: string }>('/lead-statuses', {
       method: 'POST',
       headers: {
@@ -687,7 +691,7 @@ export const leadStatusesApi = {
     }),
   
   // Update lead status
-  update: (id: number, data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: string) => 
+  update: (id: number, data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`, {
       method: 'PUT',
       headers: {
@@ -698,7 +702,7 @@ export const leadStatusesApi = {
     }),
   
   // Delete lead status
-  delete: (id: number, token?: string) => 
+  delete: (id: number, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`, {
       method: 'DELETE',
       headers: {
@@ -1032,7 +1036,7 @@ interface DocumentsResponse {
 // Reports API
 export const reportsApi = {
   // Get all monthly reports with optional filters
-  getAll: (filters: ReportFilters = {}, token?: string) => {
+  getAll: (filters: ReportFilters = {}, token?: AuthToken) => {
     const params = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
@@ -1048,14 +1052,14 @@ export const reportsApi = {
   },
 
   // Get a single report by ID
-  getById: (id: number, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
     `/reports/monthly/${id}`,
     {},
     token
   ),
 
   // Create a new monthly report
-  create: (data: CreateReportData, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+  create: (data: CreateReportData, token?: AuthToken) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
     '/reports/monthly',
     {
       method: 'POST',
@@ -1065,7 +1069,7 @@ export const reportsApi = {
   ),
 
   // Update a report (mainly manual fields like boosts)
-  update: (id: number, data: UpdateReportData, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+  update: (id: number, data: UpdateReportData, token?: AuthToken) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
     `/reports/monthly/${id}`,
     {
       method: 'PUT',
@@ -1075,7 +1079,7 @@ export const reportsApi = {
   ),
 
   // Recalculate report automatic values
-  recalculate: (id: number, token?: string) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
+  recalculate: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
     `/reports/monthly/${id}/recalculate`,
     {
       method: 'POST',
@@ -1084,7 +1088,7 @@ export const reportsApi = {
   ),
 
   // Delete a report
-  delete: (id: number, token?: string) => apiRequest<{ success: boolean; message: string }>(
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(
     `/reports/monthly/${id}`,
     {
       method: 'DELETE',
@@ -1093,16 +1097,16 @@ export const reportsApi = {
   ),
 
   // Get available lead sources
-  getLeadSources: (token?: string) => apiRequest<{ success: boolean; data: string[]; message: string }>(
+  getLeadSources: (token?: AuthToken) => apiRequest<{ success: boolean; data: string[]; message: string }>(
     '/reports/lead-sources',
     {},
     token
   ),
 
   // Export report to Excel
-  exportToExcel: async (id: number, token?: string): Promise<Blob> => {
+  exportToExcel: async (id: number, token?: AuthToken): Promise<Blob> => {
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-    const authToken = token || storedToken || ''
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
     
     const response = await fetch(`${API_BASE_URL}/reports/monthly/${id}/export/excel`, {
       method: 'GET',
@@ -1120,9 +1124,9 @@ export const reportsApi = {
   },
 
   // Export report to PDF
-  exportToPDF: async (id: number, token?: string): Promise<Blob> => {
+  exportToPDF: async (id: number, token?: AuthToken): Promise<Blob> => {
     const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
-    const authToken = token || storedToken || ''
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
     
     const response = await fetch(`${API_BASE_URL}/reports/monthly/${id}/export/pdf`, {
       method: 'GET',
@@ -1134,6 +1138,214 @@ export const reportsApi = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
       throw new Error(errorData.message || 'Failed to export report to PDF')
+    }
+
+    return response.blob()
+  },
+}
+
+// DCSR Reports API
+export const dcsrApi = {
+  // Get all DCSR reports with optional filters
+  getAll: (filters: DCSRReportFilters = {}, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: DCSRMonthlyReport[]; message: string }>(
+      `/dcsr-reports/monthly${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  // Get a single DCSR report by ID
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: DCSRMonthlyReport; message: string }>(
+    `/dcsr-reports/monthly/${id}`,
+    {},
+    token
+  ),
+
+  // Create a new DCSR report
+  create: (data: CreateDCSRData, token?: AuthToken) => apiRequest<{ success: boolean; data: DCSRMonthlyReport; message: string }>(
+    '/dcsr-reports/monthly',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Update a DCSR report
+  update: (id: number, data: UpdateDCSRData, token?: AuthToken) => apiRequest<{ success: boolean; data: DCSRMonthlyReport; message: string }>(
+    `/dcsr-reports/monthly/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Recalculate DCSR report automatic values
+  recalculate: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: DCSRMonthlyReport; message: string }>(
+    `/dcsr-reports/monthly/${id}/recalculate`,
+    {
+      method: 'POST',
+    },
+    token
+  ),
+
+  // Delete a DCSR report
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(
+    `/dcsr-reports/monthly/${id}`,
+    {
+      method: 'DELETE',
+    },
+    token
+  ),
+
+  // Export DCSR report to Excel
+  exportToExcel: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+    
+    const response = await fetch(`${API_BASE_URL}/dcsr-reports/monthly/${id}/export/excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export DCSR report to Excel')
+    }
+
+    return response.blob()
+  },
+
+  // Export DCSR report to PDF
+  exportToPDF: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+    
+    const response = await fetch(`${API_BASE_URL}/dcsr-reports/monthly/${id}/export/pdf`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export DCSR report to PDF')
+    }
+
+    return response.blob()
+  },
+}
+
+// Operations Commission Reports API
+export const operationsCommissionApi = {
+  // Get all operations commission reports with optional filters
+  getAll: (filters: OperationsCommissionFilters = {}, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: OperationsCommissionReport[]; message: string }>(
+      `/operations-commission/monthly${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  // Get a single operations commission report by ID
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsCommissionReport; message: string }>(
+    `/operations-commission/monthly/${id}`,
+    {},
+    token
+  ),
+
+  // Create a new operations commission report
+  create: (data: CreateOperationsCommissionData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsCommissionReport; message: string }>(
+    '/operations-commission/monthly',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Update an existing operations commission report
+  update: (id: number, data: UpdateOperationsCommissionData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsCommissionReport; message: string }>(
+    `/operations-commission/monthly/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Recalculate an operations commission report
+  recalculate: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsCommissionReport; message: string }>(
+    `/operations-commission/monthly/${id}/recalculate`,
+    {
+      method: 'POST',
+    },
+    token
+  ),
+
+  // Delete an operations commission report
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(
+    `/operations-commission/monthly/${id}`,
+    {
+      method: 'DELETE',
+    },
+    token
+  ),
+
+  // Export operations commission report to Excel
+  exportToExcel: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+    
+    const response = await fetch(`${API_BASE_URL}/operations-commission/monthly/${id}/export/excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export operations commission report to Excel')
+    }
+
+    return response.blob()
+  },
+
+  // Export operations commission report to PDF
+  exportToPDF: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+    
+    const response = await fetch(`${API_BASE_URL}/operations-commission/monthly/${id}/export/pdf`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export operations commission report to PDF')
     }
 
     return response.blob()

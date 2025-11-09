@@ -10,7 +10,7 @@ router.use(authenticateToken);
 /**
  * @route   GET /api/reports/monthly
  * @desc    Get all monthly agent reports with optional filters
- * @query   agent_id, month, year
+ * @query   agent_id, start_date, end_date
  * @access  Private (Admin, Operations Manager, Agent Manager)
  */
 router.get('/monthly', ReportsController.getAllReports);
@@ -25,7 +25,7 @@ router.get('/monthly/:id', ReportsController.getReportById);
 /**
  * @route   POST /api/reports/monthly
  * @desc    Create a new monthly agent report
- * @body    agent_id, month, year, boosts (optional)
+ * @body    agent_id, start_date, end_date, boosts (optional)
  * @access  Private (Admin, Operations Manager, Agent Manager)
  */
 router.post('/monthly', ReportsController.createMonthlyReport);

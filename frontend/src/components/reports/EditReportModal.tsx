@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, AlertCircle, RefreshCw } from 'lucide-react'
 import { MonthlyAgentReport } from '@/types/reports'
 import { reportsApi } from '@/utils/api'
@@ -21,6 +21,10 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [leadSources, setLeadSources] = useState<string[]>([])
+  const rangeFormatter = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+    []
+  )
 
   // Editable data
   const [editableData, setEditableData] = useState({
@@ -134,10 +138,16 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
 
   const allLeadSources = leadSources.length > 0 ? leadSources : Object.keys(editableData.lead_sources)
 
-  const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ]
+  const formatRangeDisplay = () => {
+    const start = report.start_date
+      ? new Date(report.start_date)
+      : new Date(report.year ?? new Date().getFullYear(), (report.month ?? 1) - 1, 1)
+    const end = report.end_date
+      ? new Date(report.end_date)
+      : new Date(report.year ?? new Date().getFullYear(), report.month ?? 1, 0)
+
+    return `${rangeFormatter.format(start)} → ${rangeFormatter.format(end)}`
+  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
@@ -147,7 +157,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Edit Report</h2>
             <p className="text-sm text-gray-600 mt-1">
-              {report.agent_name} - {months[report.month - 1]} {report.year}
+              {report.agent_name} • {formatRangeDisplay()}
             </p>
           </div>
           <div className="flex items-center space-x-2">

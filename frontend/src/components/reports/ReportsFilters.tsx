@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, Filter, X } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Filter, X, CalendarRange, Sparkles } from 'lucide-react'
 import { ReportFilters as ReportFiltersType } from '@/types/reports'
 import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -51,25 +51,23 @@ export default function ReportsFilters({
     value => value !== undefined && value !== null && value !== ''
   )
 
-  // Generate month/year options
-  const currentYear = new Date().getFullYear()
-  const currentMonth = new Date().getMonth() + 1
-  
-  const years = Array.from({ length: 10 }, (_, i) => currentYear - i)
-  const months = [
-    { value: 1, label: 'January' },
-    { value: 2, label: 'February' },
-    { value: 3, label: 'March' },
-    { value: 4, label: 'April' },
-    { value: 5, label: 'May' },
-    { value: 6, label: 'June' },
-    { value: 7, label: 'July' },
-    { value: 8, label: 'August' },
-    { value: 9, label: 'September' },
-    { value: 10, label: 'October' },
-    { value: 11, label: 'November' },
-    { value: 12, label: 'December' }
-  ]
+  const rangeFormatter = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+    []
+  )
+
+  const formatRangeLabel = () => {
+    if (!filters.start_date && !filters.end_date) return null
+
+    const start = filters.start_date
+      ? rangeFormatter.format(new Date(filters.start_date))
+      : 'Start'
+    const end = filters.end_date
+      ? rangeFormatter.format(new Date(filters.end_date))
+      : 'End'
+
+    return `${start} → ${end}`
+  }
 
   return (
     <div className="bg-white p-6 rounded-lg shadow">
@@ -89,16 +87,17 @@ export default function ReportsFilters({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Agent Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Agent
+        <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-blue-300 transition-colors">
+          <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-blue-500" />
+            Focus on an agent
           </label>
           <select
             value={filters.agent_id || ''}
             onChange={(e) => handleFilterChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+            className="w-full appearance-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
           >
             <option value="">All Agents</option>
             {agents.map((agent) => (
@@ -109,42 +108,31 @@ export default function ReportsFilters({
           </select>
         </div>
 
-        {/* Month Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Month
+        {/* Date Range */}
+        <div className="lg:col-span-2 bg-blue-50/70 border border-blue-200 rounded-lg p-4">
+          <label className="block text-sm font-medium text-blue-900 mb-3 flex items-center gap-2">
+            <CalendarRange className="h-4 w-4" />
+            Reporting window
           </label>
-          <select
-            value={filters.month || ''}
-            onChange={(e) => handleFilterChange('month', e.target.value ? parseInt(e.target.value) : undefined)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-          >
-            <option value="">All Months</option>
-            {months.map((month) => (
-              <option key={month.value} value={month.value}>
-                {month.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Year Filter */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Year
-          </label>
-          <select
-            value={filters.year || ''}
-            onChange={(e) => handleFilterChange('year', e.target.value ? parseInt(e.target.value) : undefined)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-          >
-            <option value="">All Years</option>
-            {years.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
+            <input
+              type="date"
+              value={filters.start_date || ''}
+              onChange={(e) => handleFilterChange('start_date', e.target.value || undefined)}
+              className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              max={filters.end_date || undefined}
+            />
+            <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
+              —
+            </div>
+            <input
+              type="date"
+              value={filters.end_date || ''}
+              onChange={(e) => handleFilterChange('end_date', e.target.value || undefined)}
+              className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              min={filters.start_date || undefined}
+            />
+          </div>
         </div>
       </div>
 
@@ -162,22 +150,14 @@ export default function ReportsFilters({
               </button>
             </span>
           )}
-          {filters.month && (
+          {(filters.start_date || filters.end_date) && (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-              Month: {months.find(m => m.value === filters.month)?.label || filters.month}
+              Range: {formatRangeLabel()}
               <button
-                onClick={() => handleFilterChange('month', undefined)}
-                className="ml-2 text-blue-600 hover:text-blue-800"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          )}
-          {filters.year && (
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-              Year: {filters.year}
-              <button
-                onClick={() => handleFilterChange('year', undefined)}
+                onClick={() => {
+                  handleFilterChange('start_date', undefined)
+                  handleFilterChange('end_date', undefined)
+                }}
                 className="ml-2 text-blue-600 hover:text-blue-800"
               >
                 <X className="h-3 w-3" />

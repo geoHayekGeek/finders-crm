@@ -99,11 +99,7 @@ export default function MonthlyAgentStatsTab() {
       
       // Get filename from report data
       const report = reports.find(r => r.id === reportId)
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December']
-      const filename = report 
-        ? `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.xlsx`
-        : 'report.xlsx'
+      const filename = `Report_${formatRangeSlug(report)}.xlsx`
 
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -127,11 +123,7 @@ export default function MonthlyAgentStatsTab() {
       
       // Get filename from report data
       const report = reports.find(r => r.id === reportId)
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December']
-      const filename = report 
-        ? `Report_${report.agent_name.replace(/\s+/g, '_')}_${monthNames[report.month - 1]}_${report.year}.pdf`
-        : 'report.pdf'
+      const filename = `Report_${formatRangeSlug(report)}.pdf`
 
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -165,12 +157,46 @@ export default function MonthlyAgentStatsTab() {
     return Array.from(sourcesSet).sort()
   }, [reports, leadSources])
 
+  const rangeFormatter = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+    []
+  )
+
+  const formatRangeSlug = (report?: MonthlyAgentReport) => {
+    if (!report) {
+      return 'report'
+    }
+
+    const start = report.start_date
+      ? new Date(report.start_date)
+      : new Date(report.year ?? new Date().getFullYear(), (report.month ?? 1) - 1, 1)
+    const end = report.end_date
+      ? new Date(report.end_date)
+      : new Date(report.year ?? new Date().getFullYear(), report.month ?? 1, 0)
+
+    const safeStart = rangeFormatter.format(start).replace(/[, ]/g, '-')
+    const safeEnd = rangeFormatter.format(end).replace(/[, ]/g, '-')
+
+    return `${report.agent_name.replace(/\s+/g, '_')}_${safeStart}_to_${safeEnd}`
+  }
+
+  const formatRangeDisplay = (report: MonthlyAgentReport) => {
+    const start = report.start_date
+      ? new Date(report.start_date)
+      : new Date(report.year ?? new Date().getFullYear(), (report.month ?? 1) - 1, 1)
+    const end = report.end_date
+      ? new Date(report.end_date)
+      : new Date(report.year ?? new Date().getFullYear(), report.month ?? 1, 0)
+
+    return `${rangeFormatter.format(start)} – ${rangeFormatter.format(end)}`
+  }
+
   // Export to CSV
   const exportToCSV = () => {
     const headers = [
       'Agent',
-      'Month',
-      'Year',
+      'Start Date',
+      'End Date',
       'Listings',
       ...allLeadSources.map(source => source),
       'Viewings',
@@ -186,24 +212,37 @@ export default function MonthlyAgentStatsTab() {
       'Ref Received'
     ]
 
-    const rows = reports.map(report => [
-      report.agent_name,
-      report.month,
-      report.year,
-      report.listings_count,
-      ...allLeadSources.map(source => report.lead_sources[source] || 0),
-      report.viewings_count,
-      report.boosts,
-      report.sales_count,
-      report.sales_amount,
-      report.agent_commission,
-      report.finders_commission,
-      report.referral_commission,
-      report.team_leader_commission,
-      report.administration_commission,
-      report.total_commission,
-      report.referral_received_count
-    ])
+    const rows = reports.map(report => {
+      const start = report.start_date
+        ? report.start_date
+        : new Date(report.year ?? new Date().getFullYear(), (report.month ?? 1) - 1, 1)
+            .toISOString()
+            .split('T')[0]
+      const end = report.end_date
+        ? report.end_date
+        : new Date(report.year ?? new Date().getFullYear(), report.month ?? 1, 0)
+            .toISOString()
+            .split('T')[0]
+
+      return [
+        report.agent_name,
+        start,
+        end,
+        report.listings_count,
+        ...allLeadSources.map(source => report.lead_sources?.[source] || 0),
+        report.viewings_count,
+        report.boosts,
+        report.sales_count,
+        report.sales_amount,
+        report.agent_commission,
+        report.finders_commission,
+        report.referral_commission,
+        report.team_leader_commission,
+        report.administration_commission,
+        report.total_commission,
+        report.referral_received_count
+      ]
+    })
 
     const csvContent = [
       headers.join(','),
@@ -269,7 +308,7 @@ export default function MonthlyAgentStatsTab() {
                   Agent
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Month/Year
+                  Date Range
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Listings
@@ -338,7 +377,7 @@ export default function MonthlyAgentStatsTab() {
                       {report.agent_name}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(report.year, report.month - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      {formatRangeDisplay(report)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
                       {report.listings_count}
