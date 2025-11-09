@@ -1,7 +1,7 @@
 'use client'
 
 import { Lead, LEAD_STATUSES } from '@/types/leads'
-import { Eye, Edit3, Trash2, Phone, Calendar, User, MessageSquare, Users } from 'lucide-react'
+import { Eye, Edit3, Trash2, Phone, Calendar, User, Users } from 'lucide-react'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
 interface LeadsCardProps {
@@ -115,16 +115,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Contact Source</div>
           <div className="text-sm text-gray-700 capitalize">{lead.contact_source}</div>
-        </div>
-      )}
-
-      {/* Notes */}
-      {lead.notes && (
-        <div className="mb-4">
-          <div className="flex items-start gap-2">
-            <MessageSquare className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-gray-600 line-clamp-3">{lead.notes}</p>
-          </div>
         </div>
       )}
 

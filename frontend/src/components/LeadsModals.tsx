@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Phone, Calendar, Users, MessageSquare, Tag, Globe, Settings, RefreshCw, Calculator } from 'lucide-react'
+import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator } from 'lucide-react'
 import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser, LeadReferralInput } from '@/types/leads'
 import { AgentSelector } from './AgentSelector'
 import { StatusSelector } from './StatusSelector'
 import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { OperationsSelector } from './OperationsSelector'
-import { LeadNotesSection } from './LeadNotesSection'
 import { LeadReferralsSection } from './LeadReferralsSection'
 import { LeadReferralSelector } from './LeadReferralSelector'
 import { formatDateForDisplay } from '@/utils/dateUtils'
@@ -114,43 +113,6 @@ export function LeadsModals({
     fetchAgents()
   }, [token])
   
-  // Handler for saving notes
-  const handleSaveNote = async (leadId: number, noteText: string) => {
-    if (!token || !user) {
-      showError('Authentication required')
-      return
-    }
-    
-    try {
-      console.log('💾 Saving note for lead:', leadId, 'Note:', noteText)
-      
-      // Save the note to backend
-      const response = await leadsApi.saveNote(leadId, noteText, token)
-      console.log('📡 Save note response:', response)
-      
-      if (response.success) {
-        console.log('✅ Note saved, now refreshing lead data...')
-        
-        // Refresh the lead data to show updated notes
-        if (onRefreshLead) {
-          await onRefreshLead(leadId)
-          console.log('✅ Lead refreshed after note save')
-          showSuccess('Note saved successfully')
-        } else {
-          console.warn('⚠️ onRefreshLead not provided, lead data will not update')
-          showSuccess('Note saved successfully (refresh required)')
-        }
-      } else {
-        console.error('❌ Failed to save note:', response.message)
-        showError(response.message || 'Failed to save note')
-      }
-    } catch (error) {
-      console.error('❌ Error saving note:', error)
-      showError(error instanceof Error ? error.message : 'Failed to save note')
-      throw error // Re-throw so the component knows it failed
-    }
-  }
-  
   // Handler for adding referrals
   const handleAddReferral = async (leadId: number, agentId: number, referralDate: string) => {
     if (!token) {
@@ -227,7 +189,6 @@ export function LeadsModals({
     reference_source_id: undefined,
     operations_id: undefined,
     contact_source: 'unknown',
-    notes: '',
     status: '',
     referrals: []
   })
@@ -413,7 +374,6 @@ export function LeadsModals({
         reference_source_id: undefined,
         operations_id: undefined,
         contact_source: 'unknown',
-        notes: '',
         status: '',
         referrals: []
       })
@@ -764,21 +724,6 @@ export function LeadsModals({
                   <p className="mt-1 text-xs text-gray-500">Add agents who referred this lead</p>
                 </div>
 
-                {/* Notes */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <MessageSquare className="inline h-4 w-4 mr-1" />
-                    Notes <span className="text-gray-400 text-xs">(optional)</span>
-                  </label>
-                  <textarea
-                    value={addFormData.notes}
-                    onChange={(e) => setAddFormData({ ...addFormData, notes: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter any notes about this lead"
-                  />
-                </div>
-
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                   <button
@@ -824,7 +769,7 @@ export function LeadsModals({
                     {/* Read-only Information for Agents/Team Leaders */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-sm text-blue-700 mb-3 font-medium">
-                        ℹ️ You can only edit your notes for this lead. Contact an admin to modify lead details.
+                        ℹ️ You have read-only access to this lead. Contact an admin to modify lead details.
                       </p>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1087,42 +1032,10 @@ export function LeadsModals({
                   </>
                 )}
 
-                {/* Legacy Notes - Only for admin/operations */}
-                {!limitedAccess && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      <MessageSquare className="inline h-4 w-4 mr-1" />
-                      Legacy Notes <span className="text-gray-400 text-xs">(deprecated - use Agent Notes below)</span>
-                    </label>
-                    <textarea
-                      value={editFormData.notes}
-                      onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
-                      rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="Enter any notes about this lead"
-                    />
-                  </div>
-                )}
-
-                {/* Agent Notes Section */}
-                {editingLead && (
-                  <div className="pt-4">
-                    <LeadNotesSection
-                      key={`edit-notes-${editingLead.id}`}
-                      notes={editingLead.agent_notes || []}
-                      canEdit={true}
-                      currentUserId={user?.id || 0}
-                      onSaveNote={async (noteText) => {
-                        await handleSaveNote(editingLead.id, noteText)
-                      }}
-                    />
-                  </div>
-                )}
-
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
                   {limitedAccess ? (
-                    // Agents/Team Leaders only get a Close button (they edit notes inline)
+                    // Agents/Team Leaders have read-only access
                     <button
                       type="button"
                       onClick={() => setShowEditLeadModal(false)}
@@ -1247,28 +1160,6 @@ export function LeadsModals({
                     </div>
                   </>
                 )}
-
-
-
-                {viewingLead.notes && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Legacy Notes</label>
-                    <p className="text-gray-900 whitespace-pre-wrap text-sm">{viewingLead.notes}</p>
-                  </div>
-                )}
-
-                {/* Agent Notes Section */}
-                <div className="pt-4">
-                  <LeadNotesSection
-                    key={`view-notes-${viewingLead.id}`}
-                    notes={viewingLead.agent_notes || []}
-                    canEdit={true}
-                    currentUserId={user?.id || 0}
-                    onSaveNote={async (noteText) => {
-                      await handleSaveNote(viewingLead.id, noteText)
-                    }}
-                  />
-                </div>
 
                 {/* Lead Referrals Section - Read Only in View Mode */}
                 {!limitedAccess && (

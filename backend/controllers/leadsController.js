@@ -18,10 +18,6 @@ class LeadsController {
 
       let leads = await Lead.getLeadsForAgent(req.user.id, normalizedRole);
       
-      // Add agent-specific notes
-      leads = await Lead.getLeadsWithNotes(leads, req.user.id, req.user.role);
-      console.log('📝 Added notes to', leads.length, 'leads. First lead has', leads[0]?.agent_notes?.length || 0, 'notes');
-      
       // Filter data for agents and team leaders
       if (['agent', 'team_leader'].includes(normalizedRole)) {
         leads = leads.map(lead => ({
@@ -39,7 +35,6 @@ class LeadsController {
           contact_source: lead.contact_source,
           price: lead.price,
           status: lead.status,
-          agent_notes: lead.agent_notes, // Include agent-specific notes
           created_at: lead.created_at,
           updated_at: lead.updated_at
         }));
@@ -101,9 +96,6 @@ class LeadsController {
       
       console.log('🔍 Final leads count:', leads.length);
       
-      // Add agent-specific notes
-      leads = await Lead.getLeadsWithNotes(leads, req.user.id, req.user.role);
-      
       // Filter data for agents and team leaders
       if (['agent', 'team_leader'].includes(normalizedRole)) {
         leads = leads.map(lead => ({
@@ -121,7 +113,6 @@ class LeadsController {
           contact_source: lead.contact_source,
           price: lead.price,
           status: lead.status,
-          agent_notes: lead.agent_notes,
           created_at: lead.created_at,
           updated_at: lead.updated_at
         }));
@@ -163,17 +154,7 @@ class LeadsController {
       
       // Admin, operations, operations manager, and agent manager have full access to lead data
       if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
-        // Full access to lead fields, but notes remain scoped per author
-      const notes = await Lead.getLeadNotes(lead.id, userId, userRole);
-        console.log('📝 Admin getLeadById - fetched', notes?.length || 0, 'notes for lead', lead.id);
-        console.log('📝 Full lead data for admin:', {
-          id: lead.id,
-          operations_id: lead.operations_id,
-          reference_source_id: lead.reference_source_id,
-          contact_source: lead.contact_source,
-          price: lead.price
-        });
-        lead.agent_notes = notes;
+        // Full access
       } else if (normalizedRole === 'agent' && lead.agent_id !== userId) {
         // Agents can only view leads they're assigned to
         return res.status(403).json({
@@ -187,8 +168,6 @@ class LeadsController {
           message: 'You do not have permission to view this lead'
         });
       } else if (['agent', 'team_leader'].includes(normalizedRole)) {
-        // Add agent-specific notes and filter data
-        const notes = await Lead.getLeadNotes(lead.id, userId, userRole);
         lead = {
           id: lead.id,
           date: lead.date,
@@ -197,7 +176,6 @@ class LeadsController {
           agent_id: lead.agent_id,
           assigned_agent_name: lead.assigned_agent_name,
           status: lead.status,
-          agent_notes: notes,
           created_at: lead.created_at,
           updated_at: lead.updated_at
         };
@@ -233,20 +211,6 @@ class LeadsController {
       const newLead = await Lead.createLead(leadData);
       
       console.log('✅ Lead created successfully:', newLead.id);
-
-      // Track referral if an agent is assigned (automatic referral)
-      if (newLead.agent_id) {
-        try {
-          console.log(`📊 Creating automatic referral for lead ${newLead.id} -> agent ${newLead.agent_id}`);
-          // Get agent name for the referral
-          const agentResult = await pool.query('SELECT name FROM users WHERE id = $1', [newLead.agent_id]);
-          const agentName = agentResult.rows[0]?.name || 'Unknown Agent';
-          await LeadReferral.createReferral(newLead.id, newLead.agent_id, agentName, 'employee');
-        } catch (referralError) {
-          console.error('Error creating automatic lead referral:', referralError);
-          // Don't fail the lead creation if referral tracking fails
-        }
-      }
 
       // Process manual referrals from the form
       if (req.body.referrals && Array.isArray(req.body.referrals) && req.body.referrals.length > 0) {
@@ -676,118 +640,6 @@ class LeadsController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve operations users',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-      });
-    }
-  }
-
-  // Add or update agent note for a lead
-  static async upsertLeadNote(req, res) {
-    try {
-      const { id } = req.params; // lead_id
-      const { note_text } = req.body;
-      const userId = req.user.id;
-      const userRole = req.user.role;
-
-      // Verify user has access to this lead
-      const lead = await Lead.getLeadById(id);
-      if (!lead) {
-        return res.status(404).json({
-          success: false,
-          message: 'Lead not found'
-        });
-      }
-
-      // Check permissions - agents and team leaders can only update notes for leads assigned to them
-      if (['agent', 'team_leader'].includes(normalizedRole) && lead.agent_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'You can only add notes to leads assigned to you'
-        });
-      }
-
-      // Admin, operations, operations_manager can add notes as any user (for now, we'll use their own ID)
-      const note = await Lead.upsertLeadNote(id, userId, note_text);
-
-      res.json({
-        success: true,
-        data: note,
-        message: 'Note saved successfully'
-      });
-    } catch (error) {
-      console.error('❌ Error upserting lead note:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to save note',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-      });
-    }
-  }
-
-  // Delete agent note
-  static async deleteLeadNote(req, res) {
-    try {
-      const { id } = req.params; // lead_id
-      const userId = req.user.id;
-
-      const deletedNote = await Lead.deleteLeadNote(id, userId);
-
-      if (!deletedNote) {
-        return res.status(404).json({
-          success: false,
-          message: 'Note not found or you do not have permission to delete it'
-        });
-      }
-
-      res.json({
-        success: true,
-        message: 'Note deleted successfully'
-      });
-    } catch (error) {
-      console.error('❌ Error deleting lead note:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to delete note',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-      });
-    }
-  }
-
-  // Get notes for a specific lead
-  static async getLeadNotesById(req, res) {
-    try {
-      const { id } = req.params; // lead_id
-      const userId = req.user.id;
-      const userRole = req.user.role;
-
-      // Verify lead exists and user has access
-      const lead = await Lead.getLeadById(id);
-      if (!lead) {
-        return res.status(404).json({
-          success: false,
-          message: 'Lead not found'
-        });
-      }
-
-      // Check permissions
-      if (['agent', 'team_leader'].includes(userRole) && lead.agent_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'You do not have permission to view notes for this lead'
-        });
-      }
-
-      const notes = await Lead.getLeadNotes(id, userId, userRole);
-
-      res.json({
-        success: true,
-        data: notes
-      });
-    } catch (error) {
-      console.error('❌ Error getting lead notes:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve notes',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }

@@ -533,20 +533,6 @@ export const leadsApi = {
   // Get lead statistics
   getStats: (token?: AuthToken) => apiRequest<LeadStatsApiResponse>('/leads/stats', {}, token),
   
-  // Get notes for a specific lead
-  getNotes: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/notes`, {}, token),
-  
-  // Add or update note for a lead
-  saveNote: (leadId: number, noteText: string, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message: string }>(`/leads/${leadId}/notes`, {
-    method: 'POST',
-    body: JSON.stringify({ note_text: noteText }),
-  }, token),
-  
-  // Delete note for a lead
-  deleteNote: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/notes`, {
-    method: 'DELETE',
-  }, token),
-  
   // Get referrals for a specific lead
   getReferrals: (leadId: number, token?: AuthToken) => apiRequest<LeadReferralsResponse>(`/leads/${leadId}/referrals`, {}, token),
   

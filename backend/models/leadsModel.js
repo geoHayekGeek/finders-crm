@@ -13,7 +13,6 @@ class Lead {
       reference_source_id,
       operations_id,
       contact_source,
-      notes,
       status
     } = leadData;
 
@@ -25,8 +24,8 @@ class Lead {
     const result = await pool.query(
       `INSERT INTO leads (
         date, customer_name, phone_number, agent_id, agent_name,
-        price, reference_source_id, operations_id, contact_source, notes, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        price, reference_source_id, operations_id, contact_source, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
         date || new Date().toISOString().split('T')[0],
@@ -38,7 +37,6 @@ class Lead {
         reference_source_id,
         operations_id, // This is now required and validated
         contact_source || 'unknown',
-        notes,
         status || 'Active'
       ]
     );
@@ -65,7 +63,6 @@ class Lead {
           op.name as operations_name,
           op.role as operations_role,
           l.contact_source,
-          l.notes,
           l.status,
           l.created_at,
           l.updated_at
@@ -100,13 +97,13 @@ class Lead {
         l.agent_name,
         u.name as assigned_agent_name,
         u.role as agent_role,
+        l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
         l.contact_source,
-        l.notes,
         l.status,
         l.created_at,
         l.updated_at
@@ -138,7 +135,6 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.contact_source,
-        l.notes,
         l.status,
         l.created_at,
         l.updated_at,
@@ -170,7 +166,6 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.contact_source,
-        l.notes,
         l.status,
         l.created_at,
         l.updated_at,
@@ -196,8 +191,8 @@ class Lead {
       LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
       WHERE l.id = $1
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
-               u.name, u.role, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.contact_source, l.notes, l.status, l.created_at, l.updated_at
+               u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
+               op.name, op.role, l.contact_source, l.status, l.created_at, l.updated_at
     `, [id]);
     return result.rows[0];
   }
@@ -213,7 +208,7 @@ class Lead {
     
     // Filter out undefined values and fields that don't belong in the leads table
     const cleanUpdates = {};
-    const nonTableFields = ['referrals']; // Fields handled separately, not in leads table
+    const nonTableFields = ['referrals', 'notes']; // Fields handled separately or deprecated
     
     Object.entries(updates).forEach(([key, value]) => {
       if (value !== undefined && !nonTableFields.includes(key)) {
@@ -298,7 +293,6 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.contact_source,
-        l.notes,
         l.status,
         l.created_at,
         l.updated_at,
@@ -363,7 +357,7 @@ class Lead {
     }
 
     if (filters.search) {
-      query += ` AND (l.customer_name ILIKE $${valueIndex} OR l.phone_number ILIKE $${valueIndex} OR l.agent_name ILIKE $${valueIndex} OR l.notes ILIKE $${valueIndex})`;
+      query += ` AND (l.customer_name ILIKE $${valueIndex} OR l.phone_number ILIKE $${valueIndex} OR l.agent_name ILIKE $${valueIndex})`;
       values.push(`%${filters.search}%`);
       valueIndex++;
     }
@@ -371,7 +365,7 @@ class Lead {
     query += ` 
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.contact_source, l.notes, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.contact_source, l.status, l.created_at, l.updated_at
       ORDER BY l.created_at DESC
     `;
 
@@ -460,7 +454,6 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.contact_source,
-        l.notes,
         l.status,
         l.created_at,
         l.updated_at
@@ -506,109 +499,6 @@ class Lead {
     return result.rows;
   }
 
-  // Get agent-specific notes for a lead
-  // Admin can see all notes; operations managers and agent managers see all except admin notes; others see only their own
-  static async getLeadNotes(leadId, userId, userRole) {
-    const normalizedRole = (userRole || '').toLowerCase().replace(/\s+/g, '_');
-    let query;
-    let params;
-
-    if (normalizedRole === 'admin') {
-      query = `
-        SELECT 
-          ln.id,
-          ln.lead_id,
-          ln.agent_id,
-          ln.note_text,
-          ln.created_at,
-          ln.updated_at,
-          u.name as agent_name,
-          u.role as agent_role
-        FROM lead_notes ln
-        LEFT JOIN users u ON ln.agent_id = u.id
-        WHERE ln.lead_id = $1
-        ORDER BY ln.updated_at DESC
-      `;
-      params = [leadId];
-    } else if (['operations_manager', 'agent_manager'].includes(normalizedRole)) {
-      query = `
-        SELECT 
-          ln.id,
-          ln.lead_id,
-          ln.agent_id,
-          ln.note_text,
-          ln.created_at,
-          ln.updated_at,
-          u.name as agent_name,
-          u.role as agent_role
-        FROM lead_notes ln
-        LEFT JOIN users u ON ln.agent_id = u.id
-        WHERE ln.lead_id = $1
-          AND COALESCE(LOWER(REPLACE(u.role, ' ', '_')), '') <> 'admin'
-        ORDER BY ln.updated_at DESC
-      `;
-      params = [leadId];
-    } else {
-      query = `
-        SELECT 
-          ln.id,
-          ln.lead_id,
-          ln.agent_id,
-          ln.note_text,
-          ln.created_at,
-          ln.updated_at,
-          u.name as agent_name,
-          u.role as agent_role
-        FROM lead_notes ln
-        LEFT JOIN users u ON ln.agent_id = u.id
-        WHERE ln.lead_id = $1 AND ln.agent_id = $2
-        ORDER BY ln.updated_at DESC
-      `;
-      params = [leadId, userId];
-    }
-
-    const result = await pool.query(query, params);
-    return result.rows;
-  }
-
-  // Add or update agent note for a lead
-  static async upsertLeadNote(leadId, agentId, noteText) {
-    const result = await pool.query(`
-      INSERT INTO lead_notes (lead_id, agent_id, note_text)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (lead_id, agent_id)
-      DO UPDATE SET 
-        note_text = $3,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-    `, [leadId, agentId, noteText]);
-    return result.rows[0];
-  }
-
-  // Delete agent note
-  static async deleteLeadNote(leadId, agentId) {
-    const result = await pool.query(`
-      DELETE FROM lead_notes
-      WHERE lead_id = $1 AND agent_id = $2
-      RETURNING *
-    `, [leadId, agentId]);
-    return result.rows[0];
-  }
-
-  // Get leads with notes for specific user
-  // This modifies the lead data to include only appropriate notes based on role
-  static async getLeadsWithNotes(leads, userId, userRole) {
-    const leadsWithNotes = await Promise.all(
-      leads.map(async (lead) => {
-        const notes = await this.getLeadNotes(lead.id, userId, userRole);
-        return {
-          ...lead,
-          agent_notes: notes
-        };
-      })
-    );
-    return leadsWithNotes;
-  }
 }
 
 module.exports = Lead;

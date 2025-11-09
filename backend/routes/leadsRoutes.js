@@ -45,16 +45,6 @@ router.get('/stats', canViewLeads, LeadsStatsController.getLeadsStats);
 // GET /api/leads/agent/:agentId - Get leads by agent (admin, operations manager, agent manager)
 router.get('/agent/:agentId', canViewLeads, validateAgentId, handleValidationErrors, canViewAgentPerformance, LeadsController.getLeadsByAgent);
 
-// Lead Notes Routes
-// GET /api/leads/:id/notes - Get notes for a lead
-router.get('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadNotesById);
-
-// POST /api/leads/:id/notes - Add or update note for a lead
-router.post('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.upsertLeadNote);
-
-// DELETE /api/leads/:id/notes - Delete note for a lead
-router.delete('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.deleteLeadNote);
-
 // Lead Referrals Routes
 // GET /api/leads/:id/referrals - Get referrals for a lead
 router.get('/:id/referrals', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadReferrals);

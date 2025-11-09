@@ -89,7 +89,6 @@ useEffect(() => {
     reference_source_id: undefined,
     operations_id: undefined,
     contact_source: 'unknown',
-    notes: '',
     status: 'Active'
   })
   const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
@@ -305,29 +304,23 @@ useEffect(() => {
   }
 
   // Handle refresh lead (fetch full lead data including referrals)
-  const handleRefreshLead = async (leadId: number): Promise<Lead | null> => {
+  const handleRefreshLead = async (leadId: number): Promise<void> => {
     try {
       console.log('🔄 Refreshing lead:', leadId)
       const response = await leadsApi.getById(leadId, token)
       
       if (response.success && response.data) {
         console.log('✅ Refreshed lead data:', response.data)
-        console.log('✅ Agent notes in response:', response.data.agent_notes)
         console.log('✅ Referrals in response:', response.data.referrals)
-        console.log('✅ Number of notes:', response.data.agent_notes?.length || 0)
         console.log('✅ Number of referrals:', response.data.referrals?.length || 0)
         
         // Create a completely new object with new array reference to force React re-render
         const refreshedLead: Lead = { 
           ...response.data,
-          // Ensure agent_notes is a new array reference
-          agent_notes: response.data.agent_notes ? [...response.data.agent_notes] : [],
           // Ensure referrals is a new array reference
           referrals: response.data.referrals ? [...response.data.referrals] : []
         }
         
-        console.log('🔄 Old selectedLead notes:', selectedLead?.agent_notes?.length || 0)
-        console.log('🔄 New refreshedLead notes:', refreshedLead.agent_notes?.length || 0)
         console.log('🔄 New refreshedLead referrals:', refreshedLead.referrals?.length || 0)
         
         // Update the lead in the leads array with new object reference
@@ -341,16 +334,14 @@ useEffect(() => {
         if (selectedLead && selectedLead.id === leadId) {
           console.log('🔄 Forcing selectedLead update with completely new object reference')
           setSelectedLead(refreshedLead)
-          console.log('✅ selectedLead updated with', refreshedLead.agent_notes?.length || 0, 'notes')
         }
         
         console.log('✅ Lead refreshed successfully')
-        return refreshedLead
+        return
       }
     } catch (error) {
       console.error('❌ Error refreshing lead:', error)
     }
-    return null
   }
 
   // Action handlers (defined before useMemo to avoid initialization issues)
@@ -367,7 +358,6 @@ useEffect(() => {
         // Create a completely new object with new array reference
         const refreshedLead: Lead = { 
           ...response.data,
-          agent_notes: response.data.agent_notes ? [...response.data.agent_notes] : [],
           referrals: response.data.referrals ? [...response.data.referrals] : []
         }
         
@@ -392,7 +382,6 @@ useEffect(() => {
       
       const refreshedLead = { 
         ...response.data,
-        agent_notes: response.data.agent_notes ? [...response.data.agent_notes] : [],
         referrals: response.data.referrals ? [...response.data.referrals] : []
       }
       
@@ -434,7 +423,6 @@ useEffect(() => {
         reference_source_id: safeNumber(refreshedLead.reference_source_id),
         operations_id: safeNumber(refreshedLead.operations_id),
         contact_source: refreshedLead.contact_source || 'unknown',
-        notes: refreshedLead.notes || '',
         status: refreshedLead.status || 'Active',
         referrals: convertedReferrals
       }
@@ -703,7 +691,6 @@ useEffect(() => {
       'Reference Source',
       'Operations',
       'Referral Sources',
-      'Notes',
       'Created Date'
     ]
     
@@ -717,7 +704,6 @@ useEffect(() => {
       lead.reference_source_name || '',
       lead.operations_name || '',
       lead.reference_source_name || '',
-      lead.notes || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''
     ])
     
@@ -762,7 +748,6 @@ useEffect(() => {
       'Operations',
       'Operations Role',
       'Referral Sources',
-      'Notes',
       'Created Date',
       'Updated Date'
     ]
@@ -779,7 +764,6 @@ useEffect(() => {
       lead.operations_name || '',
       lead.operations_role || '',
       lead.reference_source_name || '',
-      lead.notes || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
       lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : ''
     ])
@@ -819,9 +803,6 @@ useEffect(() => {
         <div className="text-center">
           <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mx-auto mb-4" />
           <p className="text-gray-600">Loading leads...</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Debug: Auth={isAuthenticated ? 'Yes' : 'No'}, Token={token ? 'Yes' : 'No'}, CanView={canViewLeads ? 'Yes' : 'No'}
-          </p>
         </div>
       </div>
     )

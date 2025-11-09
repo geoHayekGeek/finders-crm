@@ -22,7 +22,6 @@ const tablesToClear = [
   { table: 'viewings', label: 'viewings' },
   { table: 'calendar_events', label: 'calendar events' },
   { table: 'monthly_agent_reports', label: 'monthly agent reports' },
-  { table: 'lead_notes', label: 'lead notes' },
   { table: 'lead_referrals', label: 'lead referrals' },
   { table: 'referrals', label: 'property referrals' },
   { table: 'leads', label: 'leads' },

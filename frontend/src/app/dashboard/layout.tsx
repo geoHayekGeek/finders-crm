@@ -429,9 +429,6 @@ export default function DashboardLayout({
                 <div className="text-sm text-gray-700">
                   Welcome, <span className="font-medium">{user?.name}</span>
                 </div>
-                <button className="text-sm font-medium text-gray-700 hover:text-gray-900">
-                  Help
-                </button>
               </div>
             </div>
           </div>

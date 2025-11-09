@@ -69,6 +69,42 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     }
   }
 
+  const getUpdateTimestamp = (update: ViewingUpdate) => {
+    if (update.created_at) {
+      const createdAt = new Date(update.created_at)
+      if (!Number.isNaN(createdAt.getTime())) {
+        return createdAt.getTime()
+      }
+    }
+
+    if (update.update_date) {
+      const updateDate = new Date(update.update_date)
+      if (!Number.isNaN(updateDate.getTime())) {
+        return updateDate.getTime()
+      }
+    }
+
+    return 0
+  }
+
+  const getUpdateDisplayDate = (update: ViewingUpdate) => {
+    if (update.created_at) {
+      const createdAt = new Date(update.created_at)
+      if (!Number.isNaN(createdAt.getTime())) {
+        return createdAt
+      }
+    }
+
+    if (update.update_date) {
+      const updateDate = new Date(update.update_date)
+      if (!Number.isNaN(updateDate.getTime())) {
+        return updateDate
+      }
+    }
+
+    return new Date()
+  }
+
   const getFormattedUpdateContent = (text: string) => {
     const parsed = parseUpdateContent(text)
     const description = parsed.description
@@ -636,9 +672,9 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               {props.editingViewing.updates && props.editingViewing.updates.length > 0 ? (
                 <div className="space-y-2">
                   {[...(props.editingViewing.updates || [])]
-                    .sort((a, b) => new Date(b.update_date).getTime() - new Date(a.update_date).getTime())
+                    .sort((a, b) => getUpdateTimestamp(b) - getUpdateTimestamp(a))
                     .map((update: ViewingUpdate, index) => {
-                      const updateDate = new Date(update.update_date)
+                      const updateDate = getUpdateDisplayDate(update)
                       const isRecent = index === 0
                       const formatted = getFormattedUpdateContent(update.update_text)
                       const isEditing = editingExistingUpdateId === update.id
@@ -722,7 +758,8 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                                     )}
                                   </div>
                                   <div className="mt-1 text-sm text-gray-600">
-                                    {updateDate.toLocaleDateString()} at {updateDate.toLocaleTimeString()}
+                                    {updateDate.toLocaleDateString()} at{' '}
+                                    {updateDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                   </div>
                                   {formatted.description && (
                                     <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
@@ -1080,9 +1117,9 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                   ) : (
                     <div className="space-y-2">
                       {props.viewingViewing.updates
-                        .sort((a, b) => new Date(b.update_date).getTime() - new Date(a.update_date).getTime())
+                        .sort((a, b) => getUpdateTimestamp(b) - getUpdateTimestamp(a))
                         .map((update: ViewingUpdate, index) => {
-                          const updateDate = new Date(update.update_date)
+                          const updateDate = getUpdateDisplayDate(update)
                           const isRecent = index === 0
                       const formatted = getFormattedUpdateContent(update.update_text)
                           
@@ -1163,7 +1200,8 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                                         )}
                                       </div>
                                       <div className="mt-1 text-sm text-gray-600">
-                                        {updateDate.toLocaleDateString()} at {updateDate.toLocaleTimeString()}
+                                        {updateDate.toLocaleDateString()} at{' '}
+                                        {updateDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                       </div>
                                       {formatted.description && (
                                         <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">

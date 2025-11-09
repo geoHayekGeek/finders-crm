@@ -1,16 +1,5 @@
 // types/leads.ts
 
-export interface LeadNote {
-  id: number
-  lead_id: number
-  agent_id: number
-  note_text: string
-  created_at: string
-  updated_at: string
-  agent_name?: string
-  agent_role?: string
-}
-
 export interface LeadReferral {
   id: number
   lead_id: number
@@ -40,8 +29,6 @@ export interface Lead {
   operations_name?: string
   operations_role?: string
   contact_source?: 'call' | 'unknown'  // How the lead was initially contacted
-  notes?: string // Legacy notes field (deprecated)
-  agent_notes?: LeadNote[] // New agent-specific notes
   referrals?: LeadReferral[] // Lead referral tracking
   status: string
   created_at: string
@@ -100,10 +87,9 @@ export interface EditLeadFormData {
   agent_id?: number
   agent_name?: string
   price?: number  // New optional field
-  reference_source_id: number  // Now required
-  operations_id: number  // Now required
+  reference_source_id?: number  // Required before submit
+  operations_id?: number  // Required before submit
   contact_source?: 'call' | 'unknown'  // How the lead was initially contacted
-  notes?: string
   status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
 }
@@ -115,10 +101,9 @@ export interface CreateLeadFormData {
   agent_id?: number
   agent_name?: string
   price?: number  // New optional field
-  reference_source_id: number  // Now required
-  operations_id: number  // Now required
+  reference_source_id?: number  // Required before submit
+  operations_id?: number  // Required before submit
   contact_source?: 'call' | 'unknown'  // How the lead was initially contacted
-  notes?: string
   status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
 }

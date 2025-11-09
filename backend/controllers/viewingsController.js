@@ -218,6 +218,45 @@ class ViewingsController {
       
       // Get the full viewing details with property and lead information
       const fullViewing = await Viewing.getViewingById(viewing.id);
+      let responseViewing = fullViewing;
+
+      // Handle optional initial update
+      const initialUpdateTitle = (req.body.initial_update_title || '').trim();
+      const initialUpdateDescription = (req.body.initial_update_description || '').trim();
+      const initialUpdateDateInput = (req.body.initial_update_date || '').toString().trim();
+
+      if (initialUpdateTitle || initialUpdateDescription) {
+        try {
+          const updateTextSegments = [];
+          if (initialUpdateTitle) {
+            updateTextSegments.push(initialUpdateTitle);
+          }
+          if (initialUpdateDescription) {
+            updateTextSegments.push(initialUpdateDescription);
+          }
+
+          const updateText = updateTextSegments.join('\n\n').trim();
+          if (updateText) {
+            const updateDate = initialUpdateDateInput || new Date().toISOString().split('T')[0];
+
+            await Viewing.addViewingUpdate(viewing.id, {
+              update_text: updateText,
+              update_date: updateDate,
+              created_by: userId
+            });
+
+            try {
+              await ReminderService.clearViewingReminder(viewing.id);
+            } catch (reminderError) {
+              console.error('⚠️ Failed to clear viewing reminder after initial update:', reminderError);
+            }
+
+            responseViewing = await Viewing.getViewingById(viewing.id);
+          }
+        } catch (initialUpdateError) {
+          console.error('⚠️ Failed to create initial viewing update:', initialUpdateError);
+        }
+      }
       
       // Create a calendar event for this viewing
       try {
@@ -327,7 +366,7 @@ class ViewingsController {
       
       res.status(201).json({
         success: true,
-        data: fullViewing,
+        data: responseViewing,
         message: 'Viewing created successfully'
       });
     } catch (error) {

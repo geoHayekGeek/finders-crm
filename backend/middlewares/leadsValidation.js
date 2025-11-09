@@ -138,18 +138,6 @@ const validateCreateLead = [
     .isIn(['call', 'unknown'])
     .withMessage('Contact source must be either "call" or "unknown"'),
     
-  body('notes')
-    .optional({ nullable: true, checkFalsy: true })
-    .isLength({ max: 2000 })
-    .withMessage('Notes cannot exceed 2,000 characters')
-    .custom((value) => {
-      if (value && (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload='))) {
-        throw new Error('Notes contain potentially malicious content');
-      }
-      return true;
-    })
-    .customSanitizer(sanitizeInput),
-    
   body('status')
     .optional({ nullable: true, checkFalsy: true })
     .custom(async (value) => {
@@ -243,18 +231,6 @@ const validateUpdateLead = [
     .isIn(['call', 'unknown'])
     .withMessage('Contact source must be either "call" or "unknown"'),
     
-  body('notes')
-    .optional({ nullable: true, checkFalsy: true })
-    .isLength({ max: 2000 })
-    .withMessage('Notes cannot exceed 2,000 characters')
-    .custom((value) => {
-      if (value && (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload='))) {
-        throw new Error('Notes contain potentially malicious content');
-      }
-      return true;
-    })
-    .customSanitizer(sanitizeInput),
-    
   body('status')
     .optional({ nullable: false, checkFalsy: false })
     .custom(async (value) => {
@@ -269,7 +245,7 @@ const validateUpdateLead = [
     
   // Ensure at least one field is being updated
   body().custom((body) => {
-    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'operations_id', 'contact_source', 'notes', 'status'];
+    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'operations_id', 'contact_source', 'status'];
     const hasUpdate = updatableFields.some(field => body.hasOwnProperty(field));
     
     if (!hasUpdate) {

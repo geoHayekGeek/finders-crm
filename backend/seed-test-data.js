@@ -60,7 +60,6 @@ async function seedDatabase() {
     await client.query('DELETE FROM viewings');
     await client.query('DELETE FROM referrals');
     await client.query('DELETE FROM lead_referrals');
-    await client.query('DELETE FROM lead_notes');
     await client.query('DELETE FROM monthly_agent_reports');
     await client.query('DELETE FROM properties');
     await client.query('DELETE FROM leads');

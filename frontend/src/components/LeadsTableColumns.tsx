@@ -248,22 +248,6 @@ export const getLeadsDetailedColumns = (
 
   return [
     ...baseColumns,
-    {
-      accessorKey: 'notes',
-      header: 'Notes',
-      cell: ({ row }) => {
-        const lead = row.original
-        return (
-          <div className="text-sm text-gray-600 max-w-xs">
-            {lead.notes ? (
-              <span className="line-clamp-2">{lead.notes}</span>
-            ) : (
-              <span className="text-gray-400">-</span>
-            )}
-          </div>
-        )
-      }
-    },
     ...(actionColumn ? [actionColumn] : [])
   ]
 }
