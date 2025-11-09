@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { apiClient, ApiError } from '@/utils/api'
@@ -34,15 +34,21 @@ export default function HomePage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const { login } = useAuth()
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth()
   const { settings } = useSettings()
   const router = useRouter()
 
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace('/properties')
+    }
+  }, [authLoading, isAuthenticated, router])
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    setIsSubmitting(true)
     setError('')
 
     try {
@@ -57,11 +63,11 @@ export default function HomePage() {
         
         // Use the login function from auth context
         login(loginData.token, loginData.user)
-        console.log('User logged in, redirecting to dashboard...')
+        console.log('User logged in, redirecting to properties...')
         
         // Add a small delay to ensure state is updated, then redirect
         setTimeout(() => {
-          router.replace('/dashboard')
+          router.replace('/properties')
           console.log('Router.replace called')
         }, 100)
       } else {
@@ -79,8 +85,16 @@ export default function HomePage() {
         setError('Network error. Please try again.')
       }
     } finally {
-      setIsLoading(false)
+      setIsSubmitting(false)
     }
+  }
+
+  if (!authLoading && isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+        <div className="text-center text-gray-600">Redirecting to properties...</div>
+      </div>
+    )
   }
 
   return (
@@ -187,10 +201,10 @@ export default function HomePage() {
               
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isSubmitting}
                 className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     <span>Signing In...</span>

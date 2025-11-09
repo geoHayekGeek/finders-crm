@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Fragment } from 'react'
 import { 
   Users, 
   Plus,
@@ -792,8 +792,8 @@ export default function HRPage() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {paginatedUsers.map((user) => (
-                  <>
-                    <tr key={user.id} className="hover:bg-gray-50">
+                  <Fragment key={user.id}>
+                    <tr className="hover:bg-gray-50">
                       {columns.map((column, colIndex) => (
                         <td key={colIndex} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {column.cell ? column.cell({ row: { original: user } }) : null}
@@ -802,7 +802,7 @@ export default function HRPage() {
                     </tr>
                     {/* Expanded agents row */}
                     {user.role === 'team_leader' && expandedTeamLeaders.has(user.id) && (
-                      <tr key={`${user.id}-agents`} className="bg-blue-50">
+                      <tr className="bg-blue-50">
                         <td colSpan={columns.length} className="px-6 py-4">
                           <div className="space-y-2">
                             <h4 className="text-sm font-semibold text-blue-900 flex items-center space-x-2">
@@ -839,7 +839,7 @@ export default function HRPage() {
                         </td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

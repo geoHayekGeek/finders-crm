@@ -6,7 +6,6 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { 
-  Home, 
   Building2, 
   FileText, 
   Settings, 
@@ -60,12 +59,11 @@ export default function DashboardLayout({
   const getNavigation = (): NavigationItem[] => {
     const baseNavigation: NavigationItem[] = []
 
-    // For agents: show dashboard, properties, leads, viewings, and calendar
+    // For agents: show properties, leads, viewings, and calendar
     if (role === 'agent') {
-      baseNavigation.push({ name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true })
       baseNavigation.push({ 
         name: 'Properties', 
-        href: '/dashboard/properties', 
+        href: '/properties', 
         icon: Building2, 
         alwaysVisible: true
       })
@@ -86,24 +84,22 @@ export default function DashboardLayout({
     }
 
     // For all other roles (non-agents): show full navigation
-    baseNavigation.push({ name: 'Dashboard', href: '/dashboard', icon: Home, alwaysVisible: true })
-
     // Properties with submenu for management roles
     const submenuItems = [
-      { name: 'All Properties', href: '/dashboard/properties', icon: Building2 }
+      { name: 'All Properties', href: '/properties', icon: Building2 }
     ]
     
     // Add categories and statuses to submenu only if user can manage them
     if (canManageCategoriesAndStatuses) {
       submenuItems.push(
-        { name: 'Categories', href: '/dashboard/properties/categories', icon: Tag },
-        { name: 'Statuses', href: '/dashboard/properties/statuses', icon: Circle }
+        { name: 'Categories', href: '/properties/categories', icon: Tag },
+        { name: 'Statuses', href: '/properties/statuses', icon: Circle }
       )
     }
 
     baseNavigation.push({ 
       name: 'Properties', 
-      href: '/dashboard/properties', 
+      href: '/properties', 
       icon: Building2, 
       alwaysVisible: true,
       hasSubmenu: submenuItems.length > 1,

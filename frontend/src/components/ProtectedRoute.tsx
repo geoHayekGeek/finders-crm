@@ -42,8 +42,8 @@ export default function ProtectedRoute({
 
     // Check role-based access
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-      console.log('ProtectedRoute - Role not allowed, redirecting to dashboard')
-      router.push('/dashboard')
+      console.log('ProtectedRoute - Role not allowed, redirecting to properties')
+      router.push('/properties')
       return
     }
 
@@ -67,8 +67,8 @@ export default function ProtectedRoute({
     }
 
     if (!hasRequiredPermissions) {
-      console.log('ProtectedRoute - Missing required permissions, redirecting to dashboard')
-      router.push('/dashboard')
+      console.log('ProtectedRoute - Missing required permissions, redirecting to properties')
+      router.push('/properties')
       return
     }
 
