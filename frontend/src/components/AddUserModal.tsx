@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Save, Eye, EyeOff, UserPlus } from 'lucide-react'
 import { CreateUserFormData } from '@/types/user'
 import { usersApi } from '@/utils/api'
@@ -9,31 +9,47 @@ import { useToast } from '@/contexts/ToastContext'
 import { AgentMultiSelect } from './AgentMultiSelect'
 
 interface AddUserModalProps {
+  allowedRoles: CreateUserFormData['role'][]
   onClose: () => void
   onSuccess: () => void
 }
 
-export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
+export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError, showWarning } = useToast()
   
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [assignedAgentIds, setAssignedAgentIds] = useState<number[]>([])
+
+  const initialRole = allowedRoles[0] ?? 'agent'
   
   const [formData, setFormData] = useState<CreateUserFormData>({
     name: '',
     email: '',
     password: '',
-    role: 'agent',
+    role: initialRole,
     location: '',
     phone: '',
     dob: '',
     work_location: ''
   })
 
+  useEffect(() => {
+    if (allowedRoles.length > 0 && !allowedRoles.includes(formData.role)) {
+      setFormData((prev) => ({
+        ...prev,
+        role: allowedRoles[0]
+      }))
+    }
+  }, [allowedRoles, formData.role])
+
   const handleSave = async () => {
     if (!token) return
+    if (!allowedRoles.includes(formData.role)) {
+      showError('You do not have permission to create this role')
+      return
+    }
     
     // Validation
     if (!formData.name.trim()) {
@@ -104,11 +120,17 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
 
   // Handle role change - clear agent assignments if not team leader
   const handleRoleChange = (newRole: string) => {
-    setFormData({ ...formData, role: newRole as any })
+    if (!allowedRoles.includes(newRole as CreateUserFormData['role'])) {
+      showWarning('You do not have permission to assign this role')
+      return
+    }
+    setFormData({ ...formData, role: newRole as CreateUserFormData['role'] })
     if (newRole !== 'team_leader') {
       setAssignedAgentIds([])
     }
   }
+
+  const canSubmit = allowedRoles.includes(formData.role)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -204,14 +226,13 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
                 onChange={(e) => handleRoleChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
+                disabled={allowedRoles.length === 0}
               >
-                <option value="agent">Agent</option>
-                <option value="agent manager">Agent Manager</option>
-                <option value="team_leader">Team Leader</option>
-                <option value="operations">Operations</option>
-                <option value="operations manager">Operations Manager</option>
-                <option value="accountant">Accountant</option>
-                <option value="admin">Admin</option>
+                {allowedRoles.map(roleOption => (
+                  <option key={roleOption} value={roleOption}>
+                    {roleOption.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}
+                  </option>
+                ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
                 {formData.role === 'admin' && 'Full system access'}
@@ -303,7 +324,7 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !canSubmit}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center space-x-2 transition-colors"
           >
             {saving ? (
@@ -314,7 +335,7 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
             ) : (
               <>
                 <UserPlus className="h-4 w-4" />
-                <span>Create User</span>
+                <span>{allowedRoles.length === 0 ? 'No Roles Available' : 'Create User'}</span>
               </>
             )}
           </button>

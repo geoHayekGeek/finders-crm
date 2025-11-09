@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, Save, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { User, EditUserFormData } from '@/types/user'
 import { usersApi } from '@/utils/api'
@@ -10,11 +10,12 @@ import { AgentMultiSelect } from './AgentMultiSelect'
 
 interface EditUserModalProps {
   user: User
+  allowedRoles: EditUserFormData['role'][]
   onClose: () => void
   onSuccess: () => void
 }
 
-export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) {
+export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUserModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError, showWarning } = useToast()
   
@@ -25,18 +26,42 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
   const [initialAgentIds, setInitialAgentIds] = useState<number[]>([])
   const [loadingAgents, setLoadingAgents] = useState(false)
   
+  const formatDateForInput = (dateString?: string | null) => {
+    if (!dateString) return ''
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) {
+      return ''
+    }
+    return date.toISOString().slice(0, 10)
+  }
+
   const [formData, setFormData] = useState<EditUserFormData>({
     name: user.name,
     email: user.email,
     role: user.role,
     location: user.location || '',
     phone: user.phone || '',
-    dob: user.dob || '',
+    dob: formatDateForInput(user.dob),
     work_location: user.work_location || '',
     user_code: user.user_code,
     is_active: user.is_active,
     password: ''
   })
+
+  useEffect(() => {
+    setFormData({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      location: user.location || '',
+      phone: user.phone || '',
+      dob: formatDateForInput(user.dob),
+      work_location: user.work_location || '',
+      user_code: user.user_code,
+      is_active: user.is_active,
+      password: ''
+    })
+  }, [user])
 
   // Load assigned agents if user is a team leader
   useEffect(() => {
@@ -147,12 +172,27 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
 
   // Handle role change - clear agent assignments if not team leader
   const handleRoleChange = (newRole: string) => {
-    setFormData({ ...formData, role: newRole as any })
+    if (!allowedRoles.includes(newRole as EditUserFormData['role'])) {
+      showWarning('You do not have permission to assign this role')
+      return
+    }
+    setFormData({ ...formData, role: newRole as EditUserFormData['role'] })
     if (newRole !== 'team_leader') {
       setAssignedAgentIds([])
       setInitialAgentIds([])
     }
   }
+
+  useEffect(() => {
+    if (!allowedRoles.includes(formData.role)) {
+      setFormData(prev => ({
+        ...prev,
+        role: allowedRoles[0] ?? prev.role
+      }))
+    }
+  }, [allowedRoles, formData.role])
+
+  const canSubmit = allowedRoles.includes(formData.role)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -209,14 +249,13 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
                 onChange={(e) => handleRoleChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
+                disabled={allowedRoles.length === 0}
               >
-                <option value="agent">Agent</option>
-                <option value="agent manager">Agent Manager</option>
-                <option value="team_leader">Team Leader</option>
-                <option value="operations">Operations</option>
-                <option value="operations manager">Operations Manager</option>
-                <option value="accountant">Accountant</option>
-                <option value="admin">Admin</option>
+                {allowedRoles.map(roleOption => (
+                  <option key={roleOption} value={roleOption}>
+                    {roleOption.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -400,7 +439,7 @@ export function EditUserModal({ user, onClose, onSuccess }: EditUserModalProps) 
           </button>
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || !canSubmit}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed flex items-center space-x-2"
           >
             {saving ? (

@@ -85,11 +85,18 @@ export function AgentMultiSelect({
     }
   }
 
-  const filteredAgents = agents.filter(agent =>
-    agent.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    agent.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    agent.user_code.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredAgents = agents.filter(agent => {
+    const isSelectable = !agent.is_assigned || selectedAgentIds.includes(agent.id)
+    if (!isSelectable) {
+      return false
+    }
+    const search = searchTerm.toLowerCase()
+    return (
+      agent.name.toLowerCase().includes(search) ||
+      agent.email.toLowerCase().includes(search) ||
+      agent.user_code.toLowerCase().includes(search)
+    )
+  })
 
   const selectedAgents = agents.filter(agent => 
     selectedAgentIds.includes(agent.id)
@@ -235,13 +242,15 @@ export function AgentMultiSelect({
                 <div>
                   {filteredAgents.map(agent => {
                     const isSelected = selectedAgentIds.includes(agent.id)
+                    const disabled = agent.is_assigned && !isSelected
                     return (
                       <button
                         key={agent.id}
                         type="button"
-                        onClick={() => toggleAgent(agent.id)}
-                        className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${
-                          isSelected ? 'bg-blue-50' : ''
+                        onClick={() => !disabled && toggleAgent(agent.id)}
+                        disabled={disabled}
+                        className={`w-full text-left px-4 py-3 transition-colors border-b border-gray-100 last:border-b-0 ${
+                          isSelected ? 'bg-blue-50 hover:bg-blue-100' : disabled ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'hover:bg-gray-50'
                         }`}
                       >
                         <div className="flex items-center justify-between">
@@ -250,6 +259,9 @@ export function AgentMultiSelect({
                             <div className="text-xs text-gray-600">{agent.email}</div>
                             {agent.location && (
                               <div className="text-xs text-gray-500">{agent.location}</div>
+                            )}
+                            {agent.is_assigned && !isSelected && (
+                              <div className="text-xs text-red-600 mt-1">Already assigned to another team</div>
                             )}
                           </div>
                           <div className="ml-3 flex items-center gap-2">

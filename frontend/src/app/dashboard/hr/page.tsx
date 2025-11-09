@@ -27,16 +27,160 @@ import { EditUserModal } from '@/components/EditUserModal'
 import { ViewUserModal } from '@/components/ViewUserModal'
 import { DeleteUserModal } from '@/components/DeleteUserModal'
 import { User, UserFilters as UserFiltersType } from '@/types/user'
-import { usersApi, userDocumentsApi } from '@/utils/api'
+import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
 
+const ALL_USER_ROLES: User['role'][] = [
+  'admin',
+  'operations manager',
+  'operations',
+  'agent manager',
+  'team_leader',
+  'agent',
+  'accountant'
+]
+
+const normalizeRoleKey = (role?: string | null) =>
+  role
+    ? role.toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
+    : ''
+
+const roleEquals = (role: string | null | undefined, target: string) =>
+  normalizeRoleKey(role) === normalizeRoleKey(target)
+
+const roleIn = (role: string | null | undefined, targets: string[]) =>
+  targets.some(target => roleEquals(role, target))
+
+const formatRoleLabel = (role: User['role']) =>
+  role
+    .replace(/_/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
+
 export default function HRPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageLeads } = usePermissions() // Using leads permission for now
+  const { canAccessHR } = usePermissions()
   const { showSuccess, showError, showWarning } = useToast()
   
+  const currentUserRole = user?.role
+  const currentUserId = user?.id
+  const normalizedCurrentUserRole = normalizeRoleKey(currentUserRole)
+
+  const allowedCreateRoles = useMemo<User['role'][]>(() => {
+    switch (normalizedCurrentUserRole) {
+      case 'admin':
+        return ALL_USER_ROLES
+      case 'operations manager':
+        return ['operations', 'agent manager', 'team_leader', 'agent', 'accountant']
+      case 'operations':
+        return ['agent manager', 'team_leader', 'agent']
+      default:
+        return []
+    }
+  }, [normalizedCurrentUserRole])
+
+  const filterUsersForCurrentUser = (usersList: User[]): User[] => {
+    if (!user || !currentUserRole) return []
+    return usersList.filter(candidate => {
+      if (candidate.id === currentUserId) {
+        return true
+      }
+      switch (normalizedCurrentUserRole) {
+        case 'admin':
+          return true
+        case 'operations manager':
+          if (roleEquals(candidate.role, 'admin')) return false
+          if (roleEquals(candidate.role, 'operations manager') && candidate.id !== currentUserId) return false
+          return true
+        case 'operations':
+          return roleIn(candidate.role, ['agent manager', 'team_leader', 'agent', 'accountant'])
+        default:
+          return false
+      }
+    })
+  }
+
+  const canManageUser = (targetUser: User): boolean => {
+    if (!user || !currentUserRole) return false
+    if (targetUser.id === currentUserId) return true
+    switch (normalizedCurrentUserRole) {
+      case 'admin':
+        return true
+      case 'operations manager':
+        if (roleEquals(targetUser.role, 'admin')) return false
+        if (roleEquals(targetUser.role, 'operations manager') && targetUser.id !== currentUserId) return false
+        return true
+      case 'operations':
+        return roleIn(targetUser.role, ['agent manager', 'team_leader', 'agent'])
+      default:
+        return false
+    }
+  }
+
+  const canViewUserDetails = (targetUser: User): boolean => {
+    if (!user || !currentUserRole) return false
+    if (targetUser.id === currentUserId) return true
+    switch (normalizedCurrentUserRole) {
+      case 'admin':
+        return true
+      case 'operations manager':
+        if (roleEquals(targetUser.role, 'admin')) return false
+        if (roleEquals(targetUser.role, 'operations manager') && targetUser.id !== currentUserId) return false
+        return true
+      case 'operations':
+        return roleIn(targetUser.role, ['agent manager', 'team_leader', 'agent', 'accountant'])
+      default:
+        return false
+    }
+  }
+
+  const canDeleteUser = (targetUser: User): boolean => {
+    if (targetUser.id === currentUserId) return false
+    return canManageUser(targetUser)
+  }
+
+  const canManageDocuments = (targetUser: User): boolean => {
+    if (!user || !currentUserRole) return false
+    if (targetUser.id === currentUserId) return true
+    switch (normalizedCurrentUserRole) {
+      case 'admin':
+        return true
+      case 'operations manager':
+        if (roleEquals(targetUser.role, 'admin')) return false
+        if (roleEquals(targetUser.role, 'operations manager') && targetUser.id !== currentUserId) return false
+        return true
+      case 'operations':
+        return roleIn(targetUser.role, ['agent manager', 'team_leader', 'agent', 'accountant'])
+      default:
+        return false
+    }
+  }
+
+  const getEditableRolesForUser = (targetUser: User): User['role'][] => {
+    if (!currentUserRole) return []
+    if (normalizedCurrentUserRole === 'admin') {
+      return ALL_USER_ROLES
+    }
+
+    const roles = new Set<User['role']>(allowedCreateRoles)
+    roles.add(targetUser.role)
+
+    if (targetUser.id === currentUserId) {
+      roles.add(targetUser.role)
+      if (normalizedCurrentUserRole === 'operations manager') {
+        roles.add('operations manager')
+      }
+      if (normalizedCurrentUserRole === 'operations') {
+        roles.add('operations')
+      }
+    }
+
+    return Array.from(roles)
+  }
+
   // State management
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -87,10 +231,14 @@ export default function HRPage() {
 
   // Load data on component mount
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && canAccessHR) {
       loadData()
+    } else {
+      setLoading(false)
+      setUsers([])
+      setStats(null)
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, canAccessHR])
 
   // Load users
   const loadData = async () => {
@@ -103,6 +251,11 @@ export default function HRPage() {
         setError('You must be logged in to view users')
         return
       }
+
+      if (!canAccessHR) {
+        setError('You do not have permission to view this page')
+        return
+      }
       
       console.log('🔍 Loading users...')
       
@@ -111,9 +264,11 @@ export default function HRPage() {
       
       if (response.success && response.users) {
         console.log('✅ Users data received:', response.users)
-        
+
+        const visibleUsers = filterUsersForCurrentUser(response.users)
+
         // Add action handlers (without agents cache to force refresh)
-        const usersWithActions = response.users.map((u: User) => ({
+        const usersWithActions = visibleUsers.map((u: User) => ({
           ...u,
           agents: undefined, // Clear any cached agents data
           onView: handleViewUser,
@@ -166,8 +321,9 @@ export default function HRPage() {
     let assignedAgents = 0
 
     usersList.forEach(user => {
-      // Count by role
-      roleCount[user.role] = (roleCount[user.role] || 0) + 1
+      // Count by role (normalized key)
+      const roleKey = normalizeRoleKey(user.role) || user.role
+      roleCount[roleKey] = (roleCount[roleKey] || 0) + 1
       
       // Count by work location
       if (user.work_location) {
@@ -175,7 +331,7 @@ export default function HRPage() {
       }
       
       // Count assigned agents
-      if (user.role === 'agent' && user.is_assigned) {
+      if (roleEquals(user.role, 'agent') && user.is_assigned) {
         assignedAgents++
       }
     })
@@ -193,7 +349,7 @@ export default function HRPage() {
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       // Role filter
-      if (filters.role && filters.role !== 'All' && user.role !== filters.role) {
+      if (filters.role && filters.role !== 'All' && !roleEquals(user.role, filters.role)) {
         return false
       }
       
@@ -258,21 +414,37 @@ export default function HRPage() {
 
   // Action handlers
   const handleViewUser = (user: User) => {
+    if (!canViewUserDetails(user)) {
+      showWarning('You do not have permission to view this user')
+      return
+    }
     setSelectedUser(user)
     setShowViewModal(true)
   }
 
   const handleEditUser = (user: User) => {
+    if (!canManageUser(user)) {
+      showWarning('You do not have permission to edit this user')
+      return
+    }
     setSelectedUser(user)
     setShowEditModal(true)
   }
 
   const handleDeleteUser = (user: User) => {
+    if (!canDeleteUser(user)) {
+      showWarning('You do not have permission to delete this user')
+      return
+    }
     setDeletingUser(user)
     setShowDeleteModal(true)
   }
 
   const handleViewDocuments = (user: User) => {
+    if (!canManageDocuments(user)) {
+      showWarning('You do not have permission to view this user\'s documents')
+      return
+    }
     setSelectedUser(user)
     setShowDocumentsModal(true)
   }
@@ -353,6 +525,17 @@ export default function HRPage() {
     return Array.from(locations).sort()
   }, [users])
 
+  const availableRoleFilters = useMemo(() => {
+    const roleMap = new Map<string, User['role']>()
+    users.forEach(userItem => {
+      const key = normalizeRoleKey(userItem.role)
+      if (key && !roleMap.has(key)) {
+        roleMap.set(key, userItem.role)
+      }
+    })
+    return Array.from(roleMap.values()).sort((a, b) => formatRoleLabel(a).localeCompare(formatRoleLabel(b)))
+  }, [users])
+
   // Table columns
   const columns = [
     {
@@ -367,7 +550,7 @@ export default function HRPage() {
       accessorKey: 'name',
       cell: ({ row }: any) => {
         const user = row.original
-        const isTeamLeader = user.role === 'team_leader'
+        const isTeamLeader = roleEquals(user.role, 'team_leader')
         const isExpanded = expandedTeamLeaders.has(user.id)
         const agentCount = user.agent_count || 0
         
@@ -465,7 +648,7 @@ export default function HRPage() {
         const propertiesCount = user.properties_count || 0
         
         // For agents: show team assignment status
-        if (user.role === 'agent') {
+        if (roleEquals(user.role, 'agent')) {
           return (
             <div className="flex flex-col gap-1">
               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
@@ -499,41 +682,69 @@ export default function HRPage() {
       header: 'Actions',
       cell: ({ row }: any) => {
         const user = row.original
+        const canView = canViewUserDetails(user)
+        const canEdit = canManageUser(user)
+        const canDocument = canManageDocuments(user)
+        const canDelete = canDeleteUser(user)
+
+        if (!canView && !canEdit && !canDocument && !canDelete) {
+          return <span className="text-xs text-gray-400">No actions</span>
+        }
+
         return (
           <div className="flex items-center space-x-2">
-            <button
-              onClick={() => handleViewUser(user)}
-              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-              title="View User"
-            >
-              <Eye className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleEditUser(user)}
-              className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-              title="Edit User"
-            >
-              <Edit className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleViewDocuments(user)}
-              className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
-              title="View Documents"
-            >
-              <FolderOpen className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => handleDeleteUser(user)}
-              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete User"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {canView && (
+              <button
+                onClick={() => handleViewUser(user)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                title="View User"
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            )}
+            {canEdit && (
+              <button
+                onClick={() => handleEditUser(user)}
+                className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                title="Edit User"
+              >
+                <Edit className="h-4 w-4" />
+              </button>
+            )}
+            {canDocument && (
+              <button
+                onClick={() => handleViewDocuments(user)}
+                className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                title="View Documents"
+              >
+                <FolderOpen className="h-4 w-4" />
+              </button>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => handleDeleteUser(user)}
+                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete User"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         )
       },
     },
   ]
+
+  if (isAuthenticated && !canAccessHR) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="text-red-600 mb-4">⚠️</div>
+          <p className="text-red-600">You do not have access to the Human Resources page.</p>
+        </div>
+      </div>
+    )
+  }
 
   // Loading state
   if (loading) {
@@ -579,9 +790,9 @@ export default function HRPage() {
         <div className="flex items-center space-x-3 mt-4 sm:mt-0">
           <button
             onClick={() => setShowAddModal(true)}
-            disabled={!isAuthenticated}
+            disabled={!isAuthenticated || allowedCreateRoles.length === 0}
             className={`px-4 py-3 rounded-lg transition-colors flex items-center space-x-2 ${
-              isAuthenticated
+              isAuthenticated && allowedCreateRoles.length > 0
                 ? 'bg-blue-600 text-white hover:bg-blue-700'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
@@ -615,7 +826,7 @@ export default function HRPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Agents</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {stats.usersByRole?.find((r: any) => r.role === 'agent')?.count || 0}
+                  {stats.usersByRole?.find((r: any) => roleEquals(r.role, 'agent'))?.count || 0}
                 </p>
               </div>
             </div>
@@ -629,7 +840,7 @@ export default function HRPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Team Leaders</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {stats.usersByRole?.find((r: any) => r.role === 'team_leader')?.count || 0}
+                  {stats.usersByRole?.find((r: any) => roleEquals(r.role, 'team_leader'))?.count || 0}
                 </p>
               </div>
             </div>
@@ -675,13 +886,11 @@ export default function HRPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="All">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="operations manager">Operations Manager</option>
-              <option value="operations">Operations</option>
-              <option value="agent manager">Agent Manager</option>
-              <option value="team_leader">Team Leader</option>
-              <option value="agent">Agent</option>
-              <option value="accountant">Accountant</option>
+              {availableRoleFilters.map(roleOption => (
+                <option key={roleOption} value={roleOption}>
+                  {formatRoleLabel(roleOption)}
+                </option>
+              ))}
             </select>
           </div>
           
@@ -801,7 +1010,7 @@ export default function HRPage() {
                       ))}
                     </tr>
                     {/* Expanded agents row */}
-                    {user.role === 'team_leader' && expandedTeamLeaders.has(user.id) && (
+                    {roleEquals(user.role, 'team_leader') && expandedTeamLeaders.has(user.id) && (
                       <tr className="bg-blue-50">
                         <td colSpan={columns.length} className="px-6 py-4">
                           <div className="space-y-2">
@@ -903,6 +1112,7 @@ export default function HRPage() {
       {/* Modals */}
       {showAddModal && (
         <AddUserModal
+          allowedRoles={allowedCreateRoles}
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             loadData() // Reload users after successful add
@@ -910,9 +1120,10 @@ export default function HRPage() {
         />
       )}
       
-      {showEditModal && selectedUser && (
+      {showEditModal && selectedUser && canManageUser(selectedUser) && (
         <EditUserModal
           user={selectedUser}
+          allowedRoles={getEditableRolesForUser(selectedUser)}
           onClose={() => {
             setShowEditModal(false)
             setSelectedUser(null)
@@ -923,19 +1134,19 @@ export default function HRPage() {
         />
       )}
       
-      {showViewModal && selectedUser && (
+      {showViewModal && selectedUser && canViewUserDetails(selectedUser) && (
         <ViewUserModal
           user={selectedUser}
           onClose={() => {
             setShowViewModal(false)
             setSelectedUser(null)
           }}
-          onEdit={handleViewModalEdit}
-          onViewDocuments={handleViewModalDocuments}
+          onEdit={canManageUser(selectedUser) ? handleViewModalEdit : undefined}
+          onViewDocuments={canManageDocuments(selectedUser) ? handleViewModalDocuments : undefined}
         />
       )}
       
-      {showDeleteModal && deletingUser && (
+      {showDeleteModal && deletingUser && canDeleteUser(deletingUser) && (
         <DeleteUserModal
           user={deletingUser}
           onClose={() => {
@@ -948,7 +1159,7 @@ export default function HRPage() {
         />
       )}
       
-      {showDocumentsModal && selectedUser && (
+      {showDocumentsModal && selectedUser && canManageDocuments(selectedUser) && (
         <UserDocuments 
           user={selectedUser} 
           onClose={() => {

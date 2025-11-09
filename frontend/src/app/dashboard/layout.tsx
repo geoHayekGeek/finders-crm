@@ -52,7 +52,7 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
+  const { canAccessHR, canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
   const { settings } = useSettings()
 
   // Permission-based navigation
@@ -147,13 +147,13 @@ export default function DashboardLayout({
       baseNavigation.push({ name: 'Reports', href: '/dashboard/reports', icon: BarChart3, alwaysVisible: true })
     }
 
-    // HR - only visible to admin and operations manager
-    if (canManageUsers) {
+    // HR - visible to admin, operations manager, and operations (with scoped permissions)
+    if (canAccessHR) {
       baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
     }
 
     // Settings - only visible to admin and operations manager
-    if (canManageUsers) {
+    if (role === 'admin' || role === 'operations manager') {
       baseNavigation.push({ name: 'Settings', href: '/dashboard/settings', icon: Settings, alwaysVisible: false })
     }
 

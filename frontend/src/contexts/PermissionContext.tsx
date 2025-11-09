@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext'
 
 interface PermissionContextType {
   role: string | null
+  canAccessHR: boolean
   canManageProperties: boolean
   canViewProperties: boolean
   canManageLeads: boolean
@@ -28,6 +29,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   // Permission logic based on user role
   const role = user?.role || null
   
+  const canAccessHR = role === 'admin' || role === 'operations manager' || role === 'operations'
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
   const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations'
@@ -43,6 +45,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
 
   const hasPermission = (permission: string): boolean => {
     switch (permission) {
+      case 'canAccessHR':
+        return canAccessHR
       case 'canManageProperties':
         return canManageProperties
       case 'canViewProperties':
@@ -74,6 +78,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
 
   const value: PermissionContextType = {
     role,
+    canAccessHR,
     canManageProperties,
     canViewProperties,
     canManageLeads,
