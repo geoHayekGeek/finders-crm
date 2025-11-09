@@ -1,6 +1,7 @@
 // controllers/viewingsController.js
 const Viewing = require('../models/viewingModel');
 const CalendarEvent = require('../models/calendarEventModel');
+const Notification = require('../models/notificationModel');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 
@@ -257,6 +258,70 @@ class ViewingsController {
         // Log the error but don't fail the viewing creation
         console.error('⚠️ Failed to create calendar event, but viewing was created:', calendarError);
         console.error('Calendar error details:', calendarError.message);
+      }
+
+      // Notify management roles about the new viewing
+      try {
+        const rolesToNotify = ['agent manager', 'operations', 'operations manager', 'admin'].map(role => role.toLowerCase());
+        const recipientsResult = await pool.query(
+          `SELECT id FROM users WHERE LOWER(role) = ANY($1::text[]) AND id <> $2`,
+          [rolesToNotify, userId]
+        );
+
+        const recipientIds = Array.from(
+          new Set(
+            recipientsResult.rows
+              .map((row) => Number(row.id))
+              .filter((id) => Number.isInteger(id) && id > 0 && id !== userId)
+          )
+        );
+        console.log('🔔 Viewing notification recipients (filtered):', recipientIds);
+
+        if (recipientIds.length > 0) {
+          const propertyDetails = fullViewing.property_reference || fullViewing.property_location || 'a property';
+          const leadDetails = fullViewing.lead_name ? ` with ${fullViewing.lead_name}` : '';
+
+          let viewingDateStr = null;
+          if (fullViewing.viewing_date) {
+            const parsedDate = new Date(fullViewing.viewing_date);
+            if (!Number.isNaN(parsedDate.getTime())) {
+              viewingDateStr = parsedDate.toLocaleDateString('en-US');
+            }
+          }
+
+          const dateDetails = viewingDateStr ? ` on ${viewingDateStr}` : '';
+          const timeDetails = fullViewing.viewing_time ? ` at ${fullViewing.viewing_time}` : '';
+
+          const message = `A new viewing has been scheduled for ${propertyDetails}${leadDetails}${dateDetails}${timeDetails}.`;
+          console.log('🔔 Viewing notification message:', message);
+
+          const notificationPayload = {
+            title: 'New Viewing Scheduled',
+            message,
+            type: 'info',
+            entity_type: 'viewing',
+            entity_id: viewing.id
+          };
+
+          const notificationPromises = recipientIds.map(async (recipientId) => {
+            try {
+              await Notification.createNotification({
+                user_id: recipientId,
+                ...notificationPayload
+              });
+              return true;
+            } catch (notificationCreationError) {
+              console.error(`⚠️ Failed to create viewing notification for user ${recipientId}:`, notificationCreationError);
+              return false;
+            }
+          });
+
+          const results = await Promise.all(notificationPromises);
+          const createdCount = results.filter(Boolean).length;
+          console.log('🔔 Viewing notifications created:', createdCount);
+        }
+      } catch (notificationError) {
+        console.error('⚠️ Failed to create viewing notifications:', notificationError);
       }
       
       res.status(201).json({

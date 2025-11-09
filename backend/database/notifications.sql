@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     type VARCHAR(50) NOT NULL CHECK (type IN ('info', 'success', 'warning', 'urgent')),
-    entity_type VARCHAR(50) NOT NULL CHECK (entity_type IN ('property', 'lead', 'user', 'system')),
+    entity_type VARCHAR(50) NOT NULL CHECK (entity_type IN ('property', 'lead', 'user', 'system', 'viewing', 'calendar_event')),
     entity_id INTEGER,
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
