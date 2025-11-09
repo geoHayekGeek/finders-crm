@@ -42,6 +42,18 @@ interface NavigationItem {
   submenu?: NavigationSubmenuItem[]
 }
 
+const formatRole = (role?: string | null) => {
+  if (!role) {
+    return 'User'
+  }
+
+  return role
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
 export default function DashboardLayout({
   children,
 }: {
@@ -252,7 +264,7 @@ export default function DashboardLayout({
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-700">{user?.name || 'User'}</p>
-                  <p className="text-xs text-gray-500 capitalize">{user?.role || 'User'}</p>
+                      <p className="text-xs text-gray-500">{formatRole(user?.role)}</p>
                 </div>
               </div>
               <button 
@@ -379,7 +391,7 @@ export default function DashboardLayout({
                     </div>
                     <div>
                       <p className="text-sm font-medium text-gray-700">{user?.name || 'User'}</p>
-                      <p className="text-xs text-gray-500 capitalize">{user?.role || 'User'}</p>
+                      <p className="text-xs text-gray-500">{formatRole(user?.role)}</p>
                     </div>
                   </div>
                   <button 
