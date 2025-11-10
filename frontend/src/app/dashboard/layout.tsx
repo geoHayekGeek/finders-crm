@@ -26,6 +26,7 @@ import {
   LucideIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
+import { useRouter } from 'next/navigation'
 
 interface NavigationSubmenuItem {
   name: string
@@ -66,6 +67,7 @@ export default function DashboardLayout({
   const { user, logout } = useAuth()
   const { canAccessHR, canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
   const { settings } = useSettings()
+  const router = useRouter()
 
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
@@ -214,6 +216,14 @@ export default function DashboardLayout({
                     <>
                       <button
                         onClick={() => {
+                          if (!sidebarExpanded) {
+                            const target = item.submenu?.[0]?.href ?? item.href
+                            if (target) {
+                              router.push(target)
+                              return
+                            }
+                          }
+
                           if (item.name === 'Properties') {
                             setPropertiesMenuOpen(!propertiesMenuOpen)
                           } else if (item.name === 'Leads') {
@@ -324,62 +334,75 @@ export default function DashboardLayout({
             </div>
 
             <nav className="flex-1 space-y-1 px-2 py-4">
-              {navigation.map((item) => (
-                <div key={item.name}>
-                  {item.hasSubmenu ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          if (item.name === 'Properties') {
-                            setPropertiesMenuOpen(!propertiesMenuOpen)
-                          } else if (item.name === 'Leads') {
-                            setLeadsMenuOpen(!leadsMenuOpen)
-                          }
-                        }}
-                        className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                        title={!sidebarExpanded ? item.name : undefined}
-                      >
-                        <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
-                        {sidebarExpanded && (
-                          <>
+              {navigation.map((item) => {
+                const primaryHref = item.submenu?.[0]?.href ?? item.href
+                const isPropertiesItem = item.name === 'Properties'
+                const isLeadsItem = item.name === 'Leads'
+                const isMenuOpen =
+                  (isPropertiesItem && propertiesMenuOpen) || (isLeadsItem && leadsMenuOpen)
+
+                return (
+                  <div key={item.name}>
+                    {item.hasSubmenu ? (
+                      sidebarExpanded ? (
+                        <>
+                          <button
+                            onClick={() => {
+                              if (isPropertiesItem) {
+                                setPropertiesMenuOpen(!propertiesMenuOpen)
+                              } else if (isLeadsItem) {
+                                setLeadsMenuOpen(!leadsMenuOpen)
+                              }
+                            }}
+                            className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                          >
+                            <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
                             <span className="ml-3 transition-opacity duration-300">{item.name}</span>
-                            {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) ? (
+                            {isMenuOpen ? (
                               <ChevronUp className="ml-auto h-4 w-4" />
                             ) : (
                               <ChevronDown className="ml-auto h-4 w-4" />
                             )}
-                          </>
+                          </button>
+                          {isMenuOpen && (
+                            <div className="ml-6 space-y-1 mt-1">
+                              {item.submenu?.map((subItem) => (
+                                <a
+                                  key={subItem.name}
+                                  href={subItem.href}
+                                  className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                                >
+                                  <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
+                                  {subItem.name}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <a
+                          href={primaryHref}
+                          className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                          title={item.name}
+                        >
+                          <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                        </a>
+                      )
+                    ) : (
+                      <a
+                        href={item.href}
+                        className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                        title={!sidebarExpanded ? item.name : undefined}
+                      >
+                        <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                        {sidebarExpanded && (
+                          <span className="ml-3 transition-opacity duration-300">{item.name}</span>
                         )}
-                      </button>
-                      {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) && sidebarExpanded && (
-                        <div className="ml-6 space-y-1 mt-1">
-                          {item.submenu?.map((subItem) => (
-                            <a
-                              key={subItem.name}
-                              href={subItem.href}
-                              className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                            >
-                              <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
-                              {subItem.name}
-                            </a>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <a
-                      href={item.href}
-                      className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                      title={!sidebarExpanded ? item.name : undefined}
-                    >
-                      <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
-                      {sidebarExpanded && (
-                        <span className="ml-3 transition-opacity duration-300">{item.name}</span>
-                      )}
-                    </a>
-                  )}
-                </div>
-              ))}
+                      </a>
+                    )}
+                  </div>
+                )
+              })}
             </nav>
             
             <div className="border-t border-gray-200 p-4">
