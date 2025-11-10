@@ -342,43 +342,43 @@ export default function DashboardLayout({
                   (isPropertiesItem && propertiesMenuOpen) || (isLeadsItem && leadsMenuOpen)
 
                 return (
-                  <div key={item.name}>
-                    {item.hasSubmenu ? (
+                <div key={item.name}>
+                  {item.hasSubmenu ? (
                       sidebarExpanded ? (
-                        <>
-                          <button
-                            onClick={() => {
+                    <>
+                      <button
+                        onClick={() => {
                               if (isPropertiesItem) {
-                                setPropertiesMenuOpen(!propertiesMenuOpen)
+                            setPropertiesMenuOpen(!propertiesMenuOpen)
                               } else if (isLeadsItem) {
-                                setLeadsMenuOpen(!leadsMenuOpen)
-                              }
-                            }}
-                            className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                          >
-                            <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                            setLeadsMenuOpen(!leadsMenuOpen)
+                          }
+                        }}
+                        className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                      >
+                        <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
                             <span className="ml-3 transition-opacity duration-300">{item.name}</span>
                             {isMenuOpen ? (
                               <ChevronUp className="ml-auto h-4 w-4" />
                             ) : (
                               <ChevronDown className="ml-auto h-4 w-4" />
-                            )}
-                          </button>
+                        )}
+                      </button>
                           {isMenuOpen && (
-                            <div className="ml-6 space-y-1 mt-1">
-                              {item.submenu?.map((subItem) => (
-                                <a
-                                  key={subItem.name}
-                                  href={subItem.href}
-                                  className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                                >
-                                  <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
-                                  {subItem.name}
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </>
+                        <div className="ml-6 space-y-1 mt-1">
+                          {item.submenu?.map((subItem) => (
+                            <a
+                              key={subItem.name}
+                              href={subItem.href}
+                              className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                            >
+                              <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
+                              {subItem.name}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </>
                       ) : (
                         <a
                           href={primaryHref}
@@ -388,19 +388,19 @@ export default function DashboardLayout({
                           <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
                         </a>
                       )
-                    ) : (
-                      <a
-                        href={item.href}
-                        className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
-                        title={!sidebarExpanded ? item.name : undefined}
-                      >
-                        <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
-                        {sidebarExpanded && (
-                          <span className="ml-3 transition-opacity duration-300">{item.name}</span>
-                        )}
-                      </a>
-                    )}
-                  </div>
+                  ) : (
+                    <a
+                      href={item.href}
+                      className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
+                      title={!sidebarExpanded ? item.name : undefined}
+                    >
+                      <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                      {sidebarExpanded && (
+                        <span className="ml-3 transition-opacity duration-300">{item.name}</span>
+                      )}
+                    </a>
+                  )}
+                </div>
                 )
               })}
             </nav>

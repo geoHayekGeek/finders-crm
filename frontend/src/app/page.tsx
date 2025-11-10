@@ -108,7 +108,7 @@ export default function HomePage() {
                 <img 
                   src={settings.company_logo} 
                   alt={settings.company_name} 
-                  className="h-8 w-auto max-w-[150px] object-contain"
+                  className="h-12 w-auto max-w-[220px] object-contain"
                 />
               ) : (
                 <>
