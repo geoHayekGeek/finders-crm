@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 interface NavigationSubmenuItem {
   name: string
@@ -216,14 +217,6 @@ export default function DashboardLayout({
                     <>
                       <button
                         onClick={() => {
-                          if (!sidebarExpanded) {
-                            const target = item.submenu?.[0]?.href ?? item.href
-                            if (target) {
-                              router.push(target)
-                              return
-                            }
-                          }
-
                           if (item.name === 'Properties') {
                             setPropertiesMenuOpen(!propertiesMenuOpen)
                           } else if (item.name === 'Leads') {
@@ -243,26 +236,28 @@ export default function DashboardLayout({
                       {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) && (
                         <div className="ml-6 space-y-1 mt-1">
                           {item.submenu?.map((subItem) => (
-                            <a
+                            <Link
                               key={subItem.name}
                               href={subItem.href}
+                              onClick={() => setSidebarOpen(false)}
                               className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                             >
                               <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
                               {subItem.name}
-                            </a>
+                            </Link>
                           ))}
                         </div>
                       )}
                     </>
                   ) : (
-                    <a
+                    <Link
                       href={item.href}
+                      onClick={() => setSidebarOpen(false)}
                       className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     >
                       <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
                       {item.name}
-                    </a>
+                    </Link>
                   )}
                 </div>
               ))}
@@ -367,29 +362,29 @@ export default function DashboardLayout({
                           {isMenuOpen && (
                         <div className="ml-6 space-y-1 mt-1">
                           {item.submenu?.map((subItem) => (
-                            <a
+                            <Link
                               key={subItem.name}
                               href={subItem.href}
                               className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
                             >
                               <subItem.icon className="mr-3 h-4 w-4 text-gray-400 group-hover:text-gray-500" />
                               {subItem.name}
-                            </a>
+                            </Link>
                           ))}
                         </div>
                       )}
                     </>
                       ) : (
-                        <a
+                        <Link
                           href={primaryHref}
                           className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
                           title={item.name}
                         >
                           <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
-                        </a>
+                        </Link>
                       )
                   ) : (
-                    <a
+                    <Link
                       href={item.href}
                       className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
                       title={!sidebarExpanded ? item.name : undefined}
@@ -398,7 +393,7 @@ export default function DashboardLayout({
                       {sidebarExpanded && (
                         <span className="ml-3 transition-opacity duration-300">{item.name}</span>
                       )}
-                    </a>
+                    </Link>
                   )}
                 </div>
                 )
