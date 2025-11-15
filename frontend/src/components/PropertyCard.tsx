@@ -1,7 +1,27 @@
 'use client'
 
-import { useState } from 'react'
-import { Building2, MapPin, DollarSign, Bed, Bath, Square, Star, Eye, Edit, Trash2, Calendar, Phone, User } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  Building2,
+  MapPin,
+  DollarSign,
+  Bed,
+  Bath,
+  Square,
+  Star,
+  Eye,
+  Edit,
+  Trash2,
+  Calendar,
+  Phone,
+  User,
+  Share2,
+  MessageCircle,
+  Link as LinkIcon,
+  Instagram,
+  Mail,
+  Send
+} from 'lucide-react'
 import { Property } from '@/types/property'
 import { getFullImageUrl } from '@/utils/imageUpload'
 import { usePermissions } from '@/contexts/PermissionContext'
@@ -15,7 +35,95 @@ interface PropertyCardProps {
 
 export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false)
+  const [isShareOpen, setIsShareOpen] = useState(false)
+  const [shareFeedback, setShareFeedback] = useState<string | null>(null)
+  const shareMenuRef = useRef<HTMLDivElement>(null)
   const { canManageProperties } = usePermissions()
+  const shareLink = property.property_url?.trim()
+  const shareMessage = `Check out property ${property.reference_number} in ${property.location}`
+  const canUseNativeShare = typeof window !== 'undefined' && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
+
+  useEffect(() => {
+    if (!isShareOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(event.target as Node)) {
+        setIsShareOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isShareOpen])
+
+  useEffect(() => {
+    if (!shareFeedback) return
+    const timeout = setTimeout(() => setShareFeedback(null), 2500)
+    return () => clearTimeout(timeout)
+  }, [shareFeedback])
+
+  useEffect(() => {
+    if (!isShareOpen) {
+      setShareFeedback(null)
+    }
+  }, [isShareOpen])
+
+  const handleCopyLink = async () => {
+    if (!shareLink) return
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`${shareMessage}\n${shareLink}`)
+        setShareFeedback('Link copied to clipboard')
+      } else {
+        setShareFeedback('Copy is unavailable in this browser')
+      }
+    } catch (error) {
+      console.error('Failed to copy link', error)
+      setShareFeedback('Unable to copy link')
+    }
+  }
+
+  const handleNativeShare = async () => {
+    if (!shareLink || !navigator.share) return
+    try {
+      await navigator.share({
+        title: 'Property from Finders CRM',
+        text: shareMessage,
+        url: shareLink
+      })
+      setIsShareOpen(false)
+    } catch (error) {
+      console.error('Native share cancelled', error)
+    }
+  }
+
+  const handleShareOption = async (option: 'whatsapp' | 'instagram' | 'email' | 'copy' | 'more') => {
+    if (!shareLink) return
+    const encodedMessage = encodeURIComponent(`${shareMessage}\n${shareLink}`)
+
+    switch (option) {
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank', 'noopener')
+        setIsShareOpen(false)
+        return
+      case 'instagram':
+        await handleCopyLink()
+        window.open('https://www.instagram.com/direct/new/', '_blank', 'noopener')
+        setIsShareOpen(false)
+        return
+      case 'email':
+        window.open(`mailto:?subject=Property%20${encodeURIComponent(property.reference_number)}&body=${encodedMessage}`, '_self')
+        setIsShareOpen(false)
+        return
+      case 'copy':
+        await handleCopyLink()
+        return
+      case 'more':
+        await handleNativeShare()
+        return
+      default:
+        return
+    }
+  }
   const formatPrice = (price?: number) => {
     if (!price) return 'Price on request'
     return new Intl.NumberFormat('en-US', {
@@ -64,11 +172,89 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
           </span>
         </div>
         
-        {/* Reference number */}
-        <div className="absolute top-3 right-3">
+        {/* Reference number + share */}
+        <div className="absolute top-3 right-3 flex flex-col items-end space-y-2">
           <span className="bg-gray-800 text-white px-2 py-1 rounded text-xs font-mono">
             {property.reference_number}
           </span>
+          <div className="relative" ref={shareMenuRef}>
+            <button
+              onClick={() => shareLink && setIsShareOpen((prev) => !prev)}
+              disabled={!shareLink}
+              aria-label="Share property link"
+              className={`inline-flex items-center justify-center rounded-full border transition-colors ${
+                shareLink
+                  ? 'border-purple-200 text-purple-600 hover:bg-purple-50 h-8 w-8 bg-white shadow-sm'
+                  : 'border-gray-200 text-gray-300 cursor-not-allowed h-8 w-8 bg-gray-50'
+              }`}
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+            {isShareOpen && shareLink && (
+              <div className="absolute right-0 z-20 mt-2 w-64 rounded-xl border border-gray-100 bg-white shadow-xl p-3 space-y-1">
+                <p className="text-xs text-gray-500 px-1">
+                  Share <span className="font-semibold">{property.reference_number}</span> with clients
+                </p>
+                <button
+                  onClick={() => handleShareOption('whatsapp')}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-green-50 text-left"
+                >
+                  <MessageCircle className="h-4 w-4 text-green-600" />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">WhatsApp</div>
+                    <div className="text-xs text-gray-500">Send via WhatsApp</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleShareOption('instagram')}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-pink-50 text-left"
+                >
+                  <Instagram className="h-4 w-4 text-pink-500" />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Instagram</div>
+                    <div className="text-xs text-gray-500">Copy link & open IG Direct</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleShareOption('email')}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-blue-50 text-left"
+                >
+                  <Mail className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Email</div>
+                    <div className="text-xs text-gray-500">Send as email update</div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => handleShareOption('copy')}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 text-left"
+                >
+                  <LinkIcon className="h-4 w-4 text-gray-700" />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Copy link</div>
+                    <div className="text-xs text-gray-500">Perfect for Instagram or SMS</div>
+                  </div>
+                </button>
+                {canUseNativeShare && (
+                  <button
+                    onClick={() => handleShareOption('more')}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-indigo-50 text-left"
+                  >
+                    <Send className="h-4 w-4 text-indigo-500" />
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">More options</div>
+                      <div className="text-xs text-gray-500">Open device share sheet</div>
+                    </div>
+                  </button>
+                )}
+                {shareFeedback && (
+                  <div className="px-2 py-1 text-xs text-green-600 bg-green-50 rounded-lg">
+                    {shareFeedback}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -125,7 +311,7 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
         </div>
         
         {/* Action buttons */}
-        <div className="flex space-x-2">
+        <div className="flex space-x-2 items-center">
           <button 
             onClick={() => onView(property)}
             className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2"
