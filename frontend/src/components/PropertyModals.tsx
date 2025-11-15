@@ -12,6 +12,7 @@ import { AgentSelector } from './AgentSelector'
 import { OwnerSelector } from './OwnerSelector'
 import { ReferralSelector } from './ReferralSelector'
 import { PropertyReferralsSection } from './PropertyReferralsSection'
+import { PropertyShareMenu } from './PropertyShareMenu'
 import { useToast } from '@/contexts/ToastContext'
 
 // Reusable Input Field Component with Validation
@@ -2645,7 +2646,7 @@ export function PropertyModals({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-wrap gap-3">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   {/* Eye icon for view property */}
@@ -2656,12 +2657,15 @@ export function PropertyModals({
                   <p className="text-sm text-gray-500">Property information and images</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowViewPropertyModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
+              <div className="flex items-center gap-3">
+                <PropertyShareMenu property={viewPropertyData} variant="button" />
+                <button
+                  onClick={() => setShowViewPropertyModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body */}

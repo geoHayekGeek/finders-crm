@@ -3,7 +3,7 @@
 import { ColumnDef } from '@tanstack/react-table'
 import { Property } from '@/types/property'
 import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar } from 'lucide-react'
-import { usePermissions } from '@/contexts/PermissionContext'
+import { PropertyShareMenu } from './PropertyShareMenu'
 
 export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Property>[] => [
   {
@@ -164,6 +164,7 @@ export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Prop
       const property = row.original
       return (
         <div className="flex items-center space-x-2">
+          <PropertyShareMenu property={property} variant="icon" align="right" className="flex-shrink-0" />
           <button
             onClick={() => row.original.onView?.(property)}
             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -273,6 +274,7 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean): Column
       const property = row.original
       return (
         <div className="flex items-center space-x-2">
+          <PropertyShareMenu property={property} variant="icon" align="right" className="flex-shrink-0" />
           <button
             onClick={() => property.onView?.(property)}
             className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
