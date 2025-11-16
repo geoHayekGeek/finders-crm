@@ -13,6 +13,7 @@ import { OwnerSelector } from './OwnerSelector'
 import { ReferralSelector } from './ReferralSelector'
 import { PropertyReferralsSection } from './PropertyReferralsSection'
 import { PropertyShareMenu } from './PropertyShareMenu'
+import { PropertyViewingsSection } from './PropertyViewingsSection'
 import { useToast } from '@/contexts/ToastContext'
 
 // Reusable Input Field Component with Validation
@@ -2927,6 +2928,15 @@ export function PropertyModals({
                       isLoading={false}
                       canEdit={false}
                     />
+
+                    {/* Viewings Section */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-3">Property Viewings</label>
+                      <PropertyViewingsSection
+                        propertyId={viewPropertyData.id}
+                        canEdit={canManageProperties}
+                      />
+                    </div>
                   </div>
                 </div>
 

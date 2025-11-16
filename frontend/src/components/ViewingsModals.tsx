@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Calendar, Clock, User, Building2, Phone, Plus, ChevronDown, ChevronUp, MessageSquare, Edit3 } from 'lucide-react'
+import { X, Calendar, Clock, User, Building2, Phone, Plus, ChevronDown, ChevronUp, MessageSquare, Edit3, Star } from 'lucide-react'
 import { Viewing, CreateViewingFormData, EditViewingFormData, VIEWING_STATUSES, ViewingUpdate } from '@/types/viewing'
 import PropertySelectorForViewings from './PropertySelectorForViewings'
 import LeadSelectorForViewings from './LeadSelectorForViewings'
@@ -133,6 +133,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       viewing_date: '',
       viewing_time: '',
       status: 'Scheduled',
+      is_serious: false,
       notes: '',
       initial_update_title: '',
       initial_update_description: ''
@@ -169,6 +170,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           viewing_date: '',
           viewing_time: '',
           status: 'Scheduled',
+          is_serious: false,
           notes: '',
           initial_update_title: '',
           initial_update_description: ''
@@ -281,7 +283,37 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 ))}
               </select>
             </div>
-            
+
+            {/* Serious Viewing Toggle */}
+            <div
+              className={`rounded-lg border p-4 transition-colors ${
+                formData.is_serious
+                  ? 'border-amber-300 bg-amber-50/80 shadow-sm'
+                  : 'border-gray-200 bg-gray-50'
+              }`}
+            >
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                  checked={!!formData.is_serious}
+                  onChange={(e) => setFormData({ ...formData, is_serious: e.target.checked })}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
+                    <Star className="h-4 w-4 text-amber-500" />
+                    Mark as serious viewing
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Serious viewings are highlighted across the dashboard and shown first to the team.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Divider between viewing fields and additional details */}
+            <div className="border-t border-gray-200 my-4" />
+
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
@@ -293,9 +325,15 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 placeholder="Add any additional notes..."
               />
             </div>
-            
-            {/* Initial Update */}
-            <div>
+
+            {/* Divider between viewing details and updates */}
+            <div className="border-t border-gray-200 pt-4 mt-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Follow-up & initial update
+              </p>
+
+              {/* Initial Update */}
+              <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Initial Update (Optional)
               </label>
@@ -321,6 +359,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                   />
                 </div>
               </div>
+            </div>
             </div>
             
             {/* Buttons */}
@@ -377,6 +416,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       viewing_date: props.editingViewing?.viewing_date ? formatDateForInput(props.editingViewing.viewing_date) : '',
       viewing_time: formatTimeForInput(props.editingViewing?.viewing_time),
       status: props.editingViewing?.status || 'Scheduled',
+      is_serious: props.editingViewing?.is_serious ?? false,
       notes: props.editingViewing?.notes
     })
     
@@ -398,6 +438,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           viewing_date: props.editingViewing.viewing_date ? formatDateForInput(props.editingViewing.viewing_date) : '',
           viewing_time: formatTimeForInput(props.editingViewing.viewing_time),
           status: props.editingViewing.status,
+          is_serious: props.editingViewing.is_serious ?? false,
           notes: props.editingViewing.notes
         })
         setAddingUpdate(false)
@@ -579,7 +620,37 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 ))}
               </select>
             </div>
-            
+
+            {/* Serious Viewing Toggle */}
+            <div
+              className={`rounded-lg border p-4 transition-colors ${
+                formData.is_serious
+                  ? 'border-amber-300 bg-amber-50/80 shadow-sm'
+                  : 'border-gray-200 bg-gray-50'
+              }`}
+            >
+              <label className="flex items-start gap-3 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                  checked={!!formData.is_serious}
+                  onChange={(e) => setFormData({ ...formData, is_serious: e.target.checked })}
+                />
+                <div>
+                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
+                    <Star className="h-4 w-4 text-amber-500" />
+                    Mark as serious viewing
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Serious viewings are highlighted and prioritized for follow-up.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Divider between viewing fields and additional details */}
+            <div className="border-t border-gray-200 my-4" />
+
             {/* Notes */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
@@ -926,8 +997,8 @@ export function ViewingsModals(props: ViewingsModalsProps) {
             </div>
           
           <div className="space-y-6">
-            {/* Status Badge */}
-            <div className="flex items-center justify-between">
+            {/* Status & Priority */}
+            <div className="flex items-center justify-between gap-4">
               <div className="flex items-center space-x-3">
                 <span className="text-sm font-medium text-gray-700">Status:</span>
                 <span
@@ -940,6 +1011,13 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                   {statusInfo?.label || props.viewingViewing.status}
                 </span>
               </div>
+
+              {props.viewingViewing.is_serious && (
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-amber-300 bg-amber-50 text-amber-800 text-xs font-semibold">
+                  <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+                  <span>Serious viewing</span>
+                </div>
+              )}
             </div>
             
             {/* Property Info */}

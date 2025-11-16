@@ -112,6 +112,23 @@ export default function ViewingsPage() {
       console.log('📡 API response received', { success: response.success, dataLength: response.data?.length })
       
       if (response.success) {
+        // Helper: always show serious viewings first, then most recent date/time
+        const sortViewings = (items: Viewing[]) => {
+          return [...items].sort((a, b) => {
+            const seriousDiff = Number(b.is_serious ? 1 : 0) - Number(a.is_serious ? 1 : 0)
+            if (seriousDiff !== 0) return seriousDiff
+
+            const dateA = new Date(a.viewing_date)
+            const dateB = new Date(b.viewing_date)
+            const dateDiff = dateB.getTime() - dateA.getTime()
+            if (dateDiff !== 0) return dateDiff
+
+            const timeA = (a.viewing_time || '').toString().slice(0, 5)
+            const timeB = (b.viewing_time || '').toString().slice(0, 5)
+            return timeB.localeCompare(timeA)
+          })
+        }
+
         if (isTeamLeaderRole(user.role)) {
           const teamLeadId = user.id
           const scoped = (response.data || []).filter(viewing => {
@@ -123,12 +140,12 @@ export default function ViewingsPage() {
               (viewing as any).agent?.team_leader_id
             return agentTeamLeaderId === teamLeadId
           })
-          setViewings(scoped)
+          setViewings(sortViewings(scoped))
         } else if (isAgentRole(user.role)) {
           const scoped = (response.data || []).filter(viewing => viewing.agent_id === user.id)
-          setViewings(scoped)
+          setViewings(sortViewings(scoped))
         } else {
-          setViewings(response.data || [])
+          setViewings(sortViewings(response.data || []))
         }
         console.log('✅ Viewings updated successfully')
       } else {
@@ -421,7 +438,7 @@ export default function ViewingsPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="text-red-600 mb-4">⚠️</div>
+          <XCircle className="h-10 w-10 text-red-600 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
           <button
             onClick={() => {

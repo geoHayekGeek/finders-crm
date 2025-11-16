@@ -2,7 +2,7 @@
 'use client'
 
 import { Viewing, VIEWING_STATUSES } from '@/types/viewing'
-import { Calendar, Clock, MapPin, User, Eye, Edit, Trash2, Building2, Phone } from 'lucide-react'
+import { Calendar, Clock, MapPin, User, Eye, Edit, Trash2, Building2, Phone, Star } from 'lucide-react'
 
 interface ViewingsCardProps {
   viewing: Viewing
@@ -32,10 +32,14 @@ export default function ViewingsCard({
     })
   }
 
+  const containerClasses = viewing.is_serious
+    ? 'bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow border border-amber-300 ring-1 ring-amber-100 flex flex-col h-full'
+    : 'bg-white rounded-lg shadow hover:shadow-lg transition-shadow border border-gray-200 flex flex-col h-full'
+
   return (
-    <div className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow border border-gray-200 flex flex-col h-full">
+    <div className={containerClasses}>
       {/* Header with Status */}
-      <div className="p-4 border-b border-gray-200">
+      <div className={`p-4 border-b ${viewing.is_serious ? 'border-amber-100 bg-amber-50/40' : 'border-gray-200'}`}>
         <div className="flex justify-between items-start">
           <div className="flex-1">
             <h3 className="font-bold text-lg text-gray-900 mb-1">
@@ -46,15 +50,23 @@ export default function ViewingsCard({
               <p className="line-clamp-1">{viewing.property_location}</p>
             </div>
           </div>
-          <span 
-            className="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ml-2"
-            style={{ 
-              backgroundColor: statusInfo?.color ? statusInfo.color + '20' : '#E5E7EB', 
-              color: statusInfo?.color || '#6B7280' 
-            }}
-          >
-            {viewing.status}
-          </span>
+          <div className="flex flex-col items-end gap-2">
+            {viewing.is_serious && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold text-amber-800 bg-amber-100 border border-amber-200">
+                <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+                Serious
+              </span>
+            )}
+            <span 
+              className="px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap"
+              style={{ 
+                backgroundColor: statusInfo?.color ? statusInfo.color + '20' : '#E5E7EB', 
+                color: statusInfo?.color || '#6B7280' 
+              }}
+            >
+              {viewing.status}
+            </span>
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,7 @@
 
 import { ColumnDef } from '@tanstack/react-table'
 import { Viewing, VIEWING_STATUSES } from '@/types/viewing'
-import { Eye, Edit, Trash2 } from 'lucide-react'
+import { Eye, Edit, Trash2, Star } from 'lucide-react'
 
 export const getViewingsColumns = (
   canManageViewings: boolean,
@@ -36,13 +36,24 @@ export const getViewingsColumns = (
     {
       accessorKey: 'property_reference',
       header: 'Property',
-      cell: ({ row }) => (
-        <div>
-          <p className="font-medium text-gray-900">{row.original.property_reference}</p>
-          <p className="text-sm text-gray-500">{row.original.property_location}</p>
-          <p className="text-xs text-gray-400 capitalize">{row.original.property_type}</p>
-        </div>
-      )
+      cell: ({ row }) => {
+        const isSerious = row.original.is_serious
+        return (
+          <div
+            className={`rounded-lg ${isSerious ? 'bg-amber-50/80 border border-amber-200 p-2 shadow-sm' : ''}`}
+          >
+            <p className="font-medium text-gray-900">{row.original.property_reference}</p>
+            <p className="text-sm text-gray-500">{row.original.property_location}</p>
+            <p className="text-xs text-gray-400 capitalize">{row.original.property_type}</p>
+            {isSerious && (
+              <span className="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold text-amber-800 bg-amber-100 border border-amber-200">
+                <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                Serious viewing
+              </span>
+            )}
+          </div>
+        )
+      }
     },
     {
       accessorKey: 'lead_name',

@@ -88,12 +88,6 @@ export default function DashboardLayout({
         icon: FileText, 
         alwaysVisible: true
       })
-      baseNavigation.push({ 
-        name: 'Viewings', 
-        href: '/dashboard/viewings', 
-        icon: Eye, 
-        alwaysVisible: true
-      })
       baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
       return baseNavigation
     }
@@ -141,16 +135,6 @@ export default function DashboardLayout({
         alwaysVisible: true,
         hasSubmenu: leadsSubmenuItems.length > 1,
         submenu: leadsSubmenuItems.length > 1 ? leadsSubmenuItems : undefined
-      })
-    }
-
-    // Viewings - visible to agents, team leaders, and management roles
-    if (canViewViewings) {
-      baseNavigation.push({ 
-        name: 'Viewings', 
-        href: '/dashboard/viewings', 
-        icon: Eye, 
-        alwaysVisible: true
       })
     }
 

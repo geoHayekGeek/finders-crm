@@ -695,7 +695,7 @@ class ViewingsController {
       const { id } = req.params;
       console.log('➕ Adding update to viewing:', id);
       
-      const { update_text, update_date } = req.body;
+      const { update_text, update_date, status } = req.body;
       
       if (!update_text || !update_text.trim()) {
         return res.status(400).json({
@@ -739,6 +739,7 @@ class ViewingsController {
       const updateData = {
         update_text: update_text.trim(),
         update_date: update_date || new Date().toISOString().split('T')[0],
+        status: status || 'Initial Contact',
         created_by: userId
       };
       

@@ -11,13 +11,15 @@ class Viewing {
       viewing_date,
       viewing_time,
       status,
+      is_serious,
+      description,
       notes
     } = viewingData;
 
     const result = await pool.query(
       `INSERT INTO viewings (
-        property_id, lead_id, agent_id, viewing_date, viewing_time, status, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        property_id, lead_id, agent_id, viewing_date, viewing_time, status, is_serious, description, notes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         property_id,
@@ -26,6 +28,8 @@ class Viewing {
         viewing_date,
         viewing_time,
         status || 'Scheduled',
+        is_serious || false,
+        description,
         notes
       ]
     );
@@ -45,6 +49,8 @@ class Viewing {
           v.viewing_date,
           v.viewing_time,
           v.status,
+          v.is_serious,
+          v.description,
           v.notes,
           v.created_at,
           v.updated_at,
@@ -61,6 +67,7 @@ class Viewing {
                 'id', vu.id,
                 'update_text', vu.update_text,
                 'update_date', vu.update_date,
+                'status', vu.status,
                 'created_by', vu.created_by,
                 'created_by_name', creator.name,
                 'created_at', vu.created_at
@@ -75,10 +82,10 @@ class Viewing {
         LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
         LEFT JOIN users creator ON vu.created_by = creator.id
         GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-                 v.status, v.notes, v.created_at, v.updated_at,
+                 v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
                  p.reference_number, p.location, p.property_type,
                  l.customer_name, l.phone_number, u.name, u.role
-        ORDER BY v.viewing_date DESC, v.viewing_time DESC
+        ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
       return result.rows;
@@ -99,6 +106,8 @@ class Viewing {
         v.viewing_date,
         v.viewing_time,
         v.status,
+        v.is_serious,
+        v.description,
         v.notes,
         v.created_at,
         v.updated_at,
@@ -115,6 +124,7 @@ class Viewing {
               'id', vu.id,
               'update_text', vu.update_text,
               'update_date', vu.update_date,
+              'status', vu.status,
               'created_by', vu.created_by,
               'created_by_name', creator.name,
               'created_at', vu.created_at
@@ -130,10 +140,10 @@ class Viewing {
       LEFT JOIN users creator ON vu.created_by = creator.id
       WHERE v.agent_id = $1
       GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.notes, v.created_at, v.updated_at,
+               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
                p.reference_number, p.location, p.property_type,
                l.customer_name, l.phone_number, u.name, u.role
-      ORDER BY v.viewing_date DESC, v.viewing_time DESC
+      ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
     `, [agentId]);
     return result.rows;
   }
@@ -149,6 +159,8 @@ class Viewing {
         v.viewing_date,
         v.viewing_time,
         v.status,
+        v.is_serious,
+        v.description,
         v.notes,
         v.created_at,
         v.updated_at,
@@ -165,6 +177,7 @@ class Viewing {
               'id', vu.id,
               'update_text', vu.update_text,
               'update_date', vu.update_date,
+              'status', vu.status,
               'created_by', vu.created_by,
               'created_by_name', creator.name,
               'created_at', vu.created_at
@@ -185,10 +198,10 @@ class Viewing {
            WHERE ta.team_leader_id = $1 AND ta.is_active = true
          )
       GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.notes, v.created_at, v.updated_at,
+               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
                p.reference_number, p.location, p.property_type,
                l.customer_name, l.phone_number, u.name, u.role
-      ORDER BY v.viewing_date DESC, v.viewing_time DESC
+      ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
     `, [teamLeaderId]);
     return result.rows;
   }
@@ -204,6 +217,8 @@ class Viewing {
         v.viewing_date,
         v.viewing_time,
         v.status,
+        v.is_serious,
+        v.description,
         v.notes,
         v.created_at,
         v.updated_at,
@@ -220,6 +235,7 @@ class Viewing {
               'id', vu.id,
               'update_text', vu.update_text,
               'update_date', vu.update_date,
+              'status', vu.status,
               'created_by', vu.created_by,
               'created_by_name', creator.name,
               'created_at', vu.created_at
@@ -235,7 +251,7 @@ class Viewing {
       LEFT JOIN users creator ON vu.created_by = creator.id
       WHERE v.id = $1
       GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.notes, v.created_at, v.updated_at,
+               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
                p.reference_number, p.location, p.property_type,
                l.customer_name, l.phone_number, u.name, u.role
     `, [id]);
@@ -283,6 +299,8 @@ class Viewing {
         v.viewing_date,
         v.viewing_time,
         v.status,
+        v.is_serious,
+        v.description,
         v.notes,
         v.created_at,
         v.updated_at,
@@ -299,6 +317,7 @@ class Viewing {
               'id', vu.id,
               'update_text', vu.update_text,
               'update_date', vu.update_date,
+              'status', vu.status,
               'created_by', vu.created_by,
               'created_by_name', creator.name,
               'created_at', vu.created_at
@@ -362,10 +381,10 @@ class Viewing {
 
     query += ` 
       GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.notes, v.created_at, v.updated_at,
+               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
                p.reference_number, p.location, p.property_type,
                l.customer_name, l.phone_number, u.name, u.role
-      ORDER BY v.viewing_date DESC, v.viewing_time DESC
+      ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
     `;
 
     const result = await pool.query(query, values);
