@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator } from 'lucide-react'
-import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser, LeadReferralInput } from '@/types/leads'
+import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator, Edit3 } from 'lucide-react'
+import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser, LeadReferralInput, LeadNote } from '@/types/leads'
 import { AgentSelector } from './AgentSelector'
 import { StatusSelector } from './StatusSelector'
 import { ReferenceSourceSelector } from './ReferenceSourceSelector'
@@ -11,7 +11,7 @@ import { LeadReferralsSection } from './LeadReferralsSection'
 import { LeadReferralSelector } from './LeadReferralSelector'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
-import { leadStatusesApi, leadsApi, ApiError } from '@/utils/api'
+import { leadStatusesApi, leadsApi, leadNotesApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
 
@@ -195,6 +195,76 @@ export function LeadsModals({
 
   const [saving, setSaving] = useState(false)
 
+  // Lead notes state (view modal)
+  const [notes, setNotes] = useState<LeadNote[]>([])
+  const [notesLoading, setNotesLoading] = useState(false)
+  const [newNoteText, setNewNoteText] = useState('')
+  const [editingMyNote, setEditingMyNote] = useState(false)
+
+  const canAddNote = (() => {
+    if (!user || !viewingLead) return false
+    const normalizedRole = user.role?.toLowerCase().replace(/\s+/g, '_')
+    const isAssignedAgent = viewingLead.agent_id === user.id
+    if (normalizedRole === 'agent') return !!isAssignedAgent
+    // Operations can add on any lead
+    if (normalizedRole === 'operations') return true
+    // Operations manager / agent manager / admin can add on any lead
+    if (['operations_manager', 'agent_manager', 'admin'].includes(normalizedRole || '')) return true
+    return false
+  })()
+
+  useEffect(() => {
+    const loadNotes = async () => {
+      if (!token || !viewingLead) return
+      setNotesLoading(true)
+      try {
+        const response = await leadNotesApi.getForLead(viewingLead.id, token)
+        if (response.success) {
+          setNotes(response.data)
+          if (user) {
+            const myNote = response.data.find(n => n.created_by === user.id)
+            setNewNoteText(myNote ? myNote.note_text : '')
+          }
+        }
+      } catch (error) {
+        console.error('Error loading lead notes:', error)
+      } finally {
+        setNotesLoading(false)
+      }
+    }
+
+    if (showViewLeadModal && viewingLead && token) {
+      loadNotes()
+    } else {
+      setNotes([])
+      setNewNoteText('')
+      setEditingMyNote(false)
+    }
+  }, [showViewLeadModal, viewingLead, token, user])
+
+  const handleAddNote = async () => {
+    if (!token || !viewingLead) return
+    const text = newNoteText.trim()
+    if (!text) return
+    try {
+      const response = await leadNotesApi.create(viewingLead.id, text, token)
+      if (response.success) {
+        setNotes(prev => {
+          const others = prev.filter(n => n.id !== response.data.id)
+          return [response.data, ...others]
+        })
+        setNewNoteText(response.data.note_text)
+        setEditingMyNote(false)
+        showSuccess('Note saved')
+      } else {
+        showError(response.message || 'Failed to add note')
+      }
+    } catch (error) {
+      console.error('Error adding lead note:', error)
+      showError(error instanceof ApiError ? error.message : 'Failed to add note')
+    }
+  }
+
   // Load lead statuses from API
   const loadLeadStatuses = async () => {
     if (!token) return
@@ -213,12 +283,12 @@ export function LeadsModals({
         setLeadStatuses(statuses)
       } else {
         // Fallback to hardcoded statuses if API fails
-        setLeadStatuses(LEAD_STATUSES)
+        setLeadStatuses(LEAD_STATUSES.map(s => ({ ...s })))
       }
     } catch (error) {
       console.error('Error loading lead statuses:', error)
       // Fallback to hardcoded statuses if API fails
-      setLeadStatuses(LEAD_STATUSES)
+      setLeadStatuses(LEAD_STATUSES.map(s => ({ ...s })))
     } finally {
       setLoadingStatuses(false)
     }
@@ -275,29 +345,29 @@ export function LeadsModals({
     }
     
     if (isEditForm) {
-      setEditValidationErrors(prev => ({
-        ...prev,
+      setEditValidationErrors({
+        ...editValidationErrors,
         [fieldName]: errorMessage
-      }))
+      })
     } else {
-      setAddValidationErrors(prev => ({
-        ...prev,
+      setAddValidationErrors({
+        ...addValidationErrors,
         [fieldName]: errorMessage
-      }))
+      })
     }
   }
 
   const clearFieldError = (fieldName: string, isEditForm = false) => {
     if (isEditForm) {
-      setEditValidationErrors(prev => ({
-        ...prev,
+      setEditValidationErrors({
+        ...editValidationErrors,
         [fieldName]: ''
-      }))
+      })
     } else {
-      setAddValidationErrors(prev => ({
-        ...prev,
+      setAddValidationErrors({
+        ...addValidationErrors,
         [fieldName]: ''
-      }))
+      })
     }
   }
 
@@ -1177,6 +1247,125 @@ export function LeadsModals({
                         // read-only
                       }}
                     />
+                  </div>
+                )}
+
+                {/* Lead Notes Section */}
+                {viewingLead && (
+                  <div className="pt-4 border-t border-gray-200">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-2">Lead Notes</h3>
+                    {user && (
+                      <p className="text-xs text-gray-500 mb-2">
+                        You can keep one personal note on this lead. Use the edit icon on your note to change it.
+                      </p>
+                    )}
+                    {notesLoading ? (
+                      <p className="text-sm text-gray-500">Loading notes...</p>
+                    ) : notes.length === 0 ? (
+                      <p className="text-sm text-gray-500 mb-2">No notes yet for this lead.</p>
+                    ) : (
+                      <div className="space-y-2 mb-3">
+                        {notes.map(note => {
+                          const isMyNote = user && note.created_by === user.id
+                          const isEditingThis = isMyNote && editingMyNote
+                          const createdAt = new Date(note.created_at)
+                          const updatedAt = note.updated_at ? new Date(note.updated_at) : null
+
+                          return (
+                            <div key={note.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  {isEditingThis ? (
+                                    <textarea
+                                      value={newNoteText}
+                                      onChange={(e) => setNewNoteText(e.target.value)}
+                                      rows={3}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                    />
+                                  ) : (
+                                    <p className="text-sm text-gray-800 whitespace-pre-wrap">
+                                      {note.note_text}
+                                    </p>
+                                  )}
+                                  <p className="mt-1 text-xs text-gray-500">
+                                    By {note.created_by_name || 'User'} ({note.created_by_role}) · Created{' '}
+                                    {createdAt.toLocaleString()}
+                                    {updatedAt && updatedAt.getTime() !== createdAt.getTime() && (
+                                      <> · Updated {updatedAt.toLocaleString()}</>
+                                    )}
+                                  </p>
+                                </div>
+                                {isMyNote && canAddNote && (
+                                  <div className="flex flex-col items-end gap-1">
+                                    {!isEditingThis && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setNewNoteText(note.note_text)
+                                          setEditingMyNote(true)
+                                        }}
+                                        className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                                        title="Edit your note"
+                                      >
+                                        <Edit3 className="h-4 w-4" />
+                                      </button>
+                                    )}
+                                    {isEditingThis && (
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={handleAddNote}
+                                          disabled={!newNoteText.trim()}
+                                          className="px-2 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          Save
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setEditingMyNote(false)
+                                            setNewNoteText(note.note_text)
+                                          }}
+                                          className="px-2 py-1 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Only show composer if user can add and doesn't already have a note */}
+                    {canAddNote && user && !notes.some(n => n.created_by === user.id) && (
+                      <div className="mt-2">
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Your note
+                        </label>
+                        <textarea
+                          value={newNoteText}
+                          onChange={(e) => setNewNoteText(e.target.value)}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Write a note about this lead..."
+                        />
+                        <div className="flex justify-end mt-2">
+                          <button
+                            type="button"
+                            onClick={handleAddNote}
+                            disabled={!newNoteText.trim()}
+                            className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
+                          >
+                            Add Note
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 

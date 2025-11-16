@@ -33,6 +33,9 @@ export interface Lead {
   status: string
   created_at: string
   updated_at: string
+
+  // Optional notes summary if loaded with lead
+  notes?: LeadNote[]
   
   // Action handlers for table/card components
   onView?: (lead: Lead) => void
@@ -179,6 +182,23 @@ export interface LeadStatsData {
   }
   topAgents: { name: string; count: number }[]
   monthlyTrends: { month: string; count: number }[]
+}
+
+export interface LeadNote {
+  id: number
+  lead_id: number
+  note_text: string
+  created_by: number
+  created_by_name?: string
+  created_by_role: string
+  created_at: string
+  updated_at?: string
+}
+
+export interface LeadNotesResponse {
+  success: boolean
+  data: LeadNote[]
+  message?: string
 }
 
 export interface LeadStatsApiResponse {

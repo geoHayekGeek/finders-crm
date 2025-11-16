@@ -1,5 +1,5 @@
 import { Property, Category, Status } from '@/types/property'
-import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse } from '@/types/leads'
+import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData } from '@/types/reports'
@@ -612,6 +612,17 @@ export const viewingsApi = {
   deleteUpdate: (viewingId: number, updateId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
     method: 'DELETE',
   }, token),
+}
+
+// Lead Notes API
+export const leadNotesApi = {
+  getForLead: (leadId: number, token?: AuthToken) =>
+    apiRequest<LeadNotesResponse>(`/leads/${leadId}/notes`, {}, token),
+  create: (leadId: number, note_text: string, token?: AuthToken) =>
+    apiRequest<{ success: boolean; data: LeadNote; message?: string }>(`/leads/${leadId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ note_text }),
+    }, token),
 }
 
 // Categories API

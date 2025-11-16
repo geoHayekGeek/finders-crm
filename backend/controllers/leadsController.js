@@ -2,6 +2,7 @@
 const Lead = require('../models/leadsModel');
 const LeadReferral = require('../models/leadReferralModel');
 const Notification = require('../models/notificationModel');
+const LeadNote = require('../models/leadNotesModel');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 
@@ -698,6 +699,132 @@ class LeadsController {
         success: false,
         message: 'Failed to retrieve agent referral statistics',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  // Lead Notes: visibility rules helper
+  static filterNotesForUser(notes, lead, user) {
+    const role = normalizeRole(user.role);
+
+    // Admin sees all notes
+    if (role === 'admin') {
+      return notes;
+    }
+
+    // Operations manager: see operations and agents notes
+    if (role === 'operations_manager') {
+      return notes.filter(n => {
+        const nRole = normalizeRole(n.created_by_role);
+        return nRole === 'operations' || nRole === 'agent';
+      });
+    }
+
+    // Agent manager: see agent notes
+    if (role === 'agent_manager') {
+      return notes.filter(n => normalizeRole(n.created_by_role) === 'agent');
+    }
+
+    // Operations: see only their own notes
+    if (role === 'operations') {
+      return notes.filter(n => n.created_by === user.id);
+    }
+
+    // Agent: can see only their own notes on that lead
+    if (role === 'agent') {
+      return notes.filter(n => n.created_by === user.id);
+    }
+
+    // Team leaders: mirror agents for now (can be expanded later)
+    if (role === 'team_leader') {
+      return notes.filter(n => n.created_by === user.id);
+    }
+
+    return [];
+  }
+
+  // GET /api/leads/:id/notes - Get notes for a lead
+  static async getLeadNotes(req, res) {
+    try {
+      const { id } = req.params;
+      const lead = await Lead.getLeadById(id);
+
+      if (!lead) {
+        return res.status(404).json({
+          success: false,
+          message: 'Lead not found',
+        });
+      }
+
+      const notes = await LeadNote.getNotesForLead(id);
+      const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
+
+      res.json({
+        success: true,
+        data: filtered,
+        message: `Retrieved ${filtered.length} notes for lead`,
+      });
+    } catch (error) {
+      console.error('❌ Error getting lead notes:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve lead notes',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      });
+    }
+  }
+
+  // POST /api/leads/:id/notes - Create note on a lead
+  static async addLeadNote(req, res) {
+    try {
+      const { id } = req.params;
+      const { note_text } = req.body || {};
+
+      if (!note_text || !note_text.toString().trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note text is required',
+        });
+      }
+
+      const lead = await Lead.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({
+          success: false,
+          message: 'Lead not found',
+        });
+      }
+
+      const role = normalizeRole(req.user.role);
+      const isAssignedAgent = lead.agent_id === req.user.id;
+
+      const canCreate =
+        (role === 'agent' && isAssignedAgent) ||
+        ['operations', 'operations_manager', 'agent_manager', 'admin'].includes(role);
+
+      if (!canCreate) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to add notes to this lead',
+        });
+      }
+
+      const note = await LeadNote.createOrUpdateNote(id, req.user, note_text.toString().trim());
+      const notes = await LeadNote.getNotesForLead(id);
+      const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
+      const createdForUser = filtered.find(n => n.id === note.id) || note;
+
+      res.status(201).json({
+        success: true,
+        data: createdForUser,
+        message: 'Note added successfully',
+      });
+    } catch (error) {
+      console.error('❌ Error adding lead note:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to add lead note',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
       });
     }
   }
