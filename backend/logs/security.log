@@ -117,3 +117,4 @@
 [2025-11-09T23:06:22.465Z] VALIDATION_FAILURE: {"endpoint":"/","method":"POST","errors":[{"field":"surface","message":"Surface area must be between 0.01 and 10,000 m²","value":123123}],"ip":"::1","userId":51}
 [2025-11-09T23:06:58.760Z] VALIDATION_FAILURE: {"endpoint":"/","method":"POST","errors":[{"field":"surface","message":"Surface area must be between 0.01 and 10,000 m²","value":123123}],"ip":"::1","userId":51}
 [2025-11-16T10:10:37.236Z] VALIDATION_FAILURE: {"endpoint":"/1289","method":"PUT","errors":[{"field":"status","message":"Status must be one of: Active, Closed, Contacted, Converted, Qualified, test, test2","value":"converted","location":"body"}],"ip":"::1","userId":51}
+[2025-11-16T15:14:46.095Z] VALIDATION_FAILURE: {"endpoint":"/1244","method":"PUT","errors":[{"field":"status","message":"Status must be one of: Active, Closed, Contacted, Converted, Qualified, test, test2","value":"qualified","location":"body"}],"ip":"::1","userId":51}

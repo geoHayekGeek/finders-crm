@@ -45,6 +45,25 @@ class Property {
       }
     }
 
+    // If an owner_id is provided, always sync owner_name and phone_number from the lead
+    let finalOwnerId = owner_id || null;
+    let finalOwnerName = owner_name || null;
+    let finalPhoneNumber = phone_number || null;
+
+    if (finalOwnerId) {
+      const ownerResult = await pool.query(
+        `SELECT customer_name, phone_number 
+         FROM leads 
+         WHERE id = $1`,
+        [finalOwnerId]
+      );
+
+      if (ownerResult.rows[0]) {
+        finalOwnerName = ownerResult.rows[0].customer_name;
+        finalPhoneNumber = ownerResult.rows[0].phone_number;
+      }
+    }
+
     // Generate reference number
     const category = await pool.query('SELECT code FROM categories WHERE id = $1', [category_id]);
     if (!category.rows[0]) {
@@ -73,7 +92,7 @@ class Property {
         RETURNING *`,
         [
           refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
-          owner_id, owner_name, phone_number, surface, details, interior_details,
+          finalOwnerId, finalOwnerName, finalPhoneNumber, surface, details, interior_details,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
           closed_date, main_image, image_gallery
         ]
@@ -576,6 +595,25 @@ class Property {
       const { referrals, ...propertyUpdates } = updates;
       console.log('🔍 Extracted referrals:', referrals);
       console.log('🔍 Property updates (without referrals):', propertyUpdates);
+
+      // If owner_id is being changed, always refresh owner_name and phone_number from the lead
+      if (propertyUpdates.owner_id) {
+        const ownerResult = await client.query(
+          `SELECT customer_name, phone_number 
+           FROM leads 
+           WHERE id = $1`,
+          [propertyUpdates.owner_id]
+        );
+
+        if (ownerResult.rows[0]) {
+          propertyUpdates.owner_name = ownerResult.rows[0].customer_name;
+          propertyUpdates.phone_number = ownerResult.rows[0].phone_number;
+        }
+      } else if (propertyUpdates.owner_id === null) {
+        // If explicitly clearing owner_id, also clear owner_name and phone_number
+        propertyUpdates.owner_name = null;
+        propertyUpdates.phone_number = null;
+      }
       
       // Sanitize date fields: convert empty strings to null
       if (propertyUpdates.closed_date === '') {

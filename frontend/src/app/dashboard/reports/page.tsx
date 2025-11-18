@@ -1,16 +1,24 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList } from 'lucide-react'
+import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import MonthlyAgentStatsTab from '@/components/reports/MonthlyAgentStatsTab'
 import DCSRTab from '@/components/reports/DCSRTab'
 import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
+import SaleRentSourceTab from '@/components/reports/SaleRentSourceTab'
 
 // Tab configuration
-type TabId = 'monthly-agent-stats' | 'dcsr-report' | 'operations-commission' | 'leads-report' | 'revenue-report' | 'performance-report'
+type TabId =
+  | 'monthly-agent-stats'
+  | 'dcsr-report'
+  | 'operations-commission'
+  | 'sale-rent-source'
+  | 'leads-report'
+  | 'revenue-report'
+  | 'performance-report'
 
 interface Tab {
   id: TabId
@@ -32,6 +40,12 @@ const TABS: Tab[] = [
     name: 'DCSR Report',
     icon: ClipboardList,
     description: 'Daily Client/Sales Report - Track listings, leads, closures, and viewings'
+  },
+  {
+    id: 'sale-rent-source',
+    name: 'Sale & Rent Source',
+    icon: PieChart,
+    description: 'Statistics of sale and rent source per agent, with Finders commission per closure'
   },
   {
     id: 'operations-commission',
@@ -132,6 +146,8 @@ function ReportsPageContent() {
           {activeTab === 'dcsr-report' && <DCSRTab />}
           
           {activeTab === 'operations-commission' && <OperationsCommissionTab />}
+          
+          {activeTab === 'sale-rent-source' && <SaleRentSourceTab />}
           
           {activeTab === 'leads-report' && (
             <div className="text-center py-12">

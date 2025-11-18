@@ -2,7 +2,7 @@ import { Property, Category, Status } from '@/types/property'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData } from '@/types/reports'
+import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters } from '@/types/reports'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -1141,6 +1141,81 @@ export const reportsApi = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
       throw new Error(errorData.message || 'Failed to export report to PDF')
+    }
+
+    return response.blob()
+  },
+}
+
+// Sale & Rent Source Report API
+export const saleRentSourceApi = {
+  // Get rows for Sale & Rent Source report
+  getAll: (filters: SaleRentSourceFilters, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: SaleRentSourceRow[]; count: number; message: string }>(
+      `/reports/sale-rent-source${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  // Export to Excel
+  exportToExcel: async (filters: SaleRentSourceFilters, token?: AuthToken): Promise<Blob> => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+
+    const response = await fetch(`${API_BASE_URL}/reports/sale-rent-source/export/excel${queryString ? `?${queryString}` : ''}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export Sale & Rent Source report' }))
+      throw new Error(errorData.message || 'Failed to export Sale & Rent Source report to Excel')
+    }
+
+    return response.blob()
+  },
+
+  // Export to PDF
+  exportToPDF: async (filters: SaleRentSourceFilters, token?: AuthToken): Promise<Blob> => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+
+    const response = await fetch(`${API_BASE_URL}/reports/sale-rent-source/export/pdf${queryString ? `?${queryString}` : ''}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export Sale & Rent Source report' }))
+      throw new Error(errorData.message || 'Failed to export Sale & Rent Source report to PDF')
     }
 
     return response.blob()

@@ -176,6 +176,7 @@ class LeadsController {
           phone_number: lead.phone_number,
           agent_id: lead.agent_id,
           assigned_agent_name: lead.assigned_agent_name,
+          price: lead.price,
           status: lead.status,
           created_at: lead.created_at,
           updated_at: lead.updated_at

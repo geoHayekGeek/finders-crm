@@ -1,6 +1,11 @@
 // backend/controllers/reportsController.js
 const Report = require('../models/reportsModel');
 const { exportToExcel, exportToPDF } = require('../utils/reportExporter');
+const { getSaleRentSourceData } = require('../models/saleRentSourceReportModel');
+const {
+  exportSaleRentSourceToExcel,
+  exportSaleRentSourceToPDF
+} = require('../utils/saleRentSourceReportExporter');
 
 class ReportsController {
   /**
@@ -394,6 +399,124 @@ class ReportsController {
       res.status(500).json({
         success: false,
         message: 'Failed to export report to PDF',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Get "Statistics of Sale and Rent Source" report rows
+   */
+  static async getSaleRentSourceReport(req, res) {
+    try {
+      const { agent_id, start_date, end_date } = req.query;
+
+      if (!agent_id || !start_date || !end_date) {
+        return res.status(400).json({
+          success: false,
+          message: 'agent_id, start_date, and end_date are required'
+        });
+      }
+
+      const data = await getSaleRentSourceData({
+        agent_id: parseInt(agent_id, 10),
+        start_date,
+        end_date
+      });
+
+      res.json({
+        success: true,
+        data,
+        count: data.length,
+        message: 'Sale & Rent Source report generated successfully'
+      });
+    } catch (error) {
+      console.error('❌ Error getting Sale & Rent Source report:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate Sale & Rent Source report',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Export Sale & Rent Source report to Excel
+   */
+  static async exportSaleRentSourceExcel(req, res) {
+    try {
+      const { agent_id, start_date, end_date } = req.query;
+
+      if (!agent_id || !start_date || !end_date) {
+        return res.status(400).json({
+          success: false,
+          message: 'agent_id, start_date, and end_date are required'
+        });
+      }
+
+      const rows = await getSaleRentSourceData({
+        agent_id: parseInt(agent_id, 10),
+        start_date,
+        end_date
+      });
+
+      const buffer = await exportSaleRentSourceToExcel(rows, {
+        agentName: rows[0]?.agent_name || 'Agent',
+        startDate: start_date,
+        endDate: end_date
+      });
+
+      const filename = `Sale_Rent_Source_${(rows[0]?.agent_name || 'Agent').replace(/\s+/g, '_')}_${start_date}_to_${end_date}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } catch (error) {
+      console.error('❌ Error exporting Sale & Rent Source report to Excel:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export Sale & Rent Source report to Excel',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Export Sale & Rent Source report to PDF
+   */
+  static async exportSaleRentSourcePDF(req, res) {
+    try {
+      const { agent_id, start_date, end_date } = req.query;
+
+      if (!agent_id || !start_date || !end_date) {
+        return res.status(400).json({
+          success: false,
+          message: 'agent_id, start_date, and end_date are required'
+        });
+      }
+
+      const rows = await getSaleRentSourceData({
+        agent_id: parseInt(agent_id, 10),
+        start_date,
+        end_date
+      });
+
+      const buffer = await exportSaleRentSourceToPDF(rows, {
+        agentName: rows[0]?.agent_name || 'Agent',
+        startDate: start_date,
+        endDate: end_date
+      });
+
+      const filename = `Sale_Rent_Source_${(rows[0]?.agent_name || 'Agent').replace(/\s+/g, '_')}_${start_date}_to_${end_date}.pdf`;
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } catch (error) {
+      console.error('❌ Error exporting Sale & Rent Source report to PDF:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export Sale & Rent Source report to PDF',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }

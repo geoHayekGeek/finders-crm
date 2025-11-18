@@ -60,6 +60,28 @@ router.delete('/monthly/:id', ReportsController.deleteReport);
 router.get('/lead-sources', ReportsController.getLeadSources);
 
 /**
+ * @route   GET /api/reports/sale-rent-source
+ * @desc    Get Statistics of Sale and Rent Source report rows
+ * @query   agent_id, start_date, end_date
+ * @access  Private
+ */
+router.get('/sale-rent-source', ReportsController.getSaleRentSourceReport);
+
+/**
+ * @route   GET /api/reports/sale-rent-source/export/excel
+ * @desc    Export Sale & Rent Source report to Excel
+ * @access  Private
+ */
+router.get('/sale-rent-source/export/excel', ReportsController.exportSaleRentSourceExcel);
+
+/**
+ * @route   GET /api/reports/sale-rent-source/export/pdf
+ * @desc    Export Sale & Rent Source report to PDF
+ * @access  Private
+ */
+router.get('/sale-rent-source/export/pdf', ReportsController.exportSaleRentSourcePDF);
+
+/**
  * @route   GET /api/reports/monthly/:id/export/excel
  * @desc    Export a monthly report to Excel
  * @access  Private

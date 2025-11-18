@@ -178,3 +178,17 @@ export interface UpdateOperationsCommissionData {
   total_commission_amount: number
 }
 
+// Sale & Rent Source Report Types
+export interface SaleRentSourceRow {
+  closed_date: string
+  agent_name: string
+  reference_number: string
+  sold_rented: string
+  source_name: string
+  price: number
+  finders_commission: number
+  client_name: string
+}
+
+export interface SaleRentSourceFilters extends ReportFilters {}
+
