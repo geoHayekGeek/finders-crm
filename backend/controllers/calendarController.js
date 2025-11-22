@@ -179,6 +179,7 @@ const getEventsByDateRange = async (req, res) => {
     const { start, end } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const userRole = req.user.role;
     
     if (!start || !end) {
       return res.status(400).json({
@@ -241,6 +242,7 @@ const getEventsByMonth = async (req, res) => {
     const { year, month } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const userRole = req.user.role;
     
     if (!year || !month) {
       return res.status(400).json({
@@ -307,6 +309,7 @@ const getEventsByWeek = async (req, res) => {
     const { startOfWeek } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const userRole = req.user.role;
     
     if (!startOfWeek) {
       return res.status(400).json({
@@ -371,6 +374,7 @@ const getEventsByDay = async (req, res) => {
     const { date } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const userRole = req.user.role;
     
     if (!date) {
       return res.status(400).json({
@@ -501,7 +505,8 @@ const createEvent = async (req, res) => {
       attendees,
       notes,
       propertyId,
-      leadId
+      leadId,
+      assignedTo
     } = req.body;
 
     // Basic validation
@@ -541,7 +546,7 @@ const createEvent = async (req, res) => {
       attendees: attendees || [],
       notes: notes?.trim() || null,
       created_by: req.user?.id || null,
-      assigned_to: req.user?.id || null, // Assign event to the user who creates it
+      assigned_to: assignedTo || req.user?.id || null, // Assign event to specified user or creator
       property_id: propertyId || null,
       lead_id: leadId || null
     };
@@ -937,6 +942,7 @@ const searchEvents = async (req, res) => {
     const { q } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const userRole = req.user.role;
     
     if (!q) {
       return res.status(400).json({
