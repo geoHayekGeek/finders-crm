@@ -141,10 +141,19 @@ const validateCreateLead = [
   body('status')
     .optional({ nullable: true, checkFalsy: true })
     .custom(async (value) => {
-      if (value) {
+      if (!value) {
+        return true;
+      }
+      try {
         const validStatuses = await getValidStatuses();
         if (!validStatuses.includes(value)) {
           throw new Error(`Status must be one of: ${validStatuses.join(', ')}`);
+        }
+      } catch (error) {
+        // If database query fails, fall back to default statuses
+        const defaultStatuses = ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
+        if (!defaultStatuses.includes(value)) {
+          throw new Error(`Status must be one of: ${defaultStatuses.join(', ')}`);
         }
       }
       return true;
@@ -342,12 +351,23 @@ const validateLeadsFilters = [
     }),
     
   query('search')
-    .optional()
-    .isLength({ min: 1, max: 100 })
-    .withMessage('Search term must be between 1 and 100 characters')
-    .matches(/^[a-zA-Z0-9\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF@.\-+()]+$/)
-    .withMessage('Search term contains invalid characters')
-    .customSanitizer(sanitizeInput)
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') {
+        return true; // Optional, so empty is fine
+      }
+      if (typeof value !== 'string') {
+        throw new Error('Search term must be a string');
+      }
+      const sanitized = sanitizeInput(value);
+      if (sanitized.length < 1 || sanitized.length > 100) {
+        throw new Error('Search term must be between 1 and 100 characters');
+      }
+      if (!/^[a-zA-Z0-9\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF@.\-+()]+$/.test(sanitized)) {
+        throw new Error('Search term contains invalid characters');
+      }
+      return true;
+    })
 ];
 
 // Validation result handler

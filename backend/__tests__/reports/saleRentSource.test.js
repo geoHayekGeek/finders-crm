@@ -3,9 +3,11 @@
 
 const ReportsController = require('../../controllers/reportsController');
 const { getSaleRentSourceData } = require('../../models/saleRentSourceReportModel');
+const { exportSaleRentSourceToExcel, exportSaleRentSourceToPDF } = require('../../utils/saleRentSourceReportExporter');
 
 // Mock dependencies
 jest.mock('../../models/saleRentSourceReportModel');
+jest.mock('../../utils/saleRentSourceReportExporter');
 jest.mock('../../config/db');
 
 describe('Sale & Rent Source Report', () => {
@@ -227,6 +229,198 @@ describe('Sale & Rent Source Report', () => {
         data: mockData,
         count: 1,
         message: 'Sale & Rent Source report generated successfully'
+      });
+    });
+  });
+
+  describe('exportSaleRentSourceExcel', () => {
+    it('should export Sale & Rent Source report to Excel successfully', async () => {
+      req.query = {
+        agent_id: '1',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const mockData = [
+        {
+          agent_name: 'John Doe',
+          closed_date: '2024-01-15',
+          reference_number: 'PROP-001',
+          sold_rented: 'Sold',
+          source_name: 'Website',
+          price: 500000
+        }
+      ];
+      const mockBuffer = Buffer.from('mock excel data');
+
+      getSaleRentSourceData.mockResolvedValue(mockData);
+      exportSaleRentSourceToExcel.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportSaleRentSourceExcel(req, res);
+
+      expect(getSaleRentSourceData).toHaveBeenCalledWith({
+        agent_id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      });
+      expect(exportSaleRentSourceToExcel).toHaveBeenCalledWith(mockData, {
+        agentName: 'John Doe',
+        startDate: '2024-01-01',
+        endDate: '2024-01-31'
+      });
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Sale_Rent_Source_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.xlsx'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 400 when agent_id is missing', async () => {
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      await ReportsController.exportSaleRentSourceExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'agent_id, start_date, and end_date are required'
+      });
+      expect(exportSaleRentSourceToExcel).not.toHaveBeenCalled();
+    });
+
+    it('should return 400 when start_date is missing', async () => {
+      req.query = {
+        agent_id: '1',
+        end_date: '2024-01-31'
+      };
+
+      await ReportsController.exportSaleRentSourceExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'agent_id, start_date, and end_date are required'
+      });
+    });
+
+    it('should handle empty data with default agent name', async () => {
+      req.query = {
+        agent_id: '1',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const mockBuffer = Buffer.from('mock excel data');
+
+      getSaleRentSourceData.mockResolvedValue([]);
+      exportSaleRentSourceToExcel.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportSaleRentSourceExcel(req, res);
+
+      expect(exportSaleRentSourceToExcel).toHaveBeenCalledWith([], {
+        agentName: 'Agent',
+        startDate: '2024-01-01',
+        endDate: '2024-01-31'
+      });
+    });
+
+    it('should handle errors during export', async () => {
+      req.query = {
+        agent_id: '1',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const error = new Error('Export failed');
+      getSaleRentSourceData.mockRejectedValue(error);
+
+      await ReportsController.exportSaleRentSourceExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export Sale & Rent Source report to Excel',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportSaleRentSourcePDF', () => {
+    it('should export Sale & Rent Source report to PDF successfully', async () => {
+      req.query = {
+        agent_id: '1',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const mockData = [
+        {
+          agent_name: 'John Doe',
+          closed_date: '2024-01-15',
+          reference_number: 'PROP-001',
+          sold_rented: 'Sold',
+          source_name: 'Website',
+          price: 500000
+        }
+      ];
+      const mockBuffer = Buffer.from('mock pdf data');
+
+      getSaleRentSourceData.mockResolvedValue(mockData);
+      exportSaleRentSourceToPDF.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportSaleRentSourcePDF(req, res);
+
+      expect(getSaleRentSourceData).toHaveBeenCalledWith({
+        agent_id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      });
+      expect(exportSaleRentSourceToPDF).toHaveBeenCalledWith(mockData, {
+        agentName: 'John Doe',
+        startDate: '2024-01-01',
+        endDate: '2024-01-31'
+      });
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Sale_Rent_Source_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.pdf'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 400 when agent_id is missing', async () => {
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      await ReportsController.exportSaleRentSourcePDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'agent_id, start_date, and end_date are required'
+      });
+      expect(exportSaleRentSourceToPDF).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.query = {
+        agent_id: '1',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const error = new Error('Export failed');
+      getSaleRentSourceData.mockRejectedValue(error);
+
+      await ReportsController.exportSaleRentSourcePDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export Sale & Rent Source report to PDF',
+        error: expect.any(String)
       });
     });
   });

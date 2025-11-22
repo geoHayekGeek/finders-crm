@@ -80,8 +80,12 @@ const validateProperty = [
   body('concierge')
     .notEmpty()
     .withMessage('Concierge service status is required')
-    .isBoolean()
-    .withMessage('Concierge must be true or false'),
+    .custom((value) => {
+      if (typeof value === 'boolean') return true;
+      if (value === 'true' || value === 'false') return true;
+      if (value === true || value === false) return true;
+      throw new Error('Concierge must be true or false');
+    }),
     
   body('details')
     .notEmpty()
@@ -134,10 +138,25 @@ const validateProperty = [
     
   body('property_url')
     .optional({ nullable: true, checkFalsy: true })
-    .isURL({ protocols: ['http', 'https'], require_protocol: true })
-    .withMessage('Property URL must be a valid URL starting with http:// or https://')
-    .isLength({ max: 500 })
-    .withMessage('Property URL must not exceed 500 characters'),
+    .custom((value) => {
+      if (!value) return true; // Optional field
+      if (typeof value !== 'string') {
+        throw new Error('Property URL must be a string');
+      }
+      if (value.length > 500) {
+        throw new Error('Property URL must not exceed 500 characters');
+      }
+      // Check if it's a valid URL starting with http:// or https://
+      try {
+        const url = new URL(value);
+        if (!['http:', 'https:'].includes(url.protocol)) {
+          throw new Error('Property URL must start with http:// or https://');
+        }
+      } catch (e) {
+        throw new Error('Property URL must be a valid URL starting with http:// or https://');
+      }
+      return true;
+    }),
     
   body('main_image')
     .optional()
@@ -146,8 +165,15 @@ const validateProperty = [
     
   body('image_gallery')
     .optional()
-    .isArray()
-    .withMessage('Image gallery must be an array'),
+    .custom((value) => {
+      if (value === undefined || value === null) {
+        return true; // Optional field
+      }
+      if (!Array.isArray(value)) {
+        throw new Error('Image gallery must be an array');
+      }
+      return true;
+    }),
     
   body('referrals')
     .optional({ nullable: true, checkFalsy: true })
@@ -164,34 +190,71 @@ const validateProperty = [
     
   // Custom validation for referrals if provided
   body('referrals.*.name')
-    .if(body('referrals').exists())
-    .notEmpty()
-    .withMessage('Referral name is required')
-    .isLength({ min: 2, max: 255 })
-    .withMessage('Referral name must be between 2 and 255 characters')
+    .optional()
+    .custom((value, { req, path }) => {
+      // Only validate if referrals array exists
+      if (!req.body.referrals || !Array.isArray(req.body.referrals)) {
+        return true;
+      }
+      if (!value || value.trim() === '') {
+        throw new Error('Referral name is required');
+      }
+      if (value.length < 2 || value.length > 255) {
+        throw new Error('Referral name must be between 2 and 255 characters');
+      }
+      return true;
+    })
     .customSanitizer(sanitizeInput),
     
   body('referrals.*.type')
-    .if(body('referrals').exists())
-    .notEmpty()
-    .withMessage('Referral type is required')
-    .isIn(['employee', 'custom'])
-    .withMessage('Referral type must be either "employee" or "custom"'),
+    .optional()
+    .custom((value, { req }) => {
+      if (!req.body.referrals || !Array.isArray(req.body.referrals)) {
+        return true;
+      }
+      if (!value) {
+        throw new Error('Referral type is required');
+      }
+      if (!['employee', 'custom'].includes(value)) {
+        throw new Error('Referral type must be either "employee" or "custom"');
+      }
+      return true;
+    }),
     
   body('referrals.*.date')
-    .if(body('referrals').exists())
-    .notEmpty()
-    .withMessage('Referral date is required')
-    .isISO8601()
-    .withMessage('Referral date must be a valid ISO 8601 date'),
+    .optional()
+    .custom((value, { req }) => {
+      if (!req.body.referrals || !Array.isArray(req.body.referrals)) {
+        return true;
+      }
+      if (!value) {
+        throw new Error('Referral date is required');
+      }
+      // Basic ISO 8601 check
+      const iso8601Regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+      if (!iso8601Regex.test(value) && !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        throw new Error('Referral date must be a valid ISO 8601 date');
+      }
+      return true;
+    }),
     
   body('referrals.*.employee_id')
-    .if(body('referrals').exists())
-    .if(body('referrals.*.type').equals('employee'))
-    .notEmpty()
-    .withMessage('Employee ID is required for employee referrals')
-    .isInt({ min: 1 })
-    .withMessage('Employee ID must be a positive integer'),
+    .optional()
+    .custom((value, { req, path }) => {
+      if (!req.body.referrals || !Array.isArray(req.body.referrals)) {
+        return true;
+      }
+      const referralIndex = path.match(/referrals\.(\d+)\.employee_id/)?.[1];
+      if (referralIndex !== undefined && req.body.referrals?.[referralIndex]?.type === 'employee') {
+        if (!value) {
+          throw new Error('Employee ID is required for employee referrals');
+        }
+        if (!Number.isInteger(Number(value)) || Number(value) < 1) {
+          throw new Error('Employee ID must be a positive integer');
+        }
+      }
+      return true;
+    }),
 ];
 
 // Validation result handler

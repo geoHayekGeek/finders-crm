@@ -92,23 +92,24 @@ const getEventSeverity = (eventType) => {
 };
 
 // Detect suspicious input patterns
+// Note: Order matters - more specific patterns (XSS) should be checked before general ones (SQL)
 const detectSuspiciousInput = (input) => {
   const patterns = [
-    // SQL Injection patterns
-    { pattern: /['";]/, type: 'SQL_INJECTION_ATTEMPT', description: 'SQL injection characters detected' },
-    { pattern: /(union|select|insert|update|delete|drop|create|alter)/i, type: 'SQL_INJECTION_ATTEMPT', description: 'SQL keywords detected' },
-    
-    // XSS patterns
+    // XSS patterns - check these first as they're more specific
     { pattern: /<script/i, type: 'XSS_ATTEMPT', description: 'Script tag detected' },
     { pattern: /javascript:/i, type: 'XSS_ATTEMPT', description: 'JavaScript protocol detected' },
     { pattern: /on\w+=/i, type: 'XSS_ATTEMPT', description: 'Event handler detected' },
     { pattern: /<iframe/i, type: 'XSS_ATTEMPT', description: 'Iframe tag detected' },
     
-    // Command injection patterns
-    { pattern: /[;&|`$]/, type: 'COMMAND_INJECTION_ATTEMPT', description: 'Command injection characters detected' },
+    // Path traversal patterns - check before SQL as it's more specific
+    { pattern: /\.\./, type: 'PATH_TRAVERSAL_ATTEMPT', description: 'Path traversal detected' },
     
-    // Path traversal patterns
-    { pattern: /\.\./, type: 'PATH_TRAVERSAL_ATTEMPT', description: 'Path traversal detected' }
+    // SQL Injection patterns - check these after XSS to avoid false positives
+    { pattern: /(union|select|insert|update|delete|drop|create|alter)/i, type: 'SQL_INJECTION_ATTEMPT', description: 'SQL keywords detected' },
+    { pattern: /['";]/, type: 'SQL_INJECTION_ATTEMPT', description: 'SQL injection characters detected' },
+    
+    // Command injection patterns
+    { pattern: /[;&|`$]/, type: 'COMMAND_INJECTION_ATTEMPT', description: 'Command injection characters detected' }
   ];
   
   for (const { pattern, type, description } of patterns) {
@@ -246,6 +247,7 @@ module.exports = {
   logSecurityEvent,
   logError,
   detectSuspiciousInput,
+  getEventSeverity,
   SECURITY_EVENTS
 };
 

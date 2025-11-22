@@ -3,9 +3,11 @@
 
 const operationsCommissionController = require('../../controllers/operationsCommissionController');
 const operationsCommissionModel = require('../../models/operationsCommissionModel');
+const { exportOperationsCommissionToExcel, exportOperationsCommissionToPDF } = require('../../utils/operationsCommissionExporter');
 
 // Mock dependencies
 jest.mock('../../models/operationsCommissionModel');
+jest.mock('../../utils/operationsCommissionExporter');
 jest.mock('../../config/db');
 
 describe('Operations Commission Report', () => {
@@ -496,6 +498,122 @@ describe('Operations Commission Report', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message: 'Failed to delete operations commission report',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportReportToExcel', () => {
+    it('should export operations commission report to Excel successfully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        commission_percentage: 2.5,
+        total_properties_count: 100
+      };
+      const mockBuffer = Buffer.from('mock excel data');
+
+      operationsCommissionModel.getReportById.mockResolvedValue(mockReport);
+      exportOperationsCommissionToExcel.mockResolvedValue(mockBuffer);
+
+      await operationsCommissionController.exportReportToExcel(req, res);
+
+      expect(operationsCommissionModel.getReportById).toHaveBeenCalledWith(1);
+      expect(exportOperationsCommissionToExcel).toHaveBeenCalledWith(mockReport);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Operations_Commission_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.xlsx'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 404 when report not found', async () => {
+      req.params = { id: '999' };
+      operationsCommissionModel.getReportById.mockResolvedValue(null);
+
+      await operationsCommissionController.exportReportToExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Operations commission report not found'
+      });
+      expect(exportOperationsCommissionToExcel).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.params = { id: '1' };
+      const mockReport = { id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+      const error = new Error('Export failed');
+
+      operationsCommissionModel.getReportById.mockResolvedValue(mockReport);
+      exportOperationsCommissionToExcel.mockRejectedValue(error);
+
+      await operationsCommissionController.exportReportToExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export operations commission report to Excel',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportReportToPDF', () => {
+    it('should export operations commission report to PDF successfully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        commission_percentage: 2.5,
+        total_properties_count: 100
+      };
+      const mockBuffer = Buffer.from('mock pdf data');
+
+      operationsCommissionModel.getReportById.mockResolvedValue(mockReport);
+      exportOperationsCommissionToPDF.mockResolvedValue(mockBuffer);
+
+      await operationsCommissionController.exportReportToPDF(req, res);
+
+      expect(operationsCommissionModel.getReportById).toHaveBeenCalledWith(1);
+      expect(exportOperationsCommissionToPDF).toHaveBeenCalledWith(mockReport);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Operations_Commission_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.pdf'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 404 when report not found', async () => {
+      req.params = { id: '999' };
+      operationsCommissionModel.getReportById.mockResolvedValue(null);
+
+      await operationsCommissionController.exportReportToPDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Operations commission report not found'
+      });
+      expect(exportOperationsCommissionToPDF).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.params = { id: '1' };
+      const mockReport = { id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+      const error = new Error('Export failed');
+
+      operationsCommissionModel.getReportById.mockResolvedValue(mockReport);
+      exportOperationsCommissionToPDF.mockRejectedValue(error);
+
+      await operationsCommissionController.exportReportToPDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export operations commission report to PDF',
         error: expect.any(String)
       });
     });

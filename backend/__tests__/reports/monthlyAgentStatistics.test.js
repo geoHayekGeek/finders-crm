@@ -3,9 +3,11 @@
 
 const ReportsController = require('../../controllers/reportsController');
 const Report = require('../../models/reportsModel');
+const { exportToExcel, exportToPDF } = require('../../utils/reportExporter');
 
 // Mock dependencies
 jest.mock('../../models/reportsModel');
+jest.mock('../../utils/reportExporter');
 jest.mock('../../config/db');
 
 describe('Monthly Agent Statistics Report', () => {
@@ -21,7 +23,8 @@ describe('Monthly Agent Statistics Report', () => {
     res = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn(),
-      send: jest.fn()
+      send: jest.fn(),
+      setHeader: jest.fn()
     };
     jest.clearAllMocks();
   });
@@ -527,6 +530,193 @@ describe('Monthly Agent Statistics Report', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message: 'Failed to retrieve lead sources',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportReportToExcel', () => {
+    it('should export report to Excel successfully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        agent_id: 1,
+        agent_name: 'John Doe',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        lead_sources: { Website: 10, Referral: 5 }
+      };
+      const mockBuffer = Buffer.from('mock excel data');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToExcel.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportReportToExcel(req, res);
+
+      expect(Report.getReportById).toHaveBeenCalledWith(1);
+      expect(exportToExcel).toHaveBeenCalledWith(mockReport);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Report_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.xlsx'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should parse lead_sources if it is a string', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        agent_name: 'John Doe',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        lead_sources: '{"Website": 10, "Referral": 5}'
+      };
+      const mockBuffer = Buffer.from('mock excel data');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToExcel.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportReportToExcel(req, res);
+
+      expect(exportToExcel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lead_sources: { Website: 10, Referral: 5 }
+        })
+      );
+    });
+
+    it('should handle invalid lead_sources JSON gracefully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        agent_name: 'John Doe',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        lead_sources: 'invalid json'
+      };
+      const mockBuffer = Buffer.from('mock excel data');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToExcel.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportReportToExcel(req, res);
+
+      expect(exportToExcel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lead_sources: {}
+        })
+      );
+    });
+
+    it('should return 404 when report not found', async () => {
+      req.params = { id: '999' };
+      Report.getReportById.mockResolvedValue(null);
+
+      await ReportsController.exportReportToExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Report not found'
+      });
+      expect(exportToExcel).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.params = { id: '1' };
+      const mockReport = { id: 1, agent_name: 'John Doe', start_date: '2024-01-01', end_date: '2024-01-31' };
+      const error = new Error('Export failed');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToExcel.mockRejectedValue(error);
+
+      await ReportsController.exportReportToExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export report to Excel',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportReportToPDF', () => {
+    it('should export report to PDF successfully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        agent_id: 1,
+        agent_name: 'John Doe',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        lead_sources: { Website: 10, Referral: 5 }
+      };
+      const mockBuffer = Buffer.from('mock pdf data');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToPDF.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportReportToPDF(req, res);
+
+      expect(Report.getReportById).toHaveBeenCalledWith(1);
+      expect(exportToPDF).toHaveBeenCalledWith(mockReport);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Report_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.pdf'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should parse lead_sources if it is a string', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        agent_name: 'John Doe',
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        lead_sources: '{"Website": 10, "Referral": 5}'
+      };
+      const mockBuffer = Buffer.from('mock pdf data');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToPDF.mockResolvedValue(mockBuffer);
+
+      await ReportsController.exportReportToPDF(req, res);
+
+      expect(exportToPDF).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lead_sources: { Website: 10, Referral: 5 }
+        })
+      );
+    });
+
+    it('should return 404 when report not found', async () => {
+      req.params = { id: '999' };
+      Report.getReportById.mockResolvedValue(null);
+
+      await ReportsController.exportReportToPDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Report not found'
+      });
+      expect(exportToPDF).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.params = { id: '1' };
+      const mockReport = { id: 1, agent_name: 'John Doe', start_date: '2024-01-01', end_date: '2024-01-31' };
+      const error = new Error('Export failed');
+
+      Report.getReportById.mockResolvedValue(mockReport);
+      exportToPDF.mockRejectedValue(error);
+
+      await ReportsController.exportReportToPDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export report to PDF',
         error: expect.any(String)
       });
     });

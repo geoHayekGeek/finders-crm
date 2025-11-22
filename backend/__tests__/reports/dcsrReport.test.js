@@ -3,9 +3,11 @@
 
 const dcsrReportsController = require('../../controllers/dcsrReportsController');
 const dcsrReportsModel = require('../../models/dcsrReportsModel');
+const { exportDCSRToExcel, exportDCSRToPDF } = require('../../utils/dcsrReportExporter');
 
 // Mock dependencies
 jest.mock('../../models/dcsrReportsModel');
+jest.mock('../../utils/dcsrReportExporter');
 jest.mock('../../config/db');
 
 describe('DCSR Report', () => {
@@ -453,6 +455,122 @@ describe('DCSR Report', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message: 'Failed to delete DCSR report',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportDCSRReportToExcel', () => {
+    it('should export DCSR report to Excel successfully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        total_listings: 50,
+        total_sales: 25
+      };
+      const mockBuffer = Buffer.from('mock excel data');
+
+      dcsrReportsModel.getDCSRReportById.mockResolvedValue(mockReport);
+      exportDCSRToExcel.mockResolvedValue(mockBuffer);
+
+      await dcsrReportsController.exportDCSRReportToExcel(req, res);
+
+      expect(dcsrReportsModel.getDCSRReportById).toHaveBeenCalledWith(1);
+      expect(exportDCSRToExcel).toHaveBeenCalledWith(mockReport);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('DCSR_Report_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.xlsx'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 404 when report not found', async () => {
+      req.params = { id: '999' };
+      dcsrReportsModel.getDCSRReportById.mockResolvedValue(null);
+
+      await dcsrReportsController.exportDCSRReportToExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'DCSR report not found'
+      });
+      expect(exportDCSRToExcel).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.params = { id: '1' };
+      const mockReport = { id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+      const error = new Error('Export failed');
+
+      dcsrReportsModel.getDCSRReportById.mockResolvedValue(mockReport);
+      exportDCSRToExcel.mockRejectedValue(error);
+
+      await dcsrReportsController.exportDCSRReportToExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export DCSR report to Excel',
+        error: expect.any(String)
+      });
+    });
+  });
+
+  describe('exportDCSRReportToPDF', () => {
+    it('should export DCSR report to PDF successfully', async () => {
+      req.params = { id: '1' };
+      const mockReport = {
+        id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        total_listings: 50,
+        total_sales: 25
+      };
+      const mockBuffer = Buffer.from('mock pdf data');
+
+      dcsrReportsModel.getDCSRReportById.mockResolvedValue(mockReport);
+      exportDCSRToPDF.mockResolvedValue(mockBuffer);
+
+      await dcsrReportsController.exportDCSRReportToPDF(req, res);
+
+      expect(dcsrReportsModel.getDCSRReportById).toHaveBeenCalledWith(1);
+      expect(exportDCSRToPDF).toHaveBeenCalledWith(mockReport);
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('DCSR_Report_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.pdf'));
+      expect(res.send).toHaveBeenCalledWith(mockBuffer);
+    });
+
+    it('should return 404 when report not found', async () => {
+      req.params = { id: '999' };
+      dcsrReportsModel.getDCSRReportById.mockResolvedValue(null);
+
+      await dcsrReportsController.exportDCSRReportToPDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'DCSR report not found'
+      });
+      expect(exportDCSRToPDF).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors during export', async () => {
+      req.params = { id: '1' };
+      const mockReport = { id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+      const error = new Error('Export failed');
+
+      dcsrReportsModel.getDCSRReportById.mockResolvedValue(mockReport);
+      exportDCSRToPDF.mockRejectedValue(error);
+
+      await dcsrReportsController.exportDCSRReportToPDF(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to export DCSR report to PDF',
         error: expect.any(String)
       });
     });

@@ -434,6 +434,11 @@ class ReminderService {
       // Get users who should receive reminders for this event
       const users = await this.getEventUsers(eventId);
 
+      if (!users || !Array.isArray(users)) {
+        console.log(`⚠️ No users found for event ${eventId}`);
+        return;
+      }
+
       console.log(`👥 Found ${users.length} users to notify for event ${eventId}`);
 
       // Schedule reminders for each user
