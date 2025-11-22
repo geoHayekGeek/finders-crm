@@ -16,8 +16,15 @@ async function getAllReports(req, res) {
     const filters = {};
     if (start_date) filters.start_date = start_date;
     if (end_date) filters.end_date = end_date;
-    if (date_from) filters.date_from = date_from;
-    if (date_to) filters.date_to = date_to;
+    
+    // Backwards compatibility for old parameter names
+    if (date_from && !filters.start_date) {
+      filters.start_date = date_from;
+    }
+    if (date_to && !filters.end_date) {
+      filters.end_date = date_to;
+    }
+    
     if (month) filters.month = parseInt(month, 10);
     if (year) filters.year = parseInt(year, 10);
     

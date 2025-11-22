@@ -213,9 +213,7 @@ describe('Operations Commission Report', () => {
 
       expect(operationsCommissionModel.getAllReports).toHaveBeenCalledWith({
         start_date: '2024-01-01',
-        end_date: '2024-01-31',
-        date_from: '2024-01-01',
-        date_to: '2024-01-31'
+        end_date: '2024-01-31'
       });
     });
 

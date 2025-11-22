@@ -58,9 +58,14 @@ describe('Operations Daily Report', () => {
       await operationsDailyController.createReport(req, res);
 
       expect(operationsDailyModel.createReport).toHaveBeenCalledWith(
+        1,
+        '2024-01-15',
         expect.objectContaining({
-          operations_id: 1,
-          report_date: '2024-01-15'
+          preparing_contract: 5,
+          tasks_efficiency_duty_time: 10,
+          tasks_efficiency_uniform: 8,
+          tasks_efficiency_after_duty: 7,
+          leads_responded_out_of_duty_time: 2
         })
       );
       expect(res.status).toHaveBeenCalledWith(201);
@@ -81,7 +86,7 @@ describe('Operations Daily Report', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'operations_id and report_date are required'
+        message: 'Operations ID and report date are required'
       });
     });
 
@@ -95,7 +100,7 @@ describe('Operations Daily Report', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'operations_id and report_date are required'
+        message: 'Operations ID and report date are required'
       });
     });
 
@@ -129,7 +134,7 @@ describe('Operations Daily Report', () => {
       expect(res.status).toHaveBeenCalledWith(409);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Report already exists for this operations user and date',
+        message: 'Report for this operations user and date already exists',
         error: expect.any(String)
       });
     });
@@ -175,6 +180,8 @@ describe('Operations Daily Report', () => {
       await operationsDailyController.createReport(req, res);
 
       expect(operationsDailyModel.createReport).toHaveBeenCalledWith(
+        1,
+        '2024-01-15',
         expect.objectContaining({
           preparing_contract: 5,
           tasks_efficiency_duty_time: 10
@@ -214,7 +221,7 @@ describe('Operations Daily Report', () => {
       await operationsDailyController.getAllReports(req, res);
 
       expect(operationsDailyModel.getAllReports).toHaveBeenCalledWith({
-        operations_id: 1
+        operations_id: '1'
       });
     });
 
@@ -343,11 +350,16 @@ describe('Operations Daily Report', () => {
         leads_responded_to: 25
       };
 
-      operationsDailyModel.recalculateReport.mockResolvedValue(mockRecalculatedReport);
+      operationsDailyModel.updateReport.mockResolvedValue(mockRecalculatedReport);
 
       await operationsDailyController.updateReport(req, res);
 
-      expect(operationsDailyModel.recalculateReport).toHaveBeenCalledWith(1);
+      expect(operationsDailyModel.updateReport).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          recalculate: true
+        })
+      );
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockRecalculatedReport,
@@ -366,7 +378,8 @@ describe('Operations Daily Report', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Operations daily report not found'
+        message: 'Report not found',
+        error: expect.any(String)
       });
     });
 
