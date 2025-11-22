@@ -218,6 +218,7 @@ class Report {
       console.log(`📅 Calculating report for agent ${agentId}, range ${startDateStr} to ${endDateStr}`);
 
       // 1. Count listings created by agent in this month
+      console.log(`  📊 Step 1: Counting listings...`);
       const listingsResult = await pool.query(
         `SELECT COUNT(*) as count 
          FROM properties 
@@ -240,6 +241,7 @@ class Report {
       console.log(`📊 Agent ${agentId}: Total properties = ${debugResult.rows[0].total}, Date range: ${debugResult.rows[0].earliest} to ${debugResult.rows[0].latest}, Count in selected range = ${listings_count}`);
 
       // 2. Count leads by source for this agent in this month
+      console.log(`  📊 Step 2: Counting leads by source...`);
       const leadsResult = await pool.query(
         `SELECT rs.source_name, COUNT(*) as count
          FROM leads l
@@ -258,6 +260,7 @@ class Report {
       });
 
       // 3. Count viewings conducted by agent in this month
+      console.log(`  📊 Step 3: Counting viewings...`);
       const viewingsResult = await pool.query(
         `SELECT COUNT(*) as count 
          FROM viewings 
@@ -269,6 +272,7 @@ class Report {
       const viewings_count = parseInt(viewingsResult.rows[0].count) || 0;
 
       // 4. Count sales and sales amount (based on closed_date in this month)
+      console.log(`  📊 Step 4: Counting sales...`);
       const salesResult = await pool.query(
         `SELECT COUNT(*) as count, COALESCE(SUM(price), 0) as total_amount
          FROM properties 
@@ -299,6 +303,7 @@ class Report {
       // A) Property referrals - where this agent referred a property (internal only)
       // B) Lead referrals - where this agent referred the owner (lead) of a property (internal only)
       
+      console.log(`  📊 Step 5: Calculating property referrals commission...`);
       // 6A. Property Referrals Commission
       // Count closed properties where this agent referred the property (via referrals table)
       let propertyReferralsResult;
@@ -343,8 +348,10 @@ class Report {
       }
       const property_referral_count = parseInt(propertyReferralsResult.rows[0].count) || 0;
       const property_referral_amount = parseFloat(propertyReferralsResult.rows[0].total_amount) || 0;
+      console.log(`  ✓ Property referrals: ${property_referral_count} properties, $${property_referral_amount}`);
 
       // 6B. Lead Referrals Commission
+      console.log(`  📊 Step 6: Calculating lead referrals commission...`);
       // Count closed properties where this agent referred the owner (lead) of the property
       let leadReferralsResult;
       try {
@@ -383,6 +390,7 @@ class Report {
 
       // 7. Calculate referrals ON this agent's properties (people who referred TO this agent)
       // Count total internal referrals on agent's properties where the referral date is in the report month
+      console.log(`  📊 Step 7: Calculating referrals on agent's properties...`);
       let referralsCountResult;
       try {
         referralsCountResult = await pool.query(
@@ -518,6 +526,8 @@ class Report {
         total_commission = calculatedSum;
       }
 
+      console.log(`✅ Report calculation completed for agent ${agentId}`);
+      
       return {
         listings_count,
         lead_sources,

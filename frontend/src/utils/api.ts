@@ -2,7 +2,7 @@ import { Property, Category, Status } from '@/types/property'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters } from '@/types/reports'
+import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
 
@@ -1424,6 +1424,109 @@ export const operationsCommissionApi = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
       throw new Error(errorData.message || 'Failed to export operations commission report to PDF')
+    }
+
+    return response.blob()
+  },
+}
+
+export const operationsDailyApi = {
+  // Get all operations daily reports with optional filters
+  getAll: (filters: OperationsDailyFilters = {}, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: OperationsDailyReport[]; message: string }>(
+      `/operations-daily${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  // Get a single operations daily report by ID
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyReport; message: string }>(
+    `/operations-daily/${id}`,
+    {},
+    token
+  ),
+
+  // Create a new operations daily report
+  create: (data: CreateOperationsDailyData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyReport; message: string }>(
+    '/operations-daily',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Update an existing operations daily report
+  update: (id: number, data: UpdateOperationsDailyData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyReport; message: string }>(
+    `/operations-daily/${id}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Recalculate an operations daily report
+  recalculate: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyReport; message: string }>(
+    `/operations-daily/${id}/recalculate`,
+    {
+      method: 'POST',
+    },
+    token
+  ),
+
+  // Delete an operations daily report
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(
+    `/operations-daily/${id}`,
+    {
+      method: 'DELETE',
+    },
+    token
+  ),
+
+  // Export operations daily report to Excel
+  exportToExcel: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+    
+    const response = await fetch(`${API_BASE_URL}/operations-daily/${id}/export/excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export operations daily report to Excel')
+    }
+
+    return response.blob()
+  },
+
+  // Export operations daily report to PDF
+  exportToPDF: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+    
+    const response = await fetch(`${API_BASE_URL}/operations-daily/${id}/export/pdf`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export operations daily report to PDF')
     }
 
     return response.blob()

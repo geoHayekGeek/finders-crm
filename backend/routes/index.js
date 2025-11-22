@@ -17,6 +17,7 @@ const settingsRoutes = require('./settingsRoutes');
 const reportsRoutes = require('./reportsRoutes');
 const dcsrReportsRoutes = require('./dcsrReportsRoutes');
 const operationsCommissionRoutes = require('./operationsCommissionRoutes');
+const operationsDailyRoutes = require('./operationsDailyRoutes');
 
 router.get('/', async (req, res) => {
   try {
@@ -45,5 +46,6 @@ router.use('/settings', settingsRoutes);
 router.use('/reports', reportsRoutes);
 router.use('/dcsr-reports', dcsrReportsRoutes);
 router.use('/operations-commission', operationsCommissionRoutes);
+router.use('/operations-daily', operationsDailyRoutes);
 
 module.exports = router;

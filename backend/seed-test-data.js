@@ -92,6 +92,14 @@ async function seedDatabase() {
     const agentResult = await client.query("SELECT id, name FROM users WHERE role IN ('agent', 'team_leader')");
     const agents = agentResult.rows;
     
+    // Get operations users (required for leads)
+    const operationsResult = await client.query("SELECT id, name FROM users WHERE role IN ('operations', 'operations_manager')");
+    const operationsUsers = operationsResult.rows;
+    
+    if (operationsUsers.length === 0) {
+      throw new Error('No operations users found. Please create operations users first.');
+    }
+    
     // Get reference sources
     const sourceResult = await client.query("SELECT id, source_name FROM reference_sources");
     const sources = sourceResult.rows;
@@ -100,7 +108,7 @@ async function seedDatabase() {
       throw new Error('No agents found. Please create agents first.');
     }
 
-    console.log(`\n📊 Found ${agents.length} agents, ${categories.length} categories, ${statuses.length} statuses`);
+    console.log(`\n📊 Found ${agents.length} agents, ${categories.length} categories, ${statuses.length} statuses, ${operationsUsers.length} operations users`);
 
     // Create dates for the past year
     const now = new Date();
@@ -143,6 +151,7 @@ async function seedDatabase() {
         agent_id: ahmadAlMasri.id,
         agent_name: ahmadAlMasri.name,
         reference_source_id: source.id,
+        operations_id: randomChoice(operationsUsers).id, // Required field
         price: price,
         notes: `Lead generated on ${formatDate(date)}`,
         status: randomChoice(['Active', 'Contacted', 'Follow-up', 'Converted', 'Lost'])
@@ -171,6 +180,7 @@ async function seedDatabase() {
         agent_id: agent.id,
         agent_name: agent.name,
         reference_source_id: source.id,
+        operations_id: randomChoice(operationsUsers).id, // Required field
         price: price,
         notes: `Lead generated on ${formatDate(date)}`,
         status: randomChoice(['Active', 'Contacted', 'Follow-up', 'Converted', 'Lost'])
@@ -258,12 +268,12 @@ async function seedDatabase() {
       const createdDate = randomDate(currentMonthStart, currentMonthEnd);
       
       // Alternate between closed and active, with slight randomness
-      const isClosed = i % 2 === 0 || Math.random() < 0.3; // 50%+ closed
+      // Only mark as closed if closedStatus exists
+      let isClosed = closedStatus && (i % 2 === 0 || Math.random() < 0.3); // 50%+ closed, but only if closedStatus exists
       let status = activeStatus;
       let closedDate = null;
       
       if (isClosed && closedStatus) {
-        status = closedStatus;
         // Closed date should be after creation date, within October
         const daysAfterCreation = randomInt(1, Math.min(15, Math.floor((currentMonthEnd - createdDate) / (1000 * 60 * 60 * 24))));
         const closedAfterCreated = new Date(createdDate);
@@ -280,6 +290,14 @@ async function seedDatabase() {
           const fallbackDate = new Date(createdDate);
           fallbackDate.setDate(fallbackDate.getDate() + 7);
           closedDate = formatDate(new Date(Math.min(fallbackDate, currentMonthEnd, now)));
+        }
+        
+        // Final safety check: if closedDate is still null or invalid, don't mark as closed
+        if (!closedDate) {
+          status = activeStatus;
+          isClosed = false;
+        } else {
+          status = closedStatus;
         }
       }
 
@@ -323,17 +341,19 @@ async function seedDatabase() {
         agent_id: ahmadAlMasri.id,
         price: price,
         notes: `${propertyType === 'sale' ? 'Sale' : 'Rental'} property - ${isClosed ? 'CLOSED' : 'ACTIVE'}`,
+        closed_date: closedDate, // Include closed_date in propertyData
         referrals: []
       };
 
       try {
         const property = await Property.createProperty(propertyData);
         
+        // Update created_at timestamp
         await client.query(
           `UPDATE properties 
-           SET created_at = $1, closed_date = $2 
-           WHERE id = $3`,
-          [createdDate, closedDate, property.id]
+           SET created_at = $1 
+           WHERE id = $2`,
+          [createdDate, property.id]
         );
         
         // Add referrals AFTER property is created
@@ -404,6 +424,179 @@ async function seedDatabase() {
       }
     }
     
+    // Create additional closed properties for Ahmad Al Masri in October (rent and sale)
+    console.log(`  🎯 Creating additional October CLOSED properties for ${ahmadAlMasri.name} (rent and sale)...`);
+    const additionalClosures = [
+      { type: 'sale', count: 5 },
+      { type: 'rent', count: 5 }
+    ];
+    
+    for (const closureGroup of additionalClosures) {
+      for (let i = 0; i < closureGroup.count; i++) {
+        const category = randomChoice(categories);
+        const propertyType = closureGroup.type;
+        // Random date in October
+        const createdDate = randomDate(currentMonthStart, currentMonthEnd);
+        
+        // All of these are closed - skip if closedStatus doesn't exist
+        if (!closedStatus) {
+          console.log(`    ⚠️  Skipping closed property (no closed status found)`);
+          continue;
+        }
+        
+        let status = closedStatus;
+        let closedDate = null;
+        
+        // Closed date should be after creation date, within October
+        const daysAfterCreation = randomInt(1, Math.min(15, Math.floor((currentMonthEnd - createdDate) / (1000 * 60 * 60 * 24))));
+        const closedAfterCreated = new Date(createdDate);
+        closedAfterCreated.setDate(closedAfterCreated.getDate() + daysAfterCreation);
+        
+        // Make sure closed date is in October and before today
+        if (closedAfterCreated <= now && closedAfterCreated >= currentMonthStart && closedAfterCreated <= currentMonthEnd) {
+          closedDate = formatDate(closedAfterCreated);
+        } else if (closedAfterCreated > now && closedAfterCreated <= currentMonthEnd) {
+          // If in future but still in October, set to today or yesterday
+          closedDate = formatDate(new Date(Math.min(now, currentMonthEnd)));
+        } else {
+          // Fallback: if date calculation fails, use created date + 7 days or end of month (whichever is earlier)
+          const fallbackDate = new Date(createdDate);
+          fallbackDate.setDate(fallbackDate.getDate() + 7);
+          closedDate = formatDate(new Date(Math.min(fallbackDate, currentMonthEnd, now)));
+        }
+        
+        // Final safety check: if closedDate is still null or invalid, skip this property
+        if (!closedDate) {
+          console.log(`    ⚠️  Skipping closed property (could not calculate valid closed_date)`);
+          continue;
+        }
+
+        const surface = randomFloat(80, 400);
+        const pricePerSqm = propertyType === 'sale' ? randomFloat(2000, 4500) : randomFloat(10, 20);
+        const price = Math.round(surface * pricePerSqm);
+
+        // 60% chance to link to an existing lead as owner
+        let ownerId = null;
+        let ownerName = `${randomChoice(firstNames)} ${randomChoice(lastNames)}`;
+        let ownerPhone = `+961 ${randomInt(3, 9)}${randomInt(100000, 999999)}`;
+        
+        // Try to link to one of Ahmad's October leads if available
+        const ahmadLeads = leads.filter(l => l.agent_id === ahmadAlMasri.id);
+        if (ahmadLeads.length > 0 && Math.random() < 0.6) {
+          const ownerLead = randomChoice(ahmadLeads);
+          ownerId = ownerLead.id;
+          ownerName = ownerLead.customer_name;
+          ownerPhone = ownerLead.phone_number;
+        }
+
+        const propertyData = {
+          status_id: status.id,
+          property_type: propertyType,
+          location: randomChoice(locations),
+          category_id: category.id,
+          building_name: randomBool() ? randomChoice(buildingNames) : null,
+          owner_id: ownerId,
+          owner_name: ownerName,
+          phone_number: ownerPhone,
+          surface: Math.round(surface * 100) / 100,
+          details: `Floor ${randomInt(0, 15)}, ${randomBool() ? 'with' : 'without'} balcony, ${randomInt(0, 3)} parking spaces, ${randomBool() ? 'with' : 'without'} cave`,
+          interior_details: randomChoice([
+            'Fully furnished modern apartment',
+            'Semi-furnished with high-end finishes',
+            'Unfurnished, ready for customization',
+            'Luxury interior with premium materials',
+            'Renovated with contemporary design'
+          ]),
+          built_year: randomInt(1990, 2024),
+          view_type: randomChoice(viewTypes),
+          concierge: randomBool(),
+          agent_id: ahmadAlMasri.id,
+          price: price,
+          notes: `${propertyType === 'sale' ? 'Sale' : 'Rental'} property - CLOSED in October`,
+          closed_date: closedDate, // Include closed_date in propertyData
+          referrals: []
+        };
+
+        try {
+          const property = await Property.createProperty(propertyData);
+          
+          // Update created_at timestamp
+          await client.query(
+            `UPDATE properties 
+             SET created_at = $1 
+             WHERE id = $2`,
+            [createdDate, property.id]
+          );
+          
+          // Add referrals for closed properties (80% chance)
+          const shouldHaveReferrals = Math.random() < 0.8;
+          
+          if (shouldHaveReferrals) {
+            const referralAgent = randomChoice(agents);
+            const firstReferralDate = randomDate(createdDate, closedDate ? new Date(closedDate) : currentMonthEnd);
+            
+            // First referral (always internal)
+            await client.query(
+              `INSERT INTO referrals (property_id, name, type, employee_id, date, external)
+               VALUES ($1, $2, $3, $4, $5, FALSE)`,
+              [property.id, referralAgent.name, 'employee', referralAgent.id, formatDate(firstReferralDate)]
+            );
+            
+            // 40% chance of having a second referral (which might be external)
+            if (Math.random() < 0.4) {
+              const secondReferralDate = randomDate(
+                firstReferralDate, 
+                closedDate ? new Date(closedDate) : currentMonthEnd
+              );
+              
+              // Calculate if second referral should be external:
+              // 1. If same agent refers twice (even within month) - external
+              // 2. If second referral is > 1 month after first - external
+              const daysBetween = Math.floor((secondReferralDate - firstReferralDate) / (1000 * 60 * 60 * 24));
+              const isExternal = (referralAgent.id === propertyData.agent_id) || (daysBetween >= 30);
+              
+              // Use same agent or different agent
+              const secondReferralAgent = (Math.random() < 0.5 && !isExternal) ? referralAgent : randomChoice(agents.filter(a => a.id !== referralAgent.id));
+              
+              await client.query(
+                `INSERT INTO referrals (property_id, name, type, employee_id, date, external)
+                 VALUES ($1, $2, $3, $4, $5, $6)`,
+                [
+                  property.id, 
+                  secondReferralAgent.name, 
+                  'employee', 
+                  secondReferralAgent.id, 
+                  formatDate(secondReferralDate),
+                  isExternal || (secondReferralAgent.id === propertyData.agent_id)
+                ]
+              );
+              
+              // Update referrals count
+              await client.query(
+                `UPDATE properties SET referrals_count = 2 WHERE id = $1`,
+                [property.id]
+              );
+              
+              console.log(`    ✓ Added 2 referrals (${isExternal ? '1 external' : 'both internal'})`);
+            } else {
+              // Update referrals count for single referral
+              await client.query(
+                `UPDATE properties SET referrals_count = 1 WHERE id = $1`,
+                [property.id]
+              );
+              console.log(`    ✓ Added 1 referral`);
+            }
+          }
+          
+          properties.push({ ...property, closed_date: closedDate });
+          console.log(`    ✓ Created CLOSED ${propertyType} property: price: $${price.toLocaleString()}, closed_date: ${closedDate || 'N/A'}`);
+        } catch (error) {
+          console.error(`Error creating additional closure ${i + 1} (${propertyType}):`, error.message);
+        }
+      }
+    }
+    console.log(`  ✅ Created ${additionalClosures.reduce((sum, g) => sum + g.count, 0)} additional closed properties for ${ahmadAlMasri.name}`);
+    
     // Then create properties for all agents in current month
     console.log('  📅 Creating current month properties for all other agents...');
     for (let i = 0; i < (agents.length - 1) * 2; i++) { // 2 properties per other agent
@@ -414,13 +607,12 @@ async function seedDatabase() {
       const propertyType = randomChoice(propertyTypes);
       const createdDate = randomDate(currentMonthStart, currentMonthEnd);
       
-      // 30% chance of being closed
-      const isClosed = Math.random() < 0.3;
+      // 30% chance of being closed (only if closedStatus exists)
+      let isClosed = closedStatus && Math.random() < 0.3;
       let status = activeStatus;
       let closedDate = null;
       
       if (isClosed && closedStatus) {
-        status = closedStatus;
         const closedAfterCreated = new Date(createdDate);
         closedAfterCreated.setDate(closedAfterCreated.getDate() + randomInt(1, Math.min(15, Math.floor((currentMonthEnd - createdDate) / (1000 * 60 * 60 * 24)))));
         if (closedAfterCreated <= now && closedAfterCreated <= currentMonthEnd) {
@@ -429,6 +621,14 @@ async function seedDatabase() {
           // Fallback: ensure closed properties always have a closed_date
           const fallbackDate = new Date(Math.min(createdDate.getTime() + (7 * 24 * 60 * 60 * 1000), currentMonthEnd, now));
           closedDate = formatDate(fallbackDate);
+        }
+        
+        // Final safety check: if closedDate is still null or invalid, don't mark as closed
+        if (!closedDate) {
+          status = activeStatus;
+          isClosed = false;
+        } else {
+          status = closedStatus;
         }
       }
       
@@ -477,17 +677,19 @@ async function seedDatabase() {
         agent_id: agent.id,
         price: price,
         notes: `${propertyType === 'sale' ? 'Sale' : 'Rental'} property in prime location`,
+        closed_date: closedDate, // Include closed_date in propertyData
         referrals: []
       };
 
       try {
         const property = await Property.createProperty(propertyData);
         
+        // Update created_at timestamp
         await client.query(
           `UPDATE properties 
-           SET created_at = $1, closed_date = $2 
-           WHERE id = $3`,
-          [createdDate, closedDate, property.id]
+           SET created_at = $1 
+           WHERE id = $2`,
+          [createdDate, property.id]
         );
         
         // Add referrals with external logic
@@ -559,13 +761,12 @@ async function seedDatabase() {
       const propertyType = randomChoice(propertyTypes);
       const createdDate = randomDate(oneYearAgo, now);
       
-      // 30% chance of being sold/rented
-      const isClosed = Math.random() < 0.3;
+      // 30% chance of being sold/rented (only if closedStatus exists)
+      let isClosed = closedStatus && Math.random() < 0.3;
       let status = activeStatus;
       let closedDate = null;
       
       if (isClosed && closedStatus) {
-        status = closedStatus;
         // Closed date should be after creation date
         const closedAfterCreated = new Date(createdDate);
         closedAfterCreated.setDate(closedAfterCreated.getDate() + randomInt(1, 180));
@@ -574,6 +775,14 @@ async function seedDatabase() {
         } else {
           // Fallback: ensure closed properties always have a closed_date
           closedDate = formatDate(new Date(Math.min(createdDate.getTime() + (30 * 24 * 60 * 60 * 1000), now)));
+        }
+        
+        // Final safety check: if closedDate is still null or invalid, don't mark as closed
+        if (!closedDate) {
+          status = activeStatus;
+          isClosed = false;
+        } else {
+          status = closedStatus;
         }
       }
       
@@ -622,6 +831,7 @@ async function seedDatabase() {
         agent_id: agent.id,
         price: price,
         notes: `${propertyType === 'sale' ? 'Sale' : 'Rental'} property in prime location`,
+        closed_date: closedDate, // Include closed_date in propertyData
         referrals: []
       };
 
@@ -645,12 +855,12 @@ async function seedDatabase() {
         // Override created_at timestamp
         const property = await Property.createProperty(propertyData);
         
-        // Update created_at and closed_date if needed
+        // Update created_at timestamp
         await client.query(
           `UPDATE properties 
-           SET created_at = $1, closed_date = $2 
-           WHERE id = $3`,
-          [createdDate, closedDate, property.id]
+           SET created_at = $1 
+           WHERE id = $2`,
+          [createdDate, property.id]
         );
         
         properties.push({ ...property, closed_date: closedDate });

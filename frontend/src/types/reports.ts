@@ -192,3 +192,52 @@ export interface SaleRentSourceRow {
 
 export interface SaleRentSourceFilters extends ReportFilters {}
 
+// Operations Daily Report Types
+export interface OperationsDailyReport {
+  id: number
+  operations_id: number
+  operations_name: string
+  report_date: string
+  
+  // Calculated fields (from database)
+  properties_added: number
+  leads_responded_to: number
+  amending_previous_properties: number
+  
+  // Manual input fields
+  preparing_contract: number
+  tasks_efficiency_duty_time: number
+  tasks_efficiency_uniform: number
+  tasks_efficiency_after_duty: number
+  leads_responded_out_of_duty_time: number
+  
+  created_at: string
+  updated_at: string
+}
+
+export interface OperationsDailyFilters {
+  operations_id?: number
+  report_date?: string
+  start_date?: string
+  end_date?: string
+}
+
+export interface CreateOperationsDailyData {
+  operations_id: number
+  report_date: string
+  preparing_contract?: number
+  tasks_efficiency_duty_time?: number
+  tasks_efficiency_uniform?: number
+  tasks_efficiency_after_duty?: number
+  leads_responded_out_of_duty_time?: number
+}
+
+export interface UpdateOperationsDailyData {
+  preparing_contract?: number
+  tasks_efficiency_duty_time?: number
+  tasks_efficiency_uniform?: number
+  tasks_efficiency_after_duty?: number
+  leads_responded_out_of_duty_time?: number
+  recalculate?: boolean
+}
+

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Plus, RefreshCw, FileSpreadsheet, FileText, Eye } from 'lucide-react'
 import { SaleRentSourceRow, SaleRentSourceFilters } from '@/types/reports'
 import { saleRentSourceApi, usersApi } from '@/utils/api'
@@ -8,6 +8,7 @@ import type { User } from '@/types/user'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import ReportsFilters from './ReportsFilters'
+import { formatDateForDisplay } from '@/utils/dateUtils'
 
 interface GeneratedReport {
   id: number
@@ -23,12 +24,56 @@ export default function SaleRentSourceTab() {
 
   const [filters, setFilters] = useState<SaleRentSourceFilters>({})
   const [loading, setLoading] = useState(false)
-  const [reports, setReports] = useState<GeneratedReport[]>([])
-  const [reportRows, setReportRows] = useState<Record<number, SaleRentSourceRow[]>>({})
+  
+  // Load reports from localStorage on mount
+  const loadReportsFromStorage = (): GeneratedReport[] => {
+    if (typeof window === 'undefined') return []
+    try {
+      const stored = localStorage.getItem('saleRentSourceReports')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  }
+
+  const loadReportRowsFromStorage = (): Record<number, SaleRentSourceRow[]> => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const stored = localStorage.getItem('saleRentSourceReportRows')
+      return stored ? JSON.parse(stored) : {}
+    } catch {
+      return {}
+    }
+  }
+
+  const [reports, setReports] = useState<GeneratedReport[]>(loadReportsFromStorage())
+  const [reportRows, setReportRows] = useState<Record<number, SaleRentSourceRow[]>>(loadReportRowsFromStorage())
   const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
   const [isViewOpen, setIsViewOpen] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [agents, setAgents] = useState<User[]>([])
+
+  // Auto-save reports to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && reports.length > 0) {
+      try {
+        localStorage.setItem('saleRentSourceReports', JSON.stringify(reports))
+      } catch (error) {
+        console.error('Error saving reports to localStorage:', error)
+      }
+    }
+  }, [reports])
+
+  // Auto-save report rows to localStorage whenever they change
+  useEffect(() => {
+    if (typeof window !== 'undefined' && Object.keys(reportRows).length > 0) {
+      try {
+        localStorage.setItem('saleRentSourceReportRows', JSON.stringify(reportRows))
+      } catch (error) {
+        console.error('Error saving report rows to localStorage:', error)
+      }
+    }
+  }, [reportRows])
 
   // Default dates: previous month
   const now = new Date()
@@ -131,8 +176,10 @@ export default function SaleRentSourceTab() {
           end_date: createForm.end_date,
         }
 
-        setReports(prev => [newReport, ...prev])
-        setReportRows(prev => ({ ...prev, [id]: rows }))
+        const updatedReports = [newReport, ...reports]
+        const updatedRows = { ...reportRows, [id]: rows }
+        setReports(updatedReports)
+        setReportRows(updatedRows)
         setSelectedReportId(id)
         setIsViewOpen(true)
         setShowCreateModal(false)
@@ -142,6 +189,63 @@ export default function SaleRentSourceTab() {
     } catch (error: any) {
       console.error('Error generating Sale & Rent Source report:', error)
       showError(error.message || 'Failed to generate Sale & Rent Source report')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    if (!token) {
+      showError('You must be logged in to refresh reports')
+      return
+    }
+
+    if (reports.length === 0) {
+      showSuccess('No reports to refresh. Generate a report first.')
+      return
+    }
+
+    try {
+      setLoading(true)
+      
+      // Refresh all reports in the list
+      const refreshPromises = reports.map(async (report) => {
+        try {
+          const response = await saleRentSourceApi.getAll(
+            {
+              agent_id: report.agent_id,
+              start_date: report.start_date,
+              end_date: report.end_date,
+            },
+            token
+          )
+
+          if (response.success) {
+            return { reportId: report.id, rows: response.data }
+          }
+          return null
+        } catch (error) {
+          console.error(`Error refreshing report ${report.id}:`, error)
+          return null
+        }
+      })
+
+      const results = await Promise.all(refreshPromises)
+      
+      // Update all report rows
+      const newRows: Record<number, SaleRentSourceRow[]> = {}
+      results.forEach(result => {
+        if (result) {
+          newRows[result.reportId] = result.rows
+        }
+      })
+
+      const updatedRows = { ...reportRows, ...newRows }
+      setReportRows(updatedRows)
+      showSuccess(`Refreshed ${results.filter(r => r !== null).length} report(s) successfully`)
+    } catch (error: any) {
+      console.error('Error refreshing reports:', error)
+      showError(error.message || 'Failed to refresh reports')
     } finally {
       setLoading(false)
     }
@@ -209,6 +313,48 @@ export default function SaleRentSourceTab() {
     }
   }
 
+  const handleRecalculate = async (reportId: number) => {
+    if (!token) {
+      showError('You must be logged in to recalculate reports')
+      return
+    }
+
+    const report = reports.find(r => r.id === reportId)
+    if (!report) {
+      showError('Report not found')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await saleRentSourceApi.getAll(
+        {
+          agent_id: report.agent_id,
+          start_date: report.start_date,
+          end_date: report.end_date,
+        },
+        token
+      )
+
+      if (response.success) {
+        const rows = response.data
+        const updatedRows = { ...reportRows, [reportId]: rows }
+        setReportRows(updatedRows)
+        showSuccess('Report recalculated successfully')
+        
+        // If this is the currently viewed report, update the view
+        if (selectedReportId === reportId) {
+          // The currentRows will automatically update since it's derived from reportRows
+        }
+      }
+    } catch (error: any) {
+      console.error('Error recalculating report:', error)
+      showError(error.message || 'Failed to recalculate report')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const openViewReport = (reportId: number) => {
     setSelectedReportId(reportId)
     setIsViewOpen(true)
@@ -239,10 +385,11 @@ export default function SaleRentSourceTab() {
             Generate Report
           </button>
           <button
-            onClick={() => window.location.reload()}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            onClick={handleRefresh}
+            disabled={loading}
+            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <RefreshCw className="h-5 w-5 mr-2" />
+            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
@@ -307,9 +454,18 @@ export default function SaleRentSourceTab() {
                         <button
                           onClick={() => openViewReport(report.id)}
                           className="text-blue-600 hover:text-blue-900 inline-flex items-center"
+                          title="View"
                         >
                           <Eye className="h-4 w-4 mr-1" />
                           View
+                        </button>
+                        <button
+                          onClick={() => handleRecalculate(report.id)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Recalculate"
+                          disabled={loading}
+                        >
+                          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                         </button>
                         <button
                           onClick={() => handleExportExcel(report)}
@@ -350,22 +506,34 @@ export default function SaleRentSourceTab() {
                   {filteredReports.find(r => r.id === selectedReportId)?.end_date}
                 </p>
               </div>
-              <button
-                onClick={closeViewReport}
-                className="text-gray-400 hover:text-gray-600"
-                aria-label="Close"
-              >
-                ✕
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => selectedReportId && handleRecalculate(selectedReportId)}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={loading || selectedReportId === null}
+                  title="Recalculate"
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                  Recalculate
+                </button>
+                <button
+                  onClick={closeViewReport}
+                  className="text-gray-400 hover:text-gray-600"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            <div className="p-4 overflow-auto">
+            <div className="p-4 overflow-y-auto max-h-[calc(80vh-120px)]">
               {currentRows.length === 0 ? (
                 <div className="py-8 text-center text-gray-500">
                   No closures found for this report.
                 </div>
               ) : (
-                <table className="min-w-full divide-y divide-gray-200">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -392,7 +560,7 @@ export default function SaleRentSourceTab() {
                     {currentRows.map((row, idx) => (
                       <tr key={`${row.reference_number}-${idx}`} className="hover:bg-gray-50">
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                          {row.closed_date}
+                          {formatDateForDisplay(row.closed_date)}
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                           {row.reference_number}
@@ -416,6 +584,7 @@ export default function SaleRentSourceTab() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

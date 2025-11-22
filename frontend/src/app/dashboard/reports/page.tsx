@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart } from 'lucide-react'
+import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
@@ -9,6 +9,7 @@ import MonthlyAgentStatsTab from '@/components/reports/MonthlyAgentStatsTab'
 import DCSRTab from '@/components/reports/DCSRTab'
 import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
 import SaleRentSourceTab from '@/components/reports/SaleRentSourceTab'
+import OperationsDailyTab from '@/components/reports/OperationsDailyTab'
 
 // Tab configuration
 type TabId =
@@ -16,6 +17,7 @@ type TabId =
   | 'dcsr-report'
   | 'operations-commission'
   | 'sale-rent-source'
+  | 'operations-daily'
   | 'leads-report'
   | 'revenue-report'
   | 'performance-report'
@@ -52,6 +54,12 @@ const TABS: Tab[] = [
     name: 'Operations Commission',
     icon: DollarSign,
     description: 'Total operations commission from all closed properties (sales and rentals)'
+  },
+  {
+    id: 'operations-daily',
+    name: 'Operations Daily',
+    icon: Calendar,
+    description: 'Daily operations reports tracking properties added, leads responded to, and task efficiency'
   }
 ]
 
@@ -148,6 +156,8 @@ function ReportsPageContent() {
           {activeTab === 'operations-commission' && <OperationsCommissionTab />}
           
           {activeTab === 'sale-rent-source' && <SaleRentSourceTab />}
+          
+          {activeTab === 'operations-daily' && <OperationsDailyTab />}
           
           {activeTab === 'leads-report' && (
             <div className="text-center py-12">

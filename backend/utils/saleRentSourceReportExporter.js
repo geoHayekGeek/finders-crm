@@ -14,8 +14,33 @@ async function exportSaleRentSourceToExcel(rows, meta) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Sale & Rent Source');
 
+  // Helper function to format date (remove time, show only date)
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    try {
+      // If it's already in YYYY-MM-DD format, return as is
+      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString;
+      }
+      // If it includes time, extract just the date part
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return dateString;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch {
+      // If parsing fails, try to extract date part from string
+      if (typeof dateString === 'string') {
+        const datePart = dateString.split('T')[0] || dateString.split(' ')[0];
+        return datePart;
+      }
+      return dateString;
+    }
+  };
+
   worksheet.columns = [
-    { header: 'Date', key: 'closed_date', width: 15 },
+    { header: 'Date', key: 'closed_date', width: 18 }, // Increased from 15 to 18
     { header: 'Agent Name', key: 'agent_name', width: 25 },
     { header: 'Ref#', key: 'reference_number', width: 15 },
     { header: 'Sold/Rented', key: 'sold_rented', width: 15 },
@@ -52,7 +77,7 @@ async function exportSaleRentSourceToExcel(rows, meta) {
   let currentRowIdx = 5;
   rows.forEach(row => {
     const rowValues = {
-      closed_date: row.closed_date,
+      closed_date: formatDate(row.closed_date),
       agent_name: row.agent_name,
       reference_number: row.reference_number,
       sold_rented: row.sold_rented,
@@ -107,10 +132,35 @@ function exportSaleRentSourceToPDF(rows, meta) {
       });
       doc.moveDown(1);
 
+      // Helper function to format date (remove time, show only date)
+      const formatDate = (dateString) => {
+        if (!dateString) return '-';
+        try {
+          // If it's already in YYYY-MM-DD format, return as is
+          if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            return dateString;
+          }
+          // If it includes time, extract just the date part
+          const date = new Date(dateString);
+          if (isNaN(date.getTime())) return dateString;
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        } catch {
+          // If parsing fails, try to extract date part from string
+          if (typeof dateString === 'string') {
+            const datePart = dateString.split('T')[0] || dateString.split(' ')[0];
+            return datePart;
+          }
+          return dateString;
+        }
+      };
+
       // Table headers
       const startX = 40;
       let y = doc.y;
-      const colWidths = [70, 100, 60, 70, 80, 70, 100];
+      const colWidths = [60, 100, 60, 70, 80, 70, 100]; // Date column width
 
       const drawRow = (cells, isHeader = false) => {
         let x = startX;
@@ -140,7 +190,7 @@ function exportSaleRentSourceToPDF(rows, meta) {
           drawRow(['Date', 'Agent', 'Ref#', 'Sold/Rented', 'Source', 'Find Com', 'Client'], true);
         }
         drawRow([
-          row.closed_date,
+          formatDate(row.closed_date),
           row.agent_name,
           row.reference_number,
           row.sold_rented,

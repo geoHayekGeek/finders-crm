@@ -179,17 +179,40 @@ class Property {
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
       
-      // Fetch referrals for each property
-      const propertiesWithReferrals = await Promise.all(
-        result.rows.map(async (property) => {
-          const referralsResult = await pool.query(
-            `SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
-            [property.id]
-          );
-          property.referrals = referralsResult.rows;
-          return property;
-        })
-      );
+      // Fetch all referrals in a single query for better performance
+      const propertyIds = result.rows.map(p => p.id);
+      let referralsMap = new Map();
+      
+      if (propertyIds.length > 0) {
+        const referralsResult = await pool.query(
+          `SELECT property_id, id, name, type, employee_id, date, external 
+           FROM referrals 
+           WHERE property_id = ANY($1::int[]) 
+           ORDER BY property_id, date DESC`,
+          [propertyIds]
+        );
+        
+        // Group referrals by property_id
+        referralsResult.rows.forEach(referral => {
+          if (!referralsMap.has(referral.property_id)) {
+            referralsMap.set(referral.property_id, []);
+          }
+          referralsMap.get(referral.property_id).push({
+            id: referral.id,
+            name: referral.name,
+            type: referral.type,
+            employee_id: referral.employee_id,
+            date: referral.date,
+            external: referral.external
+          });
+        });
+      }
+      
+      // Attach referrals to each property
+      const propertiesWithReferrals = result.rows.map(property => {
+        property.referrals = referralsMap.get(property.id) || [];
+        return property;
+      });
       
       return propertiesWithReferrals;
     } catch (error) {
@@ -345,17 +368,40 @@ class Property {
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
       
-      // Fetch referrals for each property
-      const propertiesWithReferrals = await Promise.all(
-        result.rows.map(async (property) => {
-          const referralsResult = await pool.query(
-            `SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
-            [property.id]
-          );
-          property.referrals = referralsResult.rows;
-          return property;
-        })
-      );
+      // Fetch all referrals in a single query for better performance
+      const propertyIds = result.rows.map(p => p.id);
+      let referralsMap = new Map();
+      
+      if (propertyIds.length > 0) {
+        const referralsResult = await pool.query(
+          `SELECT property_id, id, name, type, employee_id, date, external 
+           FROM referrals 
+           WHERE property_id = ANY($1::int[]) 
+           ORDER BY property_id, date DESC`,
+          [propertyIds]
+        );
+        
+        // Group referrals by property_id
+        referralsResult.rows.forEach(referral => {
+          if (!referralsMap.has(referral.property_id)) {
+            referralsMap.set(referral.property_id, []);
+          }
+          referralsMap.get(referral.property_id).push({
+            id: referral.id,
+            name: referral.name,
+            type: referral.type,
+            employee_id: referral.employee_id,
+            date: referral.date,
+            external: referral.external
+          });
+        });
+      }
+      
+      // Attach referrals to each property
+      const propertiesWithReferrals = result.rows.map(property => {
+        property.referrals = referralsMap.get(property.id) || [];
+        return property;
+      });
       
       return propertiesWithReferrals;
     } catch (error) {
@@ -848,17 +894,40 @@ class Property {
 
     const result = await pool.query(query, values);
     
-    // Fetch referrals for each property
-    const propertiesWithReferrals = await Promise.all(
-      result.rows.map(async (property) => {
-        const referralsResult = await pool.query(
-          `SELECT id, name, type, employee_id, date FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
-          [property.id]
-        );
-        property.referrals = referralsResult.rows;
-        return property;
-      })
-    );
+    // Fetch all referrals in a single query for better performance
+    const propertyIds = result.rows.map(p => p.id);
+    let referralsMap = new Map();
+    
+    if (propertyIds.length > 0) {
+      const referralsResult = await pool.query(
+        `SELECT property_id, id, name, type, employee_id, date, external 
+         FROM referrals 
+         WHERE property_id = ANY($1::int[]) 
+         ORDER BY property_id, date DESC`,
+        [propertyIds]
+      );
+      
+      // Group referrals by property_id
+      referralsResult.rows.forEach(referral => {
+        if (!referralsMap.has(referral.property_id)) {
+          referralsMap.set(referral.property_id, []);
+        }
+        referralsMap.get(referral.property_id).push({
+          id: referral.id,
+          name: referral.name,
+          type: referral.type,
+          employee_id: referral.employee_id,
+          date: referral.date,
+          external: referral.external
+        });
+      });
+    }
+    
+    // Attach referrals to each property
+    const propertiesWithReferrals = result.rows.map(property => {
+      property.referrals = referralsMap.get(property.id) || [];
+      return property;
+    });
     
     return propertiesWithReferrals;
   }
