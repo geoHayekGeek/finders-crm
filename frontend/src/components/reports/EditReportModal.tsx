@@ -260,13 +260,14 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
                 {/* Boosts */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Boosts
+                    Boosts ($)
                   </label>
                   <input
                     type="number"
                     min="0"
+                    step="0.01"
                     value={editableData.boosts}
-                    onChange={(e) => handleEditableChange('boosts', parseInt(e.target.value) || 0)}
+                    onChange={(e) => handleEditableChange('boosts', parseFloat(e.target.value) || 0)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   />
                 </div>

@@ -1023,6 +1023,18 @@ class Report {
         valueIndex++;
       }
 
+      // Filter by multiple agent IDs (for team leaders)
+      if (filters.agent_ids && Array.isArray(filters.agent_ids) && filters.agent_ids.length > 0) {
+        query += ` AND r.agent_id = ANY($${valueIndex})`;
+        values.push(filters.agent_ids);
+        valueIndex++;
+      }
+
+      // Filter by agent role only (for agent manager)
+      if (filters.agent_role_only) {
+        query += ` AND u.role = 'agent'`;
+      }
+
       const startDateFilter = filters.start_date || filters.date_from;
       const endDateFilter = filters.end_date || filters.date_to;
 

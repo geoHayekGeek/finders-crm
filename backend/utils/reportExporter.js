@@ -78,7 +78,7 @@ async function exportToExcel(report) {
   addSection('Performance Metrics', [
     ['Listings', report.listings_count],
     ['Viewings', report.viewings_count],
-    ['Boosts', report.boosts],
+    ['Boosts', `$${parseFloat(report.boosts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ['Sales Count', report.sales_count],
     ['Sales Amount', `$${parseFloat(report.sales_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
   ]);
@@ -187,7 +187,7 @@ function exportToPDF(report) {
       addSection('Performance Metrics', [
         ['Listings', report.listings_count],
         ['Viewings', report.viewings_count],
-        ['Boosts', report.boosts],
+        ['Boosts', `$${parseFloat(report.boosts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ['Sales Count', report.sales_count],
         ['Sales Amount', `$${parseFloat(report.sales_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
       ]);

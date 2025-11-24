@@ -36,7 +36,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     agent_id: undefined,
     start_date: defaultStartDate,
     end_date: defaultEndDate,
-    boosts: 0
+    boosts: 0.00
   })
 
   // Editable calculated fields
@@ -431,13 +431,14 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                   {/* Boosts */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Boosts
+                      Boosts ($)
                     </label>
                     <input
                       type="number"
                       min="0"
+                      step="0.01"
                       value={formData.boosts}
-                      onChange={(e) => handleChange('boosts', parseInt(e.target.value) || 0)}
+                      onChange={(e) => handleChange('boosts', parseFloat(e.target.value) || 0)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>

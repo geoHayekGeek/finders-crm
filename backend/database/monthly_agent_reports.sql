@@ -18,8 +18,8 @@ CREATE TABLE IF NOT EXISTS monthly_agent_reports (
   -- Viewings count (auto-calculated)
   viewings_count INTEGER DEFAULT 0,
   
-  -- Boosts (manual input field)
-  boosts INTEGER DEFAULT 0,
+  -- Boosts (manual input field - dollar value)
+  boosts DECIMAL(15,2) DEFAULT 0.00,
   
   -- Sales count (auto-calculated from closed_date)
   sales_count INTEGER DEFAULT 0,
@@ -78,7 +78,7 @@ COMMENT ON COLUMN monthly_agent_reports.end_date IS 'Inclusive end date for the 
 COMMENT ON COLUMN monthly_agent_reports.listings_count IS 'Number of listings created by agent in this period';
 COMMENT ON COLUMN monthly_agent_reports.lead_sources IS 'Count of leads by source (dynamic JSONB structure)';
 COMMENT ON COLUMN monthly_agent_reports.viewings_count IS 'Number of viewings conducted by agent';
-COMMENT ON COLUMN monthly_agent_reports.boosts IS 'Manual field for boosts (can be edited)';
+COMMENT ON COLUMN monthly_agent_reports.boosts IS 'Manual field for boosts in dollars (can be edited)';
 COMMENT ON COLUMN monthly_agent_reports.sales_count IS 'Number of sales closed in this month';
 COMMENT ON COLUMN monthly_agent_reports.sales_amount IS 'Total sales amount from closed properties';
 COMMENT ON COLUMN monthly_agent_reports.agent_commission IS 'Agent commission calculated from settings';

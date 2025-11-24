@@ -279,7 +279,7 @@ export default function MonthlyAgentStatsTab() {
         report.listings_count,
         ...allLeadSources.map(source => report.lead_sources?.[source] || 0),
         report.viewings_count,
-        report.boosts,
+        formatCurrency(report.boosts),
         report.sales_count,
         report.sales_amount,
         report.agent_commission,
@@ -487,7 +487,7 @@ export default function MonthlyAgentStatsTab() {
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Viewings
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Boosts
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -554,8 +554,8 @@ export default function MonthlyAgentStatsTab() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
                       {report.viewings_count}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                      {report.boosts}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                      {formatCurrency(report.boosts)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
                       {report.sales_count}

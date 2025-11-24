@@ -206,6 +206,8 @@ export function LeadsModals({
     const normalizedRole = user.role?.toLowerCase().replace(/\s+/g, '_')
     const isAssignedAgent = viewingLead.agent_id === user.id
     if (normalizedRole === 'agent') return !!isAssignedAgent
+    // Team leaders can add notes (backend will validate if they can view the lead)
+    if (normalizedRole === 'team_leader') return true
     // Operations can add on any lead
     if (normalizedRole === 'operations') return true
     // Operations manager / agent manager / admin can add on any lead
@@ -1268,7 +1270,7 @@ export function LeadsModals({
                     <h3 className="text-sm font-semibold text-gray-800 mb-2">Lead Notes</h3>
                     {user && (
                       <p className="text-xs text-gray-500 mb-2">
-                        Add notes about this lead. You can edit or delete your own notes.
+                        You can keep one personal note on this lead. Use the edit icon on your note to change it.
                       </p>
                     )}
                     {notesLoading ? (
@@ -1354,8 +1356,8 @@ export function LeadsModals({
                       </div>
                     )}
 
-                    {/* Show composer if user can add notes */}
-                    {canAddNote && user && editingNoteId === null && (
+                    {/* Show composer if user can add notes and doesn't already have a note */}
+                    {canAddNote && user && editingNoteId === null && !notes.some(n => n.created_by === user.id) && (
                       <div className="mt-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Your note

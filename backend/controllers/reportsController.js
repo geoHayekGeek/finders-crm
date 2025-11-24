@@ -1,11 +1,16 @@
 // backend/controllers/reportsController.js
 const Report = require('../models/reportsModel');
+const User = require('../models/userModel');
 const { exportToExcel, exportToPDF } = require('../utils/reportExporter');
 const { getSaleRentSourceData } = require('../models/saleRentSourceReportModel');
 const {
   exportSaleRentSourceToExcel,
   exportSaleRentSourceToPDF
 } = require('../utils/saleRentSourceReportExporter');
+const pool = require('../config/db');
+
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/\s+/g, '_') : '';
 
 class ReportsController {
   /**
@@ -14,6 +19,16 @@ class ReportsController {
   static async createMonthlyReport(req, res) {
     try {
       console.log('📊 Creating monthly report:', req.body);
+      
+      const role = normalizeRole(req.user.role);
+      
+      // Only admin, operations manager, and operations can create reports
+      if (!['admin', 'operations_manager', 'operations'].includes(role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to create reports'
+        });
+      }
       
       const { agent_id, start_date, end_date, boosts } = req.body;
       
@@ -78,10 +93,49 @@ class ReportsController {
   static async getAllReports(req, res) {
     try {
       console.log('📊 Getting monthly reports with filters:', req.query);
+      console.log('👤 User:', req.user?.name, 'Role:', req.user?.role);
+      
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
       
       const filters = {};
       
+      // Apply role-based filtering
+      if (role === 'agent') {
+        // Agents can only see their own reports
+        filters.agent_id = userId;
+      } else if (role === 'team_leader') {
+        // Team leaders can see reports for agents under them
+        const teamAgents = await User.getTeamLeaderAgents(userId);
+        const teamAgentIds = teamAgents.map(agent => agent.id);
+        
+        if (teamAgentIds.length === 0) {
+          // No agents under this team leader
+          return res.json({
+            success: true,
+            data: [],
+            count: 0,
+            message: 'No reports found'
+          });
+        }
+        
+        // Filter by team agent IDs
+        filters.agent_ids = teamAgentIds;
+      } else if (role === 'agent_manager') {
+        // Agent manager can see all reports for agents only
+        // Filter will be applied in the model to only show agent reports
+        filters.agent_role_only = true;
+      }
+      // Admin, operations_manager, operations: no filtering (see all)
+      
       if (req.query.agent_id) {
+        // Additional filter from query (if user has permission)
+        if (role === 'agent' && parseInt(req.query.agent_id) !== userId) {
+          return res.status(403).json({
+            success: false,
+            message: 'You can only view your own reports'
+          });
+        }
         filters.agent_id = parseInt(req.query.agent_id);
       }
       
@@ -102,7 +156,23 @@ class ReportsController {
         filters.end_date = req.query.date_to;
       }
 
-      const reports = await Report.getAllReports(filters);
+      let reports = await Report.getAllReports(filters);
+      
+      // Filter data for team leaders (only show boost and lead sources)
+      if (role === 'team_leader') {
+        reports = reports.map(report => ({
+          id: report.id,
+          agent_id: report.agent_id,
+          agent_name: report.agent_name,
+          agent_code: report.agent_code,
+          start_date: report.start_date,
+          end_date: report.end_date,
+          boosts: report.boosts,
+          lead_sources: report.lead_sources,
+          created_at: report.created_at,
+          updated_at: report.updated_at
+        }));
+      }
       
       console.log('✅ Retrieved reports:', reports.length);
       
@@ -128,10 +198,12 @@ class ReportsController {
   static async getReportById(req, res) {
     try {
       const { id } = req.params;
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
       
       console.log('📊 Getting report by ID:', id);
       
-      const report = await Report.getReportById(parseInt(id));
+      let report = await Report.getReportById(parseInt(id));
       
       if (!report) {
         return res.status(404).json({
@@ -139,6 +211,53 @@ class ReportsController {
           message: 'Report not found'
         });
       }
+      
+      // Check permissions
+      if (role === 'agent' && report.agent_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only view your own reports'
+        });
+      } else if (role === 'team_leader') {
+        // Check if report belongs to an agent under this team leader
+        if (report.agent_id !== userId) {
+          const teamAgentCheck = await pool.query(
+            `SELECT 1 FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, report.agent_id]
+          );
+          
+          if (teamAgentCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only view reports for agents under you'
+            });
+          }
+        }
+        
+        // Filter data for team leaders (only show boost and lead sources)
+        report = {
+          id: report.id,
+          agent_id: report.agent_id,
+          agent_name: report.agent_name,
+          agent_code: report.agent_code,
+          start_date: report.start_date,
+          end_date: report.end_date,
+          boosts: report.boosts,
+          lead_sources: report.lead_sources,
+          created_at: report.created_at,
+          updated_at: report.updated_at
+        };
+      } else if (role === 'agent_manager') {
+        // Agent manager can only see reports for agents
+        if (report.agent_role !== 'agent') {
+          return res.status(403).json({
+            success: false,
+            message: 'You can only view reports for agents'
+          });
+        }
+      }
+      // Admin, operations_manager, operations: full access
       
       console.log('✅ Retrieved report:', report.id);
       
@@ -164,8 +283,28 @@ class ReportsController {
     try {
       const { id } = req.params;
       const updates = req.body;
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
       
       console.log('📊 Updating report:', id, updates);
+      
+      // Check if report exists and user has permission
+      const existingReport = await Report.getReportById(parseInt(id));
+      
+      if (!existingReport) {
+        return res.status(404).json({
+          success: false,
+          message: 'Report not found'
+        });
+      }
+      
+      // Check permissions
+      if (!['admin', 'operations_manager', 'operations'].includes(role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to update reports'
+        });
+      }
       
       const report = await Report.updateReport(parseInt(id), updates);
       
@@ -200,6 +339,15 @@ class ReportsController {
   static async recalculateReport(req, res) {
     try {
       const { id } = req.params;
+      const role = normalizeRole(req.user.role);
+      
+      // Only admin, operations manager, and operations can recalculate reports
+      if (!['admin', 'operations_manager', 'operations'].includes(role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to recalculate reports'
+        });
+      }
       
       console.log('📊 Recalculating report:', id);
       
@@ -236,6 +384,15 @@ class ReportsController {
   static async deleteReport(req, res) {
     try {
       const { id } = req.params;
+      const role = normalizeRole(req.user.role);
+      
+      // Only admin and operations manager can delete reports
+      if (!['admin', 'operations_manager'].includes(role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to delete reports'
+        });
+      }
       
       console.log('📊 Deleting report:', id);
       
@@ -298,15 +455,61 @@ class ReportsController {
   static async exportReportToExcel(req, res) {
     try {
       const { id } = req.params;
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
+      
       console.log('📊 Exporting report to Excel:', id);
       
-      const report = await Report.getReportById(parseInt(id));
+      let report = await Report.getReportById(parseInt(id));
       
       if (!report) {
         return res.status(404).json({
           success: false,
           message: 'Report not found'
         });
+      }
+      
+      // Check permissions (same as getReportById)
+      if (role === 'agent' && report.agent_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only export your own reports'
+        });
+      } else if (role === 'team_leader') {
+        if (report.agent_id !== userId) {
+          const teamAgentCheck = await pool.query(
+            `SELECT 1 FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, report.agent_id]
+          );
+          
+          if (teamAgentCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only export reports for agents under you'
+            });
+          }
+        }
+        // Filter data for team leaders
+        report = {
+          id: report.id,
+          agent_id: report.agent_id,
+          agent_name: report.agent_name,
+          agent_code: report.agent_code,
+          start_date: report.start_date,
+          end_date: report.end_date,
+          boosts: report.boosts,
+          lead_sources: report.lead_sources,
+          created_at: report.created_at,
+          updated_at: report.updated_at
+        };
+      } else if (role === 'agent_manager') {
+        if (report.agent_role !== 'agent') {
+          return res.status(403).json({
+            success: false,
+            message: 'You can only export reports for agents'
+          });
+        }
       }
 
       // Parse lead_sources if it's a string

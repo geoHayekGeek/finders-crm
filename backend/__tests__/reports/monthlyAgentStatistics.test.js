@@ -7,6 +7,7 @@ const { exportToExcel, exportToPDF } = require('../../utils/reportExporter');
 
 // Mock dependencies
 jest.mock('../../models/reportsModel');
+jest.mock('../../models/userModel');
 jest.mock('../../utils/reportExporter');
 jest.mock('../../config/db');
 
@@ -356,12 +357,14 @@ describe('Monthly Agent Statistics Report', () => {
     it('should update report successfully with boosts', async () => {
       req.params = { id: '1' };
       req.body = { boosts: 150 };
+      const mockReport = { id: 1, agent_id: 1 };
       const mockUpdatedReport = {
         id: 1,
         agent_id: 1,
         boosts: 150
       };
 
+      Report.getReportById.mockResolvedValue(mockReport);
       Report.updateReport.mockResolvedValue(mockUpdatedReport);
 
       await ReportsController.updateReport(req, res);
@@ -393,12 +396,14 @@ describe('Monthly Agent Statistics Report', () => {
         referrals_on_properties_count: 3,
         referrals_on_properties_commission: 1500
       };
+      const mockReport = { id: 1, agent_id: 1 };
       const mockUpdatedReport = {
         id: 1,
         agent_id: 1,
         ...req.body
       };
 
+      Report.getReportById.mockResolvedValue(mockReport);
       Report.updateReport.mockResolvedValue(mockUpdatedReport);
 
       await ReportsController.updateReport(req, res);
@@ -414,8 +419,8 @@ describe('Monthly Agent Statistics Report', () => {
     it('should return 404 when report not found', async () => {
       req.params = { id: '999' };
       req.body = { boosts: 150 };
-      const error = new Error('Report not found');
-      Report.updateReport.mockRejectedValue(error);
+
+      Report.getReportById.mockResolvedValue(null);
 
       await ReportsController.updateReport(req, res);
 
@@ -424,12 +429,16 @@ describe('Monthly Agent Statistics Report', () => {
         success: false,
         message: 'Report not found'
       });
+      expect(Report.updateReport).not.toHaveBeenCalled();
     });
 
     it('should handle errors when updating report', async () => {
       req.params = { id: '1' };
       req.body = { boosts: 150 };
+      const mockReport = { id: 1, agent_id: 1 };
       const error = new Error('Database error');
+      
+      Report.getReportById.mockResolvedValue(mockReport);
       Report.updateReport.mockRejectedValue(error);
 
       await ReportsController.updateReport(req, res);
@@ -755,6 +764,403 @@ describe('Monthly Agent Statistics Report', () => {
         success: false,
         message: 'Failed to export report to PDF',
         error: expect.any(String)
+      });
+    });
+  });
+
+  describe('Report Permissions', () => {
+    const User = require('../../models/userModel');
+    const pool = require('../../config/db');
+    
+    jest.mock('../../models/userModel');
+    jest.mock('../../config/db');
+
+    describe('getAllReports - Role-based filtering', () => {
+      it('should return all reports for admin', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.query = {};
+        const mockReports = [
+          { id: 1, agent_id: 1, agent_name: 'Agent 1' },
+          { id: 2, agent_id: 2, agent_name: 'Agent 2' }
+        ];
+
+        Report.getAllReports.mockResolvedValue(mockReports);
+
+        await ReportsController.getAllReports(req, res);
+
+        expect(Report.getAllReports).toHaveBeenCalledWith({});
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: mockReports,
+          count: 2,
+          message: 'Retrieved 2 reports'
+        });
+      });
+
+      it('should return only agent\'s own reports for agent role', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.query = {};
+        const mockReports = [{ id: 1, agent_id: 1, agent_name: 'Agent 1' }];
+
+        Report.getAllReports.mockResolvedValue(mockReports);
+
+        await ReportsController.getAllReports(req, res);
+
+        expect(Report.getAllReports).toHaveBeenCalledWith({ agent_id: 1 });
+        expect(res.json).toHaveBeenCalled();
+      });
+
+      it('should return reports for team leader\'s agents', async () => {
+        req.user = { id: 10, role: 'team_leader' };
+        req.query = {};
+        const mockTeamAgents = [
+          { id: 20, name: 'Agent 20' },
+          { id: 21, name: 'Agent 21' }
+        ];
+        const mockReports = [
+          { id: 1, agent_id: 20, agent_name: 'Agent 20', boosts: 100, lead_sources: {} },
+          { id: 2, agent_id: 21, agent_name: 'Agent 21', boosts: 200, lead_sources: {} }
+        ];
+
+        User.getTeamLeaderAgents = jest.fn().mockResolvedValue(mockTeamAgents);
+        Report.getAllReports.mockResolvedValue(mockReports);
+
+        await ReportsController.getAllReports(req, res);
+
+        expect(User.getTeamLeaderAgents).toHaveBeenCalledWith(10);
+        expect(Report.getAllReports).toHaveBeenCalledWith({
+          agent_ids: [20, 21]
+        });
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              id: 1,
+              agent_id: 20,
+              boosts: 100,
+              lead_sources: {}
+            })
+          ]),
+          count: 2,
+          message: 'Retrieved 2 reports'
+        });
+      });
+
+      it('should return empty array for team leader with no agents', async () => {
+        req.user = { id: 10, role: 'team_leader' };
+        req.query = {};
+
+        User.getTeamLeaderAgents = jest.fn().mockResolvedValue([]);
+
+        await ReportsController.getAllReports(req, res);
+
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: [],
+          count: 0,
+          message: 'No reports found'
+        });
+      });
+
+      it('should return only agent reports for agent manager', async () => {
+        req.user = { id: 1, role: 'agent_manager' };
+        req.query = {};
+        const mockReports = [
+          { id: 1, agent_id: 1, agent_name: 'Agent 1', agent_role: 'agent' }
+        ];
+
+        Report.getAllReports.mockResolvedValue(mockReports);
+
+        await ReportsController.getAllReports(req, res);
+
+        expect(Report.getAllReports).toHaveBeenCalledWith({ agent_role_only: true });
+        expect(res.json).toHaveBeenCalled();
+      });
+    });
+
+    describe('getReportById - Role-based access', () => {
+      it('should allow agent to view their own report', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params.id = '1';
+        const mockReport = { id: 1, agent_id: 1, agent_name: 'Agent 1' };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+
+        await ReportsController.getReportById(req, res);
+
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: mockReport,
+          message: 'Report retrieved successfully'
+        });
+      });
+
+      it('should prevent agent from viewing other agent\'s report', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params.id = '1';
+        const mockReport = { id: 1, agent_id: 2, agent_name: 'Agent 2' };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+
+        await ReportsController.getReportById(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You can only view your own reports'
+        });
+      });
+
+      it('should allow team leader to view their team agent\'s report', async () => {
+        req.user = { id: 10, role: 'team_leader' };
+        req.params.id = '1';
+        const mockReport = {
+          id: 1,
+          agent_id: 20,
+          agent_name: 'Agent 20',
+          boosts: 100,
+          lead_sources: {}
+        };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+        pool.query.mockResolvedValue({ rows: [{ 1: 1 }] });
+
+        await ReportsController.getReportById(req, res);
+
+        expect(pool.query).toHaveBeenCalledWith(
+          expect.stringContaining('team_agents'),
+          [10, 20]
+        );
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: expect.objectContaining({
+            id: 1,
+            agent_id: 20,
+            boosts: 100,
+            lead_sources: {}
+          }),
+          message: 'Report retrieved successfully'
+        });
+      });
+
+      it('should prevent team leader from viewing report outside their team', async () => {
+        req.user = { id: 10, role: 'team_leader' };
+        req.params.id = '1';
+        const mockReport = { id: 1, agent_id: 99, agent_name: 'Agent 99' };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+        pool.query.mockResolvedValue({ rows: [] });
+
+        await ReportsController.getReportById(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You can only view reports for agents under you'
+        });
+      });
+
+      it('should allow agent manager to view agent reports', async () => {
+        req.user = { id: 1, role: 'agent_manager' };
+        req.params.id = '1';
+        const mockReport = { id: 1, agent_id: 1, agent_name: 'Agent 1', agent_role: 'agent' };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+
+        await ReportsController.getReportById(req, res);
+
+        expect(res.json).toHaveBeenCalled();
+      });
+
+      it('should prevent agent manager from viewing non-agent reports', async () => {
+        req.user = { id: 1, role: 'agent_manager' };
+        req.params.id = '1';
+        const mockReport = { id: 1, agent_id: 1, agent_name: 'User 1', agent_role: 'operations' };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+
+        await ReportsController.getReportById(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You can only view reports for agents'
+        });
+      });
+    });
+
+    describe('createMonthlyReport - Permissions', () => {
+      it('should allow admin to create reports', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.body = { agent_id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+        const mockReport = { id: 1, agent_id: 1 };
+
+        Report.createMonthlyReport.mockResolvedValue(mockReport);
+
+        await ReportsController.createMonthlyReport(req, res);
+
+        expect(Report.createMonthlyReport).toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(201);
+      });
+
+      it('should allow operations manager to create reports', async () => {
+        req.user = { id: 1, role: 'operations_manager' };
+        req.body = { agent_id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+        const mockReport = { id: 1, agent_id: 1 };
+
+        Report.createMonthlyReport.mockResolvedValue(mockReport);
+
+        await ReportsController.createMonthlyReport(req, res);
+
+        expect(Report.createMonthlyReport).toHaveBeenCalled();
+      });
+
+      it('should allow operations to create reports', async () => {
+        req.user = { id: 1, role: 'operations' };
+        req.body = { agent_id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+        const mockReport = { id: 1, agent_id: 1 };
+
+        Report.createMonthlyReport.mockResolvedValue(mockReport);
+
+        await ReportsController.createMonthlyReport(req, res);
+
+        expect(Report.createMonthlyReport).toHaveBeenCalled();
+      });
+
+      it('should prevent team leader from creating reports', async () => {
+        req.user = { id: 1, role: 'team_leader' };
+        req.body = { agent_id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+
+        await ReportsController.createMonthlyReport(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You do not have permission to create reports'
+        });
+        expect(Report.createMonthlyReport).not.toHaveBeenCalled();
+      });
+
+      it('should prevent agent from creating reports', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.body = { agent_id: 1, start_date: '2024-01-01', end_date: '2024-01-31' };
+
+        await ReportsController.createMonthlyReport(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(Report.createMonthlyReport).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('updateReport - Permissions', () => {
+      it('should allow admin to update reports', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.params.id = '1';
+        req.body = { boosts: 150 };
+        const mockReport = { id: 1, agent_id: 1 };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+        Report.updateReport.mockResolvedValue({ ...mockReport, boosts: 150 });
+
+        await ReportsController.updateReport(req, res);
+
+        expect(Report.updateReport).toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalled();
+      });
+
+      it('should allow operations manager to update reports', async () => {
+        req.user = { id: 1, role: 'operations_manager' };
+        req.params.id = '1';
+        req.body = { boosts: 150 };
+        const mockReport = { id: 1, agent_id: 1 };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+        Report.updateReport.mockResolvedValue({ ...mockReport, boosts: 150 });
+
+        await ReportsController.updateReport(req, res);
+
+        expect(Report.updateReport).toHaveBeenCalled();
+      });
+
+      it('should allow operations to update reports', async () => {
+        req.user = { id: 1, role: 'operations' };
+        req.params.id = '1';
+        req.body = { boosts: 150 };
+        const mockReport = { id: 1, agent_id: 1 };
+
+        Report.getReportById.mockResolvedValue(mockReport);
+        Report.updateReport.mockResolvedValue({ ...mockReport, boosts: 150 });
+
+        await ReportsController.updateReport(req, res);
+
+        expect(Report.updateReport).toHaveBeenCalled();
+      });
+
+      it('should prevent team leader from updating reports', async () => {
+        req.user = { id: 1, role: 'team_leader' };
+        req.params.id = '1';
+        req.body = { boosts: 150 };
+
+        await ReportsController.updateReport(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You do not have permission to update reports'
+        });
+        expect(Report.updateReport).not.toHaveBeenCalled();
+      });
+
+      it('should prevent agent from updating reports', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params.id = '1';
+        req.body = { boosts: 150 };
+
+        await ReportsController.updateReport(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(Report.updateReport).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('deleteReport - Permissions', () => {
+      it('should allow admin to delete reports', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.params.id = '1';
+        const mockReport = { id: 1 };
+
+        Report.deleteReport.mockResolvedValue(mockReport);
+
+        await ReportsController.deleteReport(req, res);
+
+        expect(Report.deleteReport).toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalled();
+      });
+
+      it('should allow operations manager to delete reports', async () => {
+        req.user = { id: 1, role: 'operations_manager' };
+        req.params.id = '1';
+        const mockReport = { id: 1 };
+
+        Report.deleteReport.mockResolvedValue(mockReport);
+
+        await ReportsController.deleteReport(req, res);
+
+        expect(Report.deleteReport).toHaveBeenCalled();
+      });
+
+      it('should prevent operations from deleting reports', async () => {
+        req.user = { id: 1, role: 'operations' };
+        req.params.id = '1';
+
+        await ReportsController.deleteReport(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You do not have permission to delete reports'
+        });
+        expect(Report.deleteReport).not.toHaveBeenCalled();
       });
     });
   });
