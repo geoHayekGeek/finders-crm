@@ -6,6 +6,7 @@ import { XMarkIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 
 interface EventUser {
   id: number
@@ -412,20 +413,23 @@ export function EventModal({
     }
   }
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+
   const handleDelete = async () => {
     if (event && onDelete) {
-      const confirmed = window.confirm(
-        `Are you sure you want to delete the event "${event.title}"?\n\nThis action cannot be undone.`
-      )
-      
-      if (confirmed) {
-        try {
-          await onDelete(event.id)
-          // Success toast will be shown by the parent component
-        } catch (error) {
-          console.error('Error deleting event:', error)
-          showError('Failed to delete event. Please try again.')
-        }
+      setShowDeleteModal(true)
+    }
+  }
+
+  const confirmDelete = async () => {
+    if (event && onDelete) {
+      try {
+        await onDelete(event.id)
+        setShowDeleteModal(false)
+        // Success toast will be shown by the parent component
+      } catch (error) {
+        console.error('Error deleting event:', error)
+        showError('Failed to delete event. Please try again.')
       }
     }
   }
@@ -448,6 +452,7 @@ export function EventModal({
   ]
 
   return (
+    <>
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
@@ -854,5 +859,19 @@ export function EventModal({
         </Dialog.Panel>
       </div>
     </Dialog>
+
+    {/* Delete Confirmation Modal */}
+    {event && (
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={confirmDelete}
+        title="Delete Event"
+        message={`Are you sure you want to delete the event "${event.title}"?\n\nThis action cannot be undone.`}
+        confirmText="Delete Event"
+        variant="danger"
+      />
+    )}
+  </>
   )
 }

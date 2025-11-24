@@ -36,7 +36,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
     sales_amount: report.sales_amount,
     agent_commission: report.agent_commission,
     finders_commission: report.finders_commission,
-    referral_commission: report.referral_commission,
+    // referral_commission removed - use referrals_on_properties_commission instead
     team_leader_commission: report.team_leader_commission,
     administration_commission: report.administration_commission,
     total_commission: report.total_commission,
@@ -70,11 +70,27 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
     try {
       setLoading(true)
       
-      // Note: The current backend only supports updating 'boosts'
-      // In a production system, you'd extend the update endpoint to accept all fields
+      // Send all editable fields to the backend
       const response = await reportsApi.update(
         report.id,
-        { boosts: editableData.boosts },
+        {
+          listings_count: editableData.listings_count,
+          lead_sources: editableData.lead_sources,
+          viewings_count: editableData.viewings_count,
+          boosts: editableData.boosts,
+          sales_count: editableData.sales_count,
+          sales_amount: editableData.sales_amount,
+          agent_commission: editableData.agent_commission,
+          finders_commission: editableData.finders_commission,
+          // referral_commission removed - use referrals_on_properties_commission instead
+          team_leader_commission: editableData.team_leader_commission,
+          administration_commission: editableData.administration_commission,
+          total_commission: editableData.total_commission,
+          referral_received_count: editableData.referral_received_count,
+          referral_received_commission: editableData.referral_received_commission,
+          referrals_on_properties_count: editableData.referrals_on_properties_count,
+          referrals_on_properties_commission: editableData.referrals_on_properties_commission
+        },
         token
       )
 
@@ -106,7 +122,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
           sales_amount: response.data.sales_amount,
           agent_commission: response.data.agent_commission,
           finders_commission: response.data.finders_commission,
-          referral_commission: response.data.referral_commission,
+          // referral_commission removed - use referrals_on_properties_commission instead
           team_leader_commission: response.data.team_leader_commission,
           administration_commission: response.data.administration_commission,
           total_commission: response.data.total_commission,
@@ -337,17 +353,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Referral Com ($)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={editableData.referral_commission}
-                      onChange={(e) => handleEditableChange('referral_commission', parseFloat(e.target.value) || 0)}
-                      className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                    />
-                  </div>
+                  {/* referral_commission removed - use referrals_on_properties_commission instead */}
 
                   <div>
                     <label className="block text-xs text-gray-600 mb-1">TL Com ($)</label>

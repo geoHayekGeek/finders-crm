@@ -6,6 +6,7 @@ import { OperationsCommissionReport, OperationsCommissionFilters } from '@/types
 import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateOperationsCommissionModal from './CreateOperationsCommissionModal'
 import EditOperationsCommissionModal from './EditOperationsCommissionModal'
 
@@ -17,6 +18,8 @@ export default function OperationsCommissionTab() {
   const [reports, setReports] = useState<OperationsCommissionReport[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<OperationsCommissionFilters>({})
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState<number | null>(null)
   
   const now = new Date()
   const previousMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
@@ -133,15 +136,20 @@ export default function OperationsCommissionTab() {
 
   // Handle delete
   const handleDelete = async (reportId: number) => {
-    if (!confirm('Are you sure you want to delete this operations commission report?')) {
-      return
-    }
+    setReportToDelete(reportId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!reportToDelete) return
 
     try {
-      const response = await operationsCommissionApi.delete(reportId, token)
+      const response = await operationsCommissionApi.delete(reportToDelete, token)
       if (response.success) {
         showSuccess('Report deleted successfully')
         loadReports()
+        setShowDeleteModal(false)
+        setReportToDelete(null)
       }
     } catch (error: any) {
       console.error('Error deleting report:', error)
@@ -607,6 +615,20 @@ export default function OperationsCommissionTab() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setReportToDelete(null)
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Operations Commission Report"
+        message="Are you sure you want to delete this operations commission report? This action cannot be undone."
+        confirmText="Delete Report"
+        variant="danger"
+      />
     </div>
   )
 }

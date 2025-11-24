@@ -184,20 +184,7 @@ class ViewingsController {
       const userRole = req.user.role;
       const userId = req.user.id;
       
-      // Check permissions for agent assignment
-      // Agents and team leaders can only assign viewings to themselves
-      if (['agent', 'team_leader'].includes(userRole)) {
-        if (req.body.agent_id && req.body.agent_id !== userId) {
-          return res.status(403).json({
-            success: false,
-            message: 'You can only assign viewings to yourself'
-          });
-        }
-        // Auto-assign to the current user if not specified
-        req.body.agent_id = userId;
-      }
-      
-      // Validate required fields
+      // Validate required fields first (property_id, lead_id, date, time)
       if (!req.body.property_id || !req.body.lead_id) {
         return res.status(400).json({
           success: false,
@@ -209,6 +196,134 @@ class ViewingsController {
         return res.status(400).json({
           success: false,
           message: 'Viewing date and time are required'
+        });
+      }
+      
+      // Security: For agents, check if the property belongs to them
+      if (userRole === 'agent') {
+        // Check if the property is assigned to this agent
+        const propertyCheck = await pool.query(
+          'SELECT agent_id FROM properties WHERE id = $1',
+          [req.body.property_id]
+        );
+        
+        if (propertyCheck.rows.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'Property not found'
+          });
+        }
+        
+        const propertyAgentId = propertyCheck.rows[0].agent_id;
+        
+        // Agents can only create viewings for properties assigned to them
+        // If property has no agent_id (NULL), agents cannot create viewings for it
+        if (propertyAgentId !== userId) {
+          console.warn(`⚠️ Security: Agent ${userId} attempted to create viewing for property ${req.body.property_id} assigned to agent ${propertyAgentId || 'NULL'}`);
+          return res.status(403).json({
+            success: false,
+            message: 'You can only create viewings for properties assigned to you'
+          });
+        }
+        // Agents can ONLY assign viewings to themselves - ALWAYS override any agent_id they send
+        // This prevents agents from assigning viewings to other agents, even if they manipulate the request
+        if (req.body.agent_id && req.body.agent_id !== userId) {
+          console.warn(`⚠️ Security: Agent ${userId} attempted to assign viewing to agent ${req.body.agent_id}`);
+          return res.status(403).json({
+            success: false,
+            message: 'You can only assign viewings to yourself'
+          });
+        }
+        // ALWAYS set agent_id to the current user, ignoring any value they might have sent
+        req.body.agent_id = userId;
+      } else if (userRole === 'team_leader') {
+        // Team leaders can add viewings on:
+        // 1. Their own properties (for themselves)
+        // 2. Properties of agents under them (only for that specific agent)
+        
+        // Check if the property exists and get its agent_id
+        const propertyCheck = await pool.query(
+          'SELECT agent_id FROM properties WHERE id = $1',
+          [req.body.property_id]
+        );
+        
+        if (propertyCheck.rows.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'Property not found'
+          });
+        }
+        
+        const propertyAgentId = propertyCheck.rows[0].agent_id;
+        
+        // Determine the target agent (who the viewing will be assigned to)
+        const targetAgentId = req.body.agent_id || userId;
+        
+        // If property is assigned to the team leader, they can only assign to themselves
+        if (propertyAgentId === userId) {
+          if (targetAgentId !== userId) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only add viewings to yourself on your own properties'
+            });
+          }
+          req.body.agent_id = userId;
+        } else if (propertyAgentId) {
+          // Property is assigned to an agent - check if it's one of their agents
+          const teamAgentsResult = await pool.query(
+            `SELECT agent_id FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, propertyAgentId]
+          );
+          
+          if (teamAgentsResult.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only add viewings on your own properties or properties of agents under your team'
+            });
+          }
+          
+          // Team leader can only assign viewing to the agent who owns the property
+          if (targetAgentId !== propertyAgentId) {
+            return res.status(403).json({
+              success: false,
+              message: `You can only add viewings on this property for the assigned agent (agent ID: ${propertyAgentId})`
+            });
+          }
+          
+          req.body.agent_id = propertyAgentId;
+        } else {
+          // Property has no agent assigned
+          return res.status(403).json({
+            success: false,
+            message: 'You can only add viewings on properties assigned to you or your team agents'
+          });
+        }
+      } else if (['admin', 'operations manager', 'operations', 'agent manager'].includes(userRole)) {
+        // Admin, operations, operations manager, agent manager must assign an agent
+        if (!req.body.agent_id) {
+          return res.status(400).json({
+            success: false,
+            message: 'Agent assignment is required'
+          });
+        }
+      }
+      
+      // Check for duplicate viewing (same lead + property + date + time)
+      const duplicateCheck = await pool.query(
+        `SELECT id FROM viewings 
+         WHERE lead_id = $1 
+         AND property_id = $2 
+         AND viewing_date = $3 
+         AND viewing_time = $4 
+         AND id != COALESCE($5, -1)`,
+        [req.body.lead_id, req.body.property_id, req.body.viewing_date, req.body.viewing_time, null]
+      );
+      
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'A viewing already exists for this lead, property, date, and time combination'
         });
       }
       
@@ -427,12 +542,34 @@ class ViewingsController {
         }
       }
       
-      // Agents and team leaders cannot reassign viewings to others
-      if (['agent', 'team_leader'].includes(userRole) && req.body.agent_id && req.body.agent_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'You cannot reassign viewings to other agents'
-        });
+      // Agents cannot reassign viewings to others - ALWAYS override agent_id for agents
+      if (userRole === 'agent') {
+        if (req.body.agent_id && req.body.agent_id !== userId) {
+          console.warn(`⚠️ Security: Agent ${userId} attempted to reassign viewing ${id} to agent ${req.body.agent_id}`);
+          return res.status(403).json({
+            success: false,
+            message: 'You cannot reassign viewings to other agents'
+          });
+        }
+        // ALWAYS set agent_id to the current user, preventing any reassignment
+        req.body.agent_id = userId;
+      } else if (userRole === 'team_leader') {
+        // Team leaders can reassign to themselves or agents under them
+        if (req.body.agent_id && req.body.agent_id !== userId) {
+          // Check if the agent is under this team leader
+          const teamAgentsResult = await pool.query(
+            `SELECT agent_id FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, req.body.agent_id]
+          );
+          
+          if (teamAgentsResult.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only reassign viewings to yourself or agents under your team'
+            });
+          }
+        }
       }
       
       // Normalize update payload to avoid accidental data resets

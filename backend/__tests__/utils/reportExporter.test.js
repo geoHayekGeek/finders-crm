@@ -21,12 +21,12 @@ describe('Report Exporter', () => {
     sales_amount: 500000,
     agent_commission: 10000,
     finders_commission: 5000,
-    referral_commission: 2000,
+    // referral_commission removed - use referrals_on_properties_commission instead
     team_leader_commission: 1000,
     administration_commission: 500,
     referrals_on_properties_commission: 300,
     referrals_on_properties_count: 2,
-    total_commission: 18800,
+    total_commission: 16800, // Updated: removed referral_commission (2000)
     referral_received_count: 1,
     referral_received_commission: 1000,
     lead_sources: {

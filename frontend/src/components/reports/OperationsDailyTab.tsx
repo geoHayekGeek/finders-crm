@@ -9,6 +9,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { OperationsSelector } from '@/components/OperationsSelector'
 import CreateOperationsDailyModal from './CreateOperationsDailyModal'
 import EditOperationsDailyModal from './EditOperationsDailyModal'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 
 export default function OperationsDailyTab() {
   const { token } = useAuth()
@@ -26,6 +27,8 @@ export default function OperationsDailyTab() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState<OperationsDailyReport | null>(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState<number | null>(null)
 
   // Load data
   useEffect(() => {
@@ -79,15 +82,20 @@ export default function OperationsDailyTab() {
 
   // Handle delete
   const handleDelete = async (reportId: number) => {
-    if (!confirm('Are you sure you want to delete this operations daily report?')) {
-      return
-    }
+    setReportToDelete(reportId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!reportToDelete) return
 
     try {
-      const response = await operationsDailyApi.delete(reportId, token)
+      const response = await operationsDailyApi.delete(reportToDelete, token)
       if (response.success) {
         showSuccess('Report deleted successfully')
         loadReports()
+        setShowDeleteModal(false)
+        setReportToDelete(null)
       }
     } catch (error: any) {
       console.error('Error deleting report:', error)
@@ -493,6 +501,20 @@ export default function OperationsDailyTab() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setReportToDelete(null)
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Operations Daily Report"
+        message="Are you sure you want to delete this operations daily report? This action cannot be undone."
+        confirmText="Delete Report"
+        variant="danger"
+      />
     </div>
   )
 }

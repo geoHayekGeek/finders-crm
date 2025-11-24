@@ -9,7 +9,7 @@ import { AgentSelector } from './AgentSelector'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole } from '@/utils/roleUtils'
-import { viewingsApi } from '@/utils/api'
+import { viewingsApi, propertiesApi } from '@/utils/api'
 import { formatDateForInput } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
 
@@ -38,6 +38,9 @@ interface ViewingsModalsProps {
   deleteConfirmation: string
   setDeleteConfirmation: (value: string) => void
   onConfirmDelete: () => Promise<void>
+  
+  // Optional: Pre-selected property ID (for adding viewings from property page)
+  preSelectedPropertyId?: number
 }
 
 export function ViewingsModals(props: ViewingsModalsProps) {
@@ -127,7 +130,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
   // Add Modal Component
   const AddViewingModal = () => {
     const [formData, setFormData] = useState<CreateViewingFormData>({
-      property_id: 0,
+      property_id: props.preSelectedPropertyId || 0,
       lead_id: 0,
       agent_id: (isAgentRole(user?.role) || isTeamLeaderRole(user?.role)) ? user?.id : undefined,
       viewing_date: '',
@@ -138,6 +141,64 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       initial_update_title: '',
       initial_update_description: ''
     })
+    const [properties, setProperties] = useState<any[]>([])
+    
+    // Fetch properties to get agent_id information
+    useEffect(() => {
+      const fetchProperties = async () => {
+        if (!token) return
+        try {
+          const response = await propertiesApi.getAll()
+          if (response.success) {
+            setProperties(response.data || [])
+          }
+        } catch (error) {
+          console.error('Error fetching properties:', error)
+        }
+      }
+      fetchProperties()
+    }, [token])
+    
+    // Update property_id when preSelectedPropertyId changes
+    useEffect(() => {
+      if (props.preSelectedPropertyId) {
+        setFormData(prev => ({ ...prev, property_id: props.preSelectedPropertyId! }))
+      }
+    }, [props.preSelectedPropertyId])
+    
+    // Security: For agents, ALWAYS ensure agent_id is set to their own ID
+    // This prevents any form manipulation or state changes from allowing agents to assign to others
+    useEffect(() => {
+      if (isAgentRole(user?.role) && user?.id) {
+        if (formData.agent_id !== user.id) {
+          setFormData(prev => ({ ...prev, agent_id: user.id }))
+        }
+      }
+    }, [formData.agent_id, user])
+    
+    // For team leaders: auto-select agent when property is selected
+    useEffect(() => {
+      if (isTeamLeaderRole(user?.role) && formData.property_id && properties.length > 0) {
+        const selectedProperty = properties.find(p => p.id === formData.property_id)
+        const propertyAgentId = selectedProperty?.agent_id
+        
+        if (propertyAgentId) {
+          // Property has an assigned agent
+          if (propertyAgentId === user?.id) {
+            // Property belongs to team leader - assign to themselves
+            if (formData.agent_id !== user.id) {
+              setFormData(prev => ({ ...prev, agent_id: user.id }))
+            }
+          } else {
+            // Property belongs to an agent under the team leader - assign to that agent
+            if (formData.agent_id !== propertyAgentId) {
+              setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
+            }
+          }
+        }
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.property_id, formData.agent_id, properties.length, user?.id, user?.role])
     
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [saving, setSaving] = useState(false)
@@ -145,13 +206,26 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault()
       
+      // Security: For agents, ALWAYS ensure agent_id is set to their own ID
+      // This prevents any manipulation of the form data
+      let finalFormData = { ...formData }
+      if (isAgentRole(user?.role)) {
+        finalFormData.agent_id = user?.id
+      }
+      
       // Validation
       const newErrors: Record<string, string> = {}
-      if (!formData.property_id) newErrors.property_id = 'Property is required'
-      if (!formData.lead_id) newErrors.lead_id = 'Lead is required'
-      if (!formData.agent_id) newErrors.agent_id = 'Agent is required'
-      if (!formData.viewing_date) newErrors.viewing_date = 'Date is required'
-      if (!formData.viewing_time) newErrors.viewing_time = 'Time is required'
+      if (!finalFormData.property_id) newErrors.property_id = 'Property is required'
+      if (!finalFormData.lead_id) newErrors.lead_id = 'Lead is required'
+      if (!finalFormData.agent_id) newErrors.agent_id = 'Agent is required'
+      if (!finalFormData.viewing_date) newErrors.viewing_date = 'Date is required'
+      if (!finalFormData.viewing_time) newErrors.viewing_time = 'Time is required'
+      
+      // Additional security check for agents
+      if (isAgentRole(user?.role) && finalFormData.agent_id !== user?.id) {
+        console.error('Security violation: Agent attempted to set agent_id to different value')
+        newErrors.agent_id = 'You can only assign viewings to yourself'
+      }
       
       if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors)
@@ -160,11 +234,11 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       setSaving(true)
       try {
-        await props.onSaveAdd(formData)
+        await props.onSaveAdd(finalFormData)
         props.setShowAddModal(false)
-        // Reset form
+        // Reset form - ensure agents always have their own ID
         setFormData({
-          property_id: 0,
+          property_id: props.preSelectedPropertyId || 0,
           lead_id: 0,
           agent_id: (isAgentRole(user?.role) || isTeamLeaderRole(user?.role)) ? user?.id : undefined,
           viewing_date: '',
@@ -203,8 +277,25 @@ export function ViewingsModals(props: ViewingsModalsProps) {
             {/* Property Selector */}
             <PropertySelectorForViewings
               selectedPropertyId={formData.property_id || undefined}
-              onSelect={(id) => setFormData({ ...formData, property_id: id })}
+              onSelect={(id, agentId) => {
+                const updates: Partial<CreateViewingFormData> = { property_id: id }
+                
+                // For team leaders: automatically set agent_id to the property's assigned agent
+                if (isTeamLeaderRole(user?.role) && agentId) {
+                  // Check if the agent is under this team leader or is the team leader themselves
+                  if (agentId === user?.id) {
+                    // Property belongs to team leader - assign to themselves
+                    updates.agent_id = user.id
+                  } else {
+                    // Property belongs to an agent under the team leader - assign to that agent
+                    updates.agent_id = agentId
+                  }
+                }
+                
+                setFormData({ ...formData, ...updates })
+              }}
               error={errors.property_id}
+              disabled={!!props.preSelectedPropertyId}
             />
             
             {/* Lead Selector */}
@@ -214,24 +305,67 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               error={errors.lead_id}
             />
             
-            {/* Agent Selector - Required for all users */}
+            {/* Agent Display/Selector - Required for all users */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Agent <span className="text-red-500">*</span>
               </label>
-              {canManageViewings && !isAgentRole(user?.role) && !isTeamLeaderRole(user?.role) ? (
-                <AgentSelector
-                  selectedAgentId={formData.agent_id}
-                  onAgentChange={(agent) => setFormData({ ...formData, agent_id: agent?.id })}
-                />
-              ) : (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <p className="text-sm text-blue-800">
-                    <User className="h-4 w-4 inline mr-1" />
-                    This viewing will be automatically assigned to you.
-                  </p>
-                </div>
-              )}
+              {(() => {
+                const selectedProperty = properties.find(p => p.id === formData.property_id)
+                const propertyAgentId = selectedProperty?.agent_id
+                const propertyAgentName = selectedProperty?.agent_name
+                
+                // If property is selected and has an assigned agent, show read-only agent info (NO DROPDOWN)
+                if (formData.property_id && propertyAgentId) {
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="h-4 w-4 text-blue-600" />
+                        <p className="text-sm font-medium text-blue-900">
+                          Assigned Agent
+                        </p>
+                      </div>
+                      <p className="text-sm text-gray-900 font-semibold">
+                        {propertyAgentName || `Agent ID: ${propertyAgentId}`}
+                      </p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        The viewing will be automatically assigned to the property's agent.
+                      </p>
+                    </div>
+                  )
+                }
+                
+                // No property selected or property has no agent - show agent selector based on role
+                if (canManageViewings && !isAgentRole(user?.role) && !isTeamLeaderRole(user?.role)) {
+                  // Admin, operations, operations manager, agent manager: can select any agent (only when no property selected)
+                  return (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                      <p className="text-xs text-yellow-800">
+                        ⚠️ Please select a property first. The agent will be automatically assigned based on the property.
+                      </p>
+                    </div>
+                  )
+                } else if (isTeamLeaderRole(user?.role)) {
+                  // Team leaders: can select themselves or agents under them (only when no property selected)
+                  return (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-2">
+                      <p className="text-xs text-yellow-800">
+                        ⚠️ Please select a property first. The agent will be automatically assigned based on the property.
+                      </p>
+                    </div>
+                  )
+                } else {
+                  // Agents: automatically assigned to themselves
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <p className="text-sm text-blue-800">
+                        <User className="h-4 w-4 inline mr-1" />
+                        This viewing will be automatically assigned to you.
+                      </p>
+                    </div>
+                  )
+                }
+              })()}
               {errors.agent_id && <p className="text-sm text-red-600 mt-1">{errors.agent_id}</p>}
             </div>
             
@@ -284,32 +418,42 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               </select>
             </div>
 
-            {/* Serious Viewing Toggle */}
-            <div
-              className={`rounded-lg border p-4 transition-colors ${
-                formData.is_serious
-                  ? 'border-amber-300 bg-amber-50/80 shadow-sm'
-                  : 'border-gray-200 bg-gray-50'
-              }`}
-            >
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                  checked={!!formData.is_serious}
-                  onChange={(e) => setFormData({ ...formData, is_serious: e.target.checked })}
-                />
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
-                    <Star className="h-4 w-4 text-amber-500" />
-                    Mark as serious viewing
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Serious viewings are highlighted across the dashboard and shown first to the team.
-                  </p>
+            {/* Serious Viewing Toggle - Only for management roles and team leaders */}
+            {(() => {
+              // Admin, operations, operations manager, agent manager: can mark/unmark serious for everyone
+              // Team leaders: can mark/unmark serious for their own viewings and their team's viewings
+              const canMarkSerious = canManageViewings || isTeamLeaderRole(user?.role)
+              
+              if (!canMarkSerious) return null
+              
+              return (
+                <div
+                  className={`rounded-lg border p-4 transition-colors ${
+                    formData.is_serious
+                      ? 'border-amber-300 bg-amber-50/80 shadow-sm'
+                      : 'border-gray-200 bg-gray-50'
+                  }`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                      checked={!!formData.is_serious}
+                      onChange={(e) => setFormData({ ...formData, is_serious: e.target.checked })}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
+                        <Star className="h-4 w-4 text-amber-500" />
+                        Mark as serious viewing
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Serious viewings are highlighted across the dashboard and shown first to the team.
+                      </p>
+                    </div>
+                  </label>
                 </div>
-              </label>
-            </div>
+              )
+            })()}
 
             {/* Divider between viewing fields and additional details */}
             <div className="border-t border-gray-200 my-4" />
@@ -431,10 +575,15 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     // Update form data when editingViewing changes
     useEffect(() => {
       if (props.editingViewing) {
+        // Security: For agents, ALWAYS use their own ID, never trust the viewing's agent_id
+        const agentIdForForm = isAgentRole(user?.role) 
+          ? user?.id 
+          : props.editingViewing.agent_id
+        
         setFormData({
           property_id: props.editingViewing.property_id,
           lead_id: props.editingViewing.lead_id,
-          agent_id: props.editingViewing.agent_id,
+          agent_id: agentIdForForm,
           viewing_date: props.editingViewing.viewing_date ? formatDateForInput(props.editingViewing.viewing_date) : '',
           viewing_time: formatTimeForInput(props.editingViewing.viewing_time),
           status: props.editingViewing.status,
@@ -446,7 +595,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setEditingExistingUpdateId(null)
         setEditingExistingUpdate(createDefaultUpdateState())
       }
-    }, [props.editingViewing])
+    }, [props.editingViewing, user])
     
     const handleAddUpdate = async () => {
       if (!props.editingViewing) return
@@ -481,6 +630,28 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     const canEditUpdate = (update: ViewingUpdate) => {
       if (!user) return false
       return canManageViewings || update.created_by === user.id
+    }
+    
+    // Check if user can add updates to this viewing
+    const canAddUpdate = (): boolean => {
+      if (!props.editingViewing || !user) return false
+      
+      // Admin, operations, operations manager, agent manager: can add updates to all viewings
+      if (canManageViewings) return true
+      
+      // Agents: can add updates to their own viewings
+      if (isAgentRole(user.role)) {
+        return props.editingViewing.agent_id === user.id
+      }
+      
+      // Team leaders: can add updates to their own viewings and their team's viewings
+      if (isTeamLeaderRole(user.role)) {
+        // The backend will validate this, but we can show the button
+        // Team leaders can add updates to viewings assigned to them or their team
+        return true // Backend will enforce the actual permission
+      }
+      
+      return false
     }
 
     const startEditingExistingUpdate = (update: ViewingUpdate) => {
@@ -528,9 +699,19 @@ export function ViewingsModals(props: ViewingsModalsProps) {
 
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault()
+      
+      // Security: For agents, ALWAYS ensure agent_id cannot be changed
+      // Remove agent_id from the update if agent tries to change it
+      let finalFormData = { ...formData }
+      if (isAgentRole(user?.role)) {
+        // Agents cannot change agent_id - remove it from the update
+        delete finalFormData.agent_id
+        // The backend will ensure it stays as the agent's own ID
+      }
+      
       setSaving(true)
       try {
-        await props.onSaveEdit(formData)
+        await props.onSaveEdit(finalFormData)
         props.setShowEditModal(false)
       } catch (error) {
         console.error('Error updating viewing:', error)
@@ -578,6 +759,18 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               )}
             </div>
             
+            {/* Agent Info (Read-only) - Always shows property's agent */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                <User className="h-4 w-4 inline mr-1" />
+                Agent
+              </p>
+              <p className="font-medium text-gray-900">{props.editingViewing.agent_name || `Agent ID: ${props.editingViewing.agent_id}`}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Assigned based on the property's agent.
+              </p>
+            </div>
+            
             {/* Date and Time */}
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -621,32 +814,53 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               </select>
             </div>
 
-            {/* Serious Viewing Toggle */}
-            <div
-              className={`rounded-lg border p-4 transition-colors ${
-                formData.is_serious
-                  ? 'border-amber-300 bg-amber-50/80 shadow-sm'
-                  : 'border-gray-200 bg-gray-50'
-              }`}
-            >
-              <label className="flex items-start gap-3 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
-                  checked={!!formData.is_serious}
-                  onChange={(e) => setFormData({ ...formData, is_serious: e.target.checked })}
-                />
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
-                    <Star className="h-4 w-4 text-amber-500" />
-                    Mark as serious viewing
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Serious viewings are highlighted and prioritized for follow-up.
-                  </p>
+            {/* Serious Viewing Toggle - Only for management roles and team leaders */}
+            {(() => {
+              // Check if user can mark this viewing as serious
+              // Admin, operations, operations manager, agent manager: can mark/unmark serious for everyone
+              // Team leaders: can mark/unmark serious for their own viewings and their team's viewings
+              const canMarkSerious = canManageViewings || isTeamLeaderRole(user?.role)
+              
+              // For team leaders, check if this viewing belongs to them or their team
+              let canMarkThisViewing = canMarkSerious
+              if (isTeamLeaderRole(user?.role) && !canManageViewings) {
+                // Team leader can only mark serious for their own viewings or their team's viewings
+                // The backend will enforce this, but we can show/hide the toggle based on agent_id
+                // If viewing agent_id is the team leader or one of their agents, show toggle
+                // For now, show it - backend will validate
+                canMarkThisViewing = true
+              }
+              
+              if (!canMarkThisViewing) return null
+              
+              return (
+                <div
+                  className={`rounded-lg border p-4 transition-colors ${
+                    formData.is_serious
+                      ? 'border-amber-300 bg-amber-50/80 shadow-sm'
+                      : 'border-gray-200 bg-gray-50'
+                  }`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-4 w-4 rounded border-gray-300 text-amber-500 focus:ring-amber-400"
+                      checked={!!formData.is_serious}
+                      onChange={(e) => setFormData({ ...formData, is_serious: e.target.checked })}
+                    />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900 flex items-center gap-1">
+                        <Star className="h-4 w-4 text-amber-500" />
+                        Mark as serious viewing
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Serious viewings are highlighted and prioritized for follow-up.
+                      </p>
+                    </div>
+                  </label>
                 </div>
-              </label>
-            </div>
+              )
+            })()}
 
             {/* Divider between viewing fields and additional details */}
             <div className="border-t border-gray-200 my-4" />
@@ -669,14 +883,16 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 <h4 className="text-sm font-medium text-gray-700">
                   Updates
                 </h4>
-                <button
-                  type="button"
-                  onClick={() => setAddingUpdate(!addingUpdate)}
-                  className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Update
-                </button>
+                {canAddUpdate() && (
+                  <button
+                    type="button"
+                    onClick={() => setAddingUpdate(!addingUpdate)}
+                    className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Update
+                  </button>
+                )}
               </div>
 
               {/* Add Update Form */}
@@ -910,6 +1126,28 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       if (!user) return false
       return canManageViewings || update.created_by === user.id
     }
+    
+    // Check if user can add updates to this viewing
+    const canAddUpdate = (): boolean => {
+      if (!props.viewingViewing || !user) return false
+      
+      // Admin, operations, operations manager, agent manager: can add updates to all viewings
+      if (canManageViewings) return true
+      
+      // Agents: can add updates to their own viewings
+      if (isAgentRole(user.role)) {
+        return props.viewingViewing.agent_id === user.id
+      }
+      
+      // Team leaders: can add updates to their own viewings and their team's viewings
+      if (isTeamLeaderRole(user.role)) {
+        // The backend will validate this, but we can show the button
+        // Team leaders can add updates to viewings assigned to them or their team
+        return true // Backend will enforce the actual permission
+      }
+      
+      return false
+    }
 
     const handleAddUpdate = async () => {
       if (!props.viewingViewing || !newUpdate.title.trim() || !newUpdate.description.trim()) {
@@ -1108,19 +1346,21 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                   )}
                 </button>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                  onClick={() => {
-                    if (!addingUpdate) {
-                      resetEditingUpdateState()
-                    }
-                    setAddingUpdate(!addingUpdate)
-                  }}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Update
-                  </button>
+                  {canAddUpdate() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!addingUpdate) {
+                          resetEditingUpdateState()
+                        }
+                        setAddingUpdate(!addingUpdate)
+                      }}
+                      className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Update
+                    </button>
+                  )}
                 </div>
               </div>
 

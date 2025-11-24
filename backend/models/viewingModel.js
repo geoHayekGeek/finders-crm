@@ -424,13 +424,19 @@ class Viewing {
 
   // Add update to viewing
   static async addViewingUpdate(viewingId, updateData) {
-    const { update_text, update_date, created_by } = updateData;
+    const { update_text, update_date, created_by, status } = updateData;
     
     const result = await pool.query(
-      `INSERT INTO viewing_updates (viewing_id, update_text, update_date, created_by)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO viewing_updates (viewing_id, update_text, update_date, created_by, status)
+       VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [viewingId, update_text, update_date || new Date().toISOString().split('T')[0], created_by]
+      [
+        viewingId, 
+        update_text, 
+        update_date || new Date().toISOString().split('T')[0], 
+        created_by,
+        status || 'Initial Contact'
+      ]
     );
     return result.rows[0];
   }
@@ -443,6 +449,7 @@ class Viewing {
         vu.viewing_id,
         vu.update_text,
         vu.update_date,
+        vu.status,
         vu.created_by,
         vu.created_at,
         u.name as created_by_name,
@@ -471,6 +478,11 @@ class Viewing {
       values.push(updateData.update_date);
     }
 
+    if (Object.prototype.hasOwnProperty.call(updateData, 'status')) {
+      fields.push(`status = $${paramIndex++}`);
+      values.push(updateData.status);
+    }
+
     if (fields.length === 0) {
       return await Viewing.getViewingUpdateById(updateId);
     }
@@ -494,6 +506,7 @@ class Viewing {
         vu.viewing_id,
         vu.update_text,
         vu.update_date,
+        vu.status,
         vu.created_by,
         vu.created_at,
         u.name as created_by_name,

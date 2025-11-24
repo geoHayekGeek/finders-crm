@@ -162,12 +162,23 @@ class LeadsController {
           success: false,
           message: 'You do not have permission to view this lead'
         });
-      } else if (normalizedRole === 'team_leader' && lead.agent_id !== userId) {
-        // Team leaders can only view leads assigned to them
-        return res.status(403).json({
-          success: false,
-          message: 'You do not have permission to view this lead'
-        });
+      } else if (normalizedRole === 'team_leader') {
+        // Team leaders can view their own leads and their team's leads
+        if (lead.agent_id !== userId) {
+          // Check if the lead belongs to an agent under this team leader
+          const teamAgentCheck = await pool.query(
+            `SELECT 1 FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, lead.agent_id]
+          );
+          
+          if (teamAgentCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You do not have permission to view this lead'
+            });
+          }
+        }
       } else if (['agent', 'team_leader'].includes(normalizedRole)) {
         lead = {
           id: lead.id,
@@ -322,6 +333,23 @@ class LeadsController {
           success: false,
           message: 'You do not have permission to update this lead'
         });
+      } else if (normalizedRole === 'team_leader') {
+        // Team leaders can update their own leads and their team's leads
+        if (existingLead.agent_id !== userId) {
+          // Check if the lead belongs to an agent under this team leader
+          const teamAgentCheck = await pool.query(
+            `SELECT 1 FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, existingLead.agent_id]
+          );
+          
+          if (teamAgentCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You do not have permission to update this lead'
+            });
+          }
+        }
       }
 
       const updatedLead = await Lead.updateLead(id, req.body);
@@ -708,40 +736,13 @@ class LeadsController {
   static filterNotesForUser(notes, lead, user) {
     const role = normalizeRole(user.role);
 
-    // Admin sees all notes
-    if (role === 'admin') {
+    // Admin and Operations Manager see all notes
+    if (role === 'admin' || role === 'operations_manager') {
       return notes;
     }
 
-    // Operations manager: see operations and agents notes
-    if (role === 'operations_manager') {
-      return notes.filter(n => {
-        const nRole = normalizeRole(n.created_by_role);
-        return nRole === 'operations' || nRole === 'agent';
-      });
-    }
-
-    // Agent manager: see agent notes
-    if (role === 'agent_manager') {
-      return notes.filter(n => normalizeRole(n.created_by_role) === 'agent');
-    }
-
-    // Operations: see only their own notes
-    if (role === 'operations') {
-      return notes.filter(n => n.created_by === user.id);
-    }
-
-    // Agent: can see only their own notes on that lead
-    if (role === 'agent') {
-      return notes.filter(n => n.created_by === user.id);
-    }
-
-    // Team leaders: mirror agents for now (can be expanded later)
-    if (role === 'team_leader') {
-      return notes.filter(n => n.created_by === user.id);
-    }
-
-    return [];
+    // Everyone else sees only their own notes
+    return notes.filter(n => n.created_by === user.id);
   }
 
   // GET /api/leads/:id/notes - Get notes for a lead
@@ -796,21 +797,38 @@ class LeadsController {
         });
       }
 
+      // Anyone who can view the lead can add notes to it
+      // Check if user can view this lead
       const role = normalizeRole(req.user.role);
-      const isAssignedAgent = lead.agent_id === req.user.id;
+      const userId = req.user.id;
+      let canViewLead = false;
 
-      const canCreate =
-        (role === 'agent' && isAssignedAgent) ||
-        ['operations', 'operations_manager', 'agent_manager', 'admin'].includes(role);
+      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(role)) {
+        canViewLead = true;
+      } else if (role === 'agent' && lead.agent_id === userId) {
+        canViewLead = true;
+      } else if (role === 'team_leader') {
+        if (lead.agent_id === userId) {
+          canViewLead = true;
+        } else {
+          // Check if the lead belongs to an agent under this team leader
+          const teamAgentCheck = await pool.query(
+            `SELECT 1 FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, lead.agent_id]
+          );
+          canViewLead = teamAgentCheck.rows.length > 0;
+        }
+      }
 
-      if (!canCreate) {
+      if (!canViewLead) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to add notes to this lead',
         });
       }
 
-      const note = await LeadNote.createOrUpdateNote(id, req.user, note_text.toString().trim());
+      const note = await LeadNote.createNote(id, req.user, note_text.toString().trim());
       const notes = await LeadNote.getNotesForLead(id);
       const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
       const createdForUser = filtered.find(n => n.id === note.id) || note;
@@ -945,6 +963,123 @@ class LeadsController {
         success: false,
         message: 'Failed to delete referral',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  // PUT /api/leads/:id/notes/:noteId - Update a lead note
+  static async updateLeadNote(req, res) {
+    try {
+      const { id, noteId } = req.params;
+      const { note_text } = req.body || {};
+
+      if (!note_text || !note_text.toString().trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note text is required',
+        });
+      }
+
+      // Get the note
+      const note = await LeadNote.getNoteById(noteId);
+      if (!note) {
+        return res.status(404).json({
+          success: false,
+          message: 'Note not found',
+        });
+      }
+
+      // Verify note belongs to the lead
+      if (note.lead_id !== parseInt(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note does not belong to this lead',
+        });
+      }
+
+      // Check permissions
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
+
+      // Admin can edit all notes
+      // Others can only edit their own notes
+      if (role !== 'admin' && note.created_by !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to edit this note',
+        });
+      }
+
+      const updatedNote = await LeadNote.updateNote(noteId, note_text.toString().trim());
+      
+      // Get all notes and filter for user visibility
+      const lead = await Lead.getLeadById(id);
+      const notes = await LeadNote.getNotesForLead(id);
+      const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
+      const updatedForUser = filtered.find(n => n.id === updatedNote.id) || updatedNote;
+
+      res.json({
+        success: true,
+        data: updatedForUser,
+        message: 'Note updated successfully',
+      });
+    } catch (error) {
+      console.error('❌ Error updating lead note:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update lead note',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      });
+    }
+  }
+
+  // DELETE /api/leads/:id/notes/:noteId - Delete a lead note
+  static async deleteLeadNote(req, res) {
+    try {
+      const { id, noteId } = req.params;
+
+      // Get the note
+      const note = await LeadNote.getNoteById(noteId);
+      if (!note) {
+        return res.status(404).json({
+          success: false,
+          message: 'Note not found',
+        });
+      }
+
+      // Verify note belongs to the lead
+      if (note.lead_id !== parseInt(id)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Note does not belong to this lead',
+        });
+      }
+
+      // Check permissions
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
+
+      // Admin can delete all notes
+      // Others can only delete their own notes
+      if (role !== 'admin' && note.created_by !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to delete this note',
+        });
+      }
+
+      await LeadNote.deleteNote(noteId);
+
+      res.json({
+        success: true,
+        message: 'Note deleted successfully',
+      });
+    } catch (error) {
+      console.error('❌ Error deleting lead note:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete lead note',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
       });
     }
   }

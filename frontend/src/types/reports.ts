@@ -26,6 +26,7 @@ export interface MonthlyAgentReport {
   // Commissions (calculated)
   agent_commission: number
   finders_commission: number
+  /** @deprecated Use referrals_on_properties_commission instead */
   referral_commission: number
   team_leader_commission: number
   administration_commission: number
@@ -59,7 +60,23 @@ export interface CreateReportData {
 }
 
 export interface UpdateReportData {
+  listings_count?: number
+  lead_sources?: { [key: string]: number }
+  viewings_count?: number
   boosts?: number
+  sales_count?: number
+  sales_amount?: number
+  agent_commission?: number
+  finders_commission?: number
+  /** @deprecated Use referrals_on_properties_commission instead */
+  referral_commission?: number
+  team_leader_commission?: number
+  administration_commission?: number
+  total_commission?: number
+  referral_received_count?: number
+  referral_received_commission?: number
+  referrals_on_properties_count?: number
+  referrals_on_properties_commission?: number
 }
 
 export interface ReportFormData {

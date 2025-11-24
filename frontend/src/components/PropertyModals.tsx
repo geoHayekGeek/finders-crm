@@ -14,7 +14,13 @@ import { ReferralSelector } from './ReferralSelector'
 import { PropertyReferralsSection } from './PropertyReferralsSection'
 import { PropertyShareMenu } from './PropertyShareMenu'
 import { PropertyViewingsSection } from './PropertyViewingsSection'
+import { ViewingsModals } from './ViewingsModals'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/contexts/PermissionContext'
+import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole } from '@/utils/roleUtils'
+import { CreateViewingFormData, Viewing } from '@/types/viewing'
+import { viewingsApi } from '@/utils/api'
 
 // Reusable Input Field Component with Validation
 const InputField = ({ 
@@ -248,7 +254,20 @@ export function PropertyModals({
   canManageProperties = true
 }: PropertyModalsProps) {
   const { showSuccess, showError, showWarning } = useToast()
+  const { user, token } = useAuth()
+  const { canViewViewings } = usePermissions()
   const [skipDuplicates, setSkipDuplicates] = useState(true)
+  
+  // Viewing modal state
+  const [showAddViewingModal, setShowAddViewingModal] = useState(false)
+  const [selectedPropertyForViewing, setSelectedPropertyForViewing] = useState<Property | null>(null)
+  
+  // Check if user can create viewings
+  const canCreateViewings = () => {
+    if (!user) return false
+    const role = user.role
+    return isAdminRole(role) || isOperationsRole(role) || isAgentManagerRole(role) || isTeamLeaderRole(role) || isAgentRole(role)
+  }
   const [selectedImageState, setSelectedImageState] = useState<string>('')
   const [allImagesState, setAllImagesState] = useState<string[]>([])
   const [currentImageIndexState, setCurrentImageIndexState] = useState<number>(0)
@@ -2776,14 +2795,14 @@ export function PropertyModals({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Owner Name</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewPropertyData.owner_name || 'N/A'}
+                      <div className={`px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg ${viewPropertyData.owner_name === 'Hidden' ? 'text-gray-400 italic' : 'text-gray-900'}`}>
+                        {viewPropertyData.owner_name === 'Hidden' ? 'Hidden' : (viewPropertyData.owner_name || 'N/A')}
                       </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewPropertyData.phone_number || 'N/A'}
+                      <div className={`px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg ${viewPropertyData.phone_number === 'Hidden' ? 'text-gray-400 italic' : 'text-gray-900'}`}>
+                        {viewPropertyData.phone_number === 'Hidden' ? 'Hidden' : (viewPropertyData.phone_number || 'N/A')}
                       </div>
                     </div>
                   </div>
@@ -2935,6 +2954,17 @@ export function PropertyModals({
                       <PropertyViewingsSection
                         propertyId={viewPropertyData.id}
                         canEdit={canManageProperties}
+                        canAddViewing={canViewViewings && canCreateViewings()}
+                        propertyAgentId={viewPropertyData.agent_id}
+                        onAddViewing={() => {
+                          // Security: Double-check that agent can add viewing to this property
+                          if (isAgentRole(user?.role) && viewPropertyData.agent_id !== user?.id && viewPropertyData.agent_id !== undefined) {
+                            showError('You can only create viewings for properties assigned to you')
+                            return
+                          }
+                          setSelectedPropertyForViewing(viewPropertyData)
+                          setShowAddViewingModal(true)
+                        }}
                       />
                     </div>
                   </div>
@@ -3139,6 +3169,74 @@ export function PropertyModals({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Viewings Modals */}
+      {showAddViewingModal && selectedPropertyForViewing && (
+        <ViewingsModals
+          showAddModal={showAddViewingModal}
+          setShowAddModal={(show) => {
+            setShowAddViewingModal(show)
+            if (!show) {
+              setSelectedPropertyForViewing(null)
+            }
+          }}
+          onSaveAdd={async (viewingData: CreateViewingFormData) => {
+            if (!token) {
+              showError('You must be logged in to create viewings')
+              return
+            }
+            
+            // Security: For agents, ALWAYS ensure agent_id is set to their own ID
+            // This prevents any manipulation of the viewing data
+            let secureViewingData = { ...viewingData }
+            if (isAgentRole(user?.role) && user?.id) {
+              secureViewingData.agent_id = user.id
+            }
+            
+            // Pre-fill property ID
+            const dataWithProperty = {
+              ...secureViewingData,
+              property_id: selectedPropertyForViewing.id
+            }
+            
+            try {
+              const response = await viewingsApi.create(dataWithProperty, token)
+              if (response.success) {
+                showSuccess('Viewing created successfully')
+                setShowAddViewingModal(false)
+                setSelectedPropertyForViewing(null)
+                // Refresh properties to show updated viewings
+                if (onRefreshProperties) {
+                  onRefreshProperties()
+                }
+                return response.data
+              } else {
+                showError(response.message || 'Failed to create viewing')
+                throw new Error(response.message || 'Failed to create viewing')
+              }
+            } catch (error) {
+              console.error('Error creating viewing:', error)
+              showError(error instanceof Error ? error.message : 'Failed to create viewing')
+              throw error
+            }
+          }}
+          showEditModal={false}
+          setShowEditModal={() => {}}
+          editingViewing={null}
+          onSaveEdit={async () => {}}
+          showViewModal={false}
+          setShowViewModal={() => {}}
+          viewingViewing={null}
+          onRefreshViewing={async () => null}
+          showDeleteModal={false}
+          setShowDeleteModal={() => {}}
+          deletingViewing={null}
+          deleteConfirmation=""
+          setDeleteConfirmation={() => {}}
+          onConfirmDelete={async () => {}}
+          preSelectedPropertyId={selectedPropertyForViewing.id}
+        />
       )}
     </>
   )

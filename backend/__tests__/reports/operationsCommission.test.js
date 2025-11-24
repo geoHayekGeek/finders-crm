@@ -8,7 +8,7 @@ const { exportOperationsCommissionToExcel, exportOperationsCommissionToPDF } = r
 // Mock dependencies
 jest.mock('../../models/operationsCommissionModel');
 jest.mock('../../utils/operationsCommissionExporter');
-jest.mock('../../config/db');
+const pool = require('../../config/db');
 
 describe('Operations Commission Report', () => {
   let req, res;
@@ -26,6 +26,8 @@ describe('Operations Commission Report', () => {
       send: jest.fn(),
       setHeader: jest.fn()
     };
+    // Mock pool.query for duplicate check
+    pool.query = jest.fn().mockResolvedValue({ rows: [] });
     jest.clearAllMocks();
   });
 
@@ -49,7 +51,8 @@ describe('Operations Commission Report', () => {
         total_commission_amount: 127500
       };
 
-      operationsCommissionModel.getAllReports.mockResolvedValue([]);
+      // Mock pool.query for duplicate check (returns empty = no duplicates)
+      pool.query.mockResolvedValueOnce({ rows: [] });
       operationsCommissionModel.createReport.mockResolvedValue(mockReport);
 
       await operationsCommissionController.createReport(req, res);
@@ -130,8 +133,8 @@ describe('Operations Commission Report', () => {
         end_date: '2024-01-31'
       };
 
-      const existingReport = [{ id: 1 }];
-      operationsCommissionModel.getAllReports.mockResolvedValue(existingReport);
+      // Mock pool.query for duplicate check (returns existing report)
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 1 }] });
 
       await operationsCommissionController.createReport(req, res);
 
@@ -148,7 +151,8 @@ describe('Operations Commission Report', () => {
         end_date: '2024-01-31'
       };
 
-      operationsCommissionModel.getAllReports.mockResolvedValue([]);
+      // Mock pool.query for duplicate check (returns empty = no duplicates)
+      pool.query.mockResolvedValueOnce({ rows: [] });
       const error = new Error('Database connection failed');
       error.code = '23505';
       operationsCommissionModel.createReport.mockRejectedValue(error);

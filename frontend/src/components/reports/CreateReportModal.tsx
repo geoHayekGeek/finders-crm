@@ -48,7 +48,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     sales_amount: 0,
     agent_commission: 0,
     finders_commission: 0,
-    referral_commission: 0,
+    // referral_commission removed - use referrals_on_properties_commission instead
     team_leader_commission: 0,
     administration_commission: 0,
     total_commission: 0,
@@ -124,7 +124,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           sales_amount: tempReport.data.sales_amount,
           agent_commission: tempReport.data.agent_commission,
           finders_commission: tempReport.data.finders_commission,
-          referral_commission: tempReport.data.referral_commission,
+          // referral_commission removed - use referrals_on_properties_commission instead
           team_leader_commission: tempReport.data.team_leader_commission,
           administration_commission: tempReport.data.administration_commission,
           total_commission: tempReport.data.total_commission,
@@ -524,17 +524,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                       />
                     </div>
 
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Referral Com ($)</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editableData.referral_commission}
-                        onChange={(e) => handleEditableChange('referral_commission', parseFloat(e.target.value) || 0)}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                      />
-                    </div>
+                    {/* referral_commission removed - use referrals_on_properties_commission instead */}
 
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">TL Com ($)</label>

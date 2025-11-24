@@ -19,6 +19,7 @@ import { User as UserType, UserDocument } from '@/types/user'
 import { userDocumentsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 
 interface UserDocumentsProps {
   user: UserType
@@ -171,17 +172,23 @@ export function UserDocuments({ user, onClose }: UserDocumentsProps) {
     }
   }
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<UserDocument | null>(null)
+
   const handleDelete = async (document: UserDocument) => {
-    if (!confirm(`Are you sure you want to delete "${document.document_label}"?`)) {
-      return
-    }
-    
-    if (!token) return
+    setDocumentToDelete(document)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!documentToDelete || !token) return
     
     try {
-      const response = await userDocumentsApi.delete(document.id, false, token)
+      const response = await userDocumentsApi.delete(documentToDelete.id, false, token)
       
       if (response.success) {
+        setShowDeleteModal(false)
+        setDocumentToDelete(null)
         showSuccess('Document deleted successfully')
         loadDocuments()
       } else {
@@ -473,6 +480,20 @@ export function UserDocuments({ user, onClose }: UserDocumentsProps) {
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setDocumentToDelete(null)
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Document"
+        message={documentToDelete ? `Are you sure you want to delete "${documentToDelete.document_label}"?` : 'Are you sure you want to delete this document?'}
+        confirmText="Delete Document"
+        variant="danger"
+      />
     </div>
   )
 }

@@ -186,6 +186,7 @@ describe('Viewings Controller', () => {
       req.body = {
         property_id: 1,
         lead_id: 1,
+        agent_id: 1,
         viewing_date: '2024-01-15',
         viewing_time: '10:00',
         status: 'Scheduled',
@@ -272,6 +273,9 @@ describe('Viewings Controller', () => {
       const mockViewing = { id: 1, ...req.body, agent_id: 2 };
       const mockFullViewing = { ...mockViewing, property_reference: 'PROP001' };
 
+      // Mock property check - property belongs to agent 2 (the current user)
+      pool.query.mockResolvedValueOnce({ rows: [{ agent_id: 2 }] });
+      
       Viewing.createViewing.mockResolvedValue(mockViewing);
       Viewing.getViewingById.mockResolvedValue(mockFullViewing);
       CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
@@ -294,6 +298,9 @@ describe('Viewings Controller', () => {
         agent_id: 3
       };
 
+      // Mock property check - property belongs to agent 2 (the current user)
+      pool.query.mockResolvedValue({ rows: [{ agent_id: 2 }] });
+
       await ViewingsController.createViewing(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
@@ -303,7 +310,8 @@ describe('Viewings Controller', () => {
       });
     });
 
-    it('should handle errors', async () => {
+    it('should return 403 if agent tries to create viewing for property assigned to another agent', async () => {
+      req.user = { id: 2, role: 'agent' };
       req.body = {
         property_id: 1,
         lead_id: 1,
@@ -311,6 +319,150 @@ describe('Viewings Controller', () => {
         viewing_time: '10:00'
       };
 
+      // Mock property check - property belongs to agent 3 (not the current user)
+      pool.query.mockResolvedValue({ rows: [{ agent_id: 3 }] });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You can only create viewings for properties assigned to you'
+      });
+    });
+
+    it('should return 403 if agent tries to create viewing for property with no agent assigned', async () => {
+      req.user = { id: 2, role: 'agent' };
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        viewing_date: '2024-01-15',
+        viewing_time: '10:00'
+      };
+
+      // Mock property check - property has no agent assigned (NULL)
+      pool.query.mockResolvedValue({ rows: [{ agent_id: null }] });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You can only create viewings for properties assigned to you'
+      });
+    });
+
+    it('should return 400 if duplicate viewing exists (same lead + property + date + time)', async () => {
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-15',
+        viewing_time: '10:00'
+      };
+
+      // Mock duplicate check - returns existing viewing
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 99 }] });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'A viewing already exists for this lead, property, date, and time combination'
+      });
+      expect(Viewing.createViewing).not.toHaveBeenCalled();
+    });
+
+    it('should allow creating viewing if no duplicate exists', async () => {
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-15',
+        viewing_time: '10:00'
+      };
+
+      const mockViewing = { id: 1, ...req.body, agent_id: 1 };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+
+      // Mock duplicate check - no duplicates found
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      
+      Viewing.createViewing.mockResolvedValue(mockViewing);
+      Viewing.getViewingById.mockResolvedValue(mockFullViewing);
+      CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(Viewing.createViewing).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should allow different time for same lead + property + date', async () => {
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-15',
+        viewing_time: '14:00' // Different time
+      };
+
+      const mockViewing = { id: 1, ...req.body, agent_id: 1 };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+
+      // Mock duplicate check - no duplicates found (different time)
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      
+      Viewing.createViewing.mockResolvedValue(mockViewing);
+      Viewing.getViewingById.mockResolvedValue(mockFullViewing);
+      CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(Viewing.createViewing).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should allow different date for same lead + property + time', async () => {
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-16', // Different date
+        viewing_time: '10:00'
+      };
+
+      const mockViewing = { id: 1, ...req.body, agent_id: 1 };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+
+      // Mock duplicate check - no duplicates found (different date)
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      
+      Viewing.createViewing.mockResolvedValue(mockViewing);
+      Viewing.getViewingById.mockResolvedValue(mockFullViewing);
+      CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(Viewing.createViewing).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should handle errors', async () => {
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-15',
+        viewing_time: '10:00'
+      };
+
+      // Mock duplicate check - no duplicates
+      pool.query.mockResolvedValueOnce({ rows: [] });
       Viewing.createViewing.mockRejectedValue(new Error('Database error'));
 
       await ViewingsController.createViewing(req, res);
@@ -620,6 +772,126 @@ describe('Viewings Controller', () => {
         success: false,
         message: 'You can only add updates to your own viewings'
       });
+    });
+
+    it('should allow team leader to add update to their own viewing', async () => {
+      req.user = { id: 3, role: 'team_leader' };
+      req.params = { id: '1' };
+      req.body = {
+        update_text: 'Team leader update',
+        update_date: '2024-01-15'
+      };
+
+      const mockViewing = { id: 1, agent_id: 3 }; // Team leader's own viewing
+      const mockTeamViewings = [{ id: 1, agent_id: 3 }];
+      const mockUpdate = { id: 1, update_text: 'Team leader update' };
+
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
+      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      ReminderService.clearViewingReminder.mockResolvedValue();
+
+      await ViewingsController.addViewingUpdate(req, res);
+
+      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockUpdate,
+        message: 'Update added successfully'
+      });
+    });
+
+    it('should allow team leader to add update to team agent viewing', async () => {
+      req.user = { id: 3, role: 'team_leader' };
+      req.params = { id: '2' };
+      req.body = {
+        update_text: 'Update for team agent',
+        update_date: '2024-01-15'
+      };
+
+      const mockViewing = { id: 2, agent_id: 4 }; // Team agent's viewing
+      const mockTeamViewings = [
+        { id: 1, agent_id: 3 }, // Team leader's viewing
+        { id: 2, agent_id: 4 }  // Team agent's viewing
+      ];
+      const mockUpdate = { id: 1, update_text: 'Update for team agent' };
+
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
+      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      ReminderService.clearViewingReminder.mockResolvedValue();
+
+      await ViewingsController.addViewingUpdate(req, res);
+
+      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should return 403 if team leader tries to add update to viewing outside their team', async () => {
+      req.user = { id: 3, role: 'team_leader' };
+      req.params = { id: '99' };
+      req.body = { update_text: 'Unauthorized update' };
+
+      const mockViewing = { id: 99, agent_id: 5 }; // Not in team leader's team
+      const mockTeamViewings = [
+        { id: 1, agent_id: 3 },
+        { id: 2, agent_id: 4 }
+      ]; // Does not include viewing 99
+
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
+
+      await ViewingsController.addViewingUpdate(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You can only add updates to viewings assigned to you or your team'
+      });
+      expect(Viewing.addViewingUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should allow admin to add update to any viewing', async () => {
+      req.user = { id: 1, role: 'admin' };
+      req.params = { id: '1' };
+      req.body = {
+        update_text: 'Admin update',
+        update_date: '2024-01-15'
+      };
+
+      const mockViewing = { id: 1, agent_id: 2 }; // Different agent's viewing
+      const mockUpdate = { id: 1, update_text: 'Admin update' };
+
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      ReminderService.clearViewingReminder.mockResolvedValue();
+
+      await ViewingsController.addViewingUpdate(req, res);
+
+      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should allow operations manager to add update to any viewing', async () => {
+      req.user = { id: 1, role: 'operations manager' };
+      req.params = { id: '1' };
+      req.body = {
+        update_text: 'Operations manager update',
+        update_date: '2024-01-15'
+      };
+
+      const mockViewing = { id: 1, agent_id: 2 };
+      const mockUpdate = { id: 1, update_text: 'Operations manager update' };
+
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      ReminderService.clearViewingReminder.mockResolvedValue();
+
+      await ViewingsController.addViewingUpdate(req, res);
+
+      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
     });
 
     it('should handle errors', async () => {

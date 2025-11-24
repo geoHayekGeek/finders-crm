@@ -1,0 +1,280 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e6]:
+        - img [ref=e7]
+        - generic [ref=e11]: Finders CRM
+      - button "Collapse sidebar" [ref=e13] [cursor=pointer]:
+        - img [ref=e14]
+      - navigation [ref=e16]:
+        - button "Properties" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+          - generic [ref=e23]: Properties
+          - img [ref=e24]
+        - button "Leads" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+          - generic [ref=e31]: Leads
+          - img [ref=e32]
+        - link "Calendar" [ref=e35] [cursor=pointer]:
+          - /url: /dashboard/calendar
+          - img [ref=e36]
+          - generic [ref=e38]: Calendar
+        - link "Reports" [ref=e40] [cursor=pointer]:
+          - /url: /dashboard/reports
+          - img [ref=e41]
+          - generic [ref=e43]: Reports
+        - link "HR" [ref=e45] [cursor=pointer]:
+          - /url: /dashboard/hr
+          - img [ref=e46]
+          - generic [ref=e49]: HR
+        - link "Settings" [ref=e51] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e52]
+          - generic [ref=e55]: Settings
+      - generic [ref=e56]:
+        - generic [ref=e57]:
+          - img [ref=e59]
+          - generic [ref=e62]:
+            - paragraph [ref=e63]: Admin User
+            - paragraph [ref=e64]: Admin
+        - button "Sign out" [ref=e65] [cursor=pointer]:
+          - img [ref=e66]
+          - text: Sign out
+    - generic [ref=e69]:
+      - generic [ref=e73]:
+        - button "Notifications" [ref=e75] [cursor=pointer]:
+          - img [ref=e76]
+        - generic [ref=e79]: Welcome, Admin User
+      - main [ref=e80]:
+        - generic [ref=e82]:
+          - generic [ref=e83]:
+            - generic [ref=e84]:
+              - heading "Properties" [level=1] [ref=e85]
+              - paragraph [ref=e86]: Manage your property portfolio (5 properties)
+            - button "Add Property" [ref=e88] [cursor=pointer]:
+              - img [ref=e89]
+              - generic [ref=e90]: Add Property
+          - generic [ref=e91]:
+            - generic [ref=e93]:
+              - img [ref=e95]
+              - generic [ref=e99]:
+                - paragraph [ref=e100]: Total Properties
+                - paragraph [ref=e101]: "5"
+            - generic [ref=e103]:
+              - img [ref=e105]
+              - generic [ref=e107]:
+                - paragraph [ref=e108]: Active
+                - paragraph [ref=e109]: "0"
+            - generic [ref=e111]:
+              - img [ref=e113]
+              - generic [ref=e117]:
+                - paragraph [ref=e118]: Categories
+                - paragraph [ref=e119]: "5"
+            - generic [ref=e121]:
+              - img [ref=e123]
+              - generic [ref=e125]:
+                - paragraph [ref=e126]: Total Value
+                - paragraph [ref=e127]: $954.5K
+          - generic [ref=e130]:
+            - generic [ref=e132]:
+              - img [ref=e133]
+              - textbox "Search reference number, location, owner name..." [ref=e136]
+            - generic [ref=e137]:
+              - combobox [ref=e138] [cursor=pointer]:
+                - option "All Statuses" [selected]
+                - option "Available"
+                - option "Rented"
+                - option "Reserved"
+                - option "Sold"
+              - combobox [ref=e139] [cursor=pointer]:
+                - option "All Categories" [selected]
+                - option "Apartment"
+                - option "Land"
+                - option "Office"
+                - option "Shop"
+                - option "Villa"
+            - button "Filters" [ref=e141] [cursor=pointer]:
+              - img [ref=e142]
+              - generic [ref=e144]: Filters
+          - generic [ref=e145]:
+            - generic [ref=e146]:
+              - button [ref=e147] [cursor=pointer]:
+                - img [ref=e148]
+              - button [ref=e150] [cursor=pointer]:
+                - img [ref=e151]
+              - button "Refresh properties" [ref=e152] [cursor=pointer]:
+                - img [ref=e153]
+            - generic [ref=e158]:
+              - button [ref=e160] [cursor=pointer]:
+                - img [ref=e161]
+                - img [ref=e164]
+              - button [ref=e166] [cursor=pointer]:
+                - img [ref=e167]
+          - generic [ref=e170]:
+            - generic [ref=e171]:
+              - generic [ref=e172]:
+                - generic [ref=e174]:
+                  - img [ref=e175]
+                  - generic [ref=e179]: Apartment
+                - generic [ref=e181]: Sold
+                - generic [ref=e182]:
+                  - generic [ref=e183]: A-003
+                  - button "Share property link" [disabled] [ref=e185]:
+                    - img [ref=e186]
+              - generic [ref=e192]:
+                - generic [ref=e193]:
+                  - img [ref=e194]
+                  - generic [ref=e197]: Beirut, Ashrafieh
+                - generic [ref=e198]: $200,000
+                - generic [ref=e199]:
+                  - generic [ref=e200]:
+                    - img [ref=e201]
+                    - generic [ref=e203]: 110.00m²
+                  - generic [ref=e204]:
+                    - img [ref=e205]
+                    - generic [ref=e208]: sea view
+                  - generic [ref=e211]: Concierge
+                - generic [ref=e212]: "Listed: Nov 23, 2025"
+                - generic [ref=e213]:
+                  - button "View" [ref=e214] [cursor=pointer]:
+                    - img [ref=e215]
+                    - generic [ref=e218]: View
+                  - button [ref=e219] [cursor=pointer]:
+                    - img [ref=e220]
+                  - button [ref=e223] [cursor=pointer]:
+                    - img [ref=e224]
+            - generic [ref=e227]:
+              - generic [ref=e228]:
+                - generic [ref=e230]:
+                  - img [ref=e231]
+                  - generic [ref=e235]: Apartment
+                - generic [ref=e237]: Available
+                - generic [ref=e238]:
+                  - generic [ref=e239]: A-002
+                  - button "Share property link" [disabled] [ref=e241]:
+                    - img [ref=e242]
+              - generic [ref=e248]:
+                - generic [ref=e249]:
+                  - img [ref=e250]
+                  - generic [ref=e253]: Beirut, Hamra
+                - generic [ref=e254]: $1,500
+                - generic [ref=e255]:
+                  - generic [ref=e256]:
+                    - img [ref=e257]
+                    - generic [ref=e259]: 90.00m²
+                  - generic [ref=e260]:
+                    - img [ref=e261]
+                    - generic [ref=e264]: open view
+                  - generic [ref=e267]: No Concierge
+                - generic [ref=e268]: "Listed: Nov 23, 2025"
+                - generic [ref=e269]:
+                  - button "View" [ref=e270] [cursor=pointer]:
+                    - img [ref=e271]
+                    - generic [ref=e274]: View
+                  - button [ref=e275] [cursor=pointer]:
+                    - img [ref=e276]
+                  - button [ref=e279] [cursor=pointer]:
+                    - img [ref=e280]
+            - generic [ref=e283]:
+              - generic [ref=e284]:
+                - generic [ref=e286]:
+                  - img [ref=e287]
+                  - generic [ref=e291]: Apartment
+                - generic [ref=e293]: Available
+                - generic [ref=e294]:
+                  - generic [ref=e295]: A-001
+                  - button "Share property link" [disabled] [ref=e297]:
+                    - img [ref=e298]
+              - generic [ref=e304]:
+                - generic [ref=e305]:
+                  - img [ref=e306]
+                  - generic [ref=e309]: Beirut, Downtown
+                - generic [ref=e310]: $250,000
+                - generic [ref=e311]:
+                  - generic [ref=e312]:
+                    - img [ref=e313]
+                    - generic [ref=e315]: 120.50m²
+                  - generic [ref=e316]:
+                    - img [ref=e317]
+                    - generic [ref=e320]: sea view
+                  - generic [ref=e323]: Concierge
+                - generic [ref=e324]: "Listed: Nov 23, 2025"
+                - generic [ref=e325]:
+                  - button "View" [ref=e326] [cursor=pointer]:
+                    - img [ref=e327]
+                    - generic [ref=e330]: View
+                  - button [ref=e331] [cursor=pointer]:
+                    - img [ref=e332]
+                  - button [ref=e335] [cursor=pointer]:
+                    - img [ref=e336]
+            - generic [ref=e339]:
+              - generic [ref=e340]:
+                - generic [ref=e342]:
+                  - img [ref=e343]
+                  - generic [ref=e347]: Villa
+                - generic [ref=e349]: Available
+                - generic [ref=e350]:
+                  - generic [ref=e351]: V-001
+                  - button "Share property link" [disabled] [ref=e353]:
+                    - img [ref=e354]
+              - generic [ref=e360]:
+                - generic [ref=e361]:
+                  - img [ref=e362]
+                  - generic [ref=e365]: Mount Lebanon, Broumana
+                - generic [ref=e366]: $500,000
+                - generic [ref=e367]:
+                  - generic [ref=e368]:
+                    - img [ref=e369]
+                    - generic [ref=e371]: 300.00m²
+                  - generic [ref=e372]:
+                    - img [ref=e373]
+                    - generic [ref=e376]: mountain view
+                  - generic [ref=e379]: Concierge
+                - generic [ref=e380]: "Listed: Nov 23, 2025"
+                - generic [ref=e381]:
+                  - button "View" [ref=e382] [cursor=pointer]:
+                    - img [ref=e383]
+                    - generic [ref=e386]: View
+                  - button [ref=e387] [cursor=pointer]:
+                    - img [ref=e388]
+                  - button [ref=e391] [cursor=pointer]:
+                    - img [ref=e392]
+            - generic [ref=e395]:
+              - generic [ref=e396]:
+                - generic [ref=e398]:
+                  - img [ref=e399]
+                  - generic [ref=e403]: Office
+                - generic [ref=e405]: Available
+                - generic [ref=e406]:
+                  - generic [ref=e407]: O-001
+                  - button "Share property link" [disabled] [ref=e409]:
+                    - img [ref=e410]
+              - generic [ref=e416]:
+                - generic [ref=e417]:
+                  - img [ref=e418]
+                  - generic [ref=e421]: Beirut, Sodeco
+                - generic [ref=e422]: $3,000
+                - generic [ref=e423]:
+                  - generic [ref=e424]:
+                    - img [ref=e425]
+                    - generic [ref=e427]: 150.00m²
+                  - generic [ref=e428]:
+                    - img [ref=e429]
+                    - generic [ref=e432]: no view
+                  - generic [ref=e435]: No Concierge
+                - generic [ref=e436]: "Listed: Nov 23, 2025"
+                - generic [ref=e437]:
+                  - button "View" [ref=e438] [cursor=pointer]:
+                    - img [ref=e439]
+                    - generic [ref=e442]: View
+                  - button [ref=e443] [cursor=pointer]:
+                    - img [ref=e444]
+                  - button [ref=e447] [cursor=pointer]:
+                    - img [ref=e448]
+  - button "Open Next.js Dev Tools" [ref=e456] [cursor=pointer]:
+    - img [ref=e457]
+  - alert [ref=e460]
+```

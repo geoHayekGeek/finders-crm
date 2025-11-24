@@ -6,6 +6,7 @@ import { MonthlyAgentReport, ReportFilters } from '@/types/reports'
 import { reportsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ReportsFilters from './ReportsFilters'
 import CreateReportModal from './CreateReportModal'
@@ -22,6 +23,8 @@ export default function MonthlyAgentStatsTab() {
   const [reports, setReports] = useState<MonthlyAgentReport[]>([])
   const [loading, setLoading] = useState(true)
   const [leadSources, setLeadSources] = useState<string[]>([])
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState<number | null>(null)
   const [filters, setFilters] = useState<ReportFilters>({})
   
   // Modal state
@@ -110,15 +113,20 @@ export default function MonthlyAgentStatsTab() {
 
   // Handle delete
   const handleDelete = async (reportId: number) => {
-    if (!confirm('Are you sure you want to delete this report?')) {
-      return
-    }
+    setReportToDelete(reportId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!reportToDelete) return
 
     try {
-      const response = await reportsApi.delete(reportId, token)
+      const response = await reportsApi.delete(reportToDelete, token)
       if (response.success) {
         showSuccess('Report deleted successfully')
         loadReports()
+        setShowDeleteModal(false)
+        setReportToDelete(null)
       }
     } catch (error: any) {
       console.error('Error deleting report:', error)
@@ -245,7 +253,7 @@ export default function MonthlyAgentStatsTab() {
       'Sales Amount',
       'Agent Com',
       'Finders Com',
-      'Ref Com',
+      // 'Ref Com' removed - use referrals_on_properties_commission instead
       'TL Com',
       'Admin Com',
       'Total Com',
@@ -276,7 +284,7 @@ export default function MonthlyAgentStatsTab() {
         report.sales_amount,
         report.agent_commission,
         report.finders_commission,
-        report.referral_commission,
+        // referral_commission removed - use referrals_on_properties_commission instead
         report.team_leader_commission,
         report.administration_commission,
         report.total_commission,
@@ -348,7 +356,7 @@ export default function MonthlyAgentStatsTab() {
 
               const closureCommission = toNumber(report.agent_commission)
               const referralCommission = toNumber(
-                report.referral_received_commission ?? report.referral_commission
+                report.referral_received_commission ?? 0
               )
               const totalCommission = closureCommission + referralCommission
 
@@ -494,9 +502,7 @@ export default function MonthlyAgentStatsTab() {
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Fin Com
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Ref Com
-                </th>
+                {/* referral_commission removed - use referrals_on_properties_commission instead */}
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   TL Com
                 </th>
@@ -563,9 +569,7 @@ export default function MonthlyAgentStatsTab() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                       {formatCurrency(report.finders_commission)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.referral_commission)}
-                    </td>
+                    {/* referral_commission removed - use referrals_on_properties_commission instead */}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                       {formatCurrency(report.team_leader_commission)}
                     </td>
@@ -649,6 +653,20 @@ export default function MonthlyAgentStatsTab() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setReportToDelete(null)
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Report"
+        message="Are you sure you want to delete this report? This action cannot be undone."
+        confirmText="Delete Report"
+        variant="danger"
+      />
     </div>
   )
 }

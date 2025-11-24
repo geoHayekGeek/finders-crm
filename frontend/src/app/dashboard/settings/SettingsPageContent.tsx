@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 
 interface Setting {
   setting_key: string
@@ -100,10 +101,15 @@ export default function SettingsPageContent() {
   const [smtpSecure, setSmtpSecure] = useState(false)
   const [testingEmail, setTestingEmail] = useState(false)
 
+  // Confirmation modals
+  const [showDeleteLogoModal, setShowDeleteLogoModal] = useState(false)
+  const [showDeleteFaviconModal, setShowDeleteFaviconModal] = useState(false)
+
   // Commissions
   const [commissionAgent, setCommissionAgent] = useState('2')
   const [commissionFinders, setCommissionFinders] = useState('1')
   const [commissionReferral, setCommissionReferral] = useState('0.5')
+  const [commissionReferralExtended, setCommissionReferralExtended] = useState('2')
   const [commissionTeamLeader, setCommissionTeamLeader] = useState('1')
   const [commissionAdministration, setCommissionAdministration] = useState('4')
   const [operationsManagerShareOfAdmin, setOperationsManagerShareOfAdmin] = useState('0.5')
@@ -198,7 +204,8 @@ export default function SettingsPageContent() {
       // Set commissions with defaults
       setCommissionAgent(settingsObj.commission_agent_percentage ?? '2')
       setCommissionFinders(settingsObj.commission_finders_percentage ?? '1')
-      setCommissionReferral(settingsObj.commission_referral_percentage ?? '0.5')
+      setCommissionReferral(settingsObj.commission_referral_internal_percentage ?? '0.5')
+      setCommissionReferralExtended(settingsObj.commission_referral_external_percentage ?? '2')
       setCommissionTeamLeader(settingsObj.commission_team_leader_percentage ?? '1')
       setCommissionAdministration(settingsObj.commission_administration_percentage ?? '4')
       setOperationsManagerShareOfAdmin(settingsObj.commission_operations_manager_share_of_admin ?? '0.5')
@@ -246,7 +253,8 @@ export default function SettingsPageContent() {
         ...Object.entries(reminderSettings).map(([key, value]) => ({ key, value: value.toString() })),
         { key: 'commission_agent_percentage', value: commissionAgent },
         { key: 'commission_finders_percentage', value: commissionFinders },
-        { key: 'commission_referral_percentage', value: commissionReferral },
+        { key: 'commission_referral_internal_percentage', value: commissionReferral },
+        { key: 'commission_referral_external_percentage', value: commissionReferralExtended },
         { key: 'commission_team_leader_percentage', value: commissionTeamLeader },
         { key: 'commission_administration_percentage', value: commissionAdministration },
         { key: 'commission_operations_manager_share_of_admin', value: operationsManagerShareOfAdmin }
@@ -419,10 +427,6 @@ export default function SettingsPageContent() {
   }
 
   const handleDeleteLogo = async () => {
-    if (!confirm('Are you sure you want to delete the company logo?')) {
-      return
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/settings/logo`, {
         method: 'DELETE',
@@ -446,10 +450,6 @@ export default function SettingsPageContent() {
   }
 
   const handleDeleteFavicon = async () => {
-    if (!confirm('Are you sure you want to delete the favicon?')) {
-      return
-    }
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/settings/favicon`, {
         method: 'DELETE',
@@ -657,7 +657,7 @@ export default function SettingsPageContent() {
                       />
                       <button
                         type="button"
-                        onClick={handleDeleteLogo}
+                        onClick={() => setShowDeleteLogoModal(true)}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
                       >
                         <X className="h-4 w-4" />
@@ -782,7 +782,7 @@ export default function SettingsPageContent() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-700">Referral Commission (%)</label>
+                  <label className="block text-sm font-medium text-gray-700">Internal Referral Commission (%)</label>
                   <input
                     type="number"
                     min="0"
@@ -792,7 +792,21 @@ export default function SettingsPageContent() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="0.5"
                   />
-                  <p className="text-xs text-gray-500">External referral share.</p>
+                  <p className="text-xs text-gray-500">Commission for internal referrals (employee referrals).</p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">External Referral Commission (%)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={commissionReferralExtended}
+                    onChange={(e) => setCommissionReferralExtended(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="2"
+                  />
+                  <p className="text-xs text-gray-500">Commission for external referrals (custom/non-employee referrals).</p>
                 </div>
 
                 <div className="space-y-2">
@@ -1189,6 +1203,33 @@ export default function SettingsPageContent() {
         </div>
       </div>
       </div>
+
+      {/* Confirmation Modals */}
+      <ConfirmationModal
+        isOpen={showDeleteLogoModal}
+        onClose={() => setShowDeleteLogoModal(false)}
+        onConfirm={async () => {
+          setShowDeleteLogoModal(false)
+          await handleDeleteLogo()
+        }}
+        title="Delete Company Logo"
+        message="Are you sure you want to delete the company logo? This action cannot be undone."
+        confirmText="Delete Logo"
+        variant="danger"
+      />
+
+      <ConfirmationModal
+        isOpen={showDeleteFaviconModal}
+        onClose={() => setShowDeleteFaviconModal(false)}
+        onConfirm={async () => {
+          setShowDeleteFaviconModal(false)
+          await handleDeleteFavicon()
+        }}
+        title="Delete Favicon"
+        message="Are you sure you want to delete the favicon? This action cannot be undone."
+        confirmText="Delete Favicon"
+        variant="danger"
+      />
     </>
   )
 }

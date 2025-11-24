@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   Building2, 
   Plus,
@@ -28,8 +29,9 @@ import { useToast } from '@/contexts/ToastContext'
 
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageProperties } = usePermissions()
+  const { canManageProperties, canViewProperties } = usePermissions()
   const { showSuccess, showError, showWarning } = useToast()
+  const router = useRouter()
   
   // State management
   const [properties, setProperties] = useState<Property[]>([])
@@ -114,12 +116,21 @@ export default function PropertiesPage() {
     }
   }, [showExportDropdown])
 
+  // Check if user can view properties (redirect accountant)
+  useEffect(() => {
+    if (isAuthenticated && user && !canViewProperties) {
+      // Accountant or other roles without property access should be redirected
+      showError('You do not have permission to view properties')
+      router.push('/dashboard')
+    }
+  }, [isAuthenticated, user, canViewProperties, router, showError])
+
   // Load data on component mount
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && canViewProperties) {
       loadData()
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, canViewProperties])
 
   // Reload data when filters change
   useEffect(() => {

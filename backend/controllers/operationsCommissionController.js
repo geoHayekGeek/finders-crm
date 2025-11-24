@@ -1,6 +1,7 @@
 // backend/controllers/operationsCommissionController.js
 // Controller for Operations Commission Reports
 
+const pool = require('../config/db');
 const operationsCommissionModel = require('../models/operationsCommissionModel');
 const { exportOperationsCommissionToExcel, exportOperationsCommissionToPDF } = require('../utils/operationsCommissionExporter');
 
@@ -116,12 +117,29 @@ async function createReport(req, res) {
       });
     }
 
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
+    // Normalize dates to UTC to match how they're stored in the database
+    const startDateUtc = new Date(Date.UTC(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      0, 0, 0, 0
+    ));
+    const endDateUtc = new Date(Date.UTC(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate(),
+      23, 59, 59, 999
+    ));
+
+    const startDateStr = startDateUtc.toISOString().split('T')[0];
+    const endDateStr = endDateUtc.toISOString().split('T')[0];
     
-    // Check if report already exists
-    const existing = await operationsCommissionModel.getAllReports({ start_date: startDateStr, end_date: endDateStr });
-    if (existing.length > 0) {
+    // Check if report already exists for this exact date range
+    const existing = await pool.query(
+      'SELECT id FROM operations_commission_reports WHERE start_date = $1::date AND end_date = $2::date',
+      [startDateStr, endDateStr]
+    );
+    if (existing.rows.length > 0) {
       return res.status(409).json({
         success: false,
         message: 'Report for this date range already exists'

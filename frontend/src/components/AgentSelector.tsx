@@ -18,12 +18,14 @@ interface AgentSelectorProps {
   selectedAgentId?: number
   onAgentChange: (agent: Agent | undefined) => void
   placeholder?: string
+  teamLeaderId?: number // For team leaders to filter agents under them
 }
 
 export function AgentSelector({ 
   selectedAgentId, 
   onAgentChange, 
-  placeholder = "Select an agent..."
+  placeholder = "Select an agent...",
+  teamLeaderId
 }: AgentSelectorProps) {
   const { token } = useAuth()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -44,15 +46,38 @@ export function AgentSelector({
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching agents with token...')
-      const data = await usersApi.getAgents(token)
-      console.log('👥 Agents data:', data)
+      console.log('🔍 Fetching agents with token...', { teamLeaderId })
       
-      if (data.success) {
-        setAgents(data.agents)
-        console.log('✅ Agents loaded:', data.agents.length)
+      if (teamLeaderId) {
+        // For team leaders: get themselves + their agents
+        const [agentsData, teamLeaderData] = await Promise.all([
+          usersApi.getTeamLeaderAgents(teamLeaderId, token),
+          usersApi.getByRole('team_leader', token, teamLeaderId).then(res => res.data || [])
+        ])
+        
+        const teamAgents = agentsData.success ? agentsData.agents : []
+        const teamLeader = teamLeaderData.find((u: any) => u.id === teamLeaderId)
+        
+        // Combine team leader + their agents
+        const allAgents = []
+        if (teamLeader) {
+          allAgents.push(teamLeader)
+        }
+        allAgents.push(...teamAgents)
+        
+        setAgents(allAgents)
+        console.log('✅ Team leader agents loaded:', allAgents.length)
       } else {
-        setError(data.message || 'Failed to load agents')
+        // For admin/operations/agent manager: get all agents
+        const data = await usersApi.getAgents(token)
+        console.log('👥 Agents data:', data)
+        
+        if (data.success) {
+          setAgents(data.agents)
+          console.log('✅ Agents loaded:', data.agents.length)
+        } else {
+          setError(data.message || 'Failed to load agents')
+        }
       }
     } catch (error) {
       console.error('❌ Error fetching agents:', error)
@@ -70,7 +95,7 @@ export function AgentSelector({
     if (token) {
       fetchAgents()
     }
-  }, [token])
+  }, [token, teamLeaderId])
 
   // Close dropdown when clicking outside
   useEffect(() => {

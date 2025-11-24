@@ -6,6 +6,7 @@ import { operationsDailyApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { OperationsDailyReport } from '@/types/reports'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 
 interface EditOperationsDailyModalProps {
   report: OperationsDailyReport
@@ -20,6 +21,8 @@ export default function EditOperationsDailyModal({
 }: EditOperationsDailyModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
+
+  const [showRecalculateModal, setShowRecalculateModal] = useState(false)
 
   const [formData, setFormData] = useState({
     preparing_contract: report.preparing_contract || 0,
@@ -60,16 +63,17 @@ export default function EditOperationsDailyModal({
   }
 
   const handleRecalculate = async () => {
-    if (!confirm('Recalculate the calculated fields (Properties Added, Leads Responded To, Amending Previous Properties)?')) {
-      return
-    }
+    setShowRecalculateModal(true)
+  }
 
+  const confirmRecalculate = async () => {
     try {
       setLoading(true)
       const response = await operationsDailyApi.update(report.id, { recalculate: true }, token)
       
       if (response.success) {
         showSuccess('Report recalculated successfully')
+        setShowRecalculateModal(false)
         onSuccess()
       }
     } catch (error: any) {
@@ -242,6 +246,18 @@ export default function EditOperationsDailyModal({
           </div>
         </form>
       </div>
+
+      {/* Recalculate Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showRecalculateModal}
+        onClose={() => setShowRecalculateModal(false)}
+        onConfirm={confirmRecalculate}
+        title="Recalculate Report"
+        message="Recalculate the calculated fields (Properties Added, Leads Responded To, Amending Previous Properties)?"
+        confirmText="Recalculate"
+        variant="warning"
+        loading={loading}
+      />
     </div>
   )
 }

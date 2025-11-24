@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { Referral } from '@/types/property'
 import { X, Plus, UserPlus } from 'lucide-react'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 
 interface Agent {
   id: number
@@ -57,6 +58,8 @@ export function PropertyReferralsSection({
   const [showAddForm, setShowAddForm] = useState(false)
   const [selectedAgentId, setSelectedAgentId] = useState<number | ''>('')
   const [referralDate, setReferralDate] = useState(new Date().toISOString().split('T')[0])
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [referralToDelete, setReferralToDelete] = useState<number | null>(null)
   const [isAdding, setIsAdding] = useState(false)
 
   const handleAddReferral = async () => {
@@ -78,12 +81,19 @@ export function PropertyReferralsSection({
   const handleDeleteReferral = async (referralId: number) => {
     if (!onDeleteReferral) return
     
-    if (window.confirm('Are you sure you want to delete this referral?')) {
-      try {
-        await onDeleteReferral(referralId)
-      } catch (error) {
-        console.error('Error deleting referral:', error)
-      }
+    setReferralToDelete(referralId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeleteReferral = async () => {
+    if (!onDeleteReferral || !referralToDelete) return
+    
+    try {
+      await onDeleteReferral(referralToDelete)
+      setShowDeleteModal(false)
+      setReferralToDelete(null)
+    } catch (error) {
+      console.error('Error deleting referral:', error)
     }
   }
 
@@ -266,6 +276,20 @@ export function PropertyReferralsSection({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setReferralToDelete(null)
+        }}
+        onConfirm={confirmDeleteReferral}
+        title="Delete Referral"
+        message="Are you sure you want to delete this referral? This action cannot be undone."
+        confirmText="Delete Referral"
+        variant="danger"
+      />
     </div>
   )
 }

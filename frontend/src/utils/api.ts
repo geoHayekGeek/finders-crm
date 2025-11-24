@@ -623,6 +623,15 @@ export const leadNotesApi = {
       method: 'POST',
       body: JSON.stringify({ note_text }),
     }, token),
+  update: (leadId: number, noteId: number, note_text: string, token?: AuthToken) =>
+    apiRequest<{ success: boolean; data: LeadNote; message?: string }>(`/leads/${leadId}/notes/${noteId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ note_text }),
+    }, token),
+  delete: (leadId: number, noteId: number, token?: AuthToken) =>
+    apiRequest<{ success: boolean; message?: string }>(`/leads/${leadId}/notes/${noteId}`, {
+      method: 'DELETE',
+    }, token),
 }
 
 // Categories API

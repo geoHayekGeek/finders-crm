@@ -1,0 +1,18 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "token",
+          "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6Mywicm9sZSI6Im9wZXJhdGlvbnMgbWFuYWdlciIsImlhdCI6MTc2Mzg1MTY2OSwiZXhwIjoxNzY0NDU2NDY5fQ.zKs9bqSKpZGwHIGLwBYuNkqblx23j4iSNAJk-7A6hvg"
+        },
+        {
+          "name": "user",
+          "value": "{\"id\":3,\"name\":\"Operations Manager\",\"email\":\"opsmanager@test.com\",\"role\":\"operations manager\"}"
+        }
+      ]
+    }
+  ]
+}

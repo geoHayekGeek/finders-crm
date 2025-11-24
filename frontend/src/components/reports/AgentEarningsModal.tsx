@@ -26,7 +26,7 @@ export default function AgentEarningsModal({ report, onClose }: AgentEarningsMod
 
   const closureCommission = toNumber(report.agent_commission)
   const referralCommission = toNumber(
-    report.referral_received_commission ?? report.referral_commission
+    report.referral_received_commission ?? 0
   )
   const totalCommission = closureCommission + referralCommission
 

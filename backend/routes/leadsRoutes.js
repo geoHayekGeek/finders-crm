@@ -61,6 +61,8 @@ router.get('/agent/:agentId/referral-stats', canViewLeads, validateAgentId, hand
 // Lead Notes Routes
 router.get('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadNotes);
 router.post('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.addLeadNote);
+router.put('/:id/notes/:noteId', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.updateLeadNote);
+router.delete('/:id/notes/:noteId', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.deleteLeadNote);
 
 // GET /api/leads/:id - Get single lead (filtered by role) - MUST BE LAST GET route
 router.get('/:id', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadById);

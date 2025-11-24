@@ -12,15 +12,17 @@ interface Property {
   reference_number: string
   location: string
   property_type: string
+  agent_id?: number
 }
 
 interface PropertySelectorProps {
   selectedPropertyId?: number
-  onSelect: (propertyId: number) => void
+  onSelect: (propertyId: number, agentId?: number) => void
   error?: string
+  disabled?: boolean
 }
 
-export default function PropertySelectorForViewings({ selectedPropertyId, onSelect, error }: PropertySelectorProps) {
+export default function PropertySelectorForViewings({ selectedPropertyId, onSelect, error, disabled = false }: PropertySelectorProps) {
   const { token, user } = useAuth()
   const [properties, setProperties] = useState<Property[]>([])
   const [loading, setLoading] = useState(false)
@@ -124,7 +126,7 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
   })
 
   const handleSelect = (property: Property) => {
-    onSelect(property.id)
+    onSelect(property.id, property.agent_id)
     setIsDropdownOpen(false)
     setSearchTerm('')
   }
@@ -177,8 +179,8 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className={`flex-1 px-4 py-3 text-left border rounded-lg hover:border-green-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors bg-white ${
               error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            disabled={loading}
+            } ${disabled ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
+            disabled={loading || disabled}
           >
             <div className="flex items-center justify-between">
               <span className={selectedProperty ? "text-gray-900" : "text-gray-600"}>
@@ -191,7 +193,7 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
           <button
             type="button"
             onClick={fetchProperties}
-            disabled={loading}
+            disabled={loading || disabled}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
             title="Refresh properties"
           >

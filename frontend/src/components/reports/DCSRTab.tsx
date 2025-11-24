@@ -6,6 +6,7 @@ import { DCSRMonthlyReport, DCSRReportFilters } from '@/types/reports'
 import { dcsrApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateDCSRModal from './CreateDCSRModal'
 import EditDCSRModal from './EditDCSRModal'
 
@@ -27,6 +28,8 @@ export default function DCSRTab() {
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [reportToDelete, setReportToDelete] = useState<number | null>(null)
   const [editingReport, setEditingReport] = useState<DCSRMonthlyReport | null>(null)
 
   const rangeFormatter = useMemo(
@@ -97,15 +100,20 @@ export default function DCSRTab() {
 
   // Handle delete
   const handleDelete = async (reportId: number) => {
-    if (!confirm('Are you sure you want to delete this DCSR report?')) {
-      return
-    }
+    setReportToDelete(reportId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!reportToDelete) return
 
     try {
-      const response = await dcsrApi.delete(reportId, token)
+      const response = await dcsrApi.delete(reportToDelete, token)
       if (response.success) {
         showSuccess('DCSR report deleted successfully')
         loadReports()
+        setShowDeleteModal(false)
+        setReportToDelete(null)
       }
     } catch (error: any) {
       console.error('Error deleting DCSR report:', error)
@@ -523,6 +531,20 @@ export default function DCSRTab() {
           }}
         />
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setReportToDelete(null)
+        }}
+        onConfirm={confirmDelete}
+        title="Delete DCSR Report"
+        message="Are you sure you want to delete this DCSR report? This action cannot be undone."
+        confirmText="Delete Report"
+        variant="danger"
+      />
     </div>
   )
 }

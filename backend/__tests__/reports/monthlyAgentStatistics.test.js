@@ -353,7 +353,7 @@ describe('Monthly Agent Statistics Report', () => {
   });
 
   describe('updateReport', () => {
-    it('should update report successfully', async () => {
+    it('should update report successfully with boosts', async () => {
       req.params = { id: '1' };
       req.body = { boosts: 150 };
       const mockUpdatedReport = {
@@ -367,6 +367,43 @@ describe('Monthly Agent Statistics Report', () => {
       await ReportsController.updateReport(req, res);
 
       expect(Report.updateReport).toHaveBeenCalledWith(1, { boosts: 150 });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockUpdatedReport,
+        message: 'Report updated successfully'
+      });
+    });
+
+    it('should update report with all commission fields', async () => {
+      req.params = { id: '1' };
+      req.body = {
+        listings_count: 20,
+        viewings_count: 15,
+        boosts: 200,
+        sales_count: 10,
+        sales_amount: 1000000,
+        agent_commission: 20000,
+        finders_commission: 10000,
+        // referral_commission removed - use referrals_on_properties_commission instead
+        team_leader_commission: 10000,
+        administration_commission: 40000,
+        total_commission: 80000, // Updated: removed referral_commission (5000)
+        referral_received_count: 5,
+        referral_received_commission: 2500,
+        referrals_on_properties_count: 3,
+        referrals_on_properties_commission: 1500
+      };
+      const mockUpdatedReport = {
+        id: 1,
+        agent_id: 1,
+        ...req.body
+      };
+
+      Report.updateReport.mockResolvedValue(mockUpdatedReport);
+
+      await ReportsController.updateReport(req, res);
+
+      expect(Report.updateReport).toHaveBeenCalledWith(1, req.body);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockUpdatedReport,

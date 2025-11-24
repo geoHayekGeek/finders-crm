@@ -56,12 +56,18 @@ export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Prop
   {
     accessorKey: 'owner_name',
     header: 'Owner',
-    cell: ({ row }) => (
-      <div className="flex items-center">
-        <User className="h-4 w-4 mr-2 text-blue-500" />
-        <span className="text-sm font-medium">{row.getValue('owner_name')}</span>
-      </div>
-    ),
+    cell: ({ row }) => {
+      const ownerName = row.getValue('owner_name') as string
+      const isHidden = ownerName === 'Hidden'
+      return (
+        <div className="flex items-center">
+          <User className="h-4 w-4 mr-2 text-blue-500" />
+          <span className={`text-sm font-medium ${isHidden ? 'text-gray-400 italic' : ''}`}>
+            {isHidden ? 'Hidden' : ownerName}
+          </span>
+        </div>
+      )
+    },
   },
   {
     accessorKey: 'price',
@@ -218,9 +224,10 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean): Column
     cell: ({ row }) => {
       const phone = row.getValue('phone_number') as string
       if (!phone) return <span className="text-gray-400">-</span>
+      const isHidden = phone === 'Hidden'
       return (
-        <div className="text-sm text-blue-600">
-          {phone}
+        <div className={`text-sm ${isHidden ? 'text-gray-400 italic' : 'text-blue-600'}`}>
+          {isHidden ? 'Hidden' : phone}
         </div>
       )
     },

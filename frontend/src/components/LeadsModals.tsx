@@ -199,7 +199,7 @@ export function LeadsModals({
   const [notes, setNotes] = useState<LeadNote[]>([])
   const [notesLoading, setNotesLoading] = useState(false)
   const [newNoteText, setNewNoteText] = useState('')
-  const [editingMyNote, setEditingMyNote] = useState(false)
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
 
   const canAddNote = (() => {
     if (!user || !viewingLead) return false
@@ -238,30 +238,42 @@ export function LeadsModals({
     } else {
       setNotes([])
       setNewNoteText('')
-      setEditingMyNote(false)
+      setEditingNoteId(null)
     }
   }, [showViewLeadModal, viewingLead, token, user])
 
-  const handleAddNote = async () => {
+  const handleSaveNote = async (noteId?: number) => {
     if (!token || !viewingLead) return
     const text = newNoteText.trim()
     if (!text) return
     try {
-      const response = await leadNotesApi.create(viewingLead.id, text, token)
-      if (response.success) {
-        setNotes(prev => {
-          const others = prev.filter(n => n.id !== response.data.id)
-          return [response.data, ...others]
-        })
-        setNewNoteText(response.data.note_text)
-        setEditingMyNote(false)
-        showSuccess('Note saved')
+      let response
+      if (noteId) {
+        // Update existing note
+        response = await leadNotesApi.update(viewingLead.id, noteId, text, token)
       } else {
-        showError(response.message || 'Failed to add note')
+        // Create new note
+        response = await leadNotesApi.create(viewingLead.id, text, token)
+      }
+      
+      if (response.success) {
+        // Reload notes to get the updated list
+        const notesResponse = await leadNotesApi.getForLead(viewingLead.id, token)
+        if (notesResponse.success) {
+          setNotes(notesResponse.data)
+          if (user) {
+            const myNote = notesResponse.data.find(n => n.created_by === user.id)
+            setNewNoteText(myNote ? myNote.note_text : '')
+          }
+        }
+        setEditingNoteId(null)
+        showSuccess(noteId ? 'Note updated' : 'Note saved')
+      } else {
+        showError(response.message || (noteId ? 'Failed to update note' : 'Failed to add note'))
       }
     } catch (error) {
-      console.error('Error adding lead note:', error)
-      showError(error instanceof ApiError ? error.message : 'Failed to add note')
+      console.error('Error saving lead note:', error)
+      showError(error instanceof ApiError ? error.message : (noteId ? 'Failed to update note' : 'Failed to add note'))
     }
   }
 
@@ -1256,7 +1268,7 @@ export function LeadsModals({
                     <h3 className="text-sm font-semibold text-gray-800 mb-2">Lead Notes</h3>
                     {user && (
                       <p className="text-xs text-gray-500 mb-2">
-                        You can keep one personal note on this lead. Use the edit icon on your note to change it.
+                        Add notes about this lead. You can edit or delete your own notes.
                       </p>
                     )}
                     {notesLoading ? (
@@ -1267,7 +1279,8 @@ export function LeadsModals({
                       <div className="space-y-2 mb-3">
                         {notes.map(note => {
                           const isMyNote = user && note.created_by === user.id
-                          const isEditingThis = isMyNote && editingMyNote
+                          const canEditNote = user && (user.role === 'admin' || note.created_by === user.id)
+                          const isEditingThis = editingNoteId === note.id
                           const createdAt = new Date(note.created_at)
                           const updatedAt = note.updated_at ? new Date(note.updated_at) : null
 
@@ -1295,17 +1308,17 @@ export function LeadsModals({
                                     )}
                                   </p>
                                 </div>
-                                {isMyNote && canAddNote && (
+                                {canEditNote && (
                                   <div className="flex flex-col items-end gap-1">
                                     {!isEditingThis && (
                                       <button
                                         type="button"
                                         onClick={() => {
                                           setNewNoteText(note.note_text)
-                                          setEditingMyNote(true)
+                                          setEditingNoteId(note.id)
                                         }}
                                         className="p-1.5 rounded-md text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                                        title="Edit your note"
+                                        title="Edit note"
                                       >
                                         <Edit3 className="h-4 w-4" />
                                       </button>
@@ -1314,7 +1327,7 @@ export function LeadsModals({
                                       <div className="flex gap-2">
                                         <button
                                           type="button"
-                                          onClick={handleAddNote}
+                                          onClick={() => handleSaveNote(note.id)}
                                           disabled={!newNoteText.trim()}
                                           className="px-2 py-1 text-xs rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
@@ -1323,8 +1336,8 @@ export function LeadsModals({
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            setEditingMyNote(false)
-                                            setNewNoteText(note.note_text)
+                                            setEditingNoteId(null)
+                                            setNewNoteText('')
                                           }}
                                           className="px-2 py-1 text-xs rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
                                         >
@@ -1341,8 +1354,8 @@ export function LeadsModals({
                       </div>
                     )}
 
-                    {/* Only show composer if user can add and doesn't already have a note */}
-                    {canAddNote && user && !notes.some(n => n.created_by === user.id) && (
+                    {/* Show composer if user can add notes */}
+                    {canAddNote && user && editingNoteId === null && (
                       <div className="mt-2">
                         <label className="block text-xs font-medium text-gray-700 mb-1">
                           Your note
@@ -1357,7 +1370,7 @@ export function LeadsModals({
                         <div className="flex justify-end mt-2">
                           <button
                             type="button"
-                            onClick={handleAddNote}
+                            onClick={() => handleSaveNote()}
                             disabled={!newNoteText.trim()}
                             className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors"
                           >

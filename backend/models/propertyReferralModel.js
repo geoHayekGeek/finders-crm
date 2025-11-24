@@ -245,7 +245,16 @@ class PropertyReferral {
 
   /**
    * Apply the 30-day external rule to all referrals for a property
-   * This checks all internal referrals and marks those older than 30 days from the most recent referral as external
+   * 
+   * Commission Logic:
+   * - If X refers to Y: X is internal (gets internal commission rate)
+   * - If within 30 days, Y refers to Z: X stays internal, Y becomes internal (both get internal rate)
+   * - If after 30 days, Y refers to Z: Y becomes internal, X becomes external (Y gets internal rate, X gets external rate)
+   * 
+   * This method:
+   * - Gets all referrals ordered by date (newest first)
+   * - The most recent referral is always internal
+   * - Any referral more than 30 days older than the most recent one is marked as external
    * 
    * @param {number} propertyId - The property ID
    * @returns {Promise<Object>} Object containing the number of referrals marked as external

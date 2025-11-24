@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { LeadReferral } from '@/types/leads'
 import { X, Plus, UserPlus } from 'lucide-react'
 
@@ -75,15 +76,25 @@ export function LeadReferralsSection({
     }
   }
 
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [referralToDelete, setReferralToDelete] = useState<number | null>(null)
+
   const handleDeleteReferral = async (referralId: number) => {
     if (!onDeleteReferral) return
     
-    if (window.confirm('Are you sure you want to delete this referral?')) {
-      try {
-        await onDeleteReferral(referralId)
-      } catch (error) {
-        console.error('Error deleting referral:', error)
-      }
+    setReferralToDelete(referralId)
+    setShowDeleteModal(true)
+  }
+
+  const confirmDeleteReferral = async () => {
+    if (!onDeleteReferral || !referralToDelete) return
+    
+    try {
+      await onDeleteReferral(referralToDelete)
+      setShowDeleteModal(false)
+      setReferralToDelete(null)
+    } catch (error) {
+      console.error('Error deleting referral:', error)
     }
   }
 
@@ -281,6 +292,20 @@ export function LeadReferralsSection({
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false)
+          setReferralToDelete(null)
+        }}
+        onConfirm={confirmDeleteReferral}
+        title="Delete Referral"
+        message="Are you sure you want to delete this referral? This action cannot be undone."
+        confirmText="Delete Referral"
+        variant="danger"
+      />
     </div>
   )
 }

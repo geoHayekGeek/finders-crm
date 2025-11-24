@@ -877,13 +877,13 @@ describe('Leads Controller', () => {
       const mockNotes = [mockNote];
 
       Lead.getLeadById.mockResolvedValue(mockLead);
-      LeadNote.createOrUpdateNote.mockResolvedValue(mockNote);
+      LeadNote.createNote.mockResolvedValue(mockNote);
       LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
 
       await LeadsController.addLeadNote(req, res);
 
       expect(Lead.getLeadById).toHaveBeenCalledWith('1');
-      expect(LeadNote.createOrUpdateNote).toHaveBeenCalledWith('1', req.user, 'New note');
+      expect(LeadNote.createNote).toHaveBeenCalledWith('1', req.user, 'New note');
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -938,7 +938,8 @@ describe('Leads Controller', () => {
       req.params.id = '1';
       req.body = { note_text: 'New note' };
       Lead.getLeadById.mockResolvedValue({ id: 1, agent_id: 1 });
-      LeadNote.createOrUpdateNote.mockRejectedValue(new Error('Database error'));
+      pool.query.mockResolvedValue({ rows: [] }); // Team agent check
+      LeadNote.createNote.mockRejectedValue(new Error('Database error'));
 
       await LeadsController.addLeadNote(req, res);
 
@@ -1123,6 +1124,386 @@ describe('Leads Controller', () => {
         success: false,
         message: 'Failed to delete referral',
         error: 'Internal server error'
+      });
+    });
+  });
+
+  describe('Team Leader Lead Permissions', () => {
+    it('should allow team leader to view their own lead', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.params.id = '1';
+      const mockLead = { id: 1, agent_id: 10, customer_name: 'Customer 1' };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+
+      await LeadsController.getLeadById(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: expect.objectContaining({
+          id: 1,
+          customer_name: 'Customer 1'
+        }),
+        userRole: 'team_leader'
+      });
+    });
+
+    it('should allow team leader to view their team agent\'s lead', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.params.id = '1';
+      const mockLead = { id: 1, agent_id: 20, customer_name: 'Customer 1' };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+      pool.query.mockResolvedValue({ rows: [{ 1: 1 }] }); // Team agent check returns result
+
+      await LeadsController.getLeadById(req, res);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('team_agents'),
+        [10, 20]
+      );
+      expect(res.json).toHaveBeenCalled();
+    });
+
+    it('should prevent team leader from viewing lead outside their team', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.params.id = '1';
+      const mockLead = { id: 1, agent_id: 99, customer_name: 'Customer 1' };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+      pool.query.mockResolvedValue({ rows: [] }); // Team agent check returns empty
+
+      await LeadsController.getLeadById(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You do not have permission to view this lead'
+      });
+    });
+
+    it('should allow team leader to update their own lead', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.params.id = '1';
+      req.body = { customer_name: 'Updated Customer' };
+      const mockLead = { id: 1, agent_id: 10, customer_name: 'Customer 1' };
+      const mockUpdatedLead = { ...mockLead, customer_name: 'Updated Customer' };
+      const mockCompleteLead = { ...mockUpdatedLead, referrals: [] };
+
+      Lead.getLeadById.mockResolvedValueOnce(mockLead);
+      Lead.updateLead.mockResolvedValue(mockUpdatedLead);
+      Lead.getLeadById.mockResolvedValueOnce(mockCompleteLead);
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.updateLead(req, res);
+
+      expect(Lead.updateLead).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockCompleteLead,
+        message: 'Lead updated successfully'
+      });
+    });
+
+    it('should allow team leader to update their team agent\'s lead', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.params.id = '1';
+      req.body = { customer_name: 'Updated Customer' };
+      const mockLead = { id: 1, agent_id: 20, customer_name: 'Customer 1' };
+      const mockUpdatedLead = { ...mockLead, customer_name: 'Updated Customer' };
+      const mockCompleteLead = { ...mockUpdatedLead, referrals: [] };
+
+      Lead.getLeadById.mockResolvedValueOnce(mockLead);
+      pool.query.mockResolvedValue({ rows: [{ 1: 1 }] }); // Team agent check
+      Lead.updateLead.mockResolvedValue(mockUpdatedLead);
+      Lead.getLeadById.mockResolvedValueOnce(mockCompleteLead);
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.updateLead(req, res);
+
+      expect(Lead.updateLead).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalled();
+    });
+
+    it('should prevent team leader from updating lead outside their team', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.params.id = '1';
+      req.body = { customer_name: 'Updated Customer' };
+      const mockLead = { id: 1, agent_id: 99, customer_name: 'Customer 1' };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+      pool.query.mockResolvedValue({ rows: [] }); // Team agent check returns empty
+
+      await LeadsController.updateLead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You do not have permission to update this lead'
+      });
+    });
+  });
+
+  describe('Lead Notes Permissions', () => {
+    describe('getLeadNotes', () => {
+      it('should show all notes to admin', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.params.id = '1';
+        const mockLead = { id: 1 };
+        const mockNotes = [
+          { id: 1, note_text: 'Note 1', created_by: 1, created_by_role: 'admin' },
+          { id: 2, note_text: 'Note 2', created_by: 2, created_by_role: 'agent' },
+          { id: 3, note_text: 'Note 3', created_by: 3, created_by_role: 'operations' }
+        ];
+
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.getLeadNotes(req, res);
+
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: mockNotes,
+          message: 'Retrieved 3 notes for lead'
+        });
+      });
+
+      it('should show all notes to operations manager', async () => {
+        req.user = { id: 1, role: 'operations_manager' };
+        req.params.id = '1';
+        const mockLead = { id: 1 };
+        const mockNotes = [
+          { id: 1, note_text: 'Note 1', created_by: 1, created_by_role: 'admin' },
+          { id: 2, note_text: 'Note 2', created_by: 2, created_by_role: 'agent' }
+        ];
+
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.getLeadNotes(req, res);
+
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: mockNotes,
+          message: 'Retrieved 2 notes for lead'
+        });
+      });
+
+      it('should filter notes for non-admin/operations_manager users', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params.id = '1';
+        const mockLead = { id: 1 };
+        const mockNotes = [
+          { id: 1, note_text: 'Note 1', created_by: 1, created_by_role: 'agent' },
+          { id: 2, note_text: 'Note 2', created_by: 2, created_by_role: 'agent' }
+        ];
+
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.getLeadNotes(req, res);
+
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: [{ id: 1, note_text: 'Note 1', created_by: 1, created_by_role: 'agent' }],
+          message: 'Retrieved 1 notes for lead'
+        });
+      });
+    });
+
+    describe('addLeadNote', () => {
+      it('should allow team leader to add note to their team agent\'s lead', async () => {
+        req.user = { id: 10, role: 'team_leader' };
+        req.params.id = '1';
+        req.body = { note_text: 'New note' };
+        const mockLead = { id: 1, agent_id: 20 };
+        const mockNote = { id: 1, lead_id: 1, note_text: 'New note', created_by: 10 };
+        const mockNotes = [mockNote];
+
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        pool.query.mockResolvedValue({ rows: [{ 1: 1 }] }); // Team agent check
+        LeadNote.createNote.mockResolvedValue(mockNote);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.addLeadNote(req, res);
+
+        expect(LeadNote.createNote).toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(201);
+      });
+
+      it('should allow anyone who can view lead to add note', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params.id = '1';
+        req.body = { note_text: 'New note' };
+        const mockLead = { id: 1, agent_id: 1 };
+        const mockNote = { id: 1, lead_id: 1, note_text: 'New note', created_by: 1 };
+        const mockNotes = [mockNote];
+
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        LeadNote.createNote.mockResolvedValue(mockNote);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.addLeadNote(req, res);
+
+        expect(LeadNote.createNote).toHaveBeenCalled();
+        expect(res.status).toHaveBeenCalledWith(201);
+      });
+    });
+
+    describe('updateLeadNote', () => {
+      it('should allow admin to update any note', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.params = { id: '1', noteId: '10' };
+        req.body = { note_text: 'Updated note' };
+        const mockNote = { id: 10, lead_id: 1, note_text: 'Original note', created_by: 99 };
+        const mockUpdatedNote = { ...mockNote, note_text: 'Updated note' };
+        const mockLead = { id: 1 };
+        const mockNotes = [mockUpdatedNote];
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+        LeadNote.updateNote.mockResolvedValue(mockUpdatedNote);
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.updateLeadNote(req, res);
+
+        expect(LeadNote.updateNote).toHaveBeenCalledWith('10', 'Updated note');
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          data: expect.objectContaining({ note_text: 'Updated note' }),
+          message: 'Note updated successfully'
+        });
+      });
+
+      it('should allow user to update their own note', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params = { id: '1', noteId: '10' };
+        req.body = { note_text: 'Updated note' };
+        const mockNote = { id: 10, lead_id: 1, note_text: 'Original note', created_by: 1 };
+        const mockUpdatedNote = { ...mockNote, note_text: 'Updated note' };
+        const mockLead = { id: 1 };
+        const mockNotes = [mockUpdatedNote];
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+        LeadNote.updateNote.mockResolvedValue(mockUpdatedNote);
+        Lead.getLeadById.mockResolvedValue(mockLead);
+        LeadNote.getNotesForLead.mockResolvedValue(mockNotes);
+
+        await LeadsController.updateLeadNote(req, res);
+
+        expect(LeadNote.updateNote).toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalled();
+      });
+
+      it('should prevent user from updating other user\'s note', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params = { id: '1', noteId: '10' };
+        req.body = { note_text: 'Updated note' };
+        const mockNote = { id: 10, lead_id: 1, note_text: 'Original note', created_by: 99 };
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+
+        await LeadsController.updateLeadNote(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You do not have permission to edit this note'
+        });
+        expect(LeadNote.updateNote).not.toHaveBeenCalled();
+      });
+
+      it('should return 404 if note not found', async () => {
+        req.params = { id: '1', noteId: '999' };
+        req.body = { note_text: 'Updated note' };
+        LeadNote.getNoteById.mockResolvedValue(null);
+
+        await LeadsController.updateLeadNote(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'Note not found'
+        });
+      });
+
+      it('should return 400 if note does not belong to lead', async () => {
+        req.params = { id: '1', noteId: '10' };
+        req.body = { note_text: 'Updated note' };
+        const mockNote = { id: 10, lead_id: 99, note_text: 'Original note', created_by: 1 };
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+
+        await LeadsController.updateLeadNote(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'Note does not belong to this lead'
+        });
+      });
+    });
+
+    describe('deleteLeadNote', () => {
+      it('should allow admin to delete any note', async () => {
+        req.user = { id: 1, role: 'admin' };
+        req.params = { id: '1', noteId: '10' };
+        const mockNote = { id: 10, lead_id: 1, note_text: 'Note to delete', created_by: 99 };
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+        LeadNote.deleteNote.mockResolvedValue(mockNote);
+
+        await LeadsController.deleteLeadNote(req, res);
+
+        expect(LeadNote.deleteNote).toHaveBeenCalledWith('10');
+        expect(res.json).toHaveBeenCalledWith({
+          success: true,
+          message: 'Note deleted successfully'
+        });
+      });
+
+      it('should allow user to delete their own note', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params = { id: '1', noteId: '10' };
+        const mockNote = { id: 10, lead_id: 1, note_text: 'Note to delete', created_by: 1 };
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+        LeadNote.deleteNote.mockResolvedValue(mockNote);
+
+        await LeadsController.deleteLeadNote(req, res);
+
+        expect(LeadNote.deleteNote).toHaveBeenCalled();
+        expect(res.json).toHaveBeenCalled();
+      });
+
+      it('should prevent user from deleting other user\'s note', async () => {
+        req.user = { id: 1, role: 'agent' };
+        req.params = { id: '1', noteId: '10' };
+        const mockNote = { id: 10, lead_id: 1, note_text: 'Note to delete', created_by: 99 };
+
+        LeadNote.getNoteById.mockResolvedValue(mockNote);
+
+        await LeadsController.deleteLeadNote(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'You do not have permission to delete this note'
+        });
+        expect(LeadNote.deleteNote).not.toHaveBeenCalled();
+      });
+
+      it('should return 404 if note not found', async () => {
+        req.params = { id: '1', noteId: '999' };
+        LeadNote.getNoteById.mockResolvedValue(null);
+
+        await LeadsController.deleteLeadNote(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect(res.json).toHaveBeenCalledWith({
+          success: false,
+          message: 'Note not found'
+        });
       });
     });
   });

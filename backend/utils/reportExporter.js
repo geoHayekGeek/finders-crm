@@ -93,7 +93,6 @@ async function exportToExcel(report) {
   addSection('Commissions on Agent Properties', [
     ['Agent Commission', `$${parseFloat(report.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ['Finders Commission', `$${parseFloat(report.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Referral Commission', `$${parseFloat(report.referral_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ['Team Leader Commission', `$${parseFloat(report.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ['Administration Commission', `$${parseFloat(report.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
     ['Referrals On Properties', `$${parseFloat(report.referrals_on_properties_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${report.referrals_on_properties_count || 0})`],
@@ -205,7 +204,6 @@ function exportToPDF(report) {
       addSection('Commissions on Agent Properties', [
         ['Agent Commission', `$${parseFloat(report.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ['Finders Commission', `$${parseFloat(report.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ['Referral Commission', `$${parseFloat(report.referral_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ['Team Leader Commission', `$${parseFloat(report.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ['Administration Commission', `$${parseFloat(report.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
         ['Referrals On Properties', `$${parseFloat(report.referrals_on_properties_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${report.referrals_on_properties_count || 0})`],

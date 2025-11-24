@@ -472,9 +472,61 @@ class Lead {
 
   // Get leads for a specific agent based on role permissions
   static async getLeadsForAgent(agentId, userRole) {
-    // Agents and team leaders see leads assigned to them
-    if (userRole === 'agent' || userRole === 'team_leader') {
+    // Agents see only their own leads
+    if (userRole === 'agent') {
       return this.getLeadsAssignedOrReferredByAgent(agentId);
+    }
+    
+    // Team leaders see their own leads and their team's leads
+    if (userRole === 'team_leader') {
+      // Get team leader's own leads
+      const teamLeaderLeads = await this.getLeadsAssignedOrReferredByAgent(agentId);
+      
+      // Get agent IDs under this team leader
+      const teamAgentsResult = await pool.query(
+        `SELECT agent_id FROM team_agents 
+         WHERE team_leader_id = $1 AND is_active = TRUE`,
+        [agentId]
+      );
+      const teamAgentIds = teamAgentsResult.rows.map(row => row.agent_id);
+      
+      // Get leads for all team agents
+      if (teamAgentIds.length > 0) {
+        const teamLeadsResult = await pool.query(`
+          SELECT 
+            l.id,
+            l.date,
+            l.customer_name,
+            l.phone_number,
+            l.agent_id,
+            l.agent_name,
+            u.name as assigned_agent_name,
+            u.role as agent_role,
+            l.price,
+            l.reference_source_id,
+            rs.source_name as reference_source_name,
+            l.operations_id,
+            op.name as operations_name,
+            op.role as operations_role,
+            l.contact_source,
+            l.status,
+            l.created_at,
+            l.updated_at
+          FROM leads l
+          LEFT JOIN users u ON l.agent_id = u.id
+          LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
+          LEFT JOIN users op ON l.operations_id = op.id
+          WHERE l.agent_id = ANY($1::int[])
+          ORDER BY l.created_at DESC
+        `, [teamAgentIds]);
+        
+        // Combine team leader's leads with team agents' leads, removing duplicates
+        const allLeadIds = new Set(teamLeaderLeads.map(l => l.id));
+        const uniqueTeamLeads = teamLeadsResult.rows.filter(l => !allLeadIds.has(l.id));
+        return [...teamLeaderLeads, ...uniqueTeamLeads];
+      }
+      
+      return teamLeaderLeads;
     }
     
     // Admins, operations managers, operations, and agent managers see all leads
