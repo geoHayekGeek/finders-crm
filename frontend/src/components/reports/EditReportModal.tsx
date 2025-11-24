@@ -28,23 +28,46 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
 
   // Editable data
   const [editableData, setEditableData] = useState({
-    listings_count: report.listings_count,
-    lead_sources: report.lead_sources,
-    viewings_count: report.viewings_count,
-    boosts: report.boosts,
-    sales_count: report.sales_count,
-    sales_amount: report.sales_amount,
-    agent_commission: report.agent_commission,
-    finders_commission: report.finders_commission,
+    listings_count: report.listings_count || 0,
+    lead_sources: report.lead_sources || {},
+    viewings_count: report.viewings_count || 0,
+    boosts: typeof report.boosts === 'number' ? report.boosts : parseFloat(report.boosts) || 0,
+    sales_count: report.sales_count || 0,
+    sales_amount: report.sales_amount || 0,
+    agent_commission: report.agent_commission || 0,
+    finders_commission: report.finders_commission || 0,
     // referral_commission removed - use referrals_on_properties_commission instead
-    team_leader_commission: report.team_leader_commission,
-    administration_commission: report.administration_commission,
-    total_commission: report.total_commission,
-    referral_received_count: report.referral_received_count,
-    referral_received_commission: report.referral_received_commission,
+    team_leader_commission: report.team_leader_commission || 0,
+    administration_commission: report.administration_commission || 0,
+    total_commission: report.total_commission || 0,
+    referral_received_count: report.referral_received_count || 0,
+    referral_received_commission: report.referral_received_commission || 0,
     referrals_on_properties_count: report.referrals_on_properties_count || 0,
     referrals_on_properties_commission: report.referrals_on_properties_commission || 0
   })
+
+  // Update editable data when report prop changes
+  useEffect(() => {
+    if (report) {
+      setEditableData({
+        listings_count: report.listings_count || 0,
+        lead_sources: report.lead_sources || {},
+        viewings_count: report.viewings_count || 0,
+        boosts: typeof report.boosts === 'number' ? report.boosts : parseFloat(report.boosts) || 0,
+        sales_count: report.sales_count || 0,
+        sales_amount: report.sales_amount || 0,
+        agent_commission: report.agent_commission || 0,
+        finders_commission: report.finders_commission || 0,
+        team_leader_commission: report.team_leader_commission || 0,
+        administration_commission: report.administration_commission || 0,
+        total_commission: report.total_commission || 0,
+        referral_received_count: report.referral_received_count || 0,
+        referral_received_commission: report.referral_received_commission || 0,
+        referrals_on_properties_count: report.referrals_on_properties_count || 0,
+        referrals_on_properties_commission: report.referrals_on_properties_commission || 0
+      })
+    }
+  }, [report])
 
   useEffect(() => {
     if (token) {
@@ -142,7 +165,14 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
   }
 
   const handleEditableChange = (field: keyof typeof editableData, value: any) => {
-    setEditableData(prev => ({ ...prev, [field]: value }))
+    setEditableData(prev => {
+      // Ensure boosts is always a valid number
+      if (field === 'boosts') {
+        const numValue = typeof value === 'number' && !isNaN(value) ? value : 0
+        return { ...prev, [field]: numValue }
+      }
+      return { ...prev, [field]: value }
+    })
   }
 
   const handleLeadSourceChange = (source: string, value: number) => {
@@ -266,8 +296,18 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
                     type="number"
                     min="0"
                     step="0.01"
-                    value={editableData.boosts}
-                    onChange={(e) => handleEditableChange('boosts', parseFloat(e.target.value) || 0)}
+                    value={typeof editableData.boosts === 'number' && !isNaN(editableData.boosts) ? editableData.boosts : 0}
+                    onChange={(e) => {
+                      const inputValue = e.target.value
+                      if (inputValue === '' || inputValue === null || inputValue === undefined) {
+                        handleEditableChange('boosts', 0)
+                      } else {
+                        const numValue = parseFloat(inputValue)
+                        if (!isNaN(numValue) && numValue >= 0) {
+                          handleEditableChange('boosts', numValue)
+                        }
+                      }
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                   />
                 </div>

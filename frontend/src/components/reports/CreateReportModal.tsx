@@ -437,8 +437,18 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                       type="number"
                       min="0"
                       step="0.01"
-                      value={formData.boosts}
-                      onChange={(e) => handleChange('boosts', parseFloat(e.target.value) || 0)}
+                      value={formData.boosts ?? 0}
+                      onChange={(e) => {
+                        const inputValue = e.target.value
+                        if (inputValue === '' || inputValue === null || inputValue === undefined) {
+                          handleChange('boosts', 0)
+                        } else {
+                          const numValue = parseFloat(inputValue)
+                          if (!isNaN(numValue) && numValue >= 0) {
+                            handleChange('boosts', numValue)
+                          }
+                        }
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                     />
                   </div>
