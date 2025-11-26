@@ -1073,5 +1073,294 @@ describe('Property Controller', () => {
       expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
     });
   });
+
+  describe('referPropertyToAgent', () => {
+    it('should refer property to agent successfully', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.user.name = 'Test User';
+      req.roleFilters.canViewProperties = true;
+      req.roleFilters.role = 'agent';
+
+      const mockProperty = {
+        id: 100,
+        agent_id: 27,
+        reference_number: 'PROP-001'
+      };
+      const mockReferral = {
+        id: 1,
+        property_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+
+      Property.getPropertyById.mockResolvedValue(mockProperty);
+      PropertyReferral.referPropertyToAgent.mockResolvedValue(mockReferral);
+      Notification.createNotification.mockResolvedValue({ id: 1 });
+
+      await propertyController.referPropertyToAgent(req, res);
+
+      expect(Property.getPropertyById).toHaveBeenCalledWith('100');
+      expect(PropertyReferral.referPropertyToAgent).toHaveBeenCalledWith(100, 28, 27);
+      expect(Notification.createNotification).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: expect.stringContaining('Property referred successfully'),
+        data: mockReferral
+      });
+    });
+
+    it('should return 404 if property not found', async () => {
+      req.params.id = '999';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewProperties = true;
+      req.roleFilters.role = 'agent';
+
+      Property.getPropertyById.mockResolvedValue(null);
+
+      await propertyController.referPropertyToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Property not found' });
+    });
+
+    it('should return 403 if user does not own the property', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewProperties = true;
+      req.roleFilters.role = 'agent';
+
+      const mockProperty = {
+        id: 100,
+        agent_id: 99 // Different agent
+      };
+
+      Property.getPropertyById.mockResolvedValue(mockProperty);
+
+      await propertyController.referPropertyToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. You can only refer properties that are assigned to you.'
+      });
+    });
+
+    it('should return 400 if referred_to_agent_id is missing', async () => {
+      req.params.id = '100';
+      req.body = {};
+      req.user.id = 27;
+      req.roleFilters.canViewProperties = true;
+      req.roleFilters.role = 'agent';
+
+      await propertyController.referPropertyToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'referred_to_agent_id is required'
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewProperties = true;
+      req.roleFilters.role = 'agent';
+
+      Property.getPropertyById.mockRejectedValue(new Error('Database error'));
+
+      await propertyController.referPropertyToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Database error' });
+    });
+  });
+
+  describe('getPendingReferrals', () => {
+    it('should get pending referrals for current user', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      const mockReferrals = [
+        {
+          id: 1,
+          property_id: 100,
+          status: 'pending',
+          reference_number: 'PROP-001',
+          location: 'Beirut',
+          referred_by_name: 'Omar',
+          referred_by_role: 'agent'
+        }
+      ];
+
+      PropertyReferral.getPendingReferralsForUser.mockResolvedValue(mockReferrals);
+
+      await propertyController.getPendingReferrals(req, res);
+
+      expect(PropertyReferral.getPendingReferralsForUser).toHaveBeenCalledWith(28);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReferrals,
+        count: 1
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      PropertyReferral.getPendingReferralsForUser.mockRejectedValue(new Error('Database error'));
+
+      await propertyController.getPendingReferrals(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
+    });
+  });
+
+  describe('getPendingReferralsCount', () => {
+    it('should get count of pending referrals', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      PropertyReferral.getPendingReferralsCount.mockResolvedValue(3);
+
+      await propertyController.getPendingReferralsCount(req, res);
+
+      expect(PropertyReferral.getPendingReferralsCount).toHaveBeenCalledWith(28);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        count: 3
+      });
+    });
+
+    it('should return 0 when no pending referrals', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      PropertyReferral.getPendingReferralsCount.mockResolvedValue(0);
+
+      await propertyController.getPendingReferralsCount(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        count: 0
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      PropertyReferral.getPendingReferralsCount.mockRejectedValue(new Error('Database error'));
+
+      await propertyController.getPendingReferralsCount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
+    });
+  });
+
+  describe('confirmReferral', () => {
+    it('should confirm referral and assign property', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      const mockReferral = {
+        id: 1,
+        property_id: 100,
+        status: 'confirmed',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+      const mockProperty = {
+        id: 100,
+        agent_id: 28,
+        reference_number: 'PROP-001'
+      };
+
+      PropertyReferral.confirmReferral.mockResolvedValue({
+        referral: mockReferral,
+        property: mockProperty
+      });
+      Notification.createNotification.mockResolvedValue({ id: 1 });
+
+      await propertyController.confirmReferral(req, res);
+
+      expect(PropertyReferral.confirmReferral).toHaveBeenCalledWith(1, 28);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: expect.stringContaining('Referral confirmed'),
+        data: {
+          referral: mockReferral,
+          property: mockProperty
+        }
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      PropertyReferral.confirmReferral.mockRejectedValue(new Error('Referral not found'));
+
+      await propertyController.confirmReferral(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Referral not found' });
+    });
+  });
+
+  describe('rejectReferral', () => {
+    it('should reject referral successfully', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      const mockReferral = {
+        id: 1,
+        property_id: 100,
+        status: 'rejected',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+      const mockProperty = {
+        id: 100,
+        reference_number: 'PROP-001'
+      };
+
+      PropertyReferral.rejectReferral.mockResolvedValue(mockReferral);
+      Property.getPropertyById.mockResolvedValue(mockProperty);
+      Notification.createNotification.mockResolvedValue({ id: 1 });
+
+      await propertyController.rejectReferral(req, res);
+
+      expect(PropertyReferral.rejectReferral).toHaveBeenCalledWith(1, 28);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: expect.stringContaining('Referral rejected'),
+        data: mockReferral
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      PropertyReferral.rejectReferral.mockRejectedValue(new Error('Referral not found'));
+
+      await propertyController.rejectReferral(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Referral not found' });
+    });
+  });
 });
 
