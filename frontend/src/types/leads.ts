@@ -9,6 +9,9 @@ export interface LeadReferral {
   agent_name?: string
   referral_date: string
   external: boolean
+  status?: 'pending' | 'confirmed' | 'rejected' // Status for lead referrals
+  referred_to_agent_id?: number // Agent/team leader the lead is referred to
+  referred_by_user_id?: number // User who made the referral
   created_at?: string
   updated_at?: string
 }
@@ -41,6 +44,7 @@ export interface Lead {
   onView?: (lead: Lead) => void
   onEdit?: (lead: Lead) => void
   onDelete?: (lead: Lead) => void
+  onRefer?: (lead: Lead) => void // New action handler for referrals
 }
 
 

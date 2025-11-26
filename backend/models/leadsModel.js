@@ -180,8 +180,19 @@ class Lead {
               'type', lr.type,
               'agent_name', ref_agent.name,
               'referral_date', lr.referral_date,
-              'external', lr.external
-            ) ORDER BY lr.referral_date DESC
+              'external', lr.external,
+              'status', lr.status,
+              'referred_to_agent_id', lr.referred_to_agent_id,
+              'referred_by_user_id', lr.referred_by_user_id,
+              'referred_by_name', referred_by.name,
+              'referred_to_name', referred_to.name
+            ) ORDER BY 
+              CASE 
+                WHEN lr.status = 'pending' THEN 0
+                WHEN lr.status = 'rejected' THEN 2
+                ELSE 1
+              END,
+              lr.referral_date DESC
           ) FILTER (WHERE lr.id IS NOT NULL),
           '[]'::json
         ) as referrals
@@ -191,6 +202,8 @@ class Lead {
       LEFT JOIN users op ON l.operations_id = op.id
       LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
       LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
+      LEFT JOIN users referred_by ON lr.referred_by_user_id = referred_by.id
+      LEFT JOIN users referred_to ON lr.referred_to_agent_id = referred_to.id
       WHERE l.id = $1
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,

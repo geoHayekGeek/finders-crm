@@ -1,12 +1,14 @@
 'use client'
 
 import { Lead, LEAD_STATUSES } from '@/types/leads'
-import { Eye, Edit3, Trash2, Phone, Calendar, User } from 'lucide-react'
+import { Eye, Edit3, Trash2, Phone, Calendar, User, Share2 } from 'lucide-react'
 import { ColumnDef } from '@tanstack/react-table'
 import { formatDateForDisplay } from '@/utils/dateUtils'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface LeadsColumnOptions {
   limitedAccess?: boolean
+  canReferLead?: (lead: Lead) => boolean
 }
 
 // Function to generate columns with permission-based actions
@@ -180,6 +182,9 @@ export const getLeadsColumns = (
     header: 'Actions',
     cell: ({ row }) => {
       const lead = row.original
+      // Check if lead is closed
+      const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
+      const canRefer = options.canReferLead ? options.canReferLead(lead) && !isClosed : false
       return (
         <div className="flex items-center gap-2">
           <button
@@ -189,6 +194,21 @@ export const getLeadsColumns = (
           >
             <Eye className="h-4 w-4" />
           </button>
+          {canRefer && (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (lead.onRefer) {
+                  lead.onRefer(lead)
+                }
+              }}
+              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors border border-blue-300"
+              title="Refer lead"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          )}
           {canManageLeads && (
             <button
               onClick={() => lead.onEdit?.(lead)}

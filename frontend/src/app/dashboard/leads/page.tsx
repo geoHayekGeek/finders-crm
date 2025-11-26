@@ -22,6 +22,7 @@ import { LeadsFilters } from '@/components/LeadsFilters'
 import { LeadsModals } from '@/components/LeadsModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
 import { getLeadsColumns } from '@/components/LeadsTableColumns'
+import { ReferLeadModal } from '@/components/ReferLeadModal'
 import { Lead, LeadFilters as LeadFiltersType, EditLeadFormData, CreateLeadFormData, LeadStatsData } from '@/types/leads'
 import { leadsApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -76,6 +77,7 @@ useEffect(() => {
   const [showEditModal, setShowEditModal] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showReferModal, setShowReferModal] = useState(false)
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null)
   const [deletingLead, setDeletingLead] = useState<Lead | null>(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
@@ -448,10 +450,25 @@ useEffect(() => {
     setShowDeleteModal(true)
   }, [])
 
+  const handleReferLead = useCallback((lead: Lead) => {
+    console.log('Refer lead clicked:', lead)
+    setSelectedLead(lead)
+    setShowReferModal(true)
+  }, [])
+
   // Clear all filters
   const handleClearFilters = () => {
     setFilters({})
   }
+
+  // Function to check if a lead can be referred
+  const canReferLead = useCallback((lead: Lead) => {
+    if (!user) return false
+    const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
+    return (user.role === 'agent' || user.role === 'team_leader') && 
+           lead.agent_id === user.id &&
+           !isClosed
+  }, [user])
 
   // Paginated leads for table view (with action handlers)
   const paginatedLeads = useMemo(() => {
@@ -461,9 +478,10 @@ useEffect(() => {
       ...lead,
       onView: handleViewLead,
       onEdit: handleEditLead,
-      onDelete: handleDeleteLead
+      onDelete: handleDeleteLead,
+      onRefer: handleReferLead
     }))
-  }, [leads, currentPage, itemsPerPage, handleViewLead, handleEditLead, handleDeleteLead])
+  }, [leads, currentPage, itemsPerPage, handleViewLead, handleEditLead, handleDeleteLead, handleReferLead])
 
   // Grid view leads (accumulated for "load more" functionality)
   const gridViewLeads = useMemo(() => {
@@ -1043,7 +1061,7 @@ useEffect(() => {
       ) : (
         // Table View
         <DataTable
-          columns={getLeadsColumns(canManageLeads, { limitedAccess: limitedLeadAccess })}
+          columns={getLeadsColumns(canManageLeads, { limitedAccess: limitedLeadAccess, canReferLead })}
           data={paginatedLeads}
         />
       )}
@@ -1086,6 +1104,19 @@ useEffect(() => {
         setDeleteConfirmation={setDeleteConfirmation}
         onConfirmDelete={handleConfirmDelete}
         onRefreshLead={handleRefreshLead}
+      />
+
+      {/* Refer Lead Modal */}
+      <ReferLeadModal
+        isOpen={showReferModal}
+        onClose={() => {
+          setShowReferModal(false)
+          setSelectedLead(null)
+        }}
+        lead={selectedLead}
+        onSuccess={() => {
+          loadLeads()
+        }}
       />
     </div>
   )

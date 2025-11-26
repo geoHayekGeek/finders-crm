@@ -162,6 +162,75 @@ describe('Lead Model', () => {
       );
     });
 
+    it('should include status fields in referrals', async () => {
+      const mockLead = {
+        rows: [{
+          id: 1,
+          customer_name: 'John Doe',
+          referrals: JSON.stringify([
+            {
+              id: 1,
+              agent_id: 2,
+              name: 'Ref 1',
+              type: 'employee',
+              agent_name: 'Agent 2',
+              referral_date: '2024-01-15',
+              external: false,
+              status: 'pending',
+              referred_to_agent_id: 3,
+              referred_by_user_id: 2,
+              referred_by_name: 'Referrer Name',
+              referred_to_name: 'Referred To Name'
+            }
+          ])
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockLead);
+
+      const result = await Lead.getLeadById(1);
+
+      expect(result.id).toBe(1);
+      expect(result.referrals).toBeDefined();
+      // Verify the query includes status fields
+      const queryCall = mockQuery.mock.calls[0][0];
+      expect(queryCall).toContain('status');
+      expect(queryCall).toContain('referred_to_agent_id');
+      expect(queryCall).toContain('referred_by_user_id');
+      expect(queryCall).toContain('referred_by_name');
+      expect(queryCall).toContain('referred_to_name');
+      expect(queryCall).toContain('LEFT JOIN users referred_by');
+      expect(queryCall).toContain('LEFT JOIN users referred_to');
+      // Verify ordering prioritizes pending referrals
+      expect(queryCall).toContain('CASE');
+      expect(queryCall).toContain('WHEN lr.status = \'pending\' THEN 0');
+    });
+
+    it('should order referrals with pending first', async () => {
+      const mockLead = {
+        rows: [{
+          id: 1,
+          customer_name: 'John Doe',
+          referrals: JSON.stringify([
+            { id: 1, status: 'confirmed', referral_date: '2024-01-15' },
+            { id: 2, status: 'pending', referral_date: '2024-01-20' },
+            { id: 3, status: 'rejected', referral_date: '2024-01-10' }
+          ])
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockLead);
+
+      await Lead.getLeadById(1);
+
+      const queryCall = mockQuery.mock.calls[0][0];
+      // Verify the ORDER BY clause prioritizes pending
+      expect(queryCall).toContain('ORDER BY');
+      expect(queryCall).toContain('CASE');
+      expect(queryCall).toContain('WHEN lr.status = \'pending\' THEN 0');
+      expect(queryCall).toContain('WHEN lr.status = \'rejected\' THEN 2');
+    });
+
     it('should return undefined when lead not found', async () => {
       mockQuery.mockResolvedValueOnce({ rows: [] });
 

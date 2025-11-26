@@ -16,6 +16,8 @@ interface LeadReferral {
   type: 'employee' | 'custom'
   employee_id?: number
   date: string
+  status?: 'pending' | 'confirmed' | 'rejected'
+  external?: boolean
 }
 
 interface LeadReferralSelectorProps {
@@ -262,13 +264,36 @@ export function LeadReferralSelector({
                         }`} />
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-900">
-                          {referral.type === 'employee' && referral.employee_id
-                            ? getAgentName(referral.employee_id)
-                            : referral.name
-                          }
-                        </span>
-                        <div className="flex items-center space-x-1 text-xs text-gray-500">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-gray-900">
+                            {referral.type === 'employee' && referral.employee_id
+                              ? getAgentName(referral.employee_id)
+                              : referral.name
+                            }
+                          </span>
+                          {/* Status badges */}
+                          {referral.status === 'pending' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                              Pending
+                            </span>
+                          )}
+                          {referral.status === 'rejected' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                              Rejected
+                            </span>
+                          )}
+                          {referral.status === 'confirmed' && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              Confirmed
+                            </span>
+                          )}
+                          {!referral.status && referral.external && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                              External
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center space-x-1 text-xs text-gray-500 mt-1">
                           <Calendar className="h-3 w-3" />
                           <span>{new Date(referral.date).toLocaleDateString()}</span>
                           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-black">

@@ -21,7 +21,12 @@ describe('Leads Controller', () => {
       user: { id: 1, name: 'Test User', role: 'admin' },
       params: {},
       query: {},
-      body: {}
+      body: {},
+      roleFilters: {
+        canViewLeads: true,
+        canManageLeads: true,
+        role: 'admin'
+      }
     };
 
     res = {
@@ -1505,6 +1510,346 @@ describe('Leads Controller', () => {
           message: 'Note not found'
         });
       });
+    });
+  });
+
+  describe('referLeadToAgent', () => {
+    it('should refer lead to agent successfully', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.user.name = 'Test User';
+      req.roleFilters.canViewLeads = true;
+      req.roleFilters.role = 'agent';
+
+      const mockLead = {
+        id: 100,
+        agent_id: 27,
+        customer_name: 'John Doe'
+      };
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+      LeadReferral.referLeadToAgent.mockResolvedValue(mockReferral);
+      Notification.createNotification.mockResolvedValue({ id: 1 });
+
+      await LeadsController.referLeadToAgent(req, res);
+
+      expect(Lead.getLeadById).toHaveBeenCalledWith('100');
+      expect(LeadReferral.referLeadToAgent).toHaveBeenCalledWith(100, 28, 27);
+      expect(Notification.createNotification).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: expect.stringContaining('Lead referred successfully'),
+        data: mockReferral
+      });
+    });
+
+    it('should return 404 if lead not found', async () => {
+      req.params.id = '999';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewLeads = true;
+      req.roleFilters.role = 'agent';
+
+      Lead.getLeadById.mockResolvedValue(null);
+
+      await LeadsController.referLeadToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Lead not found' });
+    });
+
+    it('should return 403 if user does not own the lead', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewLeads = true;
+      req.roleFilters.role = 'agent';
+
+      const mockLead = {
+        id: 100,
+        agent_id: 99 // Different agent
+      };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+
+      await LeadsController.referLeadToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. You can only refer leads that are assigned to you.'
+      });
+    });
+
+    it('should return 400 if referred_to_agent_id is missing', async () => {
+      req.params.id = '100';
+      req.body = {};
+      req.user.id = 27;
+      req.roleFilters.canViewLeads = true;
+      req.roleFilters.role = 'agent';
+
+      await LeadsController.referLeadToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'referred_to_agent_id is required'
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewLeads = true;
+      req.roleFilters.role = 'agent';
+
+      Lead.getLeadById.mockRejectedValue(new Error('Database error'));
+
+      await LeadsController.referLeadToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Database error' });
+    });
+  });
+
+  describe('getPendingReferrals', () => {
+    it('should get pending referrals for current user', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      const mockReferrals = [
+        {
+          id: 1,
+          lead_id: 100,
+          status: 'pending',
+          customer_name: 'John Doe',
+          referred_by_name: 'Omar',
+          referred_by_role: 'agent'
+        }
+      ];
+
+      LeadReferral.getPendingReferralsForUser.mockResolvedValue(mockReferrals);
+
+      await LeadsController.getPendingReferrals(req, res);
+
+      expect(LeadReferral.getPendingReferralsForUser).toHaveBeenCalledWith(28);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReferrals,
+        count: 1
+      });
+    });
+
+    it('should return 403 for non-agent/team_leader', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'admin';
+
+      await LeadsController.getPendingReferrals(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. Only agents and team leaders can have pending referrals.'
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      LeadReferral.getPendingReferralsForUser.mockRejectedValue(new Error('Database error'));
+
+      await LeadsController.getPendingReferrals(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
+    });
+  });
+
+  describe('getPendingReferralsCount', () => {
+    it('should get count of pending referrals', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      LeadReferral.getPendingReferralsCount.mockResolvedValue(3);
+
+      await LeadsController.getPendingReferralsCount(req, res);
+
+      expect(LeadReferral.getPendingReferralsCount).toHaveBeenCalledWith(28);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        count: 3
+      });
+    });
+
+    it('should return 0 when no pending referrals', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      LeadReferral.getPendingReferralsCount.mockResolvedValue(0);
+
+      await LeadsController.getPendingReferralsCount(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        count: 0
+      });
+    });
+
+    it('should return 0 for non-agent/team_leader', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'admin';
+
+      await LeadsController.getPendingReferralsCount(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        count: 0
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      LeadReferral.getPendingReferralsCount.mockRejectedValue(new Error('Database error'));
+
+      await LeadsController.getPendingReferralsCount(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
+    });
+  });
+
+  describe('confirmReferral', () => {
+    it('should confirm referral and assign lead', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'confirmed',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+      const mockLead = {
+        id: 100,
+        agent_id: 28,
+        customer_name: 'John Doe'
+      };
+
+      LeadReferral.confirmReferral.mockResolvedValue({
+        referral: mockReferral,
+        lead: mockLead
+      });
+      Notification.createNotification.mockResolvedValue({ id: 1 });
+
+      await LeadsController.confirmReferral(req, res);
+
+      expect(LeadReferral.confirmReferral).toHaveBeenCalledWith(1, 28);
+      expect(Notification.createNotification).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: expect.stringContaining('Referral confirmed'),
+        data: {
+          referral: mockReferral,
+          lead: mockLead
+        }
+      });
+    });
+
+    it('should return 403 for non-agent/team_leader', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'admin';
+
+      await LeadsController.confirmReferral(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. Only agents and team leaders can confirm referrals.'
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      LeadReferral.confirmReferral.mockRejectedValue(new Error('Database error'));
+
+      await LeadsController.confirmReferral(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Database error' });
+    });
+  });
+
+  describe('rejectReferral', () => {
+    it('should reject referral successfully', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'rejected',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+      const mockLead = {
+        id: 100,
+        customer_name: 'John Doe'
+      };
+
+      LeadReferral.rejectReferral.mockResolvedValue(mockReferral);
+      Lead.getLeadById.mockResolvedValue(mockLead);
+      Notification.createNotification.mockResolvedValue({ id: 1 });
+
+      await LeadsController.rejectReferral(req, res);
+
+      expect(LeadReferral.rejectReferral).toHaveBeenCalledWith(1, 28);
+      expect(Notification.createNotification).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: expect.stringContaining('Referral rejected'),
+        data: mockReferral
+      });
+    });
+
+    it('should return 403 for non-agent/team_leader', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'admin';
+
+      await LeadsController.rejectReferral(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. Only agents and team leaders can reject referrals.'
+      });
+    });
+
+    it('should handle errors', async () => {
+      req.params.id = '1';
+      req.user.id = 28;
+      req.roleFilters.role = 'agent';
+
+      LeadReferral.rejectReferral.mockRejectedValue(new Error('Database error'));
+
+      await LeadsController.rejectReferral(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Database error' });
     });
   });
 });

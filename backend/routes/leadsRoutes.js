@@ -58,6 +58,22 @@ router.delete('/:id/referrals/:referralId', canManageLeads, validateLeadId, hand
 // GET /api/leads/agent/:agentId/referral-stats - Get referral statistics for an agent
 router.get('/agent/:agentId/referral-stats', canViewLeads, validateAgentId, handleValidationErrors, canViewAgentPerformance, LeadsController.getAgentReferralStats);
 
+// Lead referral routes (must be before /:id route to avoid conflicts)
+// GET /api/leads/referrals/pending - Get pending referrals for current user
+router.get('/referrals/pending', canViewLeads, LeadsController.getPendingReferrals);
+
+// GET /api/leads/referrals/pending/count - Get count of pending referrals
+router.get('/referrals/pending/count', canViewLeads, LeadsController.getPendingReferralsCount);
+
+// PUT /api/leads/referrals/:id/confirm - Confirm a referral
+router.put('/referrals/:id/confirm', canViewLeads, LeadsController.confirmReferral);
+
+// PUT /api/leads/referrals/:id/reject - Reject a referral
+router.put('/referrals/:id/reject', canViewLeads, LeadsController.rejectReferral);
+
+// POST /api/leads/:id/refer - Refer a lead to an agent (must be before /:id route)
+router.post('/:id/refer', canViewLeads, LeadsController.referLeadToAgent);
+
 // Lead Notes Routes
 router.get('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadNotes);
 router.post('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.addLeadNote);

@@ -38,6 +38,9 @@ class LeadReferral {
         u.role as agent_role,
         lr.referral_date,
         lr.external,
+        lr.status,
+        lr.referred_to_agent_id,
+        lr.referred_by_user_id,
         lr.created_at,
         lr.updated_at
        FROM lead_referrals lr
@@ -378,6 +381,270 @@ class LeadReferral {
       [agentId]
     );
     return result.rows[0];
+  }
+
+  /**
+   * Refer a lead to an agent (creates a pending referral)
+   * @param {number} leadId - The lead ID
+   * @param {number} referredToAgentId - The agent/team leader ID being referred to
+   * @param {number} referredByUserId - The user ID making the referral
+   * @returns {Promise<Object>} The created referral record
+   */
+  static async referLeadToAgent(leadId, referredToAgentId, referredByUserId) {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Check if user is trying to refer to themselves
+      if (referredToAgentId === referredByUserId) {
+        throw new Error('Cannot refer lead to yourself');
+      }
+
+      // Get the referred-to agent's name
+      const agentResult = await client.query(
+        'SELECT name, role FROM users WHERE id = $1',
+        [referredToAgentId]
+      );
+      
+      if (!agentResult.rows[0]) {
+        throw new Error('Agent not found');
+      }
+
+      const agentName = agentResult.rows[0].name;
+      const agentRole = agentResult.rows[0].role;
+
+      // Check if agent/team leader role
+      if (agentRole !== 'agent' && agentRole !== 'team_leader') {
+        throw new Error('Can only refer leads to agents or team leaders');
+      }
+
+      // Check if there's already a pending referral for this lead to this agent
+      const existingPending = await client.query(
+        `SELECT id FROM lead_referrals 
+         WHERE lead_id = $1 
+           AND referred_to_agent_id = $2 
+           AND status = 'pending'`,
+        [leadId, referredToAgentId]
+      );
+
+      if (existingPending.rows.length > 0) {
+        throw new Error('A pending referral already exists for this lead to this agent');
+      }
+
+      // Get the referrer's name for the referral record
+      const referrerResult = await client.query(
+        'SELECT name FROM users WHERE id = $1',
+        [referredByUserId]
+      );
+      const referrerName = referrerResult.rows[0]?.name || 'Unknown User';
+
+      // Create the referral with pending status
+      // agent_id should be the person who made the referral, not who it's referred to
+      const result = await client.query(
+        `INSERT INTO lead_referrals (
+          lead_id, 
+          agent_id, 
+          name, 
+          type, 
+          referral_date, 
+          external, 
+          status, 
+          referred_to_agent_id, 
+          referred_by_user_id
+        )
+        VALUES ($1, $2, $3, $4, $5, FALSE, 'pending', $6, $7)
+        RETURNING *`,
+        [
+          leadId,
+          referredByUserId, // agent_id should be the referrer, for commission tracking
+          referrerName, // Name of the person who made the referral
+          'employee',
+          new Date(),
+          referredToAgentId, // referred_to_agent_id
+          referredByUserId // referred_by_user_id
+        ]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Confirm a pending referral (assigns lead to agent)
+   * @param {number} referralId - The referral ID
+   * @param {number} confirmedByUserId - The user ID confirming (should be the referred_to_agent_id)
+   * @returns {Promise<Object>} The updated referral and lead
+   */
+  static async confirmReferral(referralId, confirmedByUserId) {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Get the referral
+      const referralResult = await client.query(
+        `SELECT * FROM lead_referrals WHERE id = $1`,
+        [referralId]
+      );
+
+      if (!referralResult.rows[0]) {
+        throw new Error('Referral not found');
+      }
+
+      const referral = referralResult.rows[0];
+
+      // Check if referral is pending
+      if (referral.status !== 'pending') {
+        throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      // Check if the user confirming is the one being referred to
+      if (referral.referred_to_agent_id !== confirmedByUserId) {
+        throw new Error('Only the referred agent can confirm this referral');
+      }
+
+      // Update referral status to confirmed
+      const updateResult = await client.query(
+        `UPDATE lead_referrals 
+         SET status = 'confirmed', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [referralId]
+      );
+
+      // Assign lead to the agent
+      await client.query(
+        `UPDATE leads 
+         SET agent_id = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE id = $2`,
+        [referral.referred_to_agent_id, referral.lead_id]
+      );
+
+      // Get the updated lead
+      const leadResult = await client.query(
+        `SELECT * FROM leads WHERE id = $1`,
+        [referral.lead_id]
+      );
+
+      await client.query('COMMIT');
+      
+      return {
+        referral: updateResult.rows[0],
+        lead: leadResult.rows[0]
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Reject a pending referral
+   * @param {number} referralId - The referral ID
+   * @param {number} rejectedByUserId - The user ID rejecting (should be the referred_to_agent_id)
+   * @returns {Promise<Object>} The updated referral
+   */
+  static async rejectReferral(referralId, rejectedByUserId) {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      // Get the referral
+      const referralResult = await client.query(
+        `SELECT * FROM lead_referrals WHERE id = $1`,
+        [referralId]
+      );
+
+      if (!referralResult.rows[0]) {
+        throw new Error('Referral not found');
+      }
+
+      const referral = referralResult.rows[0];
+
+      // Check if referral is pending
+      if (referral.status !== 'pending') {
+        throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      // Check if the user rejecting is the one being referred to
+      if (referral.referred_to_agent_id !== rejectedByUserId) {
+        throw new Error('Only the referred agent can reject this referral');
+      }
+
+      // Update referral status to rejected
+      const result = await client.query(
+        `UPDATE lead_referrals 
+         SET status = 'rejected', updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [referralId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Get all pending referrals for a user (agent/team leader)
+   * @param {number} userId - The user ID
+   * @returns {Promise<Array>} Array of pending referral records with lead details
+   */
+  static async getPendingReferralsForUser(userId) {
+    const result = await pool.query(
+      `SELECT 
+        lr.id,
+        lr.lead_id,
+        lr.status,
+        lr.referral_date,
+        lr.created_at,
+        lr.referred_by_user_id,
+        u.name as referred_by_name,
+        u.role as referred_by_role,
+        l.customer_name,
+        l.phone_number,
+        l.status as lead_status,
+        l.notes
+       FROM lead_referrals lr
+       LEFT JOIN leads l ON lr.lead_id = l.id
+       LEFT JOIN users u ON lr.referred_by_user_id = u.id
+       WHERE lr.referred_to_agent_id = $1 
+         AND lr.status = 'pending'
+       ORDER BY lr.created_at DESC`,
+      [userId]
+    );
+    return result.rows;
+  }
+
+  /**
+   * Get count of pending referrals for a user
+   * @param {number} userId - The user ID
+   * @returns {Promise<number>} Count of pending referrals
+   */
+  static async getPendingReferralsCount(userId) {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM lead_referrals
+       WHERE referred_to_agent_id = $1 
+         AND status = 'pending'`,
+      [userId]
+    );
+    return parseInt(result.rows[0].count, 10);
   }
 }
 

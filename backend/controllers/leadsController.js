@@ -1083,6 +1083,220 @@ class LeadsController {
       });
     }
   }
+
+  // Refer a lead to an agent
+  static async referLeadToAgent(req, res) {
+    try {
+      const { id } = req.params;
+      const { referred_to_agent_id } = req.body;
+      const { roleFilters } = req;
+      const userId = req.user.id;
+
+      // Check if user can view leads (agents and team leaders can refer)
+      if (!roleFilters.canViewLeads) {
+        return res.status(403).json({ 
+          message: 'Access denied. You do not have permission to refer leads.' 
+        });
+      }
+
+      if (!referred_to_agent_id) {
+        return res.status(400).json({ message: 'referred_to_agent_id is required' });
+      }
+
+      // Check if lead exists
+      const lead = await Lead.getLeadById(id);
+      if (!lead) {
+        return res.status(404).json({ message: 'Lead not found' });
+      }
+
+      // For agents and team leaders, they can only refer leads assigned to them
+      if (roleFilters.role === 'agent' || roleFilters.role === 'team_leader') {
+        if (lead.agent_id !== userId) {
+          return res.status(403).json({ 
+            message: 'Access denied. You can only refer leads that are assigned to you.' 
+          });
+        }
+      }
+
+      // Create the referral
+      const referral = await LeadReferral.referLeadToAgent(
+        parseInt(id),
+        parseInt(referred_to_agent_id),
+        userId
+      );
+
+      // Create notification for the referred agent
+      try {
+        await Notification.createNotification({
+          user_id: parseInt(referred_to_agent_id),
+          type: 'lead_referral',
+          title: 'New Lead Referral',
+          message: `${req.user.name} referred lead ${lead.customer_name} to you`,
+          lead_id: parseInt(id),
+          is_read: false
+        });
+      } catch (notifError) {
+        console.error('Error creating notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+
+      res.json({
+        success: true,
+        data: referral,
+        message: 'Lead referred successfully'
+      });
+    } catch (error) {
+      console.error('Error referring lead:', error);
+      res.status(500).json({ 
+        message: error.message || 'Server error' 
+      });
+    }
+  }
+
+  // Get pending referrals for current user
+  static async getPendingReferrals(req, res) {
+    try {
+      const { roleFilters } = req;
+      const userId = req.user.id;
+
+      // Only agents and team leaders can have pending referrals
+      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+        return res.status(403).json({ 
+          message: 'Access denied. Only agents and team leaders can have pending referrals.' 
+        });
+      }
+
+      const pendingReferrals = await LeadReferral.getPendingReferralsForUser(userId);
+
+      res.json({
+        success: true,
+        data: pendingReferrals,
+        count: pendingReferrals.length
+      });
+    } catch (error) {
+      console.error('Error getting pending referrals:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+
+  // Get pending referrals count for current user
+  static async getPendingReferralsCount(req, res) {
+    try {
+      const { roleFilters } = req;
+      const userId = req.user.id;
+
+      // Only agents and team leaders can have pending referrals
+      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+        return res.json({
+          success: true,
+          count: 0
+        });
+      }
+
+      const count = await LeadReferral.getPendingReferralsCount(userId);
+
+      res.json({
+        success: true,
+        count
+      });
+    } catch (error) {
+      console.error('Error getting pending referrals count:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+
+  // Confirm a referral
+  static async confirmReferral(req, res) {
+    try {
+      const { id } = req.params;
+      const { roleFilters } = req;
+      const userId = req.user.id;
+
+      // Only agents and team leaders can confirm referrals
+      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+        return res.status(403).json({ 
+          message: 'Access denied. Only agents and team leaders can confirm referrals.' 
+        });
+      }
+
+      const result = await LeadReferral.confirmReferral(parseInt(id), userId);
+
+      // Create notification for the referrer
+      try {
+        if (result.referral && result.referral.referred_by_user_id) {
+          await Notification.createNotification({
+            user_id: result.referral.referred_by_user_id,
+            type: 'lead_referral_confirmed',
+            title: 'Lead Referral Confirmed',
+            message: `Your referral for lead ${result.lead.customer_name} has been confirmed`,
+            lead_id: result.lead.id,
+            is_read: false
+          });
+        }
+      } catch (notifError) {
+        console.error('Error creating notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+
+      res.json({
+        success: true,
+        data: result,
+        message: 'Referral confirmed and lead assigned successfully'
+      });
+    } catch (error) {
+      console.error('Error confirming referral:', error);
+      res.status(500).json({ 
+        message: error.message || 'Server error' 
+      });
+    }
+  }
+
+  // Reject a referral
+  static async rejectReferral(req, res) {
+    try {
+      const { id } = req.params;
+      const { roleFilters } = req;
+      const userId = req.user.id;
+
+      // Only agents and team leaders can reject referrals
+      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+        return res.status(403).json({ 
+          message: 'Access denied. Only agents and team leaders can reject referrals.' 
+        });
+      }
+
+      const referral = await LeadReferral.rejectReferral(parseInt(id), userId);
+
+      // Create notification for the referrer
+      try {
+        if (referral.referred_by_user_id) {
+          const lead = await Lead.getLeadById(referral.lead_id);
+          await Notification.createNotification({
+            user_id: referral.referred_by_user_id,
+            type: 'lead_referral_rejected',
+            title: 'Lead Referral Rejected',
+            message: `Your referral for lead ${lead.customer_name} has been rejected`,
+            lead_id: referral.lead_id,
+            is_read: false
+          });
+        }
+      } catch (notifError) {
+        console.error('Error creating notification:', notifError);
+        // Don't fail the request if notification fails
+      }
+
+      res.json({
+        success: true,
+        data: referral,
+        message: 'Referral rejected successfully'
+      });
+    } catch (error) {
+      console.error('Error rejecting referral:', error);
+      res.status(500).json({ 
+        message: error.message || 'Server error' 
+      });
+    }
+  }
 }
 
 module.exports = LeadsController;

@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { Lead, LEAD_STATUSES } from '@/types/leads'
-import { Eye, Edit3, Trash2, Phone, Calendar, User, Users } from 'lucide-react'
+import { Eye, Edit3, Trash2, Phone, Calendar, User, Users, Share2 } from 'lucide-react'
 import { formatDateForDisplay } from '@/utils/dateUtils'
+import { ReferLeadModal } from './ReferLeadModal'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface LeadsCardProps {
   lead: Lead
@@ -14,9 +17,19 @@ interface LeadsCardProps {
 }
 
 export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true, limitedAccess = false }: LeadsCardProps) {
+  const [showReferModal, setShowReferModal] = useState(false)
+  const { user } = useAuth()
   const statusConfig = LEAD_STATUSES.find(s => s.value === lead.status)
   const statusColor = statusConfig?.color || '#6B7280'
   const statusLabel = statusConfig?.label || lead.status
+  
+  // Check if lead is closed
+  const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
+  
+  // Agents and team leaders can only refer leads that are assigned to them (and not closed)
+  const canReferLead = (user?.role === 'agent' || user?.role === 'team_leader') && 
+                      lead.agent_id === user?.id &&
+                      !isClosed
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
@@ -135,6 +148,20 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
           <Eye className="h-4 w-4" />
           <span>View</span>
         </button>
+        {canReferLead && (
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setShowReferModal(true)
+            }}
+            className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors text-sm border border-blue-300"
+            title="Refer lead to another agent"
+          >
+            <Share2 className="h-4 w-4" />
+            <span>Refer</span>
+          </button>
+        )}
         {canManageLeads && (
           <button
             onClick={() => onEdit(lead)}
@@ -156,6 +183,16 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
           </button>
         )}
       </div>
+
+      {/* Refer Lead Modal */}
+      <ReferLeadModal
+        isOpen={showReferModal}
+        onClose={() => setShowReferModal(false)}
+        lead={lead}
+        onSuccess={() => {
+          // Optionally refresh the lead list
+        }}
+      />
     </div>
   )
 }

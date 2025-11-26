@@ -316,5 +316,280 @@ describe('LeadReferral Model', () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
   });
+
+  describe('referLeadToAgent', () => {
+    it('should create a pending referral successfully', async () => {
+      const mockAgent = {
+        name: 'Ali Agent',
+        role: 'agent'
+      };
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        agent_id: 27, // Omar (referrer)
+        name: 'Omar Referrer',
+        type: 'employee',
+        referral_date: expect.any(Date),
+        external: false,
+        status: 'pending',
+        referred_to_agent_id: 28, // Ali (referred to)
+        referred_by_user_id: 27 // Omar
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [] }) // Check existing pending
+        .mockResolvedValueOnce({ rows: [{ name: 'Omar Referrer' }] }) // Get referrer name
+        .mockResolvedValueOnce({ rows: [mockReferral] }) // INSERT referral
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await LeadReferral.referLeadToAgent(100, 28, 27);
+
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenCalled();
+      expect(mockClient.release).toHaveBeenCalled();
+      expect(result.status).toBe('pending');
+      expect(result.referred_to_agent_id).toBe(28);
+      expect(result.referred_by_user_id).toBe(27);
+      expect(result.agent_id).toBe(27); // Should be the referrer, not the referred-to
+    });
+
+    it('should throw error if trying to refer to yourself', async () => {
+      await expect(
+        LeadReferral.referLeadToAgent(100, 27, 27)
+      ).rejects.toThrow('Cannot refer lead to yourself');
+    });
+
+    it('should throw error if agent not found', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }); // SELECT agent - not found
+
+      await expect(
+        LeadReferral.referLeadToAgent(100, 999, 27)
+      ).rejects.toThrow('Agent not found');
+    });
+
+    it('should throw error if trying to refer to non-agent/team_leader', async () => {
+      const mockUser = {
+        name: 'Admin User',
+        role: 'admin'
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockUser] }); // SELECT user
+
+      await expect(
+        LeadReferral.referLeadToAgent(100, 999, 27)
+      ).rejects.toThrow('Can only refer leads to agents or team leaders');
+    });
+
+    it('should throw error if pending referral already exists', async () => {
+      const mockAgent = {
+        name: 'Ali Agent',
+        role: 'agent'
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // Existing pending referral
+
+      await expect(
+        LeadReferral.referLeadToAgent(100, 28, 27)
+      ).rejects.toThrow('A pending referral already exists');
+    });
+  });
+
+  describe('confirmReferral', () => {
+    it('should confirm referral and assign lead', async () => {
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28
+      };
+      const mockUpdatedReferral = {
+        ...mockReferral,
+        status: 'confirmed'
+      };
+      const mockLead = {
+        id: 100,
+        customer_name: 'John Doe',
+        agent_id: 28
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockReferral] }) // SELECT referral
+        .mockResolvedValueOnce({ rows: [mockUpdatedReferral] }) // UPDATE referral
+        .mockResolvedValueOnce({}) // UPDATE lead
+        .mockResolvedValueOnce({ rows: [mockLead] }) // SELECT lead
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await LeadReferral.confirmReferral(1, 28);
+
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenCalled();
+      expect(mockClient.release).toHaveBeenCalled();
+      expect(result.referral.status).toBe('confirmed');
+      expect(result.lead.agent_id).toBe(28);
+    });
+
+    it('should throw error if referral not found', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }); // SELECT referral - not found
+
+      await expect(
+        LeadReferral.confirmReferral(999, 28)
+      ).rejects.toThrow('Referral not found');
+    });
+
+    it('should throw error if referral is not pending', async () => {
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'confirmed',
+        referred_to_agent_id: 28
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockReferral] }); // SELECT referral
+
+      await expect(
+        LeadReferral.confirmReferral(1, 28)
+      ).rejects.toThrow('Referral is already confirmed');
+    });
+
+    it('should throw error if wrong user tries to confirm', async () => {
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockReferral] }); // SELECT referral
+
+      await expect(
+        LeadReferral.confirmReferral(1, 27) // Different user
+      ).rejects.toThrow('Only the referred agent can confirm this referral');
+    });
+  });
+
+  describe('rejectReferral', () => {
+    it('should reject referral successfully', async () => {
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28
+      };
+      const mockRejectedReferral = {
+        ...mockReferral,
+        status: 'rejected'
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockReferral] }) // SELECT referral
+        .mockResolvedValueOnce({ rows: [mockRejectedReferral] }) // UPDATE referral
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await LeadReferral.rejectReferral(1, 28);
+
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenCalled();
+      expect(mockClient.release).toHaveBeenCalled();
+      expect(result.status).toBe('rejected');
+    });
+
+    it('should throw error if referral not found', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }); // SELECT referral - not found
+
+      await expect(
+        LeadReferral.rejectReferral(999, 28)
+      ).rejects.toThrow('Referral not found');
+    });
+
+    it('should throw error if wrong user tries to reject', async () => {
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockReferral] }); // SELECT referral
+
+      await expect(
+        LeadReferral.rejectReferral(1, 27) // Different user
+      ).rejects.toThrow('Only the referred agent can reject this referral');
+    });
+  });
+
+  describe('getPendingReferralsForUser', () => {
+    it('should get pending referrals for user', async () => {
+      const mockReferrals = [
+        {
+          id: 1,
+          lead_id: 100,
+          status: 'pending',
+          customer_name: 'John Doe',
+          referred_by_name: 'Omar Referrer'
+        }
+      ];
+
+      mockQuery.mockResolvedValue({ rows: mockReferrals });
+
+      const result = await LeadReferral.getPendingReferralsForUser(28);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT'),
+        [28]
+      );
+      expect(result).toEqual(mockReferrals);
+    });
+
+    it('should return empty array when no pending referrals', async () => {
+      mockQuery.mockResolvedValue({ rows: [] });
+
+      const result = await LeadReferral.getPendingReferralsForUser(28);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getPendingReferralsCount', () => {
+    it('should get count of pending referrals', async () => {
+      mockQuery.mockResolvedValue({ rows: [{ count: '3' }] });
+
+      const result = await LeadReferral.getPendingReferralsCount(28);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('COUNT'),
+        [28]
+      );
+      expect(result).toBe(3);
+    });
+
+    it('should return 0 when no pending referrals', async () => {
+      mockQuery.mockResolvedValue({ rows: [{ count: '0' }] });
+
+      const result = await LeadReferral.getPendingReferralsCount(28);
+
+      expect(result).toBe(0);
+    });
+  });
 });
 
