@@ -26,6 +26,7 @@ import {
   LucideIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
+import { PendingReferralsBadge } from '@/components/PendingReferralsBadge'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -439,6 +440,7 @@ export default function DashboardLayout({
             <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
               <div className="flex flex-1"></div>
               <div className="flex items-center gap-x-4 lg:gap-x-6">
+                <PendingReferralsBadge />
                 <NotificationBell />
                 <div className="text-sm text-gray-700">
                   Welcome, <span className="font-medium">{user?.name}</span>

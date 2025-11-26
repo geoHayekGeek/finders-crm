@@ -2,10 +2,11 @@
 
 import { ColumnDef } from '@tanstack/react-table'
 import { Property } from '@/types/property'
-import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar } from 'lucide-react'
+import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar, Share2 } from 'lucide-react'
 import { PropertyShareMenu } from './PropertyShareMenu'
+import { useAuth } from '@/contexts/AuthContext'
 
-export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Property>[] => [
+export const getPropertyColumns = (canManageProperties: boolean, canReferProperty?: (property: Property) => boolean): ColumnDef<Property>[] => [
   {
     accessorKey: 'reference_number',
     header: 'Reference',
@@ -168,6 +169,10 @@ export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Prop
     header: 'Actions',
     cell: ({ row }) => {
       const property = row.original
+      // Check if property is closed (Sold, Rented, or Closed status)
+      const isClosed = property.status_name && 
+        ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
+      const canRefer = canReferProperty ? canReferProperty(property) && !isClosed : false
       return (
         <div className="flex items-center space-x-2">
           <PropertyShareMenu property={property} variant="icon" align="right" className="flex-shrink-0" />
@@ -178,6 +183,21 @@ export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Prop
           >
             <Eye className="h-4 w-4" />
           </button>
+          {canRefer && (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (row.original.onRefer) {
+                  row.original.onRefer(row.original)
+                }
+              }}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
+              title="Refer Property"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          )}
           {canManageProperties && (
             <>
               <button
@@ -203,7 +223,7 @@ export const getPropertyColumns = (canManageProperties: boolean): ColumnDef<Prop
 ]
 
 // Extended columns for detailed view
-export const getPropertyDetailedColumns = (canManageProperties: boolean): ColumnDef<Property>[] => [
+export const getPropertyDetailedColumns = (canManageProperties: boolean, canReferProperty?: (property: Property) => boolean): ColumnDef<Property>[] => [
   ...getPropertyColumns(canManageProperties).slice(0, -1), // All columns except actions
   {
     accessorKey: 'building_name',
@@ -279,6 +299,10 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean): Column
     header: 'Actions',
     cell: ({ row }) => {
       const property = row.original
+      // Check if property is closed (Sold, Rented, or Closed status)
+      const isClosed = property.status_name && 
+        ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
+      const canRefer = canReferProperty ? canReferProperty(property) && !isClosed : false
       return (
         <div className="flex items-center space-x-2">
           <PropertyShareMenu property={property} variant="icon" align="right" className="flex-shrink-0" />
@@ -289,6 +313,21 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean): Column
           >
             <Eye className="h-4 w-4" />
           </button>
+          {canRefer && (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (property.onRefer) {
+                  property.onRefer(property)
+                }
+              }}
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
+              title="Refer Property"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          )}
           {canManageProperties && (
             <>
               <button

@@ -5,6 +5,9 @@ export interface Referral {
   employee_id?: number
   date: string
   external?: boolean // Whether the referral is external (no longer earns commission)
+  status?: 'pending' | 'confirmed' | 'rejected' // Status for property referrals
+  referred_to_agent_id?: number // Agent/team leader the property is referred to
+  referred_by_user_id?: number // User who made the referral
 }
 
 export interface Property {
@@ -44,6 +47,7 @@ export interface Property {
   onView?: (property: Property) => void
   onEdit?: (property: Property) => void
   onDelete?: (property: Property) => void
+  onRefer?: (property: Property) => void
 }
 
 export interface EditFormData {

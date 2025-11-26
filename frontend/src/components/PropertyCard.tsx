@@ -8,12 +8,15 @@ import {
   Eye,
   Edit,
   Trash2,
-  Calendar
+  Calendar,
+  Share2
 } from 'lucide-react'
 import { Property } from '@/types/property'
 import { getFullImageUrl } from '@/utils/imageUpload'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { PropertyShareMenu } from './PropertyShareMenu'
+import { ReferPropertyModal } from './ReferPropertyModal'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface PropertyCardProps {
   property: Property
@@ -24,7 +27,18 @@ interface PropertyCardProps {
 
 export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false)
+  const [showReferModal, setShowReferModal] = useState(false)
   const { canManageProperties } = usePermissions()
+  const { user } = useAuth()
+  
+  // Check if property is closed (Sold, Rented, or Closed status)
+  const isClosed = property.status_name && 
+    ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
+  
+  // Agents and team leaders can only refer properties that are assigned to them (and not closed)
+  const canReferProperty = (user?.role === 'agent' || user?.role === 'team_leader') && 
+                           property.agent_id === user?.id &&
+                           !isClosed
   const formatPrice = (price?: number) => {
     if (!price) return 'Price on request'
     return new Intl.NumberFormat('en-US', {
@@ -143,6 +157,15 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
             <Eye className="h-4 w-4" />
             <span>View</span>
           </button>
+          {canReferProperty && (
+            <button 
+              onClick={() => setShowReferModal(true)}
+              className="px-3 py-2 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-blue-600 hover:text-blue-700"
+              title="Refer property to another agent"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+          )}
           {canManageProperties && (
             <>
               <button 
@@ -161,6 +184,16 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
           )}
         </div>
       </div>
+
+      {/* Refer Property Modal */}
+      <ReferPropertyModal
+        isOpen={showReferModal}
+        onClose={() => setShowReferModal(false)}
+        property={property}
+        onSuccess={() => {
+          // Optionally refresh the property list
+        }}
+      />
     </div>
   )
 }

@@ -56,6 +56,22 @@ router.get('/images/all', canViewAllData, propertyController.getPropertiesWithIm
 // GET /api/properties/images/stats - Get image statistics
 router.get('/images/stats', canViewAllData, propertyController.getImageStats);
 
+// Property referral routes (must be before /:id route to avoid conflicts)
+// GET /api/properties/referrals/pending - Get pending referrals for current user
+router.get('/referrals/pending', canViewProperties, propertyController.getPendingReferrals);
+
+// GET /api/properties/referrals/pending/count - Get count of pending referrals
+router.get('/referrals/pending/count', canViewProperties, propertyController.getPendingReferralsCount);
+
+// PUT /api/properties/referrals/:id/confirm - Confirm a referral
+router.put('/referrals/:id/confirm', canViewProperties, propertyController.confirmReferral);
+
+// PUT /api/properties/referrals/:id/reject - Reject a referral
+router.put('/referrals/:id/reject', canViewProperties, propertyController.rejectReferral);
+
+// POST /api/properties/:id/refer - Refer a property to an agent (must be before /:id route)
+router.post('/:id/refer', canViewProperties, propertyController.referPropertyToAgent);
+
 // GET /api/properties/:id - Get single property (filtered by role) - MUST BE LAST
 router.get('/:id', canViewProperties, csrfProtection, propertyController.getPropertyById);
 

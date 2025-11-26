@@ -20,6 +20,7 @@ import { PropertyCard } from '@/components/PropertyCard'
 import { PropertyFilters } from '@/components/PropertyFilters'
 import { PropertyModals } from '@/components/PropertyModals'
 import { PropertyPagination } from '@/components/PropertyPagination'
+import { ReferPropertyModal } from '@/components/ReferPropertyModal'
 import { getPropertyColumns, getPropertyDetailedColumns } from '@/components/PropertyTableColumns'
 import { Property, Category, Status, PropertyFilters as PropertyFiltersType, EditFormData } from '@/types/property'
 import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategories, mockStatuses } from '@/utils/api'
@@ -58,6 +59,7 @@ export default function PropertiesPage() {
   const [showViewModal, setShowViewModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
+  const [showReferModal, setShowReferModal] = useState(false)
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
   const [deletingProperty, setDeletingProperty] = useState<Property | null>(null)
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
@@ -197,7 +199,8 @@ export default function PropertiesPage() {
         ...property,
         onView: handleViewProperty,
         onEdit: handleEditProperty,
-        onDelete: handleDeleteProperty
+        onDelete: handleDeleteProperty,
+        onRefer: handleReferProperty
       }))
       
       setProperties(propertiesWithActions)
@@ -369,7 +372,8 @@ export default function PropertiesPage() {
         ...property,
         onView: handleViewProperty,
         onEdit: handleEditProperty,
-        onDelete: handleDeleteProperty
+        onDelete: handleDeleteProperty,
+        onRefer: handleReferProperty
       }))
       
       setProperties(propertiesWithActions)
@@ -621,6 +625,12 @@ export default function PropertiesPage() {
     setShowDeleteModal(true)
   }
 
+  const handleReferProperty = (property: Property) => {
+    console.log('Refer property clicked:', property)
+    setSelectedProperty(property)
+    setShowReferModal(true)
+  }
+
   // Handle confirm delete
   const handleConfirmDelete = async () => {
     if (deletingProperty && deleteConfirmation === deletingProperty.reference_number) {
@@ -756,7 +766,7 @@ export default function PropertiesPage() {
       
       // Update local state
       setProperties(prev => prev.map(p => 
-        p.id === id ? { ...response.data, onView: handleViewProperty, onEdit: handleEditProperty, onDelete: handleDeleteProperty } : p
+        p.id === id ? { ...response.data, onView: handleViewProperty, onEdit: handleEditProperty, onDelete: handleDeleteProperty, onRefer: handleReferProperty } : p
       ))
       
       // Clear any previous validation errors
@@ -1223,7 +1233,18 @@ export default function PropertiesPage() {
       ) : (
         // Table View
         <DataTable
-          columns={getPropertyColumns(canManageProperties)}
+          columns={getPropertyColumns(
+            canManageProperties,
+            (property: Property) => {
+              // Check if property is closed (Sold, Rented, or Closed status)
+              const isClosed = property.status_name && 
+                ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
+              // Agents and team leaders can only refer properties that are assigned to them (and not closed)
+              return (user?.role === 'agent' || user?.role === 'team_leader') && 
+                     property.agent_id === user?.id &&
+                     !isClosed
+            }
+          )}
           data={paginatedProperties}
         />
       )}
@@ -1276,6 +1297,19 @@ export default function PropertiesPage() {
         backendValidationErrors={backendValidationErrors}
         setBackendValidationErrors={setBackendValidationErrors}
         canManageProperties={canManageProperties}
+      />
+
+      {/* Refer Property Modal */}
+      <ReferPropertyModal
+        isOpen={showReferModal}
+        onClose={() => {
+          setShowReferModal(false)
+          setSelectedProperty(null)
+        }}
+        property={selectedProperty}
+        onSuccess={() => {
+          loadPropertiesOnly()
+        }}
       />
     </div>
   )

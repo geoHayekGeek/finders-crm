@@ -185,10 +185,12 @@ class Property {
       
       if (propertyIds.length > 0) {
         const referralsResult = await pool.query(
-          `SELECT property_id, id, name, type, employee_id, date, external 
+          `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id
            FROM referrals 
            WHERE property_id = ANY($1::int[]) 
-           ORDER BY property_id, date DESC`,
+           ORDER BY property_id, 
+             CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+             date DESC`,
           [propertyIds]
         );
         
@@ -203,7 +205,10 @@ class Property {
             type: referral.type,
             employee_id: referral.employee_id,
             date: referral.date,
-            external: referral.external
+            external: referral.external,
+            status: referral.status,
+            referred_to_agent_id: referral.referred_to_agent_id,
+            referred_by_user_id: referral.referred_by_user_id
           });
         });
       }
@@ -374,10 +379,12 @@ class Property {
       
       if (propertyIds.length > 0) {
         const referralsResult = await pool.query(
-          `SELECT property_id, id, name, type, employee_id, date, external 
+          `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id
            FROM referrals 
            WHERE property_id = ANY($1::int[]) 
-           ORDER BY property_id, date DESC`,
+           ORDER BY property_id, 
+             CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+             date DESC`,
           [propertyIds]
         );
         
@@ -392,7 +399,10 @@ class Property {
             type: referral.type,
             employee_id: referral.employee_id,
             date: referral.date,
-            external: referral.external
+            external: referral.external,
+            status: referral.status,
+            referred_to_agent_id: referral.referred_to_agent_id,
+            referred_by_user_id: referral.referred_by_user_id
           });
         });
       }
@@ -622,7 +632,12 @@ class Property {
     
     // Fetch referrals for this property
     const referralsResult = await pool.query(
-      `SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC`,
+      `SELECT id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id 
+       FROM referrals 
+       WHERE property_id = $1 
+       ORDER BY 
+         CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+         date DESC`,
       [propertyId]
     );
     console.log('🔍 Referrals fetched for property', propertyId, ':', referralsResult.rows);
@@ -754,7 +769,12 @@ class Property {
       );
       
       const referralsResult = await client.query(
-        'SELECT id, name, type, employee_id, date, external FROM referrals WHERE property_id = $1 ORDER BY date DESC',
+        `SELECT id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id 
+         FROM referrals 
+         WHERE property_id = $1 
+         ORDER BY 
+           CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+           date DESC`,
         [id]
       );
       
@@ -900,10 +920,12 @@ class Property {
     
     if (propertyIds.length > 0) {
       const referralsResult = await pool.query(
-        `SELECT property_id, id, name, type, employee_id, date, external 
+        `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id
          FROM referrals 
          WHERE property_id = ANY($1::int[]) 
-         ORDER BY property_id, date DESC`,
+         ORDER BY property_id, 
+           CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+           date DESC`,
         [propertyIds]
       );
       
@@ -918,7 +940,10 @@ class Property {
           type: referral.type,
           employee_id: referral.employee_id,
           date: referral.date,
-          external: referral.external
+          external: referral.external,
+          status: referral.status,
+          referred_to_agent_id: referral.referred_to_agent_id,
+          referred_by_user_id: referral.referred_by_user_id
         });
       });
     }

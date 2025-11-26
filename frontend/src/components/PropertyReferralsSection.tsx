@@ -190,34 +190,53 @@ export function PropertyReferralsSection({
         <div className="space-y-2">
         {referrals.map((referral, index) => {
           const referralDate = new Date(referral.date)
-          const isRecent = index === 0
+          // Only confirmed referrals (not pending/rejected) can be "current" and earn commission
+          const isConfirmed = referral.status === 'confirmed' || (!referral.status && referral.external !== undefined)
+          const isPending = referral.status === 'pending'
+          const isRejected = referral.status === 'rejected'
+          // Get the most recent confirmed referral to mark as "current"
+          const confirmedReferrals = referrals.filter(r => r.status === 'confirmed' || (!r.status && r.external !== undefined))
+          const mostRecentConfirmed = confirmedReferrals.length > 0 ? confirmedReferrals[0] : null
+          const isCurrent = isConfirmed && mostRecentConfirmed && referral.id === mostRecentConfirmed.id
           
           return (
             <div
               key={referral.id || index}
               className={`p-3 rounded-lg border ${
-                isRecent
+                isCurrent
                   ? 'border-blue-200 bg-blue-50'
+                  : isPending
+                  ? 'border-orange-200 bg-orange-50'
                   : 'border-gray-200 bg-gray-50'
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-gray-900">
                       {referral.name}
                     </span>
-                    {isRecent && (
+                    {isPending && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-800">
+                        Pending
+                      </span>
+                    )}
+                    {isRejected && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                        Rejected
+                      </span>
+                    )}
+                    {isCurrent && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                         Current
                       </span>
                     )}
-                    {referral.external && (
+                    {referral.external && isConfirmed && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
                         External
                       </span>
                     )}
-                    {!referral.external && !isRecent && (
+                    {!referral.external && isConfirmed && !isCurrent && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                         Internal
                       </span>
@@ -230,7 +249,7 @@ export function PropertyReferralsSection({
                 
                 {/* Commission Status Indicator & Actions */}
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {referral.external ? (
+                  {isPending || isRejected || referral.external ? (
                     <div className="flex items-center gap-1.5 text-xs text-gray-600">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -270,9 +289,21 @@ export function PropertyReferralsSection({
           <div className="text-sm text-gray-700">
             <strong>Commission Summary:</strong>
             {' '}
-            {referrals.filter(r => !r.external).length} agent(s) earning commission,
+            {referrals.filter(r => {
+              const isConfirmed = r.status === 'confirmed' || (!r.status && r.external !== undefined)
+              return isConfirmed && !r.external
+            }).length} agent(s) earning commission,
             {' '}
-            {referrals.filter(r => r.external).length} external referral(s)
+            {referrals.filter(r => {
+              const isConfirmed = r.status === 'confirmed' || (!r.status && r.external !== undefined)
+              return isConfirmed && r.external
+            }).length} external referral(s)
+            {referrals.filter(r => r.status === 'pending').length > 0 && (
+              <>
+                {', '}
+                {referrals.filter(r => r.status === 'pending').length} pending referral(s)
+              </>
+            )}
           </div>
         </div>
       )}
