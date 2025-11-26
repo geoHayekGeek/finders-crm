@@ -3,11 +3,19 @@
 import { Search, Filter, X } from 'lucide-react'
 import { PropertyFilters as PropertyFiltersType, Category, Status } from '@/types/property'
 
+interface Agent {
+  id: number
+  name: string
+  email: string
+  role: string
+}
+
 interface PropertyFiltersProps {
   filters: PropertyFiltersType
   setFilters: (filters: PropertyFiltersType) => void
   categories: Category[]
   statuses: Status[]
+  agents?: Agent[]
   showAdvancedFilters: boolean
   setShowAdvancedFilters: (show: boolean) => void
   onClearFilters: () => void
@@ -18,6 +26,7 @@ export function PropertyFilters({
   setFilters,
   categories,
   statuses,
+  agents = [],
   showAdvancedFilters,
   setShowAdvancedFilters,
   onClearFilters
@@ -73,6 +82,19 @@ export function PropertyFilters({
               {categories.map(category => (
                 <option key={category.id} value={category.id}>
                   {category.name}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={filters.agent_id || ''}
+              onChange={(e) => handleFilterChange('agent_id', e.target.value ? Number(e.target.value) : undefined)}
+              className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+            >
+              <option value="">All Agents</option>
+              {agents.map(agent => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
                 </option>
               ))}
             </select>
@@ -210,6 +232,17 @@ export function PropertyFilters({
                     <button
                       onClick={() => handleFilterChange('category_id', undefined)}
                       className="ml-2 text-green-600 hover:text-green-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.agent_id && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-cyan-100 text-cyan-800">
+                    Agent: {agents.find(a => a.id === filters.agent_id)?.name || 'Unknown'}
+                    <button
+                      onClick={() => handleFilterChange('agent_id', undefined)}
+                      className="ml-2 text-cyan-600 hover:text-cyan-800"
                     >
                       <X className="h-4 w-4" />
                     </button>

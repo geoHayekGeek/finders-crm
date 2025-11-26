@@ -37,6 +37,7 @@ export default function PropertiesPage() {
   const [properties, setProperties] = useState<Property[]>([])
   const [categories, setCategories] = useState<Category[]>([])
   const [statuses, setStatuses] = useState<Status[]>([])
+  const [agents, setAgents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [propertiesLoading, setPropertiesLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -316,6 +317,33 @@ export default function PropertiesPage() {
       const statusesResponseData = await statusesResponse.json()
       const statusesData: Status[] = statusesResponseData.data || statusesResponseData
       console.log('✅ Loaded statuses from production API:', statusesData.length)
+      
+      // Load agents from production API with authentication
+      try {
+        const agentsResponse = await fetch('http://localhost:10000/api/users/agents', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!agentsResponse.ok) {
+          throw new Error(`Failed to load agents: ${agentsResponse.statusText}`)
+        }
+
+        const agentsResponseData = await agentsResponse.json()
+        if (agentsResponseData.success) {
+          setAgents(agentsResponseData.agents || [])
+          console.log('✅ Loaded agents from production API:', agentsResponseData.agents?.length || 0)
+        } else {
+          console.warn('Could not load agents:', agentsResponseData.message)
+          setAgents([])
+        }
+      } catch (agentsError) {
+        console.error('Error loading agents:', agentsError)
+        setAgents([])
+      }
       
       // Load statistics from production API with authentication
       try {
@@ -1087,6 +1115,7 @@ export default function PropertiesPage() {
         setFilters={setFilters}
         categories={categories}
         statuses={statuses}
+        agents={agents}
         showAdvancedFilters={showAdvancedFilters}
         setShowAdvancedFilters={setShowAdvancedFilters}
         onClearFilters={clearFilters}

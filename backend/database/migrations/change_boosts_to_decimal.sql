@@ -13,3 +13,5 @@ ALTER COLUMN boosts SET DEFAULT 0.00;
 -- Update comment to reflect that it's a dollar value
 COMMENT ON COLUMN monthly_agent_reports.boosts IS 'Manual field for boosts in dollars (can be edited)';
 
+
+

@@ -681,6 +681,69 @@ describe('Property Controller', () => {
       });
     });
 
+    it('should filter properties by agent_id', async () => {
+      req.query = { agent_id: '1' };
+      const mockProperties = [
+        { id: 1, building_name: 'Building 1', agent_id: 1, reference_number: 'REF001', price: 100000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 1', surface: 100, view_type: 'sea view' },
+        { id: 2, building_name: 'Building 2', agent_id: 2, reference_number: 'REF002', price: 200000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 2', surface: 200, view_type: 'sea view' },
+        { id: 3, building_name: 'Building 3', agent_id: 1, reference_number: 'REF003', price: 300000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 3', surface: 300, view_type: 'sea view' }
+      ];
+
+      Property.getAllProperties.mockResolvedValue(mockProperties);
+
+      await propertyController.getPropertiesWithFilters(req, res);
+
+      expect(Property.getAllProperties).toHaveBeenCalled();
+      // Should filter to only properties with agent_id = 1
+      const responseCall = res.json.mock.calls[0][0];
+      expect(responseCall.success).toBe(true);
+      expect(responseCall.data).toHaveLength(2);
+      expect(responseCall.data[0].agent_id).toBe(1);
+      expect(responseCall.data[1].agent_id).toBe(1);
+      expect(responseCall.total).toBe(2);
+      expect(responseCall.role).toBe('admin');
+    });
+
+    it('should return empty array when no properties match agent_id filter', async () => {
+      req.query = { agent_id: '999' };
+      const mockProperties = [
+        { id: 1, building_name: 'Building 1', agent_id: 1, reference_number: 'REF001', price: 100000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 1', surface: 100, view_type: 'sea view' },
+        { id: 2, building_name: 'Building 2', agent_id: 2, reference_number: 'REF002', price: 200000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 2', surface: 200, view_type: 'sea view' }
+      ];
+
+      Property.getAllProperties.mockResolvedValue(mockProperties);
+
+      await propertyController.getPropertiesWithFilters(req, res);
+
+      expect(Property.getAllProperties).toHaveBeenCalled();
+      const responseCall = res.json.mock.calls[0][0];
+      expect(responseCall.success).toBe(true);
+      expect(responseCall.data).toHaveLength(0);
+      expect(responseCall.total).toBe(0);
+    });
+
+    it('should filter properties by agent_id combined with other filters', async () => {
+      req.query = { agent_id: '1', status_id: '1', price_min: '150000' };
+      const mockProperties = [
+        { id: 1, building_name: 'Building 1', agent_id: 1, reference_number: 'REF001', price: 100000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 1', surface: 100, view_type: 'sea view' },
+        { id: 2, building_name: 'Building 2', agent_id: 2, reference_number: 'REF002', price: 200000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 2', surface: 200, view_type: 'sea view' },
+        { id: 3, building_name: 'Building 3', agent_id: 1, reference_number: 'REF003', price: 300000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 3', surface: 300, view_type: 'sea view' }
+      ];
+
+      Property.getAllProperties.mockResolvedValue(mockProperties);
+
+      await propertyController.getPropertiesWithFilters(req, res);
+
+      expect(Property.getAllProperties).toHaveBeenCalled();
+      // Should filter to only properties with agent_id = 1, status_id = 1, and price >= 150000
+      const responseCall = res.json.mock.calls[0][0];
+      expect(responseCall.success).toBe(true);
+      expect(responseCall.data).toHaveLength(1);
+      expect(responseCall.data[0].agent_id).toBe(1);
+      expect(responseCall.data[0].price).toBeGreaterThanOrEqual(150000);
+      expect(responseCall.total).toBe(1);
+    });
+
     it('should handle empty results', async () => {
       req.query = { location: 'NonExistent' };
       Property.getAllProperties.mockResolvedValue([]);
