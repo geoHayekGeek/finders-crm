@@ -549,6 +549,12 @@ export const leadsApi = {
   
   // Get referral statistics for an agent
   getAgentReferralStats: (agentId: number, token?: AuthToken) => apiRequest<AgentReferralStatsResponse>(`/leads/agent/${agentId}/referral-stats`, {}, token),
+  
+  // Get viewings for a lead
+  getViewings: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/viewings`, {}, token),
+  
+  // Get owned properties for a lead
+  getOwnedProperties: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/owned-properties`, {}, token),
 }
 
 // Viewings API

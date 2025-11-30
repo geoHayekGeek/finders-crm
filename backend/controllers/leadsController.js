@@ -190,7 +190,8 @@ class LeadsController {
           price: lead.price,
           status: lead.status,
           created_at: lead.created_at,
-          updated_at: lead.updated_at
+          updated_at: lead.updated_at,
+          referrals: lead.referrals || [] // Include referrals so agents and team leaders can see referral history
         };
       }
       
@@ -687,6 +688,57 @@ class LeadsController {
           success: false,
           message: 'Lead not found'
         });
+      }
+
+      // Check if user has permission to view this lead (same logic as getLeadById)
+      const userRole = req.user.role;
+      const normalizedRole = normalizeRole(userRole);
+      const userId = req.user.id;
+      
+      // Admin, operations, operations manager, and agent manager have full access
+      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
+        if (normalizedRole === 'agent') {
+          // Agents can view referrals for leads they're assigned to OR leads they referred
+          if (lead.agent_id !== userId) {
+            // Check if this agent made any referrals for this lead
+            const referralCheck = await pool.query(
+              `SELECT 1 FROM lead_referrals 
+               WHERE lead_id = $1 AND referred_by_user_id = $2`,
+              [parseInt(id), userId]
+            );
+            
+            if (referralCheck.rows.length === 0) {
+              return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to view referrals for this lead'
+              });
+            }
+          }
+        } else if (normalizedRole === 'team_leader') {
+          // Team leaders can view referrals for their own leads, their team's leads, or leads they referred
+          if (lead.agent_id !== userId) {
+            // Check if the lead belongs to an agent under this team leader
+            const teamAgentCheck = await pool.query(
+              `SELECT 1 FROM team_agents 
+               WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+              [userId, lead.agent_id]
+            );
+            
+            // Also check if this team leader made any referrals for this lead
+            const referralCheck = await pool.query(
+              `SELECT 1 FROM lead_referrals 
+               WHERE lead_id = $1 AND referred_by_user_id = $2`,
+              [parseInt(id), userId]
+            );
+            
+            if (teamAgentCheck.rows.length === 0 && referralCheck.rows.length === 0) {
+              return res.status(403).json({
+                success: false,
+                message: 'You do not have permission to view referrals for this lead'
+              });
+            }
+          }
+        }
       }
 
       const referrals = await LeadReferral.getReferralsByLeadId(parseInt(id));
@@ -1294,6 +1346,68 @@ class LeadsController {
       console.error('Error rejecting referral:', error);
       res.status(500).json({ 
         message: error.message || 'Server error' 
+      });
+    }
+  }
+
+  // Get viewings for a lead
+  static async getLeadViewings(req, res) {
+    try {
+      const { id } = req.params;
+      const userRole = req.user.role;
+      const normalizedRole = normalizeRole(userRole);
+      
+      // Only admin, operations manager, operations, and agent manager can view lead profile
+      if (!['admin', 'operations_manager', 'operations', 'agent_manager'].includes(normalizedRole)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to view lead profile'
+        });
+      }
+
+      const viewings = await Lead.getLeadViewings(id);
+      
+      res.json({
+        success: true,
+        data: viewings
+      });
+    } catch (error) {
+      console.error('Error getting lead viewings:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve lead viewings',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  // Get owned properties for a lead
+  static async getLeadOwnedProperties(req, res) {
+    try {
+      const { id } = req.params;
+      const userRole = req.user.role;
+      const normalizedRole = normalizeRole(userRole);
+      
+      // Only admin, operations manager, operations, and agent manager can view lead profile
+      if (!['admin', 'operations_manager', 'operations', 'agent_manager'].includes(normalizedRole)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to view lead profile'
+        });
+      }
+
+      const properties = await Lead.getLeadOwnedProperties(id);
+      
+      res.json({
+        success: true,
+        data: properties
+      });
+    } catch (error) {
+      console.error('Error getting lead owned properties:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve lead owned properties',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }

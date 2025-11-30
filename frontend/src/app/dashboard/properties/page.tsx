@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { 
   Building2, 
@@ -98,6 +98,9 @@ export default function PropertiesPage() {
   // Loading states for refresh buttons
   const [categoriesLoading, setCategoriesLoading] = useState(false)
   const [statusesLoading, setStatusesLoading] = useState(false)
+  
+  // Ref to track if we've already processed the URL parameter
+  const hasProcessedUrlParam = useRef(false)
 
 
   
@@ -142,6 +145,19 @@ export default function PropertiesPage() {
       setCurrentPage(1) // Reset to first page when filters change
     }
   }, [filters, isAuthenticated])
+
+  // Action handlers
+  const handleViewProperty = (property: Property) => {
+    setSelectedProperty(property)
+    setShowViewModal(true)
+  }
+
+  const handleEditProperty = (property: Property) => {
+    setSelectedProperty(property)
+    setShowEditModal(true)
+    // Clear any previous backend validation errors
+    setBackendValidationErrors({})
+  }
 
   // Load only properties (for filtering)
   const loadPropertiesOnly = async () => {
@@ -404,19 +420,6 @@ export default function PropertiesPage() {
     return filteredProperties.slice(0, endIndex)
   }, [filteredProperties, currentPage, itemsPerPage])
 
-  // Action handlers
-  const handleViewProperty = (property: Property) => {
-    setSelectedProperty(property)
-    setShowViewModal(true)
-  }
-
-  const handleEditProperty = (property: Property) => {
-    setSelectedProperty(property)
-    setShowEditModal(true)
-    // Clear any previous backend validation errors
-    setBackendValidationErrors({})
-  }
-
   const handleSaveEdit = async () => {
     try {
       console.log('💾 Saving property edits:', editFormData)
@@ -630,6 +633,72 @@ export default function PropertiesPage() {
     setSelectedProperty(property)
     setShowReferModal(true)
   }
+
+  // Handle URL parameter for auto-opening view modal
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isAuthenticated || !token) return
+    if (loading || showViewModal || hasProcessedUrlParam.current) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const viewPropertyId = urlParams.get('view')
+    
+    if (!viewPropertyId) return
+    
+    const propertyId = parseInt(viewPropertyId, 10)
+    if (isNaN(propertyId)) return
+    
+    // Mark as processed to prevent multiple runs
+    hasProcessedUrlParam.current = true
+    
+    // First, try to find the property in the loaded properties
+    const property = properties.find(p => p.id === propertyId)
+    if (property) {
+      console.log('✅ Found property in list, opening modal:', propertyId)
+      handleViewProperty(property)
+      // Clean up URL parameter
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+      return
+    }
+    
+    // If property not found in list, fetch it directly using the API
+    console.log('🔍 Property not in list, fetching:', propertyId)
+    const fetchAndOpenProperty = async () => {
+      try {
+        const { propertiesApi } = await import('@/utils/api')
+        const response = await propertiesApi.getById(propertyId)
+        
+        if (response.success && response.data) {
+          console.log('✅ Fetched property, opening modal:', propertyId)
+          const fetchedProperty: Property = {
+            ...response.data,
+            onView: handleViewProperty,
+            onEdit: handleEditProperty,
+            onDelete: handleDeleteProperty,
+            onRefer: handleReferProperty
+          }
+          handleViewProperty(fetchedProperty)
+          // Clean up URL parameter
+          const newUrl = window.location.pathname
+          window.history.replaceState({}, '', newUrl)
+        } else {
+          console.error('❌ Failed to fetch property:', response)
+        }
+      } catch (error) {
+        console.error('❌ Error fetching property for view:', error)
+      }
+    }
+    
+    // Fetch the property
+    fetchAndOpenProperty()
+  }, [properties, showViewModal, isAuthenticated, token, loading])
+  
+  // Reset the ref when modal closes
+  useEffect(() => {
+    if (!showViewModal) {
+      hasProcessedUrlParam.current = false
+    }
+  }, [showViewModal])
 
   // Handle confirm delete
   const handleConfirmDelete = async () => {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator, Edit3 } from 'lucide-react'
+import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator, Edit3, Building2, Eye } from 'lucide-react'
 import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser, LeadReferralInput, LeadNote } from '@/types/leads'
 import { AgentSelector } from './AgentSelector'
 import { StatusSelector } from './StatusSelector'
@@ -13,7 +13,7 @@ import { formatDateForDisplay } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
 import { leadStatusesApi, leadsApi, leadNotesApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
+import { isAgentRole, isTeamLeaderRole, isAdminRole, isOperationsRole, isAgentManagerRole } from '@/utils/roleUtils'
 
 interface User {
   id: number
@@ -84,6 +84,9 @@ export function LeadsModals({
   const { token, user } = useAuth()
   const limitedAccess = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
   
+  // Check if user can see lead profile tabs
+  const canViewLeadProfile = isAdminRole(user?.role) || isOperationsRole(user?.role) || isAgentManagerRole(user?.role)
+  
   // Lead statuses state
   const [leadStatuses, setLeadStatuses] = useState<Array<{ value: string; label: string; color: string }>>([])
   const [loadingStatuses, setLoadingStatuses] = useState(false)
@@ -91,6 +94,15 @@ export function LeadsModals({
   // Agents state for referrals
   const [agents, setAgents] = useState<Array<{ id: number; name: string }>>([])
   const [loadingAgents, setLoadingAgents] = useState(false)
+  
+  // Tab state for view modal
+  const [activeTab, setActiveTab] = useState<'details' | 'profile'>('details')
+  
+  // Lead profile data state
+  const [leadViewings, setLeadViewings] = useState<any[]>([])
+  const [leadOwnedProperties, setLeadOwnedProperties] = useState<any[]>([])
+  const [loadingViewings, setLoadingViewings] = useState(false)
+  const [loadingOwnedProperties, setLoadingOwnedProperties] = useState(false)
   
   // Fetch agents for referrals
   useEffect(() => {
@@ -243,6 +255,61 @@ export function LeadsModals({
       setEditingNoteId(null)
     }
   }, [showViewLeadModal, viewingLead, token, user])
+
+  // Load viewings when profile tab is active
+  useEffect(() => {
+    const loadViewings = async () => {
+      if (!token || !viewingLead || !canViewLeadProfile || activeTab !== 'profile') return
+      setLoadingViewings(true)
+      try {
+        const response = await leadsApi.getViewings(viewingLead.id, token)
+        if (response.success) {
+          setLeadViewings(response.data || [])
+        }
+      } catch (error) {
+        console.error('Error loading lead viewings:', error)
+      } finally {
+        setLoadingViewings(false)
+      }
+    }
+
+    if (showViewLeadModal && viewingLead && activeTab === 'profile') {
+      loadViewings()
+    } else {
+      setLeadViewings([])
+    }
+  }, [showViewLeadModal, viewingLead, token, activeTab, canViewLeadProfile])
+
+  // Load owned properties when profile tab is active
+  useEffect(() => {
+    const loadOwnedProperties = async () => {
+      if (!token || !viewingLead || !canViewLeadProfile || activeTab !== 'profile') return
+      setLoadingOwnedProperties(true)
+      try {
+        const response = await leadsApi.getOwnedProperties(viewingLead.id, token)
+        if (response.success) {
+          setLeadOwnedProperties(response.data || [])
+        }
+      } catch (error) {
+        console.error('Error loading lead owned properties:', error)
+      } finally {
+        setLoadingOwnedProperties(false)
+      }
+    }
+
+    if (showViewLeadModal && viewingLead && activeTab === 'profile') {
+      loadOwnedProperties()
+    } else {
+      setLeadOwnedProperties([])
+    }
+  }, [showViewLeadModal, viewingLead, token, activeTab, canViewLeadProfile])
+
+  // Reset tab when modal closes
+  useEffect(() => {
+    if (!showViewLeadModal) {
+      setActiveTab('details')
+    }
+  }, [showViewLeadModal])
 
   const handleSaveNote = async (noteId?: number) => {
     if (!token || !viewingLead) return
@@ -1168,7 +1235,38 @@ export function LeadsModals({
                 </button>
               </div>
 
+              {/* Tabs - Only show for admin, operations manager, operations, agent manager */}
+              {canViewLeadProfile && (
+                <div className="border-b border-gray-200 mb-6">
+                  <nav className="-mb-px flex space-x-8">
+                    <button
+                      onClick={() => setActiveTab('details')}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === 'details'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Lead Information
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('profile')}
+                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                        activeTab === 'profile'
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      Lead Profile
+                    </button>
+                  </nav>
+                </div>
+              )}
+
               <div className="space-y-6">
+                {/* Lead Information Tab */}
+                {(!canViewLeadProfile || activeTab === 'details') && (
+                  <>
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {!limitedAccess && (
@@ -1246,23 +1344,22 @@ export function LeadsModals({
                 )}
 
                 {/* Lead Referrals Section - Read Only in View Mode */}
-                {!limitedAccess && (
-                  <div className="pt-4 border-t border-gray-200">
-                    <LeadReferralsSection
-                      leadId={viewingLead.id}
-                      referrals={viewingLead.referrals || []}
-                      isLoading={loadingAgents}
-                      canEdit={false}
-                      agents={agents}
-                      onAddReferral={async (_agentId, _referralDate) => {
-                        // read-only
-                      }}
-                      onDeleteReferral={async (_referralId) => {
-                        // read-only
-                      }}
-                    />
-                  </div>
-                )}
+                {/* Show referrals for all users (agents, team leaders, admins, etc.) - same as properties */}
+                <div className="pt-4 border-t border-gray-200">
+                  <LeadReferralsSection
+                    leadId={viewingLead.id}
+                    referrals={viewingLead.referrals || []}
+                    isLoading={loadingAgents}
+                    canEdit={false}
+                    agents={agents}
+                    onAddReferral={async (_agentId, _referralDate) => {
+                      // read-only
+                    }}
+                    onDeleteReferral={async (_referralId) => {
+                      // read-only
+                    }}
+                  />
+                </div>
 
                 {/* Lead Notes Section */}
                 {viewingLead && (
@@ -1394,6 +1491,118 @@ export function LeadsModals({
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Last Updated</label>
                       <p className="text-gray-600">{new Date(viewingLead.updated_at).toLocaleString()}</p>
+                    </div>
+                  </div>
+                )}
+                  </>
+                )}
+
+                {/* Lead Profile Tab */}
+                {canViewLeadProfile && activeTab === 'profile' && (
+                  <div className="space-y-6">
+                    {/* Viewings Section */}
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Eye className="h-5 w-5 mr-2" />
+                        Viewings
+                      </h3>
+                      {loadingViewings ? (
+                        <p className="text-sm text-gray-500">Loading viewings...</p>
+                      ) : leadViewings.length === 0 ? (
+                        <p className="text-sm text-gray-500">No viewings found for this lead.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {leadViewings.map((viewing) => (
+                            <div
+                              key={viewing.id}
+                              onClick={() => {
+                                const url = `/dashboard/properties?view=${viewing.property_id}`
+                                window.open(url, '_blank')
+                              }}
+                              className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:border-blue-300 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="font-medium text-gray-900">
+                                      {viewing.reference_number || `Property #${viewing.property_id}`}
+                                    </span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full text-white"
+                                      style={{ backgroundColor: viewing.status_color || '#6B7280' }}
+                                    >
+                                      {viewing.status_name}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-1">{viewing.location}</p>
+                                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                                    <span>Date: {formatDateForDisplay(viewing.viewing_date)}</span>
+                                    {viewing.viewing_time && (
+                                      <span>Time: {viewing.viewing_time}</span>
+                                    )}
+                                    <span className={`px-2 py-0.5 rounded ${
+                                      viewing.status === 'Completed' ? 'bg-green-100 text-green-800' :
+                                      viewing.status === 'Scheduled' ? 'bg-blue-100 text-blue-800' :
+                                      viewing.status === 'Cancelled' ? 'bg-red-100 text-red-800' :
+                                      'bg-gray-100 text-gray-800'
+                                    }`}>
+                                      {viewing.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <Building2 className="h-5 w-5 text-gray-400" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Owned Properties Section */}
+                    <div className="pt-4 border-t border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <Building2 className="h-5 w-5 mr-2" />
+                        Owned Properties
+                      </h3>
+                      {loadingOwnedProperties ? (
+                        <p className="text-sm text-gray-500">Loading owned properties...</p>
+                      ) : leadOwnedProperties.length === 0 ? (
+                        <p className="text-sm text-gray-500">No owned properties found for this lead.</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {leadOwnedProperties.map((property) => (
+                            <div
+                              key={property.id}
+                              onClick={() => {
+                                const url = `/dashboard/properties?view=${property.id}`
+                                window.open(url, '_blank')
+                              }}
+                              className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:border-blue-300 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="font-medium text-gray-900">
+                                      {property.reference_number || `Property #${property.id}`}
+                                    </span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full text-white"
+                                      style={{ backgroundColor: property.status_color || '#6B7280' }}
+                                    >
+                                      {property.status_name}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mb-1">{property.location}</p>
+                                  <div className="flex items-center gap-4 text-xs text-gray-500">
+                                    <span>Type: {property.property_type}</span>
+                                    <span>Category: {property.category_name}</span>
+                                    <span>Price: ${property.price?.toLocaleString() || 'N/A'}</span>
+                                  </div>
+                                </div>
+                                <Building2 className="h-5 w-5 text-gray-400" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

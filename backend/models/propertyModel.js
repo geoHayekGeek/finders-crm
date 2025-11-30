@@ -643,6 +643,9 @@ class Property {
     console.log('🔍 Referrals fetched for property', propertyId, ':', referralsResult.rows);
     property.referrals = referralsResult.rows;
     
+    console.log('🔍 Returning property with owner_id:', property.owner_id, 'Type:', typeof property.owner_id);
+    console.log('🔍 Owner name:', property.owner_name);
+    
     return property;
   }
 

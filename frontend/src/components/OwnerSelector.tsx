@@ -103,18 +103,39 @@ export function OwnerSelector({
     onOwnerChange(undefined)
   }
 
-  const selectedOwner = owners.find(o => o.id == selectedOwnerId) // Use == for type coercion
+  const selectedOwner = owners.find(o => {
+    const match = o.id == selectedOwnerId // Use == for type coercion
+    if (selectedOwnerId && !match) {
+      // Only log when we're looking for a specific ID but haven't found it yet
+      if (owners.length > 0 && owners.length < 10) {
+        console.log('🔍 OwnerSelector - Checking owner:', o.id, 'type:', typeof o.id, 'against:', selectedOwnerId, 'type:', typeof selectedOwnerId, 'match:', match)
+      }
+    }
+    return match
+  })
   
   // Debug logging
   console.log('🔍 OwnerSelector - selectedOwnerId:', selectedOwnerId, 'type:', typeof selectedOwnerId)
-  console.log('🔍 OwnerSelector - owners:', owners)
-  console.log('🔍 OwnerSelector - selectedOwner:', selectedOwner)
   console.log('🔍 OwnerSelector - owners length:', owners.length)
-  if (selectedOwnerId) {
+  if (selectedOwnerId !== undefined && selectedOwnerId !== null) {
     console.log('🔍 OwnerSelector - looking for owner with ID:', selectedOwnerId)
-    const foundOwner = owners.find(o => o.id == selectedOwnerId) // Use == for type coercion
+    // Check first few owner IDs to see their types
+    if (owners.length > 0) {
+      console.log('🔍 OwnerSelector - First 3 owner IDs:', owners.slice(0, 3).map(o => ({ id: o.id, type: typeof o.id, name: o.customer_name })))
+    }
+    const foundOwner = owners.find(o => {
+      const idMatch = o.id === selectedOwnerId
+      const looseMatch = o.id == selectedOwnerId
+      return idMatch || looseMatch
+    })
     console.log('🔍 OwnerSelector - found owner:', foundOwner)
+    if (!foundOwner && owners.length > 0) {
+      // Check if any owner has a matching ID with different type
+      const allIds = owners.map(o => ({ id: o.id, type: typeof o.id }))
+      console.log('🔍 OwnerSelector - Sample of owner IDs in list:', allIds.slice(0, 10))
+    }
   }
+  console.log('🔍 OwnerSelector - selectedOwner:', selectedOwner)
 
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {

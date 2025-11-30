@@ -489,6 +489,67 @@ useEffect(() => {
     return leads.slice(0, endIndex)
   }, [leads, currentPage, itemsPerPage])
 
+  // Ref to track if we've already processed the URL parameter
+  const hasProcessedUrlParam = useRef(false)
+
+  // Handle URL parameter for auto-opening view modal
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isAuthenticated || !token) return
+    if (loading || leadsLoading || showViewModal || hasProcessedUrlParam.current) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const viewLeadId = urlParams.get('view')
+    
+    if (!viewLeadId) return
+    
+    const leadId = parseInt(viewLeadId, 10)
+    if (isNaN(leadId)) return
+    
+    // Mark as processed to prevent multiple runs
+    hasProcessedUrlParam.current = true
+    
+    // First, try to find the lead in the loaded leads
+    const lead = leads.find(l => l.id === leadId)
+    if (lead) {
+      console.log('✅ Found lead in list, opening modal:', leadId)
+      handleViewLead(lead)
+      // Clean up URL parameter
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+      return
+    }
+    
+    // If lead not found in list, fetch it directly using the API
+    console.log('🔍 Lead not in list, fetching:', leadId)
+    const fetchAndOpenLead = async () => {
+      try {
+        const response = await leadsApi.getById(leadId, token)
+        
+        if (response.success && response.data) {
+          console.log('✅ Fetched lead, opening modal:', leadId)
+          handleViewLead(response.data)
+          // Clean up URL parameter
+          const newUrl = window.location.pathname
+          window.history.replaceState({}, '', newUrl)
+        } else {
+          console.error('❌ Failed to fetch lead:', response)
+        }
+      } catch (error) {
+        console.error('❌ Error fetching lead for view:', error)
+      }
+    }
+    
+    // Fetch the lead
+    fetchAndOpenLead()
+  }, [leads, showViewModal, isAuthenticated, token, loading, leadsLoading, handleViewLead])
+  
+  // Reset the ref when modal closes
+  useEffect(() => {
+    if (!showViewModal) {
+      hasProcessedUrlParam.current = false
+    }
+  }, [showViewModal])
+
 
   const handleSaveEdit = async () => {
     try {

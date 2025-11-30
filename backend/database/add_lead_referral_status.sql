@@ -21,3 +21,5 @@ COMMENT ON COLUMN lead_referrals.status IS 'Referral status: pending (awaiting c
 COMMENT ON COLUMN lead_referrals.referred_to_agent_id IS 'ID of the agent/team leader this lead is being referred to';
 COMMENT ON COLUMN lead_referrals.referred_by_user_id IS 'ID of the user who made this referral';
 
+
+

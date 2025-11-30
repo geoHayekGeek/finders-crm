@@ -614,6 +614,8 @@ export function PropertyModals({
           if (result.success && result.data) {
             const propertyData = result.data
             console.log('✅ Property details fetched from backend:', propertyData)
+            console.log('🔍 Owner ID from API:', propertyData.owner_id, 'Type:', typeof propertyData.owner_id)
+            console.log('🔍 Owner Name from API:', propertyData.owner_name)
             console.log('🔍 Details field value:', propertyData.details)
             console.log('🔍 Interior details field value:', propertyData.interior_details)
             console.log('🔍 Notes field value:', propertyData.notes)
@@ -649,7 +651,17 @@ export function PropertyModals({
               location: propertyData.location || '',
               category_id: propertyData.category_id || 0,
               building_name: propertyData.building_name || '',
-              owner_id: propertyData.owner_id ? parseInt(propertyData.owner_id.toString()) : undefined,
+              owner_id: (() => {
+                const rawOwnerId = propertyData.owner_id
+                console.log('🔍 Raw owner_id from API:', rawOwnerId, 'Type:', typeof rawOwnerId, 'Is null:', rawOwnerId === null, 'Is undefined:', rawOwnerId === undefined)
+                if (rawOwnerId !== null && rawOwnerId !== undefined) {
+                  const parsed = parseInt(rawOwnerId.toString())
+                  console.log('🔍 Parsed owner_id:', parsed, 'Type:', typeof parsed)
+                  return parsed
+                }
+                console.log('🔍 Owner_id is null or undefined, returning undefined')
+                return undefined
+              })(),
               owner_name: propertyData.owner_name || '',
               phone_number: propertyData.phone_number || '',
               surface: propertyData.surface,
@@ -670,6 +682,9 @@ export function PropertyModals({
             }
 
             console.log('🎯 Setting editFormData:', formData)
+            console.log('🎯 Owner ID from API:', propertyData.owner_id)
+            console.log('🎯 Owner ID converted:', formData.owner_id)
+            console.log('🎯 Owner ID type:', typeof formData.owner_id)
             console.log('🎯 Agent ID from API:', propertyData.agent_id)
             console.log('🎯 Agent ID converted:', formData.agent_id)
             console.log('🎯 Agent ID type:', typeof formData.agent_id)
@@ -807,6 +822,8 @@ export function PropertyModals({
 
           if (result.success && result.data) {
             console.log('✅ View property details fetched from backend:', result.data)
+            console.log('🔍 View Owner ID from API:', result.data.owner_id, 'Type:', typeof result.data.owner_id)
+            console.log('🔍 View Owner Name from API:', result.data.owner_name)
             setViewPropertyData(result.data)
           } else {
             console.error('❌ Failed to fetch view property details:', result.message)
@@ -2795,9 +2812,41 @@ export function PropertyModals({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Owner Name</label>
-                      <div className={`px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg ${viewPropertyData.owner_name === 'Hidden' ? 'text-gray-400 italic' : 'text-gray-900'}`}>
-                        {viewPropertyData.owner_name === 'Hidden' ? 'Hidden' : (viewPropertyData.owner_name || 'N/A')}
-                      </div>
+                      {(() => {
+                        const hasOwner = viewPropertyData && viewPropertyData.owner_id
+                        const hasRole = isAdminRole(user?.role) || isOperationsRole(user?.role) || isAgentManagerRole(user?.role)
+                        const notHidden = viewPropertyData?.owner_name !== 'Hidden'
+                        const isClickable = hasOwner && hasRole && notHidden
+                        
+                        console.log('🔍 View Modal Owner Check:', {
+                          hasOwner,
+                          owner_id: viewPropertyData?.owner_id,
+                          owner_id_type: typeof viewPropertyData?.owner_id,
+                          hasRole,
+                          userRole: user?.role,
+                          notHidden,
+                          owner_name: viewPropertyData?.owner_name,
+                          isClickable
+                        })
+                        
+                        return isClickable ? (
+                          <div 
+                            onClick={() => {
+                              const url = `/dashboard/leads?view=${viewPropertyData.owner_id}`
+                              console.log('🔗 Opening lead URL:', url)
+                              window.open(url, '_blank')
+                            }}
+                            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-900"
+                            title="Click to view lead details"
+                          >
+                            {viewPropertyData.owner_name || 'N/A'}
+                          </div>
+                        ) : (
+                          <div className={`px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg ${viewPropertyData?.owner_name === 'Hidden' ? 'text-gray-400 italic' : 'text-gray-900'}`}>
+                            {viewPropertyData?.owner_name === 'Hidden' ? 'Hidden' : (viewPropertyData?.owner_name || 'N/A')}
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>

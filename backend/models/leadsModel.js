@@ -398,6 +398,73 @@ class Lead {
     return result.rows;
   }
 
+  // Get viewings for a lead
+  static async getLeadViewings(leadId) {
+    const result = await pool.query(`
+      SELECT 
+        v.id,
+        v.property_id,
+        v.viewing_date,
+        v.viewing_time,
+        v.status,
+        v.is_serious,
+        v.description,
+        v.notes,
+        v.created_at,
+        v.updated_at,
+        p.id as property_id,
+        p.reference_number,
+        p.location,
+        p.property_type,
+        p.status_id,
+        s.name as status_name,
+        s.color as status_color,
+        p.category_id,
+        c.name as category_name,
+        c.code as category_code,
+        p.building_name,
+        p.surface,
+        p.price,
+        p.main_image
+      FROM viewings v
+      INNER JOIN properties p ON v.property_id = p.id
+      LEFT JOIN statuses s ON p.status_id = s.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE v.lead_id = $1
+      ORDER BY v.viewing_date DESC, v.viewing_time DESC
+    `, [leadId]);
+    return result.rows;
+  }
+
+  // Get owned properties for a lead
+  static async getLeadOwnedProperties(leadId) {
+    const result = await pool.query(`
+      SELECT 
+        p.id,
+        p.reference_number,
+        p.status_id,
+        s.name as status_name,
+        s.color as status_color,
+        p.property_type,
+        p.location,
+        p.category_id,
+        c.name as category_name,
+        c.code as category_code,
+        p.building_name,
+        p.surface,
+        p.price,
+        p.main_image,
+        p.created_at,
+        p.updated_at
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id
+      LEFT JOIN categories c ON p.category_id = c.id
+      WHERE p.owner_id = $1
+      ORDER BY p.created_at DESC
+    `, [leadId]);
+    return result.rows;
+  }
+
   static async getLeadStats() {
     const result = await pool.query(`
       SELECT 

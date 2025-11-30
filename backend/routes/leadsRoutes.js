@@ -80,6 +80,13 @@ router.post('/:id/notes', canViewLeads, validateLeadId, handleValidationErrors, 
 router.put('/:id/notes/:noteId', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.updateLeadNote);
 router.delete('/:id/notes/:noteId', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.deleteLeadNote);
 
+// Lead Profile Routes (viewings and owned properties)
+// GET /api/leads/:id/viewings - Get viewings for a lead
+router.get('/:id/viewings', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadViewings);
+
+// GET /api/leads/:id/owned-properties - Get owned properties for a lead
+router.get('/:id/owned-properties', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadOwnedProperties);
+
 // GET /api/leads/:id - Get single lead (filtered by role) - MUST BE LAST GET route
 router.get('/:id', canViewLeads, validateLeadId, handleValidationErrors, LeadsController.getLeadById);
 
