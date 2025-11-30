@@ -180,8 +180,11 @@ const getPropertiesWithFilters = async (req, res) => {
           matches = false;
         }
         
-        if (filters.agent_id && filters.agent_id !== 'All' && property.agent_id != filters.agent_id) {
-          matches = false;
+        if (filters.agent_id && filters.agent_id !== 'All') {
+          const filterAgentId = parseInt(filters.agent_id, 10);
+          if (!isNaN(filterAgentId) && property.agent_id !== filterAgentId) {
+            matches = false;
+          }
         }
         
         if (filters.price_min && property.price < filters.price_min) {

@@ -57,6 +57,7 @@ useEffect(() => {
   const isInitialLoad = useRef(true)
   const prevFiltersRef = useRef<string>('')
   const loadLeadsRef = useRef<(() => Promise<void>) | null>(null)
+  const hasProcessedAgentFilter = useRef(false)
   
   // Debug render counter
   const renderCount = useRef(0)
@@ -146,12 +147,29 @@ useEffect(() => {
         return
       }
       
+      // Check URL for agent_id filter (in case it wasn't set in state yet)
+      let effectiveFilters = { ...filters }
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search)
+        const agentIdFromUrl = urlParams.get('agent_id')
+        if (agentIdFromUrl) {
+          const agentIdNum = parseInt(agentIdFromUrl, 10)
+          if (!isNaN(agentIdNum) && agentIdNum > 0) {
+            effectiveFilters.agent_id = agentIdNum
+            // Also update state if not already set
+            if (!filters.agent_id || filters.agent_id !== agentIdNum) {
+              setFilters(prev => ({ ...prev, agent_id: agentIdNum }))
+            }
+          }
+        }
+      }
+      
       // Check if we have any active filters
-      const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
+      const hasActiveFilters = Object.entries(effectiveFilters).some(([key, value]) => 
         value !== undefined && value !== null && value !== '' && value !== 'All' && value !== 0
       )
       
-      console.log('🔍 [DEBUG] Filter check', { hasActiveFilters, filters })
+      console.log('🔍 [DEBUG] Filter check', { hasActiveFilters, effectiveFilters, originalFilters: filters })
       console.log('🔍 [DEBUG] Date filters specifically:', { 
         date_from: filters.date_from, 
         date_to: filters.date_to,
@@ -161,8 +179,8 @@ useEffect(() => {
       
       let response
       if (hasActiveFilters) {
-        console.log('🔍 [LeadsPage] Using filtered API call')
-        response = await leadsApi.getWithFilters(filters, token)
+        console.log('🔍 [LeadsPage] Using filtered API call with filters:', effectiveFilters)
+        response = await leadsApi.getWithFilters(effectiveFilters, token)
       } else {
         console.log('🔍 [LeadsPage] Using getAll API call')
         response = await leadsApi.getAll(token)
@@ -216,14 +234,46 @@ useEffect(() => {
     }
   }, [isAuthenticated, token])
 
-  // Load data on component mount
+  // Initialize filters from URL parameters (must run before loadLeads)
+  useEffect(() => {
+    if (typeof window === 'undefined' || hasProcessedAgentFilter.current) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const agentId = urlParams.get('agent_id')
+    
+    if (agentId) {
+      const agentIdNum = parseInt(agentId, 10)
+      if (!isNaN(agentIdNum) && agentIdNum > 0) {
+        console.log('🔍 Initializing filter from URL agent_id:', agentIdNum)
+        setFilters({
+          agent_id: agentIdNum
+        })
+        hasProcessedAgentFilter.current = true
+        // Mark that we need to load with this filter
+        isInitialLoad.current = false // This will allow the filter change useEffect to trigger
+      }
+    }
+  }, [])
+
+  // Load data on component mount (only if no URL filter is present)
   useEffect(() => {
     console.log('🔄 [DEBUG] Initial load useEffect triggered', { 
       isAuthenticated, 
       hasToken: !!token,
       canViewLeads,
-      isInitialLoad: isInitialLoad.current 
+      isInitialLoad: isInitialLoad.current,
+      hasProcessedAgentFilter: hasProcessedAgentFilter.current
     })
+    
+    // If we have an agent_id in URL, don't load here - let the filter change useEffect handle it
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      const agentId = urlParams.get('agent_id')
+      if (agentId) {
+        console.log('🔍 Agent ID in URL, skipping initial load - will be handled by filter change')
+        return
+      }
+    }
     
     // Set a timeout to prevent infinite loading
     const loadingTimeout = setTimeout(() => {
@@ -248,40 +298,50 @@ useEffect(() => {
     }
   }, [isAuthenticated, token, loadStats])
 
-  // Load leads when filters change (but not on initial load)
+  // Load leads when filters change (including initial load from URL)
   useEffect(() => {
     console.log('🔄 [DEBUG] Filter change useEffect triggered', { 
       isAuthenticated, 
       isInitialLoad: isInitialLoad.current,
       filters,
-      prevFilters: prevFiltersRef.current
+      prevFilters: prevFiltersRef.current,
+      hasProcessedAgentFilter: hasProcessedAgentFilter.current
     })
     
-    if (isAuthenticated) {
-      const currentFiltersStr = JSON.stringify(filters)
-      
-      if (isInitialLoad.current) {
-        // Initial load - don't reload leads here, it's already done in the first useEffect
-        console.log('🔄 [DEBUG] Initial load detected, skipping filter reload')
-        isInitialLoad.current = false
-        prevFiltersRef.current = currentFiltersStr
-      } else if (prevFiltersRef.current !== currentFiltersStr) {
-        // Filters actually changed
-        console.log('🔍 [DEBUG] Filters changed, loading leads:', { 
-          oldFilters: prevFiltersRef.current, 
-          newFilters: currentFiltersStr,
-          filters 
-        })
-        if (loadLeadsRef.current) {
-          loadLeadsRef.current()
-        }
-        setCurrentPage(1) // Reset to first page when filters change
-        prevFiltersRef.current = currentFiltersStr
-      } else {
-        console.log('🔄 [DEBUG] No filter change detected, skipping reload')
-      }
+    if (!isAuthenticated || !token) return
+    
+    const currentFiltersStr = JSON.stringify(filters)
+    
+    // Check if this is the initial load with URL filter
+    const hasUrlFilter = typeof window !== 'undefined' && hasProcessedAgentFilter.current
+    
+    if (isInitialLoad.current && !hasUrlFilter) {
+      // Initial load without URL filter - don't reload leads here, it's already done in the first useEffect
+      console.log('🔄 [DEBUG] Initial load without URL filter, skipping filter reload')
+      isInitialLoad.current = false
+      prevFiltersRef.current = currentFiltersStr
+      return
     }
-  }, [isAuthenticated, filters])
+    
+    // If filters changed OR this is the first time we're setting filters from URL
+    if (prevFiltersRef.current !== currentFiltersStr || (hasUrlFilter && prevFiltersRef.current === '')) {
+      // Filters actually changed or being set from URL
+      console.log('🔍 [DEBUG] Filters changed or set from URL, loading leads:', { 
+        oldFilters: prevFiltersRef.current, 
+        newFilters: currentFiltersStr,
+        filters,
+        hasUrlFilter
+      })
+      if (loadLeadsRef.current) {
+        loadLeadsRef.current()
+      }
+      setCurrentPage(1) // Reset to first page when filters change
+      prevFiltersRef.current = currentFiltersStr
+      isInitialLoad.current = false
+    } else {
+      console.log('🔄 [DEBUG] No filter change detected, skipping reload')
+    }
+  }, [isAuthenticated, token, filters])
 
   // Format currency with K, M, B suffixes
   const formatCurrency = (amount: number): string => {

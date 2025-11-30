@@ -2840,7 +2840,7 @@ export function PropertyModals({
                             title="Click to view lead details"
                           >
                             {viewPropertyData.owner_name || 'N/A'}
-                          </div>
+                      </div>
                         ) : (
                           <div className={`px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg ${viewPropertyData?.owner_name === 'Hidden' ? 'text-gray-400 italic' : 'text-gray-900'}`}>
                             {viewPropertyData?.owner_name === 'Hidden' ? 'Hidden' : (viewPropertyData?.owner_name || 'N/A')}

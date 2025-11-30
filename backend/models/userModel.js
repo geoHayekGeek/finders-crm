@@ -64,7 +64,20 @@ class User {
           SELECT COUNT(*)::integer 
           FROM properties p 
           WHERE p.agent_id = u.id
-        ) as properties_count
+        ) as properties_count,
+        (
+          SELECT COUNT(*)::integer 
+          FROM leads l 
+          WHERE l.agent_id = u.id
+        ) as leads_count,
+        (
+          SELECT tl.user_code 
+          FROM team_agents ta
+          INNER JOIN users tl ON ta.team_leader_id = tl.id
+          WHERE ta.agent_id = u.id AND ta.is_active = TRUE
+          ORDER BY ta.assigned_at DESC
+          LIMIT 1
+        ) as team_leader_code
       FROM users u 
       ORDER BY u.created_at DESC`
     );

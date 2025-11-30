@@ -641,11 +641,13 @@ export default function HRPage() {
       ),
     },
     {
-      header: 'Assignment / Properties',
+      header: 'Assignment / Properties / Leads',
       accessorKey: 'is_assigned',
       cell: ({ row }: any) => {
         const user = row.original
         const propertiesCount = user.properties_count || 0
+        const leadsCount = user.leads_count || 0
+        const teamLeaderCode = user.team_leader_code
         
         // For agents: show team assignment status
         if (roleEquals(user.role, 'agent')) {
@@ -654,27 +656,63 @@ export default function HRPage() {
               <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                 user.is_assigned ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
               }`}>
-                {user.is_assigned ? 'Assigned to Team' : 'Available'}
+                {user.is_assigned && teamLeaderCode ? `${teamLeaderCode} Team` : (user.is_assigned ? 'Assigned to Team' : 'Available')}
               </span>
-              {propertiesCount > 0 && (
-                <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+              <div className="flex flex-wrap gap-1">
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    window.open(`/dashboard/properties?agent_id=${user.id}`, '_blank')
+                  }}
+                  className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 transition-colors"
+                  title="Click to view properties"
+                >
                   {propertiesCount} {propertiesCount === 1 ? 'Property' : 'Properties'}
                 </span>
-              )}
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    window.open(`/dashboard/leads?agent_id=${user.id}`, '_blank')
+                  }}
+                  className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                  title="Click to view leads"
+                >
+                  {leadsCount} {leadsCount === 1 ? 'Lead' : 'Leads'}
+                </span>
+              </div>
             </div>
           )
         }
         
-        // For team leaders and other roles: show property assignments
-        if (propertiesCount > 0) {
-          return (
-            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+        // For team leaders and other roles: show property and lead assignments
+        return (
+          <div className="flex flex-wrap gap-1">
+            <span 
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                window.open(`/dashboard/properties?agent_id=${user.id}`, '_blank')
+              }}
+              className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 transition-colors"
+              title="Click to view properties"
+            >
               {propertiesCount} {propertiesCount === 1 ? 'Property' : 'Properties'}
             </span>
-          )
-        }
-        
-        return <span className="text-gray-400">-</span>
+            <span 
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                window.open(`/dashboard/leads?agent_id=${user.id}`, '_blank')
+              }}
+              className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+              title="Click to view leads"
+            >
+              {leadsCount} {leadsCount === 1 ? 'Lead' : 'Leads'}
+            </span>
+          </div>
+        )
       },
     },
     {

@@ -753,22 +753,22 @@ export function EventModal({
                   title="Click to view property details"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-blue-800">
-                          Property Event
-                        </p>
-                        <p className="text-xs text-blue-600">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-blue-800">
+                      Property Event
+                    </p>
+                    <p className="text-xs text-blue-600">
                           Reference: <span className="font-semibold">{propertyRef}</span>
-                        </p>
-                      </div>
-                    </div>
+                    </p>
+                  </div>
+                </div>
                     <div className="text-blue-600 text-xs font-medium">
                       View →
-                    </div>
+              </div>
                   </div>
                 </div>
               )
@@ -792,22 +792,22 @@ export function EventModal({
                   title="Click to view lead details"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-green-800">
-                          Lead Event
-                        </p>
-                        <p className="text-xs text-green-600">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-green-800">
+                      Lead Event
+                    </p>
+                    <p className="text-xs text-green-600">
                           Lead: <span className="font-semibold">{leadName}</span>
-                        </p>
-                      </div>
-                    </div>
+                    </p>
+                  </div>
+                </div>
                     <div className="text-green-600 text-xs font-medium">
                       View →
-                    </div>
+              </div>
                   </div>
                 </div>
               )

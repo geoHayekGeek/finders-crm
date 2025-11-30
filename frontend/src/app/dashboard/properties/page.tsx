@@ -101,6 +101,7 @@ export default function PropertiesPage() {
   
   // Ref to track if we've already processed the URL parameter
   const hasProcessedUrlParam = useRef(false)
+  const hasProcessedAgentFilter = useRef(false)
 
 
   
@@ -131,16 +132,45 @@ export default function PropertiesPage() {
     }
   }, [isAuthenticated, user, canViewProperties, router, showError])
 
+  // Initialize filters from URL parameters (must run before loadData)
+  useEffect(() => {
+    if (typeof window === 'undefined' || hasProcessedAgentFilter.current) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const agentId = urlParams.get('agent_id')
+    
+    if (agentId) {
+      const agentIdNum = parseInt(agentId, 10)
+      if (!isNaN(agentIdNum) && agentIdNum > 0) {
+        console.log('🔍 Initializing filter from URL agent_id:', agentIdNum)
+        setFilters(prev => {
+          const newFilters = { ...prev, agent_id: agentIdNum }
+          console.log('🔍 Setting filters to:', newFilters)
+          return newFilters
+        })
+        hasProcessedAgentFilter.current = true
+      }
+    }
+  }, [])
+
   // Load data on component mount
   useEffect(() => {
     if (isAuthenticated && canViewProperties) {
+      // loadData will check URL for agent_id filter and use it
       loadData()
     }
   }, [isAuthenticated, canViewProperties])
 
-  // Reload data when filters change
+  // Reload data when filters change (including when set from URL)
   useEffect(() => {
-    if (isAuthenticated) {
+    if (!isAuthenticated) return
+    
+    // Check if we have a URL filter that was just processed
+    const hasUrlFilter = typeof window !== 'undefined' && hasProcessedAgentFilter.current
+    
+    // Always reload when filters change, or when URL filter is first set
+    if (hasUrlFilter || Object.keys(filters).length > 0) {
+      console.log('🔍 Filters changed or URL filter set, loading properties with filters:', filters)
       loadPropertiesOnly()
       setCurrentPage(1) // Reset to first page when filters change
     }
@@ -170,19 +200,42 @@ export default function PropertiesPage() {
         return
       }
       
+      // Check URL for agent_id filter (in case it wasn't set in state yet)
+      let effectiveFilters = { ...filters }
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search)
+        const agentIdFromUrl = urlParams.get('agent_id')
+        if (agentIdFromUrl) {
+          const agentIdNum = parseInt(agentIdFromUrl, 10)
+          if (!isNaN(agentIdNum) && agentIdNum > 0) {
+            effectiveFilters.agent_id = agentIdNum
+            // Also update state if not already set
+            if (!filters.agent_id || filters.agent_id !== agentIdNum) {
+              setFilters(prev => ({ ...prev, agent_id: agentIdNum }))
+            }
+          }
+        }
+      }
+      
       // Build query parameters for filters
-      const hasFilters = Object.keys(filters).length > 0
+      const hasFilters = Object.keys(effectiveFilters).length > 0
       const queryParams = new URLSearchParams()
       
       if (hasFilters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
+        Object.entries(effectiveFilters).forEach(([key, value]) => {
+          // Include agent_id if it's a valid positive number
+          if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && value > 0) {
+            queryParams.append(key, value.toString())
+          } 
+          // For other filters, exclude empty/zero values
+          else if (key !== 'agent_id' && value !== undefined && value !== null && value !== '' && value !== 0) {
             queryParams.append(key, value.toString())
           }
         })
       }
       
       const queryString = queryParams.toString()
+      console.log('🔍 Query params for properties:', queryString, 'Effective Filters:', effectiveFilters)
       const endpoint = hasFilters 
         ? `http://localhost:10000/api/properties/filtered${queryString ? `?${queryString}` : ''}`
         : 'http://localhost:10000/api/properties'
@@ -263,13 +316,35 @@ export default function PropertiesPage() {
         return
       }
       
+      // Check URL for agent_id filter (in case it wasn't set in state yet)
+      let effectiveFilters = { ...filters }
+      if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search)
+        const agentIdFromUrl = urlParams.get('agent_id')
+        if (agentIdFromUrl) {
+          const agentIdNum = parseInt(agentIdFromUrl, 10)
+          if (!isNaN(agentIdNum) && agentIdNum > 0) {
+            effectiveFilters.agent_id = agentIdNum
+            // Also update state if not already set
+            if (!filters.agent_id || filters.agent_id !== agentIdNum) {
+              setFilters(prev => ({ ...prev, agent_id: agentIdNum }))
+            }
+          }
+        }
+      }
+      
       // Build query parameters for filters
-      const hasFilters = Object.keys(filters).length > 0
+      const hasFilters = Object.keys(effectiveFilters).length > 0
       const queryParams = new URLSearchParams()
       
       if (hasFilters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== '') {
+        Object.entries(effectiveFilters).forEach(([key, value]) => {
+          // Include agent_id if it's a valid positive number
+          if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && value > 0) {
+            queryParams.append(key, value.toString())
+          } 
+          // For other filters, exclude empty/zero values
+          else if (key !== 'agent_id' && value !== undefined && value !== null && value !== '' && value !== 0) {
             queryParams.append(key, value.toString())
           }
         })
