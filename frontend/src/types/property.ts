@@ -10,6 +10,23 @@ export interface Referral {
   referred_by_user_id?: number // User who made the referral
 }
 
+// Structured property details
+export interface PropertyDetails {
+  floor_number?: string
+  balcony?: string
+  covered_parking?: string
+  outdoor_parking?: string
+  cave?: string
+}
+
+// Structured interior details
+export interface InteriorDetails {
+  living_rooms?: string
+  bedrooms?: string
+  bathrooms?: string
+  maid_room?: string
+}
+
 export interface Property {
   id: number
   reference_number: string
@@ -26,8 +43,10 @@ export interface Property {
   owner_name: string // Fetched from leads or stored directly for backward compatibility
   phone_number: string // Fetched from leads or stored directly for backward compatibility
   surface: number
-  details: string | object // Can be either string or object (legacy support)
-  interior_details: string
+  details: PropertyDetails | string | object // Structured details or legacy string/object
+  interior_details: InteriorDetails | string // Structured interior details or legacy string
+  payment_facilities?: boolean // Whether the property has payment facilities
+  payment_facilities_specification?: string // Specification text for payment facilities
   built_year?: number
   view_type: 'open view' | 'sea view' | 'mountain view' | 'no view'
   concierge: boolean
@@ -40,6 +59,13 @@ export interface Property {
   main_image?: string // Base64 encoded main image
   image_gallery?: string[] // Array of image URLs
   closed_date?: string // Date when property was sold or rented
+  sold_amount?: number // Amount the property was sold for (can differ from price)
+  buyer_id?: number // Foreign key to leads table - the client (buyer) the property was sold to
+  buyer_name?: string // Name of the buyer (from leads table)
+  buyer_phone_number?: string // Phone number of the buyer (from leads table)
+  commission?: number // Commission amount in dollars
+  platform_id?: number // Foreign key to reference_sources table - platform where property was sold
+  platform_name?: string // Name of the platform/reference source
   created_at: string
   updated_at: string
   referrals?: Referral[]
@@ -61,8 +87,10 @@ export interface EditFormData {
   owner_name: string
   phone_number: string
   surface: number
-  details: string | object // Can be either string or object (legacy support)
-  interior_details: string
+  details: PropertyDetails | string | object // Structured details or legacy
+  interior_details: InteriorDetails | string // Structured interior details or legacy
+  payment_facilities?: boolean
+  payment_facilities_specification?: string
   built_year?: number
   view_type: 'open view' | 'sea view' | 'mountain view' | 'no view'
   concierge: boolean
@@ -75,6 +103,10 @@ export interface EditFormData {
   main_image_preview?: string // Preview URL for display
   image_gallery?: string[] // Array of image URLs
   closed_date?: string // Date when property was sold or rented
+  sold_amount?: number // Amount the property was sold for (can differ from price)
+  buyer_id?: number // Foreign key to leads table - the client (buyer) the property was sold to
+  commission?: number // Commission amount in dollars
+  platform_id?: number // Foreign key to reference_sources table - platform where property was sold
   referrals?: Referral[]
 }
 

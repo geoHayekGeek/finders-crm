@@ -150,22 +150,6 @@ export const getLeadsColumns = (
     }
   },
   {
-    accessorKey: 'contact_source',
-    header: 'Contact Source',
-    cell: ({ row }) => {
-      const lead = row.original
-      return (
-        <div className="text-sm">
-          {lead.contact_source ? (
-            <span className="text-gray-900 text-xs capitalize">{lead.contact_source}</span>
-          ) : (
-            <span className="text-gray-400">-</span>
-          )}
-        </div>
-      )
-    }
-  },
-  {
     accessorKey: 'created_at',
     header: 'Created',
     cell: ({ row }) => {
@@ -239,7 +223,6 @@ export const getLeadsColumns = (
       'assigned_agent_name',
       'operations_name',
       'reference_source_name',
-      'contact_source',
       'created_at'
     ])
     return columns.filter(column => {

@@ -123,14 +123,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Contact Source */}
-      {!limitedAccess && lead.contact_source && (
-        <div className="mb-4">
-          <div className="text-xs font-medium text-gray-500 mb-1">Contact Source</div>
-          <div className="text-sm text-gray-700 capitalize">{lead.contact_source}</div>
-        </div>
-      )}
-
       {/* Created Date */}
       {!limitedAccess && (
         <div className="text-xs text-gray-400 mb-4">

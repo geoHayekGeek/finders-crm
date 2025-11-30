@@ -200,7 +200,6 @@ export function LeadsModals({
     price: undefined,
     reference_source_id: undefined,
     operations_id: undefined,
-    contact_source: 'unknown',
     status: '',
     referrals: []
   })
@@ -524,7 +523,6 @@ export function LeadsModals({
         price: undefined,
         reference_source_id: undefined,
         operations_id: undefined,
-        contact_source: 'unknown',
         status: '',
         referrals: []
       })
@@ -817,23 +815,6 @@ export function LeadsModals({
                   )}
                 </div>
 
-                {/* Contact Source */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Phone className="inline h-4 w-4 mr-1" />
-                    Contact Source <span className="text-gray-400 text-xs">(optional)</span>
-                  </label>
-                  <select
-                    value={addFormData.contact_source || 'unknown'}
-                    onChange={(e) => setAddFormData({ ...addFormData, contact_source: e.target.value as 'call' | 'unknown' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="unknown">Unknown</option>
-                    <option value="call">Call</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">How the lead was initially contacted</p>
-                </div>
-
                 {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1111,23 +1092,6 @@ export function LeadsModals({
                       )}
                     </div>
 
-                    {/* Contact Source */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <Phone className="inline h-4 w-4 mr-1" />
-                        Contact Source <span className="text-gray-400 text-xs">(optional)</span>
-                      </label>
-                      <select
-                        value={editFormData.contact_source || 'unknown'}
-                        onChange={(e) => setEditFormData({ ...editFormData, contact_source: e.target.value as 'call' | 'unknown' })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="unknown">Unknown</option>
-                        <option value="call">Call</option>
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">How the lead was initially contacted</p>
-                    </div>
-
                     {/* Status */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1322,11 +1286,6 @@ export function LeadsModals({
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>
                       <p className="text-gray-900">{viewingLead.reference_source_name || 'Not assigned'}</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Source</label>
-                      <p className="text-gray-900 capitalize">{viewingLead.contact_source || 'Unknown'}</p>
                     </div>
 
                     <div>

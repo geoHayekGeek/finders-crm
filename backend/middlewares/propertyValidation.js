@@ -90,28 +90,56 @@ const validateProperty = [
   body('details')
     .notEmpty()
     .withMessage('Property details are required')
-    .isLength({ min: 10, max: 2000 })
-    .withMessage('Details must be between 10 and 2,000 characters')
     .custom((value) => {
-      if (value && (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload='))) {
-        return Promise.reject(new Error('Details contain potentially malicious content'));
+      // Accept either object (structured) or string (legacy)
+      if (typeof value === 'object' && value !== null) {
+        // Validate structured details object
+        const allowedKeys = ['floor_number', 'balcony', 'covered_parking', 'outdoor_parking', 'cave'];
+        const keys = Object.keys(value);
+        const invalidKeys = keys.filter(key => !allowedKeys.includes(key));
+        if (invalidKeys.length > 0) {
+          return Promise.reject(new Error(`Invalid detail keys: ${invalidKeys.join(', ')}`));
+        }
+        return Promise.resolve(true);
+      } else if (typeof value === 'string') {
+        // Legacy string format - validate length
+        if (value.length < 1 || value.length > 2000) {
+          return Promise.reject(new Error('Details must be between 1 and 2,000 characters'));
+        }
+        if (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload=')) {
+          return Promise.reject(new Error('Details contain potentially malicious content'));
+        }
+        return Promise.resolve(true);
       }
-      return Promise.resolve(true);
-    })
-    .customSanitizer(sanitizeInput),
+      return Promise.reject(new Error('Details must be an object or string'));
+    }),
     
   body('interior_details')
     .notEmpty()
     .withMessage('Interior details are required')
-    .isLength({ min: 10, max: 2000 })
-    .withMessage('Interior details must be between 10 and 2,000 characters')
     .custom((value) => {
-      if (value && (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload='))) {
-        return Promise.reject(new Error('Interior details contain potentially malicious content'));
+      // Accept either object (structured) or string (legacy)
+      if (typeof value === 'object' && value !== null) {
+        // Validate structured interior details object
+        const allowedKeys = ['living_rooms', 'bedrooms', 'bathrooms', 'maid_room'];
+        const keys = Object.keys(value);
+        const invalidKeys = keys.filter(key => !allowedKeys.includes(key));
+        if (invalidKeys.length > 0) {
+          return Promise.reject(new Error(`Invalid interior detail keys: ${invalidKeys.join(', ')}`));
+        }
+        return Promise.resolve(true);
+      } else if (typeof value === 'string') {
+        // Legacy string format - validate length
+        if (value.length < 1 || value.length > 2000) {
+          return Promise.reject(new Error('Interior details must be between 1 and 2,000 characters'));
+        }
+        if (value.includes('<') || value.includes('>') || value.includes('javascript:') || value.includes('onload=')) {
+          return Promise.reject(new Error('Interior details contain potentially malicious content'));
+        }
+        return Promise.resolve(true);
       }
-      return Promise.resolve(true);
-    })
-    .customSanitizer(sanitizeInput),
+      return Promise.reject(new Error('Interior details must be an object or string'));
+    }),
     
   // Optional fields validation
   body('building_name')
@@ -134,6 +162,21 @@ const validateProperty = [
     .optional({ nullable: true, checkFalsy: true })
     .isLength({ max: 5000 })
     .withMessage('Notes cannot exceed 5,000 characters')
+    .customSanitizer(sanitizeInput),
+    
+  body('payment_facilities')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (typeof value === 'boolean') return true;
+      if (value === 'true' || value === 'false') return true;
+      if (value === true || value === false) return true;
+      throw new Error('Payment facilities must be true or false');
+    }),
+    
+  body('payment_facilities_specification')
+    .optional({ nullable: true, checkFalsy: true })
+    .isLength({ max: 500 })
+    .withMessage('Payment facilities specification cannot exceed 500 characters')
     .customSanitizer(sanitizeInput),
     
   body('property_url')

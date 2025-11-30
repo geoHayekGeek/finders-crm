@@ -91,7 +91,6 @@ useEffect(() => {
     price: undefined,
     reference_source_id: undefined,
     operations_id: undefined,
-    contact_source: 'unknown',
     status: 'Active'
   })
   const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
@@ -484,7 +483,6 @@ useEffect(() => {
           : undefined,
         reference_source_id: safeNumber(refreshedLead.reference_source_id),
         operations_id: safeNumber(refreshedLead.operations_id),
-        contact_source: refreshedLead.contact_source || 'unknown',
         status: refreshedLead.status || 'Active',
         referrals: convertedReferrals
       }
@@ -494,7 +492,6 @@ useEffect(() => {
       console.log('📝 Referrals in form data:', convertedReferrals.length)
       console.log('📝 operations_id from backend:', refreshedLead.operations_id, '-> form:', formData.operations_id)
       console.log('📝 reference_source_id from backend:', refreshedLead.reference_source_id, '-> form:', formData.reference_source_id)
-      console.log('📝 contact_source from backend:', refreshedLead.contact_source, '-> form:', formData.contact_source)
       console.log('📝 price from backend:', refreshedLead.price, '-> form:', formData.price)
       setEditFormData(formData)
       setEditValidationErrors({}) // Clear any previous validation errors

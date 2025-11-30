@@ -12,7 +12,6 @@ class Lead {
       price,
       reference_source_id,
       operations_id,
-      contact_source,
       status
     } = leadData;
 
@@ -24,8 +23,8 @@ class Lead {
     const result = await pool.query(
       `INSERT INTO leads (
         date, customer_name, phone_number, agent_id, agent_name,
-        price, reference_source_id, operations_id, contact_source, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        price, reference_source_id, operations_id, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
         date || new Date().toISOString().split('T')[0],
@@ -36,7 +35,6 @@ class Lead {
         price,
         reference_source_id,
         operations_id, // This is now required and validated
-        contact_source || 'unknown',
         status || 'Active'
       ]
     );
@@ -62,7 +60,6 @@ class Lead {
           l.operations_id,
           op.name as operations_name,
           op.role as operations_role,
-          l.contact_source,
           l.status,
           l.created_at,
           l.updated_at
@@ -103,7 +100,6 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
-        l.contact_source,
         l.status,
         l.created_at,
         l.updated_at
@@ -135,7 +131,6 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
-        l.contact_source,
         l.status,
         l.created_at,
         l.updated_at,
@@ -167,7 +162,6 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
-        l.contact_source,
         l.status,
         l.created_at,
         l.updated_at,
@@ -207,7 +201,7 @@ class Lead {
       WHERE l.id = $1
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.contact_source, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.status, l.created_at, l.updated_at
     `, [id]);
     return result.rows[0];
   }
@@ -307,7 +301,6 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
-        l.contact_source,
         l.status,
         l.created_at,
         l.updated_at,
@@ -380,7 +373,7 @@ class Lead {
     query += ` 
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.contact_source, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.status, l.created_at, l.updated_at
       ORDER BY l.created_at DESC
     `;
 
@@ -536,7 +529,6 @@ class Lead {
         l.operations_id,
         op.name as operations_name,
         op.role as operations_role,
-        l.contact_source,
         l.status,
         l.created_at,
         l.updated_at
@@ -588,7 +580,6 @@ class Lead {
             l.operations_id,
             op.name as operations_name,
             op.role as operations_role,
-            l.contact_source,
             l.status,
             l.created_at,
             l.updated_at

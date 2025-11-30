@@ -15,6 +15,8 @@ class Property {
       surface,
       details,
       interior_details,
+      payment_facilities,
+      payment_facilities_specification,
       built_year,
       view_type,
       concierge,
@@ -23,10 +25,52 @@ class Property {
       notes,
       property_url,
       closed_date,
+      sold_amount,
+      buyer_id,
+      commission,
+      platform_id,
       referrals,
       main_image,
       image_gallery
     } = propertyData;
+    
+    // Convert details and interior_details to JSONB if they're objects
+    let detailsJsonb = details;
+    if (typeof details === 'object' && details !== null) {
+      detailsJsonb = JSON.stringify(details);
+    } else if (typeof details === 'string') {
+      // Try to parse as JSON, if fails, create structured object from string
+      try {
+        detailsJsonb = JSON.parse(details);
+      } catch (e) {
+        // Legacy string format - convert to structured object
+        detailsJsonb = {
+          floor_number: '',
+          balcony: '',
+          covered_parking: '',
+          outdoor_parking: '',
+          cave: ''
+        };
+      }
+    }
+    
+    let interiorDetailsJsonb = interior_details;
+    if (typeof interior_details === 'object' && interior_details !== null) {
+      interiorDetailsJsonb = JSON.stringify(interior_details);
+    } else if (typeof interior_details === 'string') {
+      // Try to parse as JSON, if fails, create structured object from string
+      try {
+        interiorDetailsJsonb = JSON.parse(interior_details);
+      } catch (e) {
+        // Legacy string format - convert to structured object
+        interiorDetailsJsonb = {
+          living_rooms: '',
+          bedrooms: '',
+          bathrooms: '',
+          maid_room: ''
+        };
+      }
+    }
 
     // VALIDATION: If creating property with closed status, ensure closed_date is set
     const statusCheck = await pool.query(
@@ -86,15 +130,17 @@ class Property {
         `INSERT INTO properties (
           reference_number, status_id, property_type, location, category_id, building_name, 
           owner_id, owner_name, phone_number, surface, details, interior_details, 
+          payment_facilities, payment_facilities_specification,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, main_image, image_gallery
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+          closed_date, sold_amount, buyer_id, commission, platform_id, main_image, image_gallery
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
         RETURNING *`,
         [
           refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
-          finalOwnerId, finalOwnerName, finalPhoneNumber, surface, details, interior_details,
+          finalOwnerId, finalOwnerName, finalPhoneNumber, surface, detailsJsonb, interiorDetailsJsonb,
+          payment_facilities || false, payment_facilities_specification || null,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, main_image, image_gallery
+          closed_date, sold_amount || null, buyer_id || null, commission || null, platform_id || null, main_image, image_gallery
         ]
       );
       
@@ -156,6 +202,8 @@ class Property {
           p.surface,
           p.details,
           p.interior_details,
+          COALESCE(p.payment_facilities, false) as payment_facilities,
+          p.payment_facilities_specification,
           p.built_year,
           p.view_type,
           p.concierge,
@@ -168,6 +216,13 @@ class Property {
           p.main_image,
           p.image_gallery,
           p.closed_date,
+          p.sold_amount,
+          p.buyer_id,
+          COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+          COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+          p.commission,
+          p.platform_id,
+          rs.source_name as platform_name,
           p.created_at,
           p.updated_at
         FROM properties p
@@ -175,6 +230,8 @@ class Property {
         LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
         LEFT JOIN users u ON p.agent_id = u.id
         LEFT JOIN leads l ON p.owner_id = l.id
+        LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+        LEFT JOIN reference_sources rs ON p.platform_id = rs.id
         ORDER BY p.created_at DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
@@ -260,17 +317,26 @@ class Property {
         u.role as agent_role,
         p.price,
         p.notes,
-        p.property_url,
-        p.main_image,
-        p.image_gallery,
-        p.closed_date,
-        p.created_at,
-        p.updated_at
+          p.property_url,
+          p.main_image,
+          p.image_gallery,
+          p.closed_date,
+          p.sold_amount,
+          p.buyer_id,
+          COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+          COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+          p.commission,
+          p.platform_id,
+          rs.source_name as platform_name,
+          p.created_at,
+          p.updated_at
       FROM properties p
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
@@ -307,11 +373,18 @@ class Property {
         p.price,
         p.notes,
         p.property_url,
-        p.main_image,
-        p.image_gallery,
-        p.closed_date,
-        p.created_at,
-        p.updated_at,
+          p.main_image,
+          p.image_gallery,
+          p.closed_date,
+          p.sold_amount,
+          p.buyer_id,
+          COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+          COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+          p.commission,
+          p.platform_id,
+          rs.source_name as platform_name,
+          p.created_at,
+          p.updated_at,
         CASE 
           WHEN p.agent_id = $1 THEN 'assigned'
           ELSE 'referred'
@@ -321,6 +394,8 @@ class Property {
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
@@ -350,6 +425,8 @@ class Property {
           p.surface,
           p.details,
           p.interior_details,
+          COALESCE(p.payment_facilities, false) as payment_facilities,
+          p.payment_facilities_specification,
           p.built_year,
           p.view_type,
           p.concierge,
@@ -362,6 +439,13 @@ class Property {
           p.main_image,
           p.image_gallery,
           p.closed_date,
+          p.sold_amount,
+          p.buyer_id,
+          COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+          COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+          p.commission,
+          p.platform_id,
+          rs.source_name as platform_name,
           p.created_at,
           p.updated_at
         FROM properties p
@@ -369,6 +453,8 @@ class Property {
         LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
         LEFT JOIN users u ON p.agent_id = u.id
         LEFT JOIN leads l ON p.owner_id = l.id
+        LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+        LEFT JOIN reference_sources rs ON p.platform_id = rs.id
         ORDER BY p.created_at DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
@@ -497,6 +583,13 @@ class Property {
         p.main_image,
         p.image_gallery,
         p.closed_date,
+        p.sold_amount,
+        p.buyer_id,
+        COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+        COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+        p.commission,
+        p.platform_id,
+        rs.source_name as platform_name,
         p.created_at,
         p.updated_at,
         'team_agent' as agent_relationship
@@ -505,6 +598,8 @@ class Property {
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
       INNER JOIN team_agents ta ON p.agent_id = ta.agent_id
       WHERE ta.team_leader_id = $1 AND ta.is_active = true
       ORDER BY p.created_at DESC
@@ -545,6 +640,13 @@ class Property {
         p.main_image,
         p.image_gallery,
         p.closed_date,
+        p.sold_amount,
+        p.buyer_id,
+        COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+        COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+        p.commission,
+        p.platform_id,
+        rs.source_name as platform_name,
         p.created_at,
         p.updated_at,
         CASE 
@@ -556,6 +658,8 @@ class Property {
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
       WHERE p.agent_id = $1 
          OR p.agent_id IN (
            SELECT ta.agent_id 
@@ -608,6 +712,13 @@ class Property {
         p.main_image,
         p.image_gallery,
         p.closed_date,
+        p.sold_amount,
+        p.buyer_id,
+        COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+        COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+        p.commission,
+        p.platform_id,
+        rs.source_name as platform_name,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -615,6 +726,8 @@ class Property {
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
       WHERE p.id = $1
     `, [propertyId]);
     
@@ -711,12 +824,59 @@ class Property {
         }
       }
       
+      // Convert details and interior_details to JSONB if they're objects
+      if (propertyUpdates.details !== undefined) {
+        if (typeof propertyUpdates.details === 'object' && propertyUpdates.details !== null) {
+          propertyUpdates.details = JSON.stringify(propertyUpdates.details);
+        } else if (typeof propertyUpdates.details === 'string') {
+          // Try to parse as JSON, if fails, keep as string (legacy)
+          try {
+            JSON.parse(propertyUpdates.details);
+          } catch (e) {
+            // Not valid JSON, convert to structured object
+            propertyUpdates.details = JSON.stringify({
+              floor_number: '',
+              balcony: '',
+              covered_parking: '',
+              outdoor_parking: '',
+              cave: ''
+            });
+          }
+        }
+      }
+      
+      if (propertyUpdates.interior_details !== undefined) {
+        if (typeof propertyUpdates.interior_details === 'object' && propertyUpdates.interior_details !== null) {
+          propertyUpdates.interior_details = JSON.stringify(propertyUpdates.interior_details);
+        } else if (typeof propertyUpdates.interior_details === 'string') {
+          // Try to parse as JSON, if fails, keep as string (legacy)
+          try {
+            JSON.parse(propertyUpdates.interior_details);
+          } catch (e) {
+            // Not valid JSON, convert to structured object
+            propertyUpdates.interior_details = JSON.stringify({
+              living_rooms: '',
+              bedrooms: '',
+              bathrooms: '',
+              maid_room: ''
+            });
+          }
+        }
+      }
+      
       // Update property fields (excluding referrals)
       if (Object.keys(propertyUpdates).length > 0) {
         const fields = Object.keys(propertyUpdates);
         const values = Object.values(propertyUpdates);
         
-        const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
+        // Handle JSONB fields specially
+        const setClause = fields.map((field, index) => {
+          if (field === 'details' || field === 'interior_details') {
+            return `${field} = $${index + 2}::jsonb`;
+          }
+          return `${field} = $${index + 2}`;
+        }).join(', ');
+        
         const query = `
           UPDATE properties 
           SET ${setClause}, updated_at = NOW()
@@ -834,6 +994,13 @@ class Property {
         p.main_image,
         p.image_gallery,
         p.closed_date,
+        p.sold_amount,
+        p.buyer_id,
+        COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+        COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+        p.commission,
+        p.platform_id,
+        rs.source_name as platform_name,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -841,6 +1008,8 @@ class Property {
       LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
       LEFT JOIN users u ON p.agent_id = u.id
       LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
       WHERE 1=1
     `;
     

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Share2, MessageCircle, Link as LinkIcon, Instagram, Mail, Send } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { Property } from '@/types/property'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface PropertyShareMenuProps {
   property: Property
@@ -22,12 +23,45 @@ export function PropertyShareMenu({
   className = '',
   triggerClassName = ''
 }: PropertyShareMenuProps) {
+  const { user } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number; placement: 'top' | 'bottom' } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const shareLink = property.property_url?.trim()
-  const shareMessage = `Check out property ${property.reference_number} in ${property.location}`
+  
+  // Check if user can share this property (agents/team leaders can only share assigned properties)
+  const canShare = () => {
+    // Admin, operations manager, operations, agent manager can always share
+    if (['admin', 'operations manager', 'operations', 'agent manager'].includes(user?.role || '')) {
+      return true
+    }
+    
+    // Agents and team leaders can only share properties assigned to them
+    if (user?.role === 'agent' || user?.role === 'team_leader') {
+      return property.agent_id === user?.id
+    }
+    
+    // Default: allow sharing
+    return true
+  }
+  
+  const isShareDisabled = !canShare()
+  
+  // Generate share message with simple format
+  const generateShareMessage = () => {
+    let message = `Check out this property at ${property.location}`
+    
+    // Add URL if available
+    if (shareLink) {
+      message += `\n\n${shareLink}`
+    }
+    
+    return message
+  }
+  
+  const shareMessage = generateShareMessage()
   const canUseNativeShare =
     typeof window !== 'undefined' && typeof navigator !== 'undefined' && typeof navigator.share === 'function'
   const menuWidth = 256
@@ -36,12 +70,23 @@ export function PropertyShareMenu({
   useEffect(() => {
     if (!isOpen) return
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const clickedInContainer = containerRef.current?.contains(target)
+      const clickedInMenu = menuRef.current?.contains(target)
+      
+      // Close if clicked outside both the container and the menu
+      if (!clickedInContainer && !clickedInMenu) {
         setIsOpen(false)
       }
     }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
+    // Use a small delay to avoid closing immediately when opening
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside)
+    }, 10)
+    return () => {
+      clearTimeout(timeoutId)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [isOpen])
 
   useEffect(() => {
@@ -91,63 +136,97 @@ export function PropertyShareMenu({
   }, [feedback])
 
   const handleCopyLink = async () => {
-    if (!shareLink) return
     try {
       if (navigator?.clipboard?.writeText) {
-        await navigator.clipboard.writeText(`${shareMessage}\n${shareLink}`)
-        setFeedback('Link copied to clipboard')
+        await navigator.clipboard.writeText(shareMessage)
+        setFeedback(shareLink ? 'Link copied to clipboard' : 'Property details copied to clipboard')
       } else {
         setFeedback('Copy unavailable in this browser')
       }
     } catch (error) {
-      console.error('Failed to copy link', error)
-      setFeedback('Unable to copy link')
+      console.error('Failed to copy', error)
+      setFeedback('Unable to copy')
     }
   }
 
   const handleNativeShare = async () => {
-    if (!shareLink || !navigator?.share) return
+    if (!navigator?.share) return
     try {
-      await navigator.share({
-        title: 'Property from Finders CRM',
-        text: shareMessage,
-        url: shareLink
-      })
+      const shareData: ShareData = {
+        title: `Property ${property.reference_number} - Finders CRM`,
+        text: shareMessage
+      }
+      
+      // Only include URL if available
+      if (shareLink) {
+        shareData.url = shareLink
+      }
+      
+      await navigator.share(shareData)
       setIsOpen(false)
     } catch (error) {
+      // User cancelled or error occurred - ignore
       console.error('Native share cancelled', error)
     }
   }
 
   const handleShareOption = async (option: 'whatsapp' | 'instagram' | 'email' | 'copy' | 'more') => {
-    if (!shareLink) return
-    const encodedMessage = encodeURIComponent(`${shareMessage}\n${shareLink}`)
-
-    switch (option) {
-      case 'whatsapp':
-        window.open(`https://wa.me/?text=${encodedMessage}`, '_blank', 'noopener')
-        setIsOpen(false)
-        return
-      case 'instagram':
-        await handleCopyLink()
-        window.open('https://www.instagram.com/direct/new/', '_blank', 'noopener')
-        setIsOpen(false)
-        return
-      case 'email':
-        window.open(
-          `mailto:?subject=Property%20${encodeURIComponent(property.reference_number)}&body=${encodedMessage}`,
-          '_self'
-        )
-        setIsOpen(false)
-        return
-      case 'copy':
-        await handleCopyLink()
-        return
-      case 'more':
-        await handleNativeShare()
-        return
-      default:
-        return
+    if (isShareDisabled) return
+    
+    console.log('Share option clicked:', option) // Debug log
+    
+    try {
+      switch (option) {
+        case 'whatsapp': {
+          const encodedMessage = encodeURIComponent(shareMessage)
+          const whatsappUrl = `https://wa.me/?text=${encodedMessage}`
+          console.log('Opening WhatsApp:', whatsappUrl) // Debug log
+          const whatsappWindow = window.open(whatsappUrl, '_blank', 'noopener,noreferrer')
+          if (!whatsappWindow) {
+            setFeedback('Popup blocked. Please allow popups for this site.')
+          }
+          setIsOpen(false)
+          break
+        }
+        case 'instagram': {
+          console.log('Copying to clipboard for Instagram') // Debug log
+          await handleCopyLink()
+          // Small delay to ensure clipboard is ready
+          setTimeout(() => {
+            const instagramWindow = window.open('https://www.instagram.com/direct/new/', '_blank', 'noopener,noreferrer')
+            if (!instagramWindow) {
+              setFeedback('Popup blocked. Please allow popups for this site.')
+            }
+          }, 100)
+          setIsOpen(false)
+          break
+        }
+        case 'email': {
+          const subject = `Property ${property.reference_number}`
+          const body = shareMessage
+          const encodedSubject = encodeURIComponent(subject)
+          const encodedBody = encodeURIComponent(body)
+          console.log('Opening email client') // Debug log
+          window.location.href = `mailto:?subject=${encodedSubject}&body=${encodedBody}`
+          setIsOpen(false)
+          break
+        }
+        case 'copy': {
+          console.log('Copying to clipboard') // Debug log
+          await handleCopyLink()
+          break
+        }
+        case 'more': {
+          console.log('Opening native share') // Debug log
+          await handleNativeShare()
+          break
+        }
+        default:
+          return
+      }
+    } catch (error) {
+      console.error('Error sharing property:', error)
+      setFeedback('Failed to share. Please try again.')
     }
   }
 
@@ -172,34 +251,46 @@ export function PropertyShareMenu({
       ref={containerRef}
     >
       <button
-        onClick={() => shareLink && setIsOpen((prev) => !prev)}
-        disabled={!shareLink}
-        aria-label="Share property link"
+        onClick={(e) => {
+          e.stopPropagation()
+          if (!isShareDisabled) {
+            setIsOpen((prev) => !prev)
+          }
+        }}
+        disabled={isShareDisabled}
+        aria-label="Share property"
         className={`${baseTriggerClasses} ${
-          shareLink ? enabledClasses : disabledClasses
+          isShareDisabled ? disabledClasses : enabledClasses
         } transition-colors ${triggerClassName}`}
       >
         <Share2 className="h-4 w-4" />
         {variant !== 'icon' && <span className="text-sm">{label}</span>}
       </button>
 
-      {isOpen && shareLink && menuPosition && typeof document !== 'undefined' &&
+      {isOpen && menuPosition && typeof document !== 'undefined' &&
         createPortal(
           <div
+            ref={menuRef}
             style={{
               top: menuPosition.top,
               left: menuPosition.left,
               width: menuWidth
             }}
             className="fixed z-[70] rounded-xl border border-gray-100 bg-white shadow-2xl p-3 space-y-1"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col space-y-1">
               <p className="text-xs text-gray-500 px-1">
                 Share <span className="font-semibold">{property.reference_number}</span> with clients
               </p>
               <button
-                onClick={() => handleShareOption('whatsapp')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-green-50 text-left"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleShareOption('whatsapp')
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-green-50 text-left transition-colors cursor-pointer"
               >
                 <MessageCircle className="h-4 w-4 text-green-600" />
                 <div>
@@ -208,8 +299,13 @@ export function PropertyShareMenu({
                 </div>
               </button>
               <button
-                onClick={() => handleShareOption('instagram')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-pink-50 text-left"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleShareOption('instagram')
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-pink-50 text-left transition-colors cursor-pointer"
               >
                 <Instagram className="h-4 w-4 text-pink-500" />
                 <div>
@@ -218,8 +314,13 @@ export function PropertyShareMenu({
                 </div>
               </button>
               <button
-                onClick={() => handleShareOption('email')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-blue-50 text-left"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleShareOption('email')
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-blue-50 text-left transition-colors cursor-pointer"
               >
                 <Mail className="h-4 w-4 text-blue-500" />
                 <div>
@@ -228,19 +329,29 @@ export function PropertyShareMenu({
                 </div>
               </button>
               <button
-                onClick={() => handleShareOption('copy')}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 text-left"
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  handleShareOption('copy')
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 text-left transition-colors cursor-pointer"
               >
                 <LinkIcon className="h-4 w-4 text-gray-700" />
                 <div>
-                  <div className="text-sm font-medium text-gray-800">Copy link</div>
-                  <div className="text-xs text-gray-500">Perfect for Instagram or SMS</div>
+                  <div className="text-sm font-medium text-gray-800">Copy details</div>
+                  <div className="text-xs text-gray-500">{shareLink ? 'Copy link & details' : 'Copy property details'}</div>
                 </div>
               </button>
               {canUseNativeShare && (
                 <button
-                  onClick={() => handleShareOption('more')}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-indigo-50 text-left"
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    handleShareOption('more')
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-indigo-50 text-left transition-colors cursor-pointer"
                 >
                   <Send className="h-4 w-4 text-indigo-500" />
                   <div>

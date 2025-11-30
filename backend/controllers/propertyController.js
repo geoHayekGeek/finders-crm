@@ -532,10 +532,24 @@ const updateProperty = async (req, res) => {
         } else {
           console.log('📅 Using provided closed_date:', updates.closed_date);
         }
+        
+        // If platform_id is not provided, default to the lead's reference_source_id (if owner_id exists)
+        if (!updates.platform_id && property.owner_id) {
+          const Lead = require('../models/leadsModel');
+          const lead = await Lead.getLeadById(property.owner_id);
+          if (lead && lead.reference_source_id) {
+            updates.platform_id = lead.reference_source_id;
+            console.log('📱 Auto-setting platform_id from lead reference_source_id:', updates.platform_id);
+          }
+        }
       } else if (newStatus && newStatus.code !== 'closed') {
-        // If changing away from closed, clear the closed_date
+        // If changing away from closed, clear the closed_date and closing fields
         updates.closed_date = null;
-        console.log('📅 Clearing closed_date (moving away from closed)');
+        updates.sold_amount = null;
+        updates.buyer_id = null;
+        updates.commission = null;
+        updates.platform_id = null;
+        console.log('📅 Clearing closed_date and closing fields (moving away from closed)');
       }
     }
     

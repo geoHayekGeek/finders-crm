@@ -11,6 +11,7 @@ import { PropertyStatusSelector } from './PropertyStatusSelector'
 import { AgentSelector } from './AgentSelector'
 import { OwnerSelector } from './OwnerSelector'
 import { ReferralSelector } from './ReferralSelector'
+import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { PropertyReferralsSection } from './PropertyReferralsSection'
 import { PropertyShareMenu } from './PropertyShareMenu'
 import { PropertyViewingsSection } from './PropertyViewingsSection'
@@ -295,8 +296,21 @@ export function PropertyModals({
     owner_name: '',
     phone_number: '',
     surface: '',
-    details: '',
-    interior_details: '',
+    details: {
+      floor_number: '',
+      balcony: '',
+      covered_parking: '',
+      outdoor_parking: '',
+      cave: ''
+    } as { floor_number: string; balcony: string; covered_parking: string; outdoor_parking: string; cave: string },
+    interior_details: {
+      living_rooms: '',
+      bedrooms: '',
+      bathrooms: '',
+      maid_room: ''
+    } as { living_rooms: string; bedrooms: string; bathrooms: string; maid_room: string },
+    payment_facilities: false,
+    payment_facilities_specification: '',
     built_year: '' as string | undefined,
     view_type: '',
     concierge: false,
@@ -387,8 +401,18 @@ export function PropertyModals({
       case 'concierge':
         return value !== undefined && value !== null
       case 'details':
+        if (typeof value === 'object' && value !== null) {
+          // Check if at least one field is filled
+          const details = value as { floor_number?: string; balcony?: string; covered_parking?: string; outdoor_parking?: string; cave?: string }
+          return !!(details.floor_number || details.balcony || details.covered_parking || details.outdoor_parking || details.cave)
+        }
         return value && typeof value === 'string' && value.trim() !== ''
       case 'interior_details':
+        if (typeof value === 'object' && value !== null) {
+          // Check if at least one field is filled
+          const interior = value as { living_rooms?: string; bedrooms?: string; bathrooms?: string; maid_room?: string }
+          return !!(interior.living_rooms || interior.bedrooms || interior.bathrooms || interior.maid_room)
+        }
         return value && typeof value === 'string' && value.trim() !== ''
       case 'building_name':
         return true // Optional field
@@ -509,8 +533,22 @@ export function PropertyModals({
       case 'concierge':
         return 'Concierge service status is required'
       case 'details':
+        if (typeof value === 'object' && value !== null) {
+          // Check if at least one field is filled
+          const details = value as { floor_number?: string; balcony?: string; covered_parking?: string; outdoor_parking?: string; cave?: string }
+          if (!details.floor_number && !details.balcony && !details.covered_parking && !details.outdoor_parking && !details.cave) {
+            return 'At least one property detail is required'
+          }
+        }
         return 'Property details are required'
       case 'interior_details':
+        if (typeof value === 'object' && value !== null) {
+          // Check if at least one field is filled
+          const interior = value as { living_rooms?: string; bedrooms?: string; bathrooms?: string; maid_room?: string }
+          if (!interior.living_rooms && !interior.bedrooms && !interior.bathrooms && !interior.maid_room) {
+            return 'At least one interior detail is required'
+          }
+        }
         return 'Interior details are required'
       case 'building_name':
         return '' // Optional field - no error message
@@ -665,8 +703,31 @@ export function PropertyModals({
               owner_name: propertyData.owner_name || '',
               phone_number: propertyData.phone_number || '',
               surface: propertyData.surface,
-              details: typeof propertyData.details === 'string' ? propertyData.details : (propertyData.details ? JSON.stringify(propertyData.details, null, 2) : ''),
-              interior_details: propertyData.interior_details || '',
+              details: (() => {
+                if (typeof propertyData.details === 'object' && propertyData.details !== null) {
+                  return {
+                    floor_number: (propertyData.details as any).floor_number || '',
+                    balcony: (propertyData.details as any).balcony || '',
+                    covered_parking: (propertyData.details as any).covered_parking || '',
+                    outdoor_parking: (propertyData.details as any).outdoor_parking || '',
+                    cave: (propertyData.details as any).cave || ''
+                  }
+                }
+                return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
+              })(),
+              interior_details: (() => {
+                if (typeof propertyData.interior_details === 'object' && propertyData.interior_details !== null) {
+                  return {
+                    living_rooms: (propertyData.interior_details as any).living_rooms || '',
+                    bedrooms: (propertyData.interior_details as any).bedrooms || '',
+                    bathrooms: (propertyData.interior_details as any).bathrooms || '',
+                    maid_room: (propertyData.interior_details as any).maid_room || ''
+                  }
+                }
+                return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
+              })(),
+              payment_facilities: propertyData.payment_facilities || false,
+              payment_facilities_specification: propertyData.payment_facilities_specification || '',
               built_year: propertyData.built_year,
               view_type: propertyData.view_type,
               concierge: propertyData.concierge || false,
@@ -675,6 +736,10 @@ export function PropertyModals({
               notes: propertyData.notes || '',
               property_url: propertyData.property_url || '',
               closed_date: formatClosedDate(propertyData.closed_date || ''),
+              sold_amount: propertyData.sold_amount,
+              buyer_id: propertyData.buyer_id,
+              commission: propertyData.commission,
+              platform_id: propertyData.platform_id,
               referrals: formatReferralDates(propertyData.referrals || []),
 
               main_image: propertyData.main_image || '',
@@ -725,8 +790,31 @@ export function PropertyModals({
               owner_name: editingProperty.owner_name || '',
               phone_number: editingProperty.phone_number || '',
               surface: editingProperty.surface,
-              details: typeof editingProperty.details === 'string' ? editingProperty.details : (editingProperty.details ? JSON.stringify(editingProperty.details, null, 2) : ''),
-              interior_details: editingProperty.interior_details || '',
+              details: (() => {
+                if (typeof editingProperty.details === 'object' && editingProperty.details !== null) {
+                  return {
+                    floor_number: (editingProperty.details as any).floor_number || '',
+                    balcony: (editingProperty.details as any).balcony || '',
+                    covered_parking: (editingProperty.details as any).covered_parking || '',
+                    outdoor_parking: (editingProperty.details as any).outdoor_parking || '',
+                    cave: (editingProperty.details as any).cave || ''
+                  }
+                }
+                return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
+              })(),
+              interior_details: (() => {
+                if (typeof editingProperty.interior_details === 'object' && editingProperty.interior_details !== null) {
+                  return {
+                    living_rooms: (editingProperty.interior_details as any).living_rooms || '',
+                    bedrooms: (editingProperty.interior_details as any).bedrooms || '',
+                    bathrooms: (editingProperty.interior_details as any).bathrooms || '',
+                    maid_room: (editingProperty.interior_details as any).maid_room || ''
+                  }
+                }
+                return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
+              })(),
+              payment_facilities: (editingProperty as any).payment_facilities || false,
+              payment_facilities_specification: (editingProperty as any).payment_facilities_specification || '',
               built_year: editingProperty.built_year,
               view_type: editingProperty.view_type,
               concierge: editingProperty.concierge || false,
@@ -735,6 +823,10 @@ export function PropertyModals({
               notes: editingProperty.notes || '',
               property_url: editingProperty.property_url || '',
               closed_date: formatClosedDate(editingProperty.closed_date || ''),
+              sold_amount: editingProperty.sold_amount,
+              buyer_id: editingProperty.buyer_id,
+              commission: editingProperty.commission,
+              platform_id: editingProperty.platform_id,
               referrals: formatReferralDates(editingProperty.referrals || []),
 
               main_image: editingProperty.main_image || '',
@@ -775,8 +867,31 @@ export function PropertyModals({
             owner_name: editingProperty.owner_name || '',
             phone_number: editingProperty.phone_number || '',
             surface: editingProperty.surface,
-            details: typeof editingProperty.details === 'string' ? editingProperty.details : (editingProperty.details ? JSON.stringify(editingProperty.details, null, 2) : ''),
-            interior_details: editingProperty.interior_details || '',
+            details: (() => {
+              if (typeof editingProperty.details === 'object' && editingProperty.details !== null) {
+                return {
+                  floor_number: (editingProperty.details as any).floor_number || '',
+                  balcony: (editingProperty.details as any).balcony || '',
+                  covered_parking: (editingProperty.details as any).covered_parking || '',
+                  outdoor_parking: (editingProperty.details as any).outdoor_parking || '',
+                  cave: (editingProperty.details as any).cave || ''
+                }
+              }
+              return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
+            })(),
+            interior_details: (() => {
+              if (typeof editingProperty.interior_details === 'object' && editingProperty.interior_details !== null) {
+                return {
+                  living_rooms: (editingProperty.interior_details as any).living_rooms || '',
+                  bedrooms: (editingProperty.interior_details as any).bedrooms || '',
+                  bathrooms: (editingProperty.interior_details as any).bathrooms || '',
+                  maid_room: (editingProperty.interior_details as any).maid_room || ''
+                }
+              }
+              return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
+            })(),
+            payment_facilities: (editingProperty as any).payment_facilities || false,
+            payment_facilities_specification: (editingProperty as any).payment_facilities_specification || '',
             built_year: editingProperty.built_year,
             view_type: editingProperty.view_type,
             concierge: editingProperty.concierge || false,
@@ -785,6 +900,10 @@ export function PropertyModals({
             notes: editingProperty.notes || '',
             property_url: editingProperty.property_url || '',
             closed_date: formatClosedDate(editingProperty.closed_date || ''),
+            sold_amount: editingProperty.sold_amount,
+            buyer_id: editingProperty.buyer_id,
+            commission: editingProperty.commission,
+            platform_id: editingProperty.platform_id,
             referrals: formatReferralDates(editingProperty.referrals || []),
 
             main_image: editingProperty.main_image || '',
@@ -949,8 +1068,21 @@ export function PropertyModals({
       owner_name: '',
       phone_number: '',
       surface: '',
-      details: '',
-      interior_details: '',
+      details: {
+        floor_number: '',
+        balcony: '',
+        covered_parking: '',
+        outdoor_parking: '',
+        cave: ''
+      },
+      interior_details: {
+        living_rooms: '',
+        bedrooms: '',
+        bathrooms: '',
+        maid_room: ''
+      },
+      payment_facilities: false,
+      payment_facilities_specification: '',
       built_year: '' as string | undefined,
       view_type: '',
       concierge: false,
@@ -1280,6 +1412,8 @@ export function PropertyModals({
                     surface: parseFloat(addFormData.surface),
                     details: addFormData.details,
                     interior_details: addFormData.interior_details,
+                    payment_facilities: addFormData.payment_facilities || false,
+                    payment_facilities_specification: addFormData.payment_facilities ? addFormData.payment_facilities_specification : undefined,
                     built_year: addFormData.built_year ? parseInt(addFormData.built_year) : undefined,
                     view_type: addFormData.view_type,
                     concierge: addFormData.concierge,
@@ -1704,33 +1838,210 @@ export function PropertyModals({
                       )}
                     </div>
                   </div>
-                  <TextareaField
-                    label="Details"
-                      id="add-details"
-                      value={addFormData.details}
-                    onChange={(e) => {
-                      const newValue = e.target.value
-                      setAddFormData(prev => ({ ...prev, details: newValue }))
-                    }}
-                    onBlur={(e) => validateField('details', e.target.value)}
-                      placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
-                    errorMessage={validationErrors.details}
-                    rows={3}
-                  />
+                  {/* Property Details Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Property Details <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <InputField
+                        label="Floor #"
+                        id="add-floor-number"
+                        type="text"
+                        value={addFormData.details.floor_number}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            details: { ...prev.details, floor_number: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('details', addFormData.details)}
+                        placeholder="e.g., 5th Floor"
+                        errorMessage={validationErrors.details}
+                      />
+                      <InputField
+                        label="Balcony"
+                        id="add-balcony"
+                        type="text"
+                        value={addFormData.details.balcony}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            details: { ...prev.details, balcony: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('details', addFormData.details)}
+                        placeholder="e.g., Yes/No or details"
+                        errorMessage=""
+                      />
+                      <InputField
+                        label="Covered Parking"
+                        id="add-covered-parking"
+                        type="text"
+                        value={addFormData.details.covered_parking}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            details: { ...prev.details, covered_parking: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('details', addFormData.details)}
+                        placeholder="e.g., 2 spaces"
+                        errorMessage=""
+                      />
+                      <InputField
+                        label="Outdoor Parking"
+                        id="add-outdoor-parking"
+                        type="text"
+                        value={addFormData.details.outdoor_parking}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            details: { ...prev.details, outdoor_parking: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('details', addFormData.details)}
+                        placeholder="e.g., 1 space"
+                        errorMessage=""
+                      />
+                      <InputField
+                        label="Cave"
+                        id="add-cave"
+                        type="text"
+                        value={addFormData.details.cave}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            details: { ...prev.details, cave: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('details', addFormData.details)}
+                        placeholder="e.g., Yes/No or details"
+                        errorMessage=""
+                      />
+                    </div>
+                    {validationErrors.details && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {validationErrors.details}
+                      </p>
+                    )}
+                  </div>
 
-                  <TextareaField
-                    label="Interior Details"
-                      id="add-interior-details"
-                      value={addFormData.interior_details}
-                    onChange={(e) => {
-                      const newValue = e.target.value
-                      setAddFormData(prev => ({ ...prev, interior_details: newValue }))
-                    }}
-                    onBlur={(e) => validateField('interior_details', e.target.value)}
-                      placeholder="Enter interior details and features"
-                    errorMessage={validationErrors.interior_details}
-                    rows={3}
-                    />
+                  {/* Interior Details Section */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Interior Details <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <InputField
+                        label="Living Rooms"
+                        id="add-living-rooms"
+                        type="text"
+                        value={addFormData.interior_details.living_rooms}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            interior_details: { ...prev.interior_details, living_rooms: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('interior_details', addFormData.interior_details)}
+                        placeholder="e.g., 2"
+                        errorMessage=""
+                      />
+                      <InputField
+                        label="Bedrooms"
+                        id="add-bedrooms"
+                        type="text"
+                        value={addFormData.interior_details.bedrooms}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            interior_details: { ...prev.interior_details, bedrooms: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('interior_details', addFormData.interior_details)}
+                        placeholder="e.g., 3"
+                        errorMessage=""
+                      />
+                      <InputField
+                        label="Bathrooms"
+                        id="add-bathrooms"
+                        type="text"
+                        value={addFormData.interior_details.bathrooms}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            interior_details: { ...prev.interior_details, bathrooms: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('interior_details', addFormData.interior_details)}
+                        placeholder="e.g., 2"
+                        errorMessage=""
+                      />
+                      <InputField
+                        label="Maid Room"
+                        id="add-maid-room"
+                        type="text"
+                        value={addFormData.interior_details.maid_room}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            interior_details: { ...prev.interior_details, maid_room: e.target.value }
+                          }))
+                        }}
+                        onBlur={() => validateField('interior_details', addFormData.interior_details)}
+                        placeholder="e.g., Yes/No or details"
+                        errorMessage=""
+                      />
+                    </div>
+                    {validationErrors.interior_details && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {validationErrors.interior_details}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Payment Facilities Section */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-3">
+                      <input
+                        type="checkbox"
+                        id="add-payment-facilities"
+                        checked={addFormData.payment_facilities}
+                        onChange={(e) => {
+                          setAddFormData(prev => ({
+                            ...prev,
+                            payment_facilities: e.target.checked,
+                            payment_facilities_specification: e.target.checked ? prev.payment_facilities_specification : ''
+                          }))
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="add-payment-facilities" className="block text-sm font-medium text-gray-700">
+                        Payment Facilities
+                      </label>
+                    </div>
+                    {addFormData.payment_facilities && (
+                      <div className="mt-2">
+                        <InputField
+                          label="Please specify:"
+                          id="add-payment-facilities-specification"
+                          type="text"
+                          value={addFormData.payment_facilities_specification}
+                          onChange={(e) => {
+                            setAddFormData(prev => ({
+                              ...prev,
+                              payment_facilities_specification: e.target.value
+                            }))
+                          }}
+                          placeholder="Enter payment facilities details"
+                          errorMessage=""
+                        />
+                      </div>
+                    )}
+                  </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
@@ -2099,7 +2410,12 @@ export function PropertyModals({
                               // Auto-fill closed_date if changing to closed and it's empty
                               closed_date: shouldAutoFillClosedDate && !prev.closed_date 
                                 ? new Date().toISOString().split('T')[0] 
-                                : prev.closed_date
+                                : prev.closed_date,
+                              // Clear closing fields if moving away from closed status
+                              sold_amount: shouldAutoFillClosedDate ? prev.sold_amount : undefined,
+                              buyer_id: shouldAutoFillClosedDate ? prev.buyer_id : undefined,
+                              commission: shouldAutoFillClosedDate ? prev.commission : undefined,
+                              platform_id: shouldAutoFillClosedDate ? prev.platform_id : undefined
                             };
                           });
                         }}
@@ -2129,30 +2445,113 @@ export function PropertyModals({
                     </div>
                   </div>
 
-                  {/* Closed Date field - only show when status is 'closed' */}
+                  {/* Closed Date and Closing Fields - only show when status is 'closed' */}
                   {(() => {
                     const selectedStatus = statuses.find(s => s.id === editFormData.status_id);
-                    const shouldShowClosedDate = selectedStatus && selectedStatus.code === 'closed';
+                    const shouldShowClosedFields = selectedStatus && selectedStatus.code === 'closed';
                     
-                    console.log('🔍 Render check - Status ID:', editFormData.status_id, 'Selected Status:', selectedStatus?.code, 'Should Show:', shouldShowClosedDate, 'Closed Date Value:', editFormData.closed_date);
+                    console.log('🔍 Render check - Status ID:', editFormData.status_id, 'Selected Status:', selectedStatus?.code, 'Should Show:', shouldShowClosedFields, 'Closed Date Value:', editFormData.closed_date);
                     
-                    if (shouldShowClosedDate) {
+                    if (shouldShowClosedFields) {
                       return (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <Calendar className="inline h-4 w-4 mr-1" />
-                            Closed Date
-                          </label>
-                          <input
-                            type="date"
-                            value={editFormData.closed_date || ''}
-                            onChange={(e) => {
-                              const newValue = e.target.value;
-                              console.log('📅 Closed date input changed:', newValue);
-                              setEditFormData((prev: EditFormData) => ({ ...prev, closed_date: newValue }));
-                            }}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                          />
+                        <div className="space-y-4 border-t pt-4 mt-4">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">Closing Details</h3>
+                          
+                          {/* Closed Date */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              <Calendar className="inline h-4 w-4 mr-1" />
+                              Closed Date
+                            </label>
+                            <input
+                              type="date"
+                              value={editFormData.closed_date || ''}
+                              onChange={(e) => {
+                                const newValue = e.target.value;
+                                console.log('📅 Closed date input changed:', newValue);
+                                setEditFormData((prev: EditFormData) => ({ ...prev, closed_date: newValue }));
+                              }}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                            />
+                          </div>
+
+                          {/* Sold Amount */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Sold Amount ($)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editFormData.sold_amount || ''}
+                              onChange={(e) => {
+                                const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                setEditFormData((prev: EditFormData) => ({ ...prev, sold_amount: newValue }));
+                              }}
+                              placeholder="Enter sold amount (optional)"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                            />
+                          </div>
+
+                          {/* Buyer (Client) */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Client (Buyer)
+                            </label>
+                            <OwnerSelector
+                              selectedOwnerId={editFormData.buyer_id}
+                              onOwnerChange={(owner) => {
+                                console.log('Buyer selected:', owner)
+                                if (owner) {
+                                  setEditFormData((prev: EditFormData) => ({
+                                    ...prev,
+                                    buyer_id: owner.id
+                                  }))
+                                } else {
+                                  setEditFormData((prev: EditFormData) => ({
+                                    ...prev,
+                                    buyer_id: undefined
+                                  }))
+                                }
+                              }}
+                              placeholder="Select buyer from leads..."
+                            />
+                          </div>
+
+                          {/* Commission */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Commission ($)
+                            </label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={editFormData.commission || ''}
+                              onChange={(e) => {
+                                const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                setEditFormData((prev: EditFormData) => ({ ...prev, commission: newValue }));
+                              }}
+                              placeholder="Enter commission amount (optional)"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                            />
+                          </div>
+
+                          {/* Platform */}
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Platform
+                            </label>
+                            <ReferenceSourceSelector
+                              selectedReferenceSourceId={editFormData.platform_id}
+                              onReferenceSourceChange={(sourceId) => {
+                                setEditFormData((prev: EditFormData) => ({
+                                  ...prev,
+                                  platform_id: sourceId || undefined
+                                }))
+                              }}
+                              placeholder="Select platform..."
+                            />
+                          </div>
                         </div>
                       );
                     }
@@ -2410,22 +2809,108 @@ export function PropertyModals({
                   </div>
 
 
+                  {/* Property Details Section */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Details <span className="text-red-500">*</span>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
+                      Property Details <span className="text-red-500">*</span>
                     </label>
-                    <textarea
-                      rows={3}
-                      value={typeof editFormData.details === 'string' ? editFormData.details : (editFormData.details ? JSON.stringify(editFormData.details, null, 2) : '')}
-                      onChange={(e) => {
-                        const newValue = e.target.value
-                        setEditFormData((prev: EditFormData) => ({ ...prev, details: newValue }))
-                      }}
-                      onBlur={(e) => validateField('details', e.target.value, true)}
-                      required
-                      placeholder="Enter property details (floor, balcony, parking, cave, etc.)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Floor #</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.details === 'object' && editFormData.details !== null ? (editFormData.details as any).floor_number || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              details: {
+                                ...(typeof prev.details === 'object' && prev.details !== null ? prev.details : { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }),
+                                floor_number: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('details', editFormData.details, true)}
+                          placeholder="e.g., 5th Floor"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Balcony</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.details === 'object' && editFormData.details !== null ? (editFormData.details as any).balcony || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              details: {
+                                ...(typeof prev.details === 'object' && prev.details !== null ? prev.details : { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }),
+                                balcony: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('details', editFormData.details, true)}
+                          placeholder="e.g., Yes/No or details"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Covered Parking</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.details === 'object' && editFormData.details !== null ? (editFormData.details as any).covered_parking || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              details: {
+                                ...(typeof prev.details === 'object' && prev.details !== null ? prev.details : { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }),
+                                covered_parking: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('details', editFormData.details, true)}
+                          placeholder="e.g., 2 spaces"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Outdoor Parking</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.details === 'object' && editFormData.details !== null ? (editFormData.details as any).outdoor_parking || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              details: {
+                                ...(typeof prev.details === 'object' && prev.details !== null ? prev.details : { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }),
+                                outdoor_parking: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('details', editFormData.details, true)}
+                          placeholder="e.g., 1 space"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Cave</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.details === 'object' && editFormData.details !== null ? (editFormData.details as any).cave || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              details: {
+                                ...(typeof prev.details === 'object' && prev.details !== null ? prev.details : { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }),
+                                cave: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('details', editFormData.details, true)}
+                          placeholder="e.g., Yes/No or details"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                    </div>
                     {(backendValidationErrors.details || editValidationErrors.details) && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
                         <span className="mr-1">⚠️</span>
@@ -2434,27 +2919,133 @@ export function PropertyModals({
                     )}
                   </div>
 
+                  {/* Interior Details Section */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">
                       Interior Details <span className="text-red-500">*</span>
                     </label>
-                    <textarea
-                      rows={3}
-                      value={editFormData.interior_details || ''}
-                      onChange={(e) => {
-                        const newValue = e.target.value
-                        setEditFormData((prev: EditFormData) => ({ ...prev, interior_details: newValue }))
-                      }}
-                      onBlur={(e) => validateField('interior_details', e.target.value, true)}
-                      required
-                      placeholder="Enter interior details and features"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Living Rooms</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.interior_details === 'object' && editFormData.interior_details !== null ? (editFormData.interior_details as any).living_rooms || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              interior_details: {
+                                ...(typeof prev.interior_details === 'object' && prev.interior_details !== null ? prev.interior_details : { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }),
+                                living_rooms: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('interior_details', editFormData.interior_details, true)}
+                          placeholder="e.g., 2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.interior_details === 'object' && editFormData.interior_details !== null ? (editFormData.interior_details as any).bedrooms || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              interior_details: {
+                                ...(typeof prev.interior_details === 'object' && prev.interior_details !== null ? prev.interior_details : { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }),
+                                bedrooms: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('interior_details', editFormData.interior_details, true)}
+                          placeholder="e.g., 3"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Bathrooms</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.interior_details === 'object' && editFormData.interior_details !== null ? (editFormData.interior_details as any).bathrooms || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              interior_details: {
+                                ...(typeof prev.interior_details === 'object' && prev.interior_details !== null ? prev.interior_details : { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }),
+                                bathrooms: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('interior_details', editFormData.interior_details, true)}
+                          placeholder="e.g., 2"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Maid Room</label>
+                        <input
+                          type="text"
+                          value={typeof editFormData.interior_details === 'object' && editFormData.interior_details !== null ? (editFormData.interior_details as any).maid_room || '' : ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              interior_details: {
+                                ...(typeof prev.interior_details === 'object' && prev.interior_details !== null ? prev.interior_details : { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }),
+                                maid_room: e.target.value
+                              }
+                            }))
+                          }}
+                          onBlur={() => validateField('interior_details', editFormData.interior_details, true)}
+                          placeholder="e.g., Yes/No or details"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+                    </div>
                     {(backendValidationErrors.interior_details || editValidationErrors.interior_details) && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
                         <span className="mr-1">⚠️</span>
                         {backendValidationErrors.interior_details || editValidationErrors.interior_details}
                       </p>
+                    )}
+                  </div>
+
+                  {/* Payment Facilities Section */}
+                  <div>
+                    <div className="flex items-center space-x-3 mb-3">
+                      <input
+                        type="checkbox"
+                        id="edit-payment-facilities"
+                        checked={editFormData.payment_facilities || false}
+                        onChange={(e) => {
+                          setEditFormData((prev: EditFormData) => ({
+                            ...prev,
+                            payment_facilities: e.target.checked,
+                            payment_facilities_specification: e.target.checked ? prev.payment_facilities_specification : ''
+                          }))
+                        }}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor="edit-payment-facilities" className="block text-sm font-medium text-gray-700">
+                        Payment Facilities
+                      </label>
+                    </div>
+                    {(editFormData.payment_facilities || false) && (
+                      <div className="mt-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Please specify:</label>
+                        <input
+                          type="text"
+                          value={editFormData.payment_facilities_specification || ''}
+                          onChange={(e) => {
+                            setEditFormData((prev: EditFormData) => ({
+                              ...prev,
+                              payment_facilities_specification: e.target.value
+                            }))
+                          }}
+                          placeholder="Enter payment facilities details"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
                     )}
                   </div>
 
@@ -2759,20 +3350,73 @@ export function PropertyModals({
                   {/* Closed Date - only show if status is 'closed' */}
                   {(() => {
                     const selectedStatus = statuses.find(s => s.id === viewPropertyData.status_id);
-                    if (selectedStatus && selectedStatus.code === 'closed' && viewPropertyData.closed_date) {
+                    if (selectedStatus && selectedStatus.code === 'closed') {
                       return (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <Calendar className="inline h-4 w-4 mr-1" />
-                            Closed Date
-                          </label>
-                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                            {new Date(viewPropertyData.closed_date).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })}
-                          </div>
+                        <div className="space-y-4 border-t pt-4 mt-4">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-4">Closing Details</h3>
+                          
+                          {viewPropertyData.closed_date && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <Calendar className="inline h-4 w-4 mr-1" />
+                                Closed Date
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                {new Date(viewPropertyData.closed_date).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {viewPropertyData.sold_amount && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Sold Amount
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                ${viewPropertyData.sold_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          )}
+
+                          {viewPropertyData.buyer_id && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Client (Buyer)
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                <div className="font-medium">{viewPropertyData.buyer_name || `Lead ID: ${viewPropertyData.buyer_id}`}</div>
+                                {viewPropertyData.buyer_phone_number && (
+                                  <div className="text-sm text-gray-600 mt-1">{viewPropertyData.buyer_phone_number}</div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {viewPropertyData.commission && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Commission
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                ${viewPropertyData.commission.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          )}
+
+                          {viewPropertyData.platform_id && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Platform
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                {viewPropertyData.platform_name || `Platform ID: ${viewPropertyData.platform_id}`}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     }
@@ -2911,25 +3555,28 @@ export function PropertyModals({
                       <label className="block text-sm font-medium text-gray-700 mb-2">Property Details</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
                         {viewPropertyData.details ? (
-                          typeof viewPropertyData.details === 'string' ? (
-                            <div className="whitespace-pre-wrap">{viewPropertyData.details}</div>
-                          ) : typeof viewPropertyData.details === 'object' && viewPropertyData.details !== null ? (
-                            <div className="grid grid-cols-2 gap-2">
-                              {(viewPropertyData.details as any).floor && (
-                                <div><strong>Floor:</strong> {(viewPropertyData.details as any).floor}</div>
+                          typeof viewPropertyData.details === 'object' && viewPropertyData.details !== null ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {(viewPropertyData.details as any).floor_number && (
+                                <div><strong>Floor #:</strong> {(viewPropertyData.details as any).floor_number}</div>
                               )}
-                              {(viewPropertyData.details as any).balcony !== undefined && (
-                                <div><strong>Balcony:</strong> {(viewPropertyData.details as any).balcony ? 'Yes' : 'No'}</div>
+                              {(viewPropertyData.details as any).balcony && (
+                                <div><strong>Balcony:</strong> {(viewPropertyData.details as any).balcony}</div>
                               )}
-                              {(viewPropertyData.details as any).parking !== undefined && (
-                                <div><strong>Parking:</strong> {(viewPropertyData.details as any).parking}</div>
+                              {(viewPropertyData.details as any).covered_parking && (
+                                <div><strong>Covered Parking:</strong> {(viewPropertyData.details as any).covered_parking}</div>
                               )}
-                              {(viewPropertyData.details as any).cave !== undefined && (
-                                <div><strong>Cave:</strong> {(viewPropertyData.details as any).cave ? 'Yes' : 'No'}</div>
+                              {(viewPropertyData.details as any).outdoor_parking && (
+                                <div><strong>Outdoor Parking:</strong> {(viewPropertyData.details as any).outdoor_parking}</div>
+                              )}
+                              {(viewPropertyData.details as any).cave && (
+                                <div><strong>Cave:</strong> {(viewPropertyData.details as any).cave}</div>
                               )}
                             </div>
+                          ) : typeof viewPropertyData.details === 'string' ? (
+                            <div className="whitespace-pre-wrap">{viewPropertyData.details}</div>
                           ) : (
-                            <div>Details unavailable</div>
+                            <div className="text-gray-500">No details provided</div>
                           )
                         ) : (
                           <div className="text-gray-500">No details provided</div>
@@ -2942,12 +3589,50 @@ export function PropertyModals({
                       <label className="block text-sm font-medium text-gray-700 mb-2">Interior Details</label>
                       <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
                         {viewPropertyData.interior_details ? (
-                          <div className="whitespace-pre-wrap">{viewPropertyData.interior_details}</div>
+                          typeof viewPropertyData.interior_details === 'object' && viewPropertyData.interior_details !== null ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {(viewPropertyData.interior_details as any).living_rooms && (
+                                <div><strong>Living Rooms:</strong> {(viewPropertyData.interior_details as any).living_rooms}</div>
+                              )}
+                              {(viewPropertyData.interior_details as any).bedrooms && (
+                                <div><strong>Bedrooms:</strong> {(viewPropertyData.interior_details as any).bedrooms}</div>
+                              )}
+                              {(viewPropertyData.interior_details as any).bathrooms && (
+                                <div><strong>Bathrooms:</strong> {(viewPropertyData.interior_details as any).bathrooms}</div>
+                              )}
+                              {(viewPropertyData.interior_details as any).maid_room && (
+                                <div><strong>Maid Room:</strong> {(viewPropertyData.interior_details as any).maid_room}</div>
+                              )}
+                            </div>
+                          ) : typeof viewPropertyData.interior_details === 'string' ? (
+                            <div className="whitespace-pre-wrap">{viewPropertyData.interior_details}</div>
+                          ) : (
+                            <div className="text-gray-500">No interior details provided</div>
+                          )
                         ) : (
                           <div className="text-gray-500">No interior details provided</div>
                         )}
                       </div>
                     </div>
+
+                    {/* Payment Facilities */}
+                    {((viewPropertyData as any).payment_facilities || (viewPropertyData as any).payment_facilities_specification) && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Facilities</label>
+                        <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                          <div className="flex items-center mb-2">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${(viewPropertyData as any).payment_facilities ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                              {(viewPropertyData as any).payment_facilities ? 'Yes' : 'No'}
+                            </span>
+                          </div>
+                          {(viewPropertyData as any).payment_facilities_specification && (
+                            <div className="mt-2">
+                              <strong>Specification:</strong> {(viewPropertyData as any).payment_facilities_specification}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Notes */}
                     <div>
