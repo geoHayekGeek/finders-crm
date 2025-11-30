@@ -1199,6 +1199,7 @@ useEffect(() => {
           onPageChange={setCurrentPage}
           onItemsPerPageChange={handleItemsPerPageChange}
           viewMode={viewMode}
+          entityName="leads"
         />
       )}
 
