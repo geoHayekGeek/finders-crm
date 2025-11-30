@@ -53,7 +53,6 @@ describe('Lead Model', () => {
           200000,
           1,
           2,
-          'unknown',
           'Active'
         ])
       );
@@ -88,7 +87,7 @@ describe('Lead Model', () => {
       await Lead.createLead(leadData);
 
       const callArgs = mockQuery.mock.calls[0][1];
-      expect(callArgs[9]).toBe('Active'); // Default status
+      expect(callArgs[8]).toBe('Active'); // Default status (9th parameter, index 8)
     });
 
     it('should throw error when operations_id is missing', async () => {

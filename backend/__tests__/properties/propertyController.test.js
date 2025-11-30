@@ -185,12 +185,31 @@ describe('Property Controller', () => {
   describe('createProperty', () => {
     const mockPropertyData = {
       status_id: 1,
-      property_type: 'apartment',
+      property_type: 'sale',
       location: 'Beirut',
       category_id: 1,
       building_name: 'Test Building',
       owner_id: 1,
+      owner_name: 'John Doe',
+      phone_number: '1234567890',
       surface: 100,
+      details: {
+        floor_number: '5th',
+        balcony: 'Yes',
+        covered_parking: '2 spaces',
+        outdoor_parking: '1 space',
+        cave: 'No'
+      },
+      interior_details: {
+        living_rooms: '2',
+        bedrooms: '3',
+        bathrooms: '2',
+        maid_room: 'Yes'
+      },
+      payment_facilities: true,
+      payment_facilities_specification: 'Bank financing available',
+      view_type: 'sea view',
+      concierge: false,
       price: 100000,
       agent_id: 1
     };
@@ -265,6 +284,64 @@ describe('Property Controller', () => {
 
       expect(Property.createProperty).toHaveBeenCalled();
       expect(PropertyReferral.applyExternalRuleToPropertyReferrals).toHaveBeenCalledWith(1);
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should create property with structured details and payment facilities', async () => {
+      req.body = {
+        ...mockPropertyData,
+        details: {
+          floor_number: '10th',
+          balcony: 'Large',
+          covered_parking: '3 spaces',
+          outdoor_parking: '2 spaces',
+          cave: 'Yes'
+        },
+        interior_details: {
+          living_rooms: '3',
+          bedrooms: '4',
+          bathrooms: '3',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing up to 80%'
+      };
+      const mockCreatedProperty = { 
+        id: 1, 
+        ...mockPropertyData, 
+        reference_number: 'REF001',
+        details: req.body.details,
+        interior_details: req.body.interior_details,
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing up to 80%'
+      };
+
+      Property.createProperty.mockResolvedValue(mockCreatedProperty);
+      PropertyReferral.applyExternalRuleToPropertyReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
+      Notification.createPropertyNotification.mockResolvedValue({});
+
+      await propertyController.createProperty(req, res);
+
+      // Check that createProperty was called with the correct data
+      const createPropertyCall = Property.createProperty.mock.calls[0][0];
+      expect(createPropertyCall.details).toEqual(expect.objectContaining({
+        floor_number: '10th',
+        balcony: 'Large',
+        covered_parking: '3 spaces',
+        outdoor_parking: '2 spaces',
+        cave: 'Yes'
+      }));
+      expect(createPropertyCall.interior_details).toEqual(expect.objectContaining({
+        living_rooms: '3',
+        bedrooms: '4',
+        bathrooms: '3',
+        maid_room: 'Yes'
+      }));
+      expect(createPropertyCall.payment_facilities).toBe(true);
+      expect(createPropertyCall.payment_facilities_specification).toBe('Bank financing up to 80%');
       expect(res.status).toHaveBeenCalledWith(201);
     });
 

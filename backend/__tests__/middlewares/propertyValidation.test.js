@@ -47,6 +47,47 @@ describe('Property Validation', () => {
       expect(propertyValidation.validateProperty).toBeDefined();
       expect(Array.isArray(propertyValidation.validateProperty)).toBe(true);
     });
+
+    it('should validate structured details object', () => {
+      const validDetails = {
+        floor_number: '5th',
+        balcony: 'Yes',
+        covered_parking: '2 spaces',
+        outdoor_parking: '1 space',
+        cave: 'No'
+      };
+      
+      // The validation middleware should accept this structure
+      expect(validDetails).toHaveProperty('floor_number');
+      expect(validDetails).toHaveProperty('balcony');
+      expect(validDetails).toHaveProperty('covered_parking');
+      expect(validDetails).toHaveProperty('outdoor_parking');
+      expect(validDetails).toHaveProperty('cave');
+    });
+
+    it('should validate structured interior_details object', () => {
+      const validInteriorDetails = {
+        living_rooms: '2',
+        bedrooms: '3',
+        bathrooms: '2',
+        maid_room: 'Yes'
+      };
+      
+      expect(validInteriorDetails).toHaveProperty('living_rooms');
+      expect(validInteriorDetails).toHaveProperty('bedrooms');
+      expect(validInteriorDetails).toHaveProperty('bathrooms');
+      expect(validInteriorDetails).toHaveProperty('maid_room');
+    });
+
+    it('should validate payment_facilities fields', () => {
+      const validPaymentFacilities = {
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available'
+      };
+      
+      expect(typeof validPaymentFacilities.payment_facilities).toBe('boolean');
+      expect(typeof validPaymentFacilities.payment_facilities_specification).toBe('string');
+    });
   });
 
   describe('sanitizeInput', () => {

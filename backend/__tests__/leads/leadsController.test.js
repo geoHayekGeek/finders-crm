@@ -99,7 +99,6 @@ describe('Leads Controller', () => {
           operations_role: 'operations',
           reference_source_id: 1,
           reference_source_name: 'Source',
-          contact_source: 'phone',
           price: 100000,
           status: 'active',
           created_at: '2024-01-01',
@@ -260,7 +259,8 @@ describe('Leads Controller', () => {
           price: 100000,
           status: 'active',
           created_at: '2024-01-01',
-          updated_at: '2024-01-01'
+          updated_at: '2024-01-01',
+          referrals: []
         },
         userRole: 'agent'
       });

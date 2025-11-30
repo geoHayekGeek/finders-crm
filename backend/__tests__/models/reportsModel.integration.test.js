@@ -142,7 +142,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'TEST-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 200000, $4::timestamp
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, '2024-01-15 10:00:00']
@@ -155,7 +155,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'TEST-002', $1, 'sale', 'Test Location', $2,
-          'Owner 2', '123457', 120, 'Details', 'Interior',
+          'Owner 2', '123457', 120, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 250000, $4::timestamp
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, '2024-01-20 10:00:00']
@@ -169,7 +169,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'TEST-003', $1, 'sale', 'Test Location', $2,
-          'Owner 3', '123458', 150, 'Details', 'Interior',
+          'Owner 3', '123458', 150, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 300000, $4::timestamp
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, '2024-02-15 10:00:00']
@@ -219,7 +219,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, closed_date
         ) VALUES (
           'SALE-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 200000, $4::date
         ) RETURNING id, price`,
         [testStatusId, testCategoryId, testAgentId, '2024-01-15']
@@ -232,7 +232,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, closed_date
         ) VALUES (
           'SALE-002', $1, 'sale', 'Test Location', $2,
-          'Owner 2', '123457', 120, 'Details', 'Interior',
+          'Owner 2', '123457', 120, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 300000, $4::date
         ) RETURNING id, price`,
         [testStatusId, testCategoryId, testAgentId, '2024-01-20']
@@ -293,7 +293,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, closed_date
         ) VALUES (
           'COMM-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, $4, $5::date
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, salesAmount, '2024-01-15']
@@ -352,7 +352,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, closed_date
         ) VALUES (
           'ROUND-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, $4, $5::date
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, salesAmount, '2024-01-15']
@@ -413,7 +413,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, closed_date
         ) VALUES (
           'REF-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, $4, $5::date
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, propertyPrice, '2024-01-15']
@@ -469,7 +469,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, closed_date
         ) VALUES (
           'REF-002', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, $4, $5::date
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, propertyPrice, '2024-01-15']
@@ -524,7 +524,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'DATE-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 200000, $4::timestamptz
         ) RETURNING id, reference_number`,
         [testStatusId, testCategoryId, testAgentId, '2024-03-01T00:00:00.000Z'] // Start of range (UTC)
@@ -538,7 +538,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'DATE-002', $1, 'sale', 'Test Location', $2,
-          'Owner 2', '123457', 120, 'Details', 'Interior',
+          'Owner 2', '123457', 120, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 250000, $4::timestamptz
         ) RETURNING id, reference_number`,
         [testStatusId, testCategoryId, testAgentId, '2024-03-15T12:00:00.000Z'] // Middle of range (UTC) - avoid boundary issues
@@ -553,7 +553,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'DATE-003', $1, 'sale', 'Test Location', $2,
-          'Owner 3', '123458', 150, 'Details', 'Interior',
+          'Owner 3', '123458', 150, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 300000, $4::timestamptz
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, '2024-02-28T23:59:59.999Z'] // Before range (UTC)
@@ -568,7 +568,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'DATE-004', $1, 'sale', 'Test Location', $2,
-          'Owner 4', '123459', 150, 'Details', 'Interior',
+          'Owner 4', '123459', 150, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 300000, $4::timestamptz
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, '2024-04-01T00:00:00.000Z'] // After range (UTC)
@@ -713,7 +713,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           view_type, agent_id, price, created_at
         ) VALUES (
           'ZERO-001', $1, 'sale', 'Test Location', $2,
-          'Owner 1', '123456', 100, 'Details', 'Interior',
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
           'sea view', $3, 200000, $4::timestamp
         ) RETURNING id`,
         [testStatusId, testCategoryId, testAgentId, '2024-02-15 10:00:00']

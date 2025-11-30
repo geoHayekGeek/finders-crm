@@ -37,8 +37,21 @@ describe('Property Model', () => {
         owner_name: 'John Doe',
         phone_number: '1234567890',
         surface: 100,
-        details: 'Test details',
-        interior_details: 'Test interior',
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available',
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
@@ -84,8 +97,21 @@ describe('Property Model', () => {
         owner_name: 'John Doe',
         phone_number: '1234567890',
         surface: 100,
-        details: 'Test details',
-        interior_details: 'Test interior',
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available',
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
@@ -111,8 +137,20 @@ describe('Property Model', () => {
         owner_name: 'Old Name',
         phone_number: '1111111111',
         surface: 100,
-        details: 'Test details',
-        interior_details: 'Test interior',
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: false,
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
@@ -153,8 +191,20 @@ describe('Property Model', () => {
         owner_name: 'John Doe',
         phone_number: '1234567890',
         surface: 100,
-        details: 'Test details',
-        interior_details: 'Test interior',
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: false,
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
@@ -198,8 +248,20 @@ describe('Property Model', () => {
         owner_name: 'John Doe',
         phone_number: '1234567890',
         surface: 100,
-        details: 'Test details',
-        interior_details: 'Test interior',
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: false,
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
@@ -214,6 +276,111 @@ describe('Property Model', () => {
         .mockResolvedValueOnce(mockCategory);
 
       await expect(Property.createProperty(propertyData)).rejects.toThrow('Invalid category');
+    });
+
+    it('should handle structured details and interior_details correctly', async () => {
+      const propertyData = {
+        status_id: 1,
+        property_type: 'sale',
+        location: 'Test Location',
+        category_id: 1,
+        owner_name: 'John Doe',
+        phone_number: '1234567890',
+        surface: 100,
+        details: {
+          floor_number: '10th',
+          balcony: 'Large balcony',
+          covered_parking: '3 spaces',
+          outdoor_parking: '2 spaces',
+          cave: 'Yes, 20 sqm'
+        },
+        interior_details: {
+          living_rooms: '3',
+          bedrooms: '4',
+          bathrooms: '3',
+          maid_room: 'Yes, with bathroom'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing up to 80%',
+        view_type: 'sea view',
+        concierge: true,
+        agent_id: 1,
+        price: 500000
+      };
+
+      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockCategory = { rows: [{ code: 'APT' }] };
+      const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          reference_number: 'APT-001',
+          ...propertyData
+        }]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(mockCategory)
+        .mockResolvedValueOnce(mockRefNumber);
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Property.createProperty(propertyData);
+
+      expect(result.id).toBe(1);
+      expect(result.details).toEqual(propertyData.details);
+      expect(result.interior_details).toEqual(propertyData.interior_details);
+      expect(result.payment_facilities).toBe(true);
+      expect(result.payment_facilities_specification).toBe('Bank financing up to 80%');
+    });
+
+    it('should convert string details to structured object for backward compatibility', async () => {
+      const propertyData = {
+        status_id: 1,
+        property_type: 'sale',
+        location: 'Test Location',
+        category_id: 1,
+        owner_name: 'John Doe',
+        phone_number: '1234567890',
+        surface: 100,
+        details: 'Legacy text details',
+        interior_details: 'Legacy text interior',
+        view_type: 'sea view',
+        concierge: false,
+        agent_id: 1,
+        price: 200000
+      };
+
+      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockCategory = { rows: [{ code: 'APT' }] };
+      const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          reference_number: 'APT-001',
+          ...propertyData
+        }]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(mockCategory)
+        .mockResolvedValueOnce(mockRefNumber);
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Property.createProperty(propertyData);
+
+      expect(result.id).toBe(1);
+      // The model should convert string to structured object
+      expect(mockClient.query).toHaveBeenCalled();
     });
   });
 

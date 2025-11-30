@@ -9,34 +9,43 @@ ADD COLUMN IF NOT EXISTS payment_facilities BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS payment_facilities_specification TEXT;
 
 -- Step 2: Migrate existing TEXT data to JSONB structure
--- For details: Try to parse as JSON, otherwise create structured object from text
+-- For details: Handle both JSON and plain text
 UPDATE properties 
 SET details_new = CASE
-  WHEN details::text ~ '^\{.*\}$' THEN details::jsonb  -- Already JSON
-  ELSE jsonb_build_object(
-    'floor_number', COALESCE((details::jsonb->>'floor_number'), ''),
-    'balcony', COALESCE((details::jsonb->>'balcony'), ''),
-    'covered_parking', COALESCE((details::jsonb->>'covered_parking'), ''),
-    'outdoor_parking', COALESCE((details::jsonb->>'outdoor_parking'), ''),
-    'cave', COALESCE((details::jsonb->>'cave'), '')
-  )
+  -- If it's already valid JSON, use it
+  WHEN details::text ~ '^\{.*\}$' THEN 
+    CASE 
+      WHEN details::text::jsonb IS NOT NULL THEN details::text::jsonb
+      ELSE '{}'::jsonb
+    END
+  -- Otherwise, create empty structured object (text data will be lost, but that's expected)
+  ELSE '{}'::jsonb
 END
 WHERE details IS NOT NULL;
 
--- For interior_details: Create structured object
+-- Set empty object for NULL details
 UPDATE properties 
-SET interior_details_new = jsonb_build_object(
-  'living_rooms', COALESCE((interior_details::jsonb->>'living_rooms'), ''),
-  'bedrooms', COALESCE((interior_details::jsonb->>'bedrooms'), ''),
-  'bathrooms', COALESCE((interior_details::jsonb->>'bathrooms'), ''),
-  'maid_room', COALESCE((interior_details::jsonb->>'maid_room'), '')
-)
+SET details_new = '{}'::jsonb 
+WHERE details IS NULL OR details_new IS NULL;
+
+-- For interior_details: Create structured object (text data will be lost, but that's expected)
+UPDATE properties 
+SET interior_details_new = '{}'::jsonb
 WHERE interior_details IS NOT NULL;
 
--- Step 3: Drop old columns and rename new ones
+-- Set empty object for NULL interior_details
+UPDATE properties 
+SET interior_details_new = '{}'::jsonb 
+WHERE interior_details IS NULL OR interior_details_new IS NULL;
+
+-- Step 3: Drop dependent views if they exist
+DROP VIEW IF EXISTS properties_with_referrals CASCADE;
+DROP VIEW IF EXISTS get_properties_with_details CASCADE;
+
+-- Step 4: Drop old columns and rename new ones
 ALTER TABLE properties 
-DROP COLUMN IF EXISTS details,
-DROP COLUMN IF EXISTS interior_details;
+DROP COLUMN IF EXISTS details CASCADE,
+DROP COLUMN IF EXISTS interior_details CASCADE;
 
 ALTER TABLE properties 
 RENAME COLUMN details_new TO details;
@@ -44,7 +53,7 @@ RENAME COLUMN details_new TO details;
 ALTER TABLE properties 
 RENAME COLUMN interior_details_new TO interior_details;
 
--- Step 4: Set NOT NULL constraint on new JSONB columns (with default empty objects)
+-- Step 5: Set NOT NULL constraint on new JSONB columns (with default empty objects)
 ALTER TABLE properties 
 ALTER COLUMN details SET DEFAULT '{}'::jsonb,
 ALTER COLUMN interior_details SET DEFAULT '{}'::jsonb;
@@ -61,7 +70,10 @@ ALTER TABLE properties
 ALTER COLUMN details SET NOT NULL,
 ALTER COLUMN interior_details SET NOT NULL;
 
--- Step 5: Add comments for documentation
+-- Step 6: Recreate views if they were dropped (optional - adjust based on your needs)
+-- Note: You may need to recreate views that reference these columns
+
+-- Step 7: Add comments for documentation
 COMMENT ON COLUMN properties.details IS 'Structured property details: floor_number, balcony, covered_parking, outdoor_parking, cave';
 COMMENT ON COLUMN properties.interior_details IS 'Structured interior details: living_rooms, bedrooms, bathrooms, maid_room';
 COMMENT ON COLUMN properties.payment_facilities IS 'Whether the property has payment facilities';
