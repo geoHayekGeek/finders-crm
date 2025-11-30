@@ -735,41 +735,83 @@ export function EventModal({
             </div>
 
             {/* Show selected property/lead info */}
-            {formData.propertyId && (
-              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-blue-800">
-                      Property Event
-                    </p>
-                    <p className="text-xs text-blue-600">
-                      This event is linked to a property
-                    </p>
+            {formData.propertyId && (() => {
+              const selectedProperty = properties.find(p => p.id === formData.propertyId)
+              const propertyRef = selectedProperty?.reference_number || event?.propertyReference || 'N/A'
+              
+              return (
+                <div 
+                  className="p-3 bg-blue-50 border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-100 hover:border-blue-300 transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (formData.propertyId) {
+                      const url = `/dashboard/properties?view=${formData.propertyId}`
+                      window.open(url, '_blank')
+                    }
+                  }}
+                  title="Click to view property details"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-blue-800">
+                          Property Event
+                        </p>
+                        <p className="text-xs text-blue-600">
+                          Reference: <span className="font-semibold">{propertyRef}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-blue-600 text-xs font-medium">
+                      View →
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
-            {formData.leadId && (
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">
-                      Lead Event
-                    </p>
-                    <p className="text-xs text-green-600">
-                      This event is linked to a lead
-                    </p>
+            {formData.leadId && (() => {
+              const selectedLead = leads.find(l => l.id === formData.leadId)
+              const leadName = selectedLead?.customer_name || event?.leadName || 'N/A'
+              
+              return (
+                <div 
+                  className="p-3 bg-green-50 border border-green-200 rounded-lg cursor-pointer hover:bg-green-100 hover:border-green-300 transition-colors"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    if (formData.leadId) {
+                      const url = `/dashboard/leads?view=${formData.leadId}`
+                      window.open(url, '_blank')
+                    }
+                  }}
+                  title="Click to view lead details"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-green-800">
+                          Lead Event
+                        </p>
+                        <p className="text-xs text-green-600">
+                          Lead: <span className="font-semibold">{leadName}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-green-600 text-xs font-medium">
+                      View →
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {/* Attendees - Now using UserSelector */}
             <div>
