@@ -13,6 +13,7 @@ jest.mock('../../config/db');
 
 describe('Monthly Agent Statistics Report', () => {
   let req, res;
+  let originalConsoleError, originalConsoleWarn;
 
   beforeEach(() => {
     req = {
@@ -27,7 +28,21 @@ describe('Monthly Agent Statistics Report', () => {
       send: jest.fn(),
       setHeader: jest.fn()
     };
+    
+    // Suppress console.error and console.warn during tests to reduce noise
+    // These are expected errors being tested for error handling
+    originalConsoleError = console.error;
+    originalConsoleWarn = console.warn;
+    console.error = jest.fn();
+    console.warn = jest.fn();
+    
     jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    // Restore original console methods
+    console.error = originalConsoleError;
+    console.warn = originalConsoleWarn;
   });
 
   describe('createMonthlyReport', () => {
