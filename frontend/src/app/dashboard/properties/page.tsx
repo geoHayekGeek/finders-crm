@@ -161,19 +161,14 @@ export default function PropertiesPage() {
     }
   }, [isAuthenticated, canViewProperties])
 
-  // Reload data when filters change (including when set from URL)
+  // Reload data when filters change (including when set from URL or cleared)
   useEffect(() => {
     if (!isAuthenticated) return
     
-    // Check if we have a URL filter that was just processed
-    const hasUrlFilter = typeof window !== 'undefined' && hasProcessedAgentFilter.current
-    
-    // Always reload when filters change, or when URL filter is first set
-    if (hasUrlFilter || Object.keys(filters).length > 0) {
-      console.log('🔍 Filters changed or URL filter set, loading properties with filters:', filters)
-      loadPropertiesOnly()
-      setCurrentPage(1) // Reset to first page when filters change
-    }
+    // Always reload when filters change, even when cleared (empty object)
+    console.log('🔍 Filters changed, loading properties with filters:', filters)
+    loadPropertiesOnly()
+    setCurrentPage(1) // Reset to first page when filters change
   }, [filters, isAuthenticated])
 
   // Action handlers
@@ -938,9 +933,24 @@ export default function PropertiesPage() {
   }
 
   const clearFilters = () => {
+    // Clear URL parameters if they exist
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      if (urlParams.has('agent_id')) {
+        urlParams.delete('agent_id')
+        const newUrl = urlParams.toString() 
+          ? `${window.location.pathname}?${urlParams.toString()}`
+          : window.location.pathname
+        window.history.replaceState({}, '', newUrl)
+      }
+    }
+    
+    // Reset URL filter tracking
+    hasProcessedAgentFilter.current = false
+    
+    // Clear filters - this will trigger the useEffect to reload properties
     setFilters({})
     setCurrentPage(1)
-    // The useEffect will trigger loadData when filters change
   }
 
   // Handle items per page change

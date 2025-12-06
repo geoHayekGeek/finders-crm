@@ -88,17 +88,22 @@ Main table storing all property information.
 ## Reference Number Generation
 
 Properties automatically generate unique reference numbers using the format:
-`[Type][Category][Year][Random]`
+`F + PropertyType + Category + Year + SequentialID`
+
+**Format Breakdown:**
+- `F` - Finders (always)
+- PropertyType - `S` for Sale, `R` for Rent
+- Category - Category code (e.g., `S` for Shop, `A` for Apartment)
+- Year - Last 2 digits of current year (e.g., `25` for 2025)
+- SequentialID - 3-digit sequential number starting at 001 for each year
 
 **Examples:**
-- `FRA25111` - Finders Rent Apartment 2025 #111
-- `FVA25123` - Finders Villa Apartment 2025 #123
-- `FOA25145` - Finders Office Apartment 2025 #145
+- `FRS25001` - Finders Rent Shop 2025 #001 (first property of this type/category/year)
+- `FRS25002` - Finders Rent Shop 2025 #002 (second property)
+- `FSA25001` - Finders Sale Apartment 2025 #001
+- `FVA25001` - Finders Rent Villa 2025 #001
 
-**Types:**
-- `F` - Finders (default)
-- `S` - Sale
-- `R` - Rent
+**Note:** The sequential ID resets to 001 each year for each property type + category combination.
 
 ## Database Functions
 

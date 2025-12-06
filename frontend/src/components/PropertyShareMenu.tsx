@@ -47,7 +47,8 @@ export function PropertyShareMenu({
     return true
   }
   
-  const isShareDisabled = !canShare()
+  // Share is disabled if user doesn't have permission OR if property doesn't have a URL
+  const isShareDisabled = !canShare() || !shareLink
   
   // Generate share message with simple format
   const generateShareMessage = () => {

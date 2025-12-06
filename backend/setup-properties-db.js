@@ -65,7 +65,7 @@ async function setupPropertiesDatabase() {
     
     // Test the reference number function
     try {
-      const refNumberResult = await pool.query("SELECT generate_reference_number('A', 'F')");
+      const refNumberResult = await pool.query("SELECT generate_reference_number('A', 'rent')");
       console.log(`✅ Reference number function works: ${refNumberResult.rows[0].generate_reference_number}`);
     } catch (error) {
       console.log('❌ Reference number function test failed:', error.message);
