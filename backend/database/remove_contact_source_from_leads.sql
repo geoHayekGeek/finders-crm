@@ -7,3 +7,5 @@ DROP INDEX IF EXISTS idx_leads_contact_source;
 -- Remove the contact_source column
 ALTER TABLE leads DROP COLUMN IF EXISTS contact_source CASCADE;
 
+
+
