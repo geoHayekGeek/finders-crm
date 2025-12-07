@@ -258,6 +258,12 @@ export default function OperationsDailyTab() {
           {[
             { label: 'Today', date: defaultDate },
             { label: 'Yesterday', date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
+            { label: 'Month to Date', start: (() => {
+              const today = new Date()
+              const year = today.getFullYear()
+              const month = String(today.getMonth() + 1).padStart(2, '0')
+              return `${year}-${month}-01`
+            })(), end: defaultDate },
             { label: 'Last 7 Days', start: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: defaultDate },
             { label: 'Last 30 Days', start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: defaultDate }
           ].map((preset) => (

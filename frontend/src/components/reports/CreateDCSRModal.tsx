@@ -226,6 +226,12 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             <div className="mt-4 flex flex-wrap gap-2">
               {[
                 { label: 'Previous Month', start: defaultStartDate, end: defaultEndDate },
+                { label: 'Month to Date', start: (() => {
+                  const today = new Date();
+                  const year = today.getFullYear();
+                  const month = String(today.getMonth() + 1).padStart(2, '0');
+                  return `${year}-${month}-01`;
+                })(), end: new Date().toISOString().split('T')[0] },
                 { label: 'Last 30 Days', start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: new Date().toISOString().split('T')[0] },
                 { label: 'Quarter to Date', start: (() => {
                   const d = new Date();
