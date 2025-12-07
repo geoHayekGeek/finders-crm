@@ -71,6 +71,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     if (formData.agent_id && formData.start_date && formData.end_date && token) {
       calculatePreview()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.agent_id, formData.start_date, formData.end_date, token])
 
   const loadAgents = async () => {

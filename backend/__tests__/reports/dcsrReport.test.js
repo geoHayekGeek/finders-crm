@@ -156,6 +156,137 @@ describe('DCSR Report', () => {
         error: expect.any(String)
       });
     });
+
+    it('should return 400 when year is less than 2020', async () => {
+      req.body = {
+        start_date: '2018-02-28',
+        end_date: '2018-02-28'
+      };
+
+      const error = new Error('Year must be 2020 or later. Selected date range results in year 2018. Please select a date range starting from 2020 or later.');
+      dcsrReportsModel.createDCSRReport.mockRejectedValue(error);
+
+      await dcsrReportsController.createDCSRReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: error.message
+      });
+    });
+
+    it('should successfully create report with year greater than 2100 (future dates)', async () => {
+      req.body = {
+        start_date: '2101-01-01',
+        end_date: '2101-01-31'
+      };
+
+      const mockReport = {
+        id: 1,
+        start_date: '2101-01-01',
+        end_date: '2101-01-31',
+        month: 1,
+        year: 2101,
+        listings_count: 10,
+        leads_count: 5,
+        sales_count: 3,
+        rent_count: 2,
+        viewings_count: 8
+      };
+
+      dcsrReportsModel.createDCSRReport.mockResolvedValue(mockReport);
+
+      await dcsrReportsController.createDCSRReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'DCSR report created successfully'
+      });
+    });
+
+    it('should return 400 when database constraint violation occurs for year', async () => {
+      req.body = {
+        start_date: '2018-02-28',
+        end_date: '2018-02-28'
+      };
+
+      const error = new Error('new row for relation "dcsr_monthly_reports" violates check constraint "dcsr_monthly_reports_year_check"');
+      error.code = '23514';
+      error.constraint = 'dcsr_monthly_reports_year_check';
+      dcsrReportsModel.createDCSRReport.mockRejectedValue(error);
+
+      await dcsrReportsController.createDCSRReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Year must be 2020 or later. Please select a date range starting from 2020 or later.'
+      });
+    });
+
+    it('should successfully create report with year 2020 (minimum boundary)', async () => {
+      req.body = {
+        start_date: '2020-01-01',
+        end_date: '2020-01-31'
+      };
+
+      const mockReport = {
+        id: 1,
+        start_date: '2020-01-01',
+        end_date: '2020-01-31',
+        month: 1,
+        year: 2020,
+        listings_count: 10,
+        leads_count: 5,
+        sales_count: 3,
+        rent_count: 2,
+        viewings_count: 8
+      };
+
+      dcsrReportsModel.createDCSRReport.mockResolvedValue(mockReport);
+
+      await dcsrReportsController.createDCSRReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'DCSR report created successfully'
+      });
+    });
+
+    it('should successfully create report with year 2100', async () => {
+      req.body = {
+        start_date: '2100-12-01',
+        end_date: '2100-12-31'
+      };
+
+      const mockReport = {
+        id: 1,
+        start_date: '2100-12-01',
+        end_date: '2100-12-31',
+        month: 12,
+        year: 2100,
+        listings_count: 10,
+        leads_count: 5,
+        sales_count: 3,
+        rent_count: 2,
+        viewings_count: 8
+      };
+
+      dcsrReportsModel.createDCSRReport.mockResolvedValue(mockReport);
+
+      await dcsrReportsController.createDCSRReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'DCSR report created successfully'
+      });
+    });
   });
 
   describe('getAllDCSRReports', () => {

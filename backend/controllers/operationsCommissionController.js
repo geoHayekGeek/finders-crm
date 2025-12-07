@@ -157,12 +157,33 @@ async function createReport(req, res) {
     });
   } catch (error) {
     console.error('❌ Error creating operations commission report:', error);
-    const isDuplicate = error.code === '23505' || error.message?.includes('already exists')
-    res.status(isDuplicate ? 409 : 500).json({
+    
+    if (error.code === '23505' || error.message?.includes('already exists')) {
+      return res.status(409).json({
+        success: false,
+        message: 'Report for this date range already exists'
+      });
+    }
+
+    // Handle year constraint violation
+    if (error.code === '23514' && error.constraint?.includes('year_check')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be 2000 or later. Please select a date range starting from 2000 or later.'
+      });
+    }
+
+    // Handle validation errors from model
+    if (error.message?.includes('Year must be')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+    
+    res.status(500).json({
       success: false,
-      message: isDuplicate
-        ? 'Report for this date range already exists'
-        : error.message || 'Failed to create operations commission report',
+      message: 'Failed to create operations commission report',
       error: error.message
     });
   }

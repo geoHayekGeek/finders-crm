@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS dcsr_monthly_reports (
   
   -- Reporting window (company-wide)
   month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
-  year INTEGER NOT NULL CHECK (year >= 2020 AND year <= 2100),
+  year INTEGER NOT NULL CHECK (year >= 2020),
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   

@@ -151,6 +151,11 @@ async function createReport(start_date, end_date) {
   const month = startDateUtc.getUTCMonth() + 1;
   const year = startDateUtc.getUTCFullYear();
 
+  // Validate year constraint (must be >= 2000, no upper limit)
+  if (year < 2000) {
+    throw new Error(`Year must be 2000 or later. Selected date range results in year ${year}. Please select a date range starting from 2000 or later.`);
+  }
+
   const calculatedData = await calculateCommissionData(startDateUtc, endDateUtc);
   
   const result = await pool.query(

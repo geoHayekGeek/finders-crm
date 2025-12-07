@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Edit, Trash2, CalendarRange, X, BarChart2 } from 'lucide-react'
 import { DCSRMonthlyReport, DCSRReportFilters } from '@/types/reports'
 import { dcsrApi } from '@/utils/api'
@@ -260,7 +260,7 @@ export default function DCSRTab() {
               })
             }}
             className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-            max={filters.end_date || undefined}
+            max={filters.end_date || "9999-12-31"}
           />
           <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
             —

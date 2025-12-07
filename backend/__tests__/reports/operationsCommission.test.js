@@ -97,6 +97,126 @@ describe('Operations Commission Report', () => {
       });
     });
 
+    it('should return 400 when year is less than 2000', async () => {
+      req.body = {
+        start_date: '1999-01-01',
+        end_date: '1999-01-31'
+      };
+
+      const error = new Error('Year must be 2000 or later. Selected date range results in year 1999. Please select a date range starting from 2000 or later.');
+      operationsCommissionModel.createReport.mockRejectedValue(error);
+
+      await operationsCommissionController.createReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: error.message
+      });
+    });
+
+    it('should successfully create report with year greater than 2100 (future dates)', async () => {
+      req.body = {
+        start_date: '2101-01-01',
+        end_date: '2101-01-31'
+      };
+
+      const mockReport = {
+        id: 1,
+        start_date: '2101-01-01',
+        end_date: '2101-01-31',
+        month: 1,
+        year: 2101,
+        commission_percentage: 4.0,
+        total_properties_count: 0,
+        total_sales_count: 0,
+        total_rent_count: 0,
+        total_sales_value: 0,
+        total_rent_value: 0,
+        total_commission_amount: 0
+      };
+
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      operationsCommissionModel.createReport.mockResolvedValue(mockReport);
+
+      await operationsCommissionController.createReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'Operations commission report created successfully'
+      });
+    });
+
+    it('should successfully create report with year 2000 (minimum boundary)', async () => {
+      req.body = {
+        start_date: '2000-01-01',
+        end_date: '2000-01-31'
+      };
+
+      const mockReport = {
+        id: 1,
+        start_date: '2000-01-01',
+        end_date: '2000-01-31',
+        month: 1,
+        year: 2000,
+        commission_percentage: 4.0,
+        total_properties_count: 0,
+        total_sales_count: 0,
+        total_rent_count: 0,
+        total_sales_value: 0,
+        total_rent_value: 0,
+        total_commission_amount: 0
+      };
+
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      operationsCommissionModel.createReport.mockResolvedValue(mockReport);
+
+      await operationsCommissionController.createReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'Operations commission report created successfully'
+      });
+    });
+
+    it('should successfully create report with year 2100', async () => {
+      req.body = {
+        start_date: '2100-12-01',
+        end_date: '2100-12-31'
+      };
+
+      const mockReport = {
+        id: 1,
+        start_date: '2100-12-01',
+        end_date: '2100-12-31',
+        month: 12,
+        year: 2100,
+        commission_percentage: 4.0,
+        total_properties_count: 0,
+        total_sales_count: 0,
+        total_rent_count: 0,
+        total_sales_value: 0,
+        total_rent_value: 0,
+        total_commission_amount: 0
+      };
+
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      operationsCommissionModel.createReport.mockResolvedValue(mockReport);
+
+      await operationsCommissionController.createReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'Operations commission report created successfully'
+      });
+    });
+
     it('should return 400 when date format is invalid', async () => {
       req.body = {
         start_date: 'invalid-date',
@@ -154,16 +274,17 @@ describe('Operations Commission Report', () => {
       // Mock pool.query for duplicate check (returns empty = no duplicates)
       pool.query.mockResolvedValueOnce({ rows: [] });
       const error = new Error('Database connection failed');
-      error.code = '23505';
+      // Use a different error code that's not 23505 (duplicate) to test actual database errors
+      error.code = '08000'; // Connection exception
       operationsCommissionModel.createReport.mockRejectedValue(error);
 
       await operationsCommissionController.createReport(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Report for this date range already exists',
-        error: expect.any(String)
+        message: 'Failed to create operations commission report',
+        error: error.message
       });
     });
   });

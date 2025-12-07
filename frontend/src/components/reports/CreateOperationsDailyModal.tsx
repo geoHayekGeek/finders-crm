@@ -108,7 +108,6 @@ export default function CreateOperationsDailyModal({
                 onChange={(e) => setFormData(prev => ({ ...prev, report_date: e.target.value }))}
                 className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                 required
-                max={defaultDate}
               />
             </div>
           </div>

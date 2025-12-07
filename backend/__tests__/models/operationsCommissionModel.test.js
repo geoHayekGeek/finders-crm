@@ -105,6 +105,112 @@ describe('Operations Commission Model', () => {
       expect(result.month).toBe(1);
       expect(result.year).toBe(2024);
     });
+
+    it('should throw error if year is less than 2000', async () => {
+      const startDate = '1999-01-01';
+      const endDate = '1999-01-31';
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
+        .mockResolvedValueOnce({ rows: [] }); // no properties
+
+      await expect(
+        operationsCommissionModel.createReport(startDate, endDate)
+      ).rejects.toThrow('Year must be 2000 or later');
+    });
+
+    it('should allow year greater than 2100 (future dates)', async () => {
+      const startDate = '2101-01-01';
+      const endDate = '2101-01-31';
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
+        .mockResolvedValueOnce({ rows: [] }); // no properties
+
+      mockQuery.mockResolvedValue({
+        rows: [{
+          id: 1,
+          month: 1,
+          year: 2101,
+          start_date: startDate,
+          end_date: endDate,
+          commission_percentage: 4.0,
+          total_properties_count: 0,
+          total_sales_count: 0,
+          total_rent_count: 0,
+          total_sales_value: 0,
+          total_rent_value: 0,
+          total_commission_amount: 0
+        }]
+      });
+
+      const result = await operationsCommissionModel.createReport(startDate, endDate);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2101);
+    });
+
+    it('should allow year 2000 (minimum boundary)', async () => {
+      const startDate = '2000-01-01';
+      const endDate = '2000-01-31';
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
+        .mockResolvedValueOnce({ rows: [] }); // no properties
+
+      mockQuery.mockResolvedValue({
+        rows: [{
+          id: 1,
+          month: 1,
+          year: 2000,
+          start_date: startDate,
+          end_date: endDate,
+          commission_percentage: 4.0,
+          total_properties_count: 0,
+          total_sales_count: 0,
+          total_rent_count: 0,
+          total_sales_value: 0,
+          total_rent_value: 0,
+          total_commission_amount: 0
+        }]
+      });
+
+      const result = await operationsCommissionModel.createReport(startDate, endDate);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2000);
+    });
+
+    it('should allow year 2100', async () => {
+      const startDate = '2100-12-01';
+      const endDate = '2100-12-31';
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
+        .mockResolvedValueOnce({ rows: [] }); // no properties
+
+      mockQuery.mockResolvedValue({
+        rows: [{
+          id: 1,
+          month: 12,
+          year: 2100,
+          start_date: startDate,
+          end_date: endDate,
+          commission_percentage: 4.0,
+          total_properties_count: 0,
+          total_sales_count: 0,
+          total_rent_count: 0,
+          total_sales_value: 0,
+          total_rent_value: 0,
+          total_commission_amount: 0
+        }]
+      });
+
+      const result = await operationsCommissionModel.createReport(startDate, endDate);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2100);
+    });
   });
 
   describe('getAllReports', () => {

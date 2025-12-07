@@ -23,6 +23,11 @@ describe('DCSR Reports Model', () => {
     jest.clearAllMocks();
   });
 
+  describe('normalizeDateRange', () => {
+    // Since normalizeDateRange is not exported, we test it indirectly through createDCSRReport
+    // But we can add explicit tests if we export it or test edge cases through createDCSRReport
+  });
+
   describe('calculateDCSRData', () => {
     it('should calculate DCSR data for a date range', async () => {
       const startDate = new Date('2024-01-01');
@@ -154,6 +159,173 @@ describe('DCSR Reports Model', () => {
       await expect(
         dcsrReportsModel.createDCSRReport(reportData, createdBy)
       ).rejects.toThrow('A DCSR report already exists');
+    });
+
+    it('should throw error if year is less than 2020', async () => {
+      const reportData = {
+        start_date: '2018-02-28',
+        end_date: '2018-02-28'
+      };
+      const createdBy = 1;
+
+      // calculateDCSRData uses its own client (first pool.connect call)
+      const calculateClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // listings
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // leads
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // sales
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // rent
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }), // viewings
+        release: jest.fn()
+      };
+
+      // First call returns calculateClient
+      pool.connect.mockResolvedValueOnce(calculateClient);
+
+      await expect(
+        dcsrReportsModel.createDCSRReport(reportData, createdBy)
+      ).rejects.toThrow('Year must be 2020 or later');
+    });
+
+    it('should allow year greater than 2100 (future dates)', async () => {
+      const reportData = {
+        start_date: '2101-01-01',
+        end_date: '2101-01-31'
+      };
+      const createdBy = 1;
+
+      // calculateDCSRData uses its own client (first pool.connect call)
+      const calculateClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // listings
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // leads
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // sales
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // rent
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }), // viewings
+        release: jest.fn()
+      };
+
+      // createDCSRReport uses its own client (second pool.connect call)
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [] }) // check existing
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            month: 1,
+            year: 2101,
+            start_date: '2101-01-01',
+            end_date: '2101-01-31',
+            listings_count: 0,
+            leads_count: 0,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 0
+          }]
+        });
+
+      // First call returns calculateClient, second returns mockClient
+      pool.connect
+        .mockResolvedValueOnce(calculateClient)
+        .mockResolvedValueOnce(mockClient);
+
+      const result = await dcsrReportsModel.createDCSRReport(reportData, createdBy);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2101);
+    });
+
+    it('should allow year 2020 (minimum boundary)', async () => {
+      const reportData = {
+        start_date: '2020-01-01',
+        end_date: '2020-01-31'
+      };
+      const createdBy = 1;
+
+      // calculateDCSRData uses its own client (first pool.connect call)
+      const calculateClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // listings
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // leads
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // sales
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // rent
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }), // viewings
+        release: jest.fn()
+      };
+
+      // createDCSRReport uses its own client (second pool.connect call)
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [] }) // check existing
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            month: 1,
+            year: 2020,
+            start_date: '2020-01-01',
+            end_date: '2020-01-31',
+            listings_count: 0,
+            leads_count: 0,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 0
+          }]
+        });
+
+      // First call returns calculateClient, second returns mockClient
+      pool.connect
+        .mockResolvedValueOnce(calculateClient)
+        .mockResolvedValueOnce(mockClient);
+
+      const result = await dcsrReportsModel.createDCSRReport(reportData, createdBy);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2020);
+    });
+
+    it('should allow year 2100', async () => {
+      const reportData = {
+        start_date: '2100-12-01',
+        end_date: '2100-12-31'
+      };
+      const createdBy = 1;
+
+      // calculateDCSRData uses its own client (first pool.connect call)
+      const calculateClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // listings
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // leads
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // sales
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] })  // rent
+          .mockResolvedValueOnce({ rows: [{ count: '0' }] }), // viewings
+        release: jest.fn()
+      };
+
+      // createDCSRReport uses its own client (second pool.connect call)
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [] }) // check existing
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            month: 12,
+            year: 2100,
+            start_date: '2100-12-01',
+            end_date: '2100-12-31',
+            listings_count: 0,
+            leads_count: 0,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 0
+          }]
+        });
+
+      // First call returns calculateClient, second returns mockClient
+      pool.connect
+        .mockResolvedValueOnce(calculateClient)
+        .mockResolvedValueOnce(mockClient);
+
+      const result = await dcsrReportsModel.createDCSRReport(reportData, createdBy);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2100);
     });
   });
 

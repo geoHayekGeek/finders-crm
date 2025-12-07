@@ -119,6 +119,22 @@ async function createDCSRReport(req, res) {
         message: 'A DCSR report already exists for this date range'
       });
     }
+
+    // Handle year constraint violation
+    if (error.code === '23514' && error.constraint === 'dcsr_monthly_reports_year_check') {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be 2020 or later. Please select a date range starting from 2020 or later.'
+      });
+    }
+
+    // Handle validation errors from model
+    if (error.message?.includes('Year must be')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
     
     res.status(500).json({
       success: false,

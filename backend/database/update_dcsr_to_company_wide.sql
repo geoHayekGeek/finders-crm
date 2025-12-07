@@ -10,7 +10,7 @@ CREATE TABLE dcsr_monthly_reports (
   
   -- Time period only (no agent)
   month INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
-  year INTEGER NOT NULL CHECK (year >= 2020 AND year <= 2100),
+  year INTEGER NOT NULL CHECK (year >= 2020),
   
   -- Description (company-wide totals)
   listings_count INTEGER DEFAULT 0 NOT NULL, -- Total new listings added

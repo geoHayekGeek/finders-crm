@@ -43,6 +43,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     if (formData.start_date && formData.end_date && token) {
       calculatePreview()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.start_date, formData.end_date, token])
 
   const calculatePreview = async () => {
@@ -206,6 +207,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                 onChange={(e) => handleChange('start_date', e.target.value || undefined)}
                 className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                 max={formData.end_date || undefined}
+                min="2020-01-01"
                 required
               />
               <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
@@ -216,7 +218,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                 value={formData.end_date}
                 onChange={(e) => handleChange('end_date', e.target.value || undefined)}
                 className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                min={formData.start_date || undefined}
+                min={formData.start_date || "2020-01-01"}
                 required
               />
             </div>

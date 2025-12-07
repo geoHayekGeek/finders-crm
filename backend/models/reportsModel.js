@@ -85,6 +85,11 @@ class Report {
       const derivedMonth = normalizedStart.getUTCMonth() + 1;
       const derivedYear = normalizedStart.getUTCFullYear();
 
+      // Validate year constraint (must be >= 2000, no upper limit)
+      if (derivedYear < 2000) {
+        throw new Error(`Year must be 2000 or later. Selected date range results in year ${derivedYear}. Please select a date range starting from 2000 or later.`);
+      }
+
       // Apply external rule to all properties and leads for this agent before calculating
       // This ensures referral external flags are correctly set
       console.log(`🔄 Applying external rule to referrals for agent ${agent_id}...`);

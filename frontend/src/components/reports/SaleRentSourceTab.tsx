@@ -91,6 +91,8 @@ export default function SaleRentSourceTab() {
     start_date: defaultStartDate,
     end_date: defaultEndDate,
   })
+  const [previewData, setPreviewData] = useState<SaleRentSourceRow[] | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
 
   // Load agents once for dropdown (same logic as ReportsFilters)
   useMemo(() => {
@@ -122,6 +124,39 @@ export default function SaleRentSourceTab() {
 
   const currentRows: SaleRentSourceRow[] =
     selectedReportId !== null ? reportRows[selectedReportId] || [] : []
+
+  // Auto-preview when agent and dates are set
+  useEffect(() => {
+    if (showCreateModal && createForm.agent_id && createForm.start_date && createForm.end_date && token && !previewLoading) {
+      const timeoutId = setTimeout(async () => {
+        try {
+          setPreviewLoading(true)
+          const response = await saleRentSourceApi.getAll(
+            {
+              agent_id: createForm.agent_id!,
+              start_date: createForm.start_date,
+              end_date: createForm.end_date,
+            },
+            token
+          )
+          if (response.success) {
+            setPreviewData(response.data)
+          } else {
+            setPreviewData(null)
+          }
+        } catch (error) {
+          console.error('Error loading preview:', error)
+          setPreviewData(null)
+        } finally {
+          setPreviewLoading(false)
+        }
+      }, 500)
+      return () => clearTimeout(timeoutId)
+    } else {
+      setPreviewData(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCreateModal, createForm.agent_id, createForm.start_date, createForm.end_date, token])
 
   const handleGenerateReport = async () => {
     if (!token) {
@@ -176,10 +211,8 @@ export default function SaleRentSourceTab() {
           end_date: createForm.end_date,
         }
 
-        const updatedReports = [newReport, ...reports]
-        const updatedRows = { ...reportRows, [id]: rows }
-        setReports(updatedReports)
-        setReportRows(updatedRows)
+        setReports(prev => [newReport, ...prev])
+        setReportRows(prev => ({ ...prev, [id]: rows }))
         setSelectedReportId(id)
         setIsViewOpen(true)
         setShowCreateModal(false)
@@ -723,6 +756,35 @@ export default function SaleRentSourceTab() {
                   ))}
                 </div>
               </div>
+
+              {/* Preview Section */}
+              {(previewLoading || previewData) && (
+                <div className="border-t pt-4">
+                  {previewLoading ? (
+                    <div className="text-center py-4 text-gray-500">
+                      Loading preview...
+                    </div>
+                  ) : previewData && previewData.length > 0 ? (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-900">Preview</h4>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm text-gray-600 mb-2">
+                          Found <span className="font-semibold">{previewData.length}</span> closure(s) for this period
+                        </p>
+                        <div className="text-xs text-gray-500">
+                          Click &quot;Generate&quot; to create and view the full report
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-sm text-yellow-800">
+                        No closures found for this agent and date range
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex items-center justify-end space-x-3 pt-2">
                 <button

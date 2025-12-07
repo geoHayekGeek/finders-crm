@@ -147,6 +147,122 @@ describe('Monthly Agent Statistics Report', () => {
       });
     });
 
+    it('should return 400 when year is less than 2000', async () => {
+      req.body = {
+        agent_id: 1,
+        start_date: '1999-01-01',
+        end_date: '1999-01-31',
+        boosts: 0
+      };
+
+      const error = new Error('Year must be 2000 or later. Selected date range results in year 1999. Please select a date range starting from 2000 or later.');
+      Report.createMonthlyReport.mockRejectedValue(error);
+
+      await ReportsController.createMonthlyReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: error.message
+      });
+    });
+
+    it('should successfully create report with year greater than 2100 (future dates)', async () => {
+      req.body = {
+        agent_id: 1,
+        start_date: '2101-01-01',
+        end_date: '2101-01-31',
+        boosts: 0
+      };
+
+      const mockReport = {
+        id: 1,
+        agent_id: 1,
+        start_date: '2101-01-01',
+        end_date: '2101-01-31',
+        month: 1,
+        year: 2101,
+        boosts: 0,
+        listings_count: 0,
+        sales_count: 0
+      };
+
+      Report.createMonthlyReport.mockResolvedValue(mockReport);
+
+      await ReportsController.createMonthlyReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'Monthly report created successfully'
+      });
+    });
+
+    it('should successfully create report with year 2000 (minimum boundary)', async () => {
+      req.body = {
+        agent_id: 1,
+        start_date: '2000-01-01',
+        end_date: '2000-01-31',
+        boosts: 0
+      };
+
+      const mockReport = {
+        id: 1,
+        agent_id: 1,
+        start_date: '2000-01-01',
+        end_date: '2000-01-31',
+        month: 1,
+        year: 2000,
+        boosts: 0,
+        listings_count: 0,
+        sales_count: 0
+      };
+
+      Report.createMonthlyReport.mockResolvedValue(mockReport);
+
+      await ReportsController.createMonthlyReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'Monthly report created successfully'
+      });
+    });
+
+    it('should successfully create report with year 2100', async () => {
+      req.body = {
+        agent_id: 1,
+        start_date: '2100-12-01',
+        end_date: '2100-12-31',
+        boosts: 0
+      };
+
+      const mockReport = {
+        id: 1,
+        agent_id: 1,
+        start_date: '2100-12-01',
+        end_date: '2100-12-31',
+        month: 12,
+        year: 2100,
+        boosts: 0,
+        listings_count: 0,
+        sales_count: 0
+      };
+
+      Report.createMonthlyReport.mockResolvedValue(mockReport);
+
+      await ReportsController.createMonthlyReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockReport,
+        message: 'Monthly report created successfully'
+      });
+    });
+
     it('should return 400 when end_date is before start_date', async () => {
       req.body = {
         agent_id: 1,

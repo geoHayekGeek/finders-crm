@@ -164,6 +164,11 @@ async function createDCSRReport(reportData, createdBy) {
   const month = startDateUtc.getUTCMonth() + 1;
   const year = startDateUtc.getUTCFullYear();
 
+  // Validate year constraint (must be >= 2020, no upper limit)
+  if (year < 2020) {
+    throw new Error(`Year must be 2020 or later. Selected date range results in year ${year}. Please select a date range starting from 2020 or later.`);
+  }
+
   const client = await pool.connect();
   
   try {

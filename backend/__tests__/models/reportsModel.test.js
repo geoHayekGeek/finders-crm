@@ -618,5 +618,227 @@ describe('Report Model', () => {
       expect(result).toEqual(mockDeletedReport);
     });
   });
+
+  describe('createMonthlyReport - Year Validation', () => {
+    it('should throw error if year is less than 2000', async () => {
+      const reportData = {
+        agent_id: 1,
+        start_date: '1999-01-01',
+        end_date: '1999-01-31',
+        boosts: 0
+      };
+      const createdBy = 1;
+
+      // Mock the external column check and existing report check
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // external column check
+        .mockResolvedValueOnce({ rows: [] }); // check existing report (year validation happens after this)
+
+      await expect(
+        Report.createMonthlyReport(reportData, createdBy)
+      ).rejects.toThrow('Year must be 2000 or later');
+    });
+
+    it('should allow year greater than 2100 (future dates)', async () => {
+      const reportData = {
+        agent_id: 1,
+        start_date: '2101-01-01',
+        end_date: '2101-01-31',
+        boosts: 0
+      };
+      const createdBy = 1;
+
+      const mockCommissions = {
+        rows: [
+          { setting_key: 'commission_agent_percentage', setting_value: '2' },
+          { setting_key: 'commission_finders_percentage', setting_value: '1' },
+          { setting_key: 'commission_referral_internal_percentage', setting_value: '0.5' },
+          { setting_key: 'commission_referral_external_percentage', setting_value: '2' },
+          { setting_key: 'commission_team_leader_percentage', setting_value: '1' },
+          { setting_key: 'commission_administration_percentage', setting_value: '4' }
+        ]
+      };
+
+      const mockListings = { rows: [{ count: '0' }] };
+      const mockDebugResult = { rows: [{ total: '0', earliest: null, latest: null }] };
+      const mockLeads = { rows: [] };
+      const mockViewings = { rows: [{ count: '0' }] };
+      const mockSales = { rows: [{ count: '0', total_amount: '0' }] };
+      const mockPropertyReferrals = { rows: [{ referral_count: '0', property_count: '0', total_commission: '0', total_amount: '0' }] };
+      const mockLeadReferrals = { rows: [{ referral_count: '0', property_count: '0', total_commission: '0', total_amount: '0' }] };
+      const mockReferralsCount = { rows: [{ count: '0' }] };
+      const mockReferralsAmount = { rows: [{ total_commission: '0', total_amount: '0' }] };
+      const mockReferralDetails = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // external column check (ensureExternalColumnExists)
+        .mockResolvedValueOnce({ rows: [] }) // check existing report
+        .mockResolvedValueOnce({ rows: [] }) // properties with referrals
+        .mockResolvedValueOnce({ rows: [] }) // leads with referrals
+        .mockResolvedValueOnce(mockCommissions) // commission settings query (first query in calculateReportData)
+        .mockResolvedValueOnce(mockListings)
+        .mockResolvedValueOnce(mockDebugResult)
+        .mockResolvedValueOnce(mockLeads)
+        .mockResolvedValueOnce(mockViewings)
+        .mockResolvedValueOnce(mockSales)
+        .mockResolvedValueOnce(mockPropertyReferrals)
+        .mockResolvedValueOnce(mockReferralDetails)
+        .mockResolvedValueOnce({ rows: [{ id: undefined, employee_id: undefined, property_id: undefined, property_agent_id: undefined, closed_date: undefined, status_code: undefined, external: undefined }] }) // debug all referrals query (line 513)
+        .mockResolvedValueOnce(mockLeadReferrals)
+        .mockResolvedValueOnce(mockReferralsCount)
+        .mockResolvedValueOnce(mockReferralsAmount)
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            agent_id: 1,
+            month: 1,
+            year: 2101,
+            start_date: '2101-01-01',
+            end_date: '2101-01-31',
+            listings_count: 0,
+            sales_count: 0
+          }]
+        }); // insert result
+
+      const result = await Report.createMonthlyReport(reportData, createdBy);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2101);
+    });
+
+    it('should allow year 2000 (minimum boundary)', async () => {
+      const reportData = {
+        agent_id: 1,
+        start_date: '2000-01-01',
+        end_date: '2000-01-31',
+        boosts: 0
+      };
+      const createdBy = 1;
+
+      const mockCommissions = {
+        rows: [
+          { setting_key: 'commission_agent_percentage', setting_value: '2' },
+          { setting_key: 'commission_finders_percentage', setting_value: '1' },
+          { setting_key: 'commission_referral_internal_percentage', setting_value: '0.5' },
+          { setting_key: 'commission_referral_external_percentage', setting_value: '2' },
+          { setting_key: 'commission_team_leader_percentage', setting_value: '1' },
+          { setting_key: 'commission_administration_percentage', setting_value: '4' }
+        ]
+      };
+
+      const mockListings = { rows: [{ count: '0' }] };
+      const mockDebugResult = { rows: [{ total: '0', earliest: null, latest: null }] };
+      const mockLeads = { rows: [] };
+      const mockViewings = { rows: [{ count: '0' }] };
+      const mockSales = { rows: [{ count: '0', total_amount: '0' }] };
+      const mockPropertyReferrals = { rows: [{ referral_count: '0', property_count: '0', total_commission: '0', total_amount: '0' }] };
+      const mockLeadReferrals = { rows: [{ referral_count: '0', property_count: '0', total_commission: '0', total_amount: '0' }] };
+      const mockReferralsCount = { rows: [{ count: '0' }] };
+      const mockReferralsAmount = { rows: [{ total_commission: '0', total_amount: '0' }] };
+      const mockReferralDetails = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // external column check (ensureExternalColumnExists)
+        .mockResolvedValueOnce({ rows: [] }) // check existing report
+        .mockResolvedValueOnce({ rows: [] }) // properties with referrals
+        .mockResolvedValueOnce({ rows: [] }) // leads with referrals
+        .mockResolvedValueOnce(mockCommissions) // commission settings query (first query in calculateReportData)
+        .mockResolvedValueOnce(mockListings)
+        .mockResolvedValueOnce(mockDebugResult)
+        .mockResolvedValueOnce(mockLeads)
+        .mockResolvedValueOnce(mockViewings)
+        .mockResolvedValueOnce(mockSales)
+        .mockResolvedValueOnce(mockPropertyReferrals)
+        .mockResolvedValueOnce(mockReferralDetails)
+        .mockResolvedValueOnce({ rows: [{ id: undefined, employee_id: undefined, property_id: undefined, property_agent_id: undefined, closed_date: undefined, status_code: undefined, external: undefined }] }) // debug all referrals query (line 513)
+        .mockResolvedValueOnce(mockLeadReferrals)
+        .mockResolvedValueOnce(mockReferralsCount)
+        .mockResolvedValueOnce(mockReferralsAmount)
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            agent_id: 1,
+            month: 1,
+            year: 2000,
+            start_date: '2000-01-01',
+            end_date: '2000-01-31',
+            listings_count: 0,
+            sales_count: 0
+          }]
+        }); // insert result
+
+      const result = await Report.createMonthlyReport(reportData, createdBy);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2000);
+    });
+
+    it('should allow year 2100', async () => {
+      const reportData = {
+        agent_id: 1,
+        start_date: '2100-12-01',
+        end_date: '2100-12-31',
+        boosts: 0
+      };
+      const createdBy = 1;
+
+      const mockCommissions = {
+        rows: [
+          { setting_key: 'commission_agent_percentage', setting_value: '2' },
+          { setting_key: 'commission_finders_percentage', setting_value: '1' },
+          { setting_key: 'commission_referral_internal_percentage', setting_value: '0.5' },
+          { setting_key: 'commission_referral_external_percentage', setting_value: '2' },
+          { setting_key: 'commission_team_leader_percentage', setting_value: '1' },
+          { setting_key: 'commission_administration_percentage', setting_value: '4' }
+        ]
+      };
+
+      const mockListings = { rows: [{ count: '0' }] };
+      const mockDebugResult = { rows: [{ total: '0', earliest: null, latest: null }] };
+      const mockLeads = { rows: [] };
+      const mockViewings = { rows: [{ count: '0' }] };
+      const mockSales = { rows: [{ count: '0', total_amount: '0' }] };
+      const mockPropertyReferrals = { rows: [{ referral_count: '0', property_count: '0', total_commission: '0', total_amount: '0' }] };
+      const mockLeadReferrals = { rows: [{ referral_count: '0', property_count: '0', total_commission: '0', total_amount: '0' }] };
+      const mockReferralsCount = { rows: [{ count: '0' }] };
+      const mockReferralsAmount = { rows: [{ total_commission: '0', total_amount: '0' }] };
+      const mockReferralDetails = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // external column check (ensureExternalColumnExists)
+        .mockResolvedValueOnce({ rows: [] }) // check existing report
+        .mockResolvedValueOnce({ rows: [] }) // properties with referrals
+        .mockResolvedValueOnce({ rows: [] }) // leads with referrals
+        .mockResolvedValueOnce(mockCommissions) // commission settings query (first query in calculateReportData)
+        .mockResolvedValueOnce(mockListings)
+        .mockResolvedValueOnce(mockDebugResult)
+        .mockResolvedValueOnce(mockLeads)
+        .mockResolvedValueOnce(mockViewings)
+        .mockResolvedValueOnce(mockSales)
+        .mockResolvedValueOnce(mockPropertyReferrals)
+        .mockResolvedValueOnce(mockReferralDetails)
+        .mockResolvedValueOnce({ rows: [{ id: undefined, employee_id: undefined, property_id: undefined, property_agent_id: undefined, closed_date: undefined, status_code: undefined, external: undefined }] }) // debug all referrals query (line 513)
+        .mockResolvedValueOnce(mockLeadReferrals)
+        .mockResolvedValueOnce(mockReferralsCount)
+        .mockResolvedValueOnce(mockReferralsAmount)
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            agent_id: 1,
+            month: 12,
+            year: 2100,
+            start_date: '2100-12-01',
+            end_date: '2100-12-31',
+            listings_count: 0,
+            sales_count: 0
+          }]
+        }); // insert result
+
+      const result = await Report.createMonthlyReport(reportData, createdBy);
+
+      expect(result).toBeDefined();
+      expect(result.year).toBe(2100);
+    });
+  });
 });
 

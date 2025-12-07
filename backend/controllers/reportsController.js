@@ -72,10 +72,26 @@ class ReportsController {
     } catch (error) {
       console.error('❌ Error creating monthly report:', error);
       
-      if (error.message.includes('already exists')) {
+      if (error.message?.includes('already exists')) {
         return res.status(409).json({
           success: false,
           message: 'A report already exists for this agent and date range'
+        });
+      }
+
+      // Handle year constraint violation
+      if (error.code === '23514' && error.constraint?.includes('year_check')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Year must be 2000 or later. Please select a date range starting from 2000 or later.'
+        });
+      }
+
+      // Handle validation errors from model
+      if (error.message?.includes('Year must be')) {
+        return res.status(400).json({
+          success: false,
+          message: error.message
         });
       }
       
