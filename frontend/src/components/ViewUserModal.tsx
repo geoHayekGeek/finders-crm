@@ -182,20 +182,99 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
               )}
             </div>
 
-            {/* Agent Assignment Info */}
+            {/* Agent Assignment Info & Properties/Leads */}
             {user.role === 'agent' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">Agent Status</h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-blue-800">
-                    {user.is_assigned ? 'Assigned to properties' : 'Available for assignment'}
+                <h4 className="text-sm font-medium text-blue-900 mb-3">Agent Status</h4>
+                <div className="space-y-3">
+                  {/* Team Assignment */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-blue-800">
+                      {user.is_assigned ? 'Assigned to properties' : 'Available for assignment'}
+                    </span>
+                    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
+                      user.is_assigned 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {user.is_assigned ? 'Assigned' : 'Available'}
+                    </span>
+                  </div>
+                  
+                  {/* Team Assignment Badge */}
+                  {user.assigned_to && (user as any).team_leader_name && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-blue-800">Team Assignment</span>
+                      <span 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const url = `/dashboard/hr?view=${user.assigned_to}`
+                          console.log('🔗 Opening HR URL for team leader:', url)
+                          window.open(url, '_blank')
+                        }}
+                        className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                        title="Click to view team leader details"
+                      >
+                        Assigned to {(user as any).team_leader_name} Team
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Properties and Leads Counts */}
+                  <div className="flex flex-wrap gap-2 pt-2 border-t border-blue-200">
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(`/dashboard/properties?agent_id=${user.id}`, '_blank')
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 transition-colors flex items-center space-x-1"
+                      title="Click to view properties"
+                    >
+                      <span>{(user as any).properties_count || 0}</span>
+                      <span>{(user as any).properties_count === 1 ? 'Property' : 'Properties'}</span>
+                    </span>
+                    <span 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(`/dashboard/leads?agent_id=${user.id}`, '_blank')
+                      }}
+                      className="px-3 py-1.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors flex items-center space-x-1"
+                      title="Click to view leads"
+                    >
+                      <span>{(user as any).leads_count || 0}</span>
+                      <span>{(user as any).leads_count === 1 ? 'Lead' : 'Leads'}</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Team Leader Properties/Leads */}
+            {user.role === 'team_leader' && (
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-medium text-blue-900 mb-3">Properties & Leads</h4>
+                <div className="flex flex-wrap gap-2">
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(`/dashboard/properties?agent_id=${user.id}`, '_blank')
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-full bg-green-100 text-green-800 cursor-pointer hover:bg-green-200 transition-colors flex items-center space-x-1"
+                    title="Click to view properties"
+                  >
+                    <span>{(user as any).properties_count || 0}</span>
+                    <span>{(user as any).properties_count === 1 ? 'Property' : 'Properties'}</span>
                   </span>
-                  <span className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                    user.is_assigned 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {user.is_assigned ? 'Assigned' : 'Available'}
+                  <span 
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      window.open(`/dashboard/leads?agent_id=${user.id}`, '_blank')
+                    }}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors flex items-center space-x-1"
+                    title="Click to view leads"
+                  >
+                    <span>{(user as any).leads_count || 0}</span>
+                    <span>{(user as any).leads_count === 1 ? 'Lead' : 'Leads'}</span>
                   </span>
                 </div>
               </div>

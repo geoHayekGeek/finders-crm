@@ -286,6 +286,37 @@ async function createRandomProperties(count, referenceData, assignableUsers, lea
         ? randomElement(leads).id
         : null;
       
+      // Generate owner information
+      const ownerName = generateCustomerName();
+      const ownerPhone = generatePhoneNumber();
+      
+      // Create a lead for the owner (owners are connected to leads)
+      let ownerId = null;
+      try {
+        const operationsUser = randomElement(referenceData.operationsUsers);
+        const ownerLeadData = {
+          date: formatDate(randomDate(new Date(2023, 0, 1), new Date())),
+          customer_name: ownerName,
+          phone_number: ownerPhone,
+          agent_id: agent.id, // Assign the same agent to the owner lead
+          agent_name: agent.name,
+          price: null, // Owner leads don't need price
+          reference_source_id: null,
+          operations_id: operationsUser.id,
+          status: 'Active'
+        };
+        
+        const ownerLead = await Lead.createLead(ownerLeadData);
+        ownerId = ownerLead.id;
+      } catch (error) {
+        console.error(`  ⚠️  Error creating owner lead for property ${i + 1}:`, error.message);
+        // Continue without owner_id if lead creation fails
+      }
+      
+      // Generate property details and interior details as objects
+      const propertyDetails = generatePropertyDetails();
+      const interiorDetails = generateInteriorDetails();
+      
       // Generate property data
       const propertyData = {
         status_id: status.id,
@@ -293,17 +324,18 @@ async function createRandomProperties(count, referenceData, assignableUsers, lea
         location: randomElement(locations),
         category_id: category.id,
         building_name: randomElement(buildingNames),
-        owner_name: generateCustomerName(),
-        phone_number: generatePhoneNumber(),
+        owner_id: ownerId, // Link to the owner lead
+        owner_name: ownerName, // Keep for backward compatibility
+        phone_number: ownerPhone, // Keep for backward compatibility
         surface: randomFloat(50, 500),
-        details: generatePropertyDetails(),
-        interior_details: generateInteriorDetails(),
+        details: propertyDetails, // Object - will be converted to JSONB
+        interior_details: interiorDetails, // Object - will be converted to JSONB
         built_year: randomInt(1980, 2024), // Wider year range
         view_type: viewType,
         concierge: Math.random() > 0.5, // More variety
-        agent_id: agent.id,
+        agent_id: agent.id, // Assign agent to property
         price: randomInt(30000, 8000000), // Wider price range
-        notes: Math.random() > 0.6 ? `Property notes for ${generateCustomerName()}` : null,
+        notes: Math.random() > 0.6 ? `Property notes for ${ownerName}` : null,
         closed_date: closedDate,
         sold_amount: soldAmount,
         buyer_id: buyerId,

@@ -160,6 +160,7 @@ const getAllUsers = async (req, res) => {
         properties_count: user.properties_count || 0,
         leads_count: user.leads_count || 0,
         team_leader_code: user.team_leader_code || null,
+        team_leader_name: user.team_leader_name || null,
         is_active: user.is_active !== false, // Default to true if null
         created_at: user.created_at,
         updated_at: user.updated_at

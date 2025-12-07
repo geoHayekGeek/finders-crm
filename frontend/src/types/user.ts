@@ -31,6 +31,9 @@ export interface User {
   assigned_to?: number
   agent_count?: number | null
   properties_count?: number | null
+  leads_count?: number | null
+  team_leader_code?: string | null
+  team_leader_name?: string | null
   is_active: boolean
   created_at: string
   updated_at: string

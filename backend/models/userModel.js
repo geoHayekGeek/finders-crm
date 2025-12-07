@@ -72,12 +72,16 @@ class User {
         ) as leads_count,
         (
           SELECT tl.user_code 
-          FROM team_agents ta
-          INNER JOIN users tl ON ta.team_leader_id = tl.id
-          WHERE ta.agent_id = u.id AND ta.is_active = TRUE
-          ORDER BY ta.assigned_at DESC
+          FROM users tl
+          WHERE tl.id = u.assigned_to
           LIMIT 1
-        ) as team_leader_code
+        ) as team_leader_code,
+        (
+          SELECT tl.name 
+          FROM users tl
+          WHERE tl.id = u.assigned_to
+          LIMIT 1
+        ) as team_leader_name
       FROM users u 
       ORDER BY u.created_at DESC`
     );
@@ -172,7 +176,7 @@ class User {
     try {
       await client.query('BEGIN');
       
-      // Check if agent is already assigned
+      // Check if agent exists
       const agentCheck = await client.query(
         `SELECT is_assigned, assigned_to FROM users WHERE id = $1 AND role = 'agent'`,
         [agentId]
@@ -182,8 +186,24 @@ class User {
         throw new Error('Agent not found');
       }
       
-      if (agentCheck.rows[0].is_assigned) {
-        throw new Error('Agent is already assigned to a team leader');
+      // If agent is already assigned to a different team leader, throw error
+      if (agentCheck.rows[0].is_assigned && agentCheck.rows[0].assigned_to !== teamLeaderId) {
+        throw new Error('Agent is already assigned to a different team leader. Please remove them from the current team first.');
+      }
+      
+      // If agent is already assigned to this team leader, just ensure it's active
+      if (agentCheck.rows[0].assigned_to === teamLeaderId) {
+        // Reactivate if it exists, or create if it doesn't
+        const result = await client.query(
+          `INSERT INTO team_agents (team_leader_id, agent_id, assigned_by, is_active)
+           VALUES ($1, $2, $3, TRUE)
+           ON CONFLICT (team_leader_id, agent_id) 
+           DO UPDATE SET is_active = TRUE, updated_at = NOW()
+           RETURNING *`,
+          [teamLeaderId, agentId, assignedBy]
+        );
+        await client.query('COMMIT');
+        return result.rows[0];
       }
       
       // Update agent's assignment status
@@ -192,10 +212,10 @@ class User {
         [teamLeaderId, agentId]
       );
       
-      // Insert into team_agents table
+      // Insert into team_agents table (will be unique due to constraint)
       const result = await client.query(
-        `INSERT INTO team_agents (team_leader_id, agent_id, assigned_by)
-         VALUES ($1, $2, $3)
+        `INSERT INTO team_agents (team_leader_id, agent_id, assigned_by, is_active)
+         VALUES ($1, $2, $3, TRUE)
          ON CONFLICT (team_leader_id, agent_id) 
          DO UPDATE SET is_active = TRUE, updated_at = NOW()
          RETURNING *`,
@@ -206,6 +226,10 @@ class User {
       return result.rows[0];
     } catch (error) {
       await client.query('ROLLBACK');
+      // Check if it's a unique constraint violation from the partial index
+      if (error.code === '23505' && error.constraint === 'idx_team_agents_single_active_assignment') {
+        throw new Error('Agent is already assigned to another team leader. Please remove them from the current team first.');
+      }
       throw error;
     } finally {
       client.release();
@@ -255,12 +279,13 @@ class User {
   }
 
   static async getAgentTeamLeader(agentId) {
+    // Use users.assigned_to as the source of truth for consistency
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.role, u.location, u.phone, u.user_code, ta.assigned_at
        FROM users u
-       INNER JOIN team_agents ta ON u.id = ta.team_leader_id
-       WHERE ta.agent_id = $1 AND ta.is_active = TRUE
-       ORDER BY ta.assigned_at DESC
+       INNER JOIN users agent ON agent.id = $1 AND agent.role = 'agent'
+       LEFT JOIN team_agents ta ON ta.team_leader_id = u.id AND ta.agent_id = $1 AND ta.is_active = TRUE
+       WHERE u.id = agent.assigned_to
        LIMIT 1`,
       [agentId]
     );

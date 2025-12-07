@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, Fragment } from 'react'
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { 
   Users, 
   Plus,
@@ -459,6 +459,57 @@ export default function HRPage() {
     setShowDocumentsModal(true)
   }
 
+  // Track if we've processed the view URL parameter
+  const hasProcessedUrlParam = useRef(false)
+
+  // Handle URL parameter for auto-opening view modal
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isAuthenticated || !token) return
+    if (loading || showViewModal || hasProcessedUrlParam.current) return
+    
+    const urlParams = new URLSearchParams(window.location.search)
+    const viewUserId = urlParams.get('view')
+    
+    if (!viewUserId) return
+    
+    const userId = parseInt(viewUserId, 10)
+    if (isNaN(userId)) return
+    
+    // Mark as processed to prevent multiple runs
+    hasProcessedUrlParam.current = true
+    
+    // First, try to find the user in the loaded users
+    const user = users.find(u => u.id === userId)
+    if (user) {
+      console.log('✅ Found user in list, opening modal:', userId)
+      handleViewUser(user)
+      // Clean up URL parameter
+      const newUrl = window.location.pathname
+      window.history.replaceState({}, '', newUrl)
+      return
+    }
+    
+    // If user not found in list, fetch it directly using the API
+    const fetchUser = async () => {
+      try {
+        console.log('🔍 User not in list, fetching directly:', userId)
+        const response = await usersApi.getById(userId)
+        if (response.success && response.data) {
+          handleViewUser(response.data)
+          // Clean up URL parameter
+          const newUrl = window.location.pathname
+          window.history.replaceState({}, '', newUrl)
+        } else {
+          console.error('❌ Failed to fetch user:', response.message)
+        }
+      } catch (error) {
+        console.error('❌ Error fetching user:', error)
+      }
+    }
+    
+    fetchUser()
+  }, [isAuthenticated, token, loading, showViewModal, users, handleViewUser])
+
   const clearFilters = () => {
     setFilters({})
     setCurrentPage(1)
@@ -651,13 +702,28 @@ export default function HRPage() {
         
         // For agents: show team assignment status
         if (roleEquals(user.role, 'agent')) {
+          const teamLeaderId = user.assigned_to
           return (
             <div className="flex flex-col gap-1">
-              <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                user.is_assigned ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
-              }`}>
-                {user.is_assigned && teamLeaderCode ? `${teamLeaderCode} Team` : (user.is_assigned ? 'Assigned to Team' : 'Available')}
-              </span>
+              {user.is_assigned && teamLeaderCode && teamLeaderId ? (
+                <span 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    window.open(`/dashboard/hr?view=${teamLeaderId}`, '_blank')
+                  }}
+                  className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                  title="Click to view team leader details"
+                >
+                  Assigned to {teamLeaderCode} Team
+                </span>
+              ) : (
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                  user.is_assigned ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {user.is_assigned ? 'Assigned to Team' : 'Available'}
+                </span>
+              )}
               <div className="flex flex-wrap gap-1">
                 <span 
                   onClick={(e) => {

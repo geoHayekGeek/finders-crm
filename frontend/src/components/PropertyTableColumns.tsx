@@ -137,7 +137,26 @@ export const getPropertyColumns = (canManageProperties: boolean, canReferPropert
     header: 'Agent',
     cell: ({ row }) => {
       const agentName = row.getValue('agent_name') as string
+      const agentId = row.original.agent_id
       if (!agentName) return <span className="text-gray-400">Unassigned</span>
+      
+      // Make clickable if agent_id exists (same pattern as owner)
+      if (agentId) {
+        return (
+          <div 
+            onClick={() => {
+              const url = `/dashboard/hr?view=${agentId}`
+              console.log('🔗 Opening HR URL:', url)
+              window.open(url, '_blank')
+            }}
+            className="text-sm font-medium text-green-700 cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+            title="Click to view agent details"
+          >
+            {agentName}
+          </div>
+        )
+      }
+      
       return (
         <div className="text-sm font-medium text-green-700">
           {agentName}

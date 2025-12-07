@@ -3518,9 +3518,29 @@ export function PropertyModals({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Agent</label>
-                      <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                        {viewPropertyData.agent_name || 'N/A'}
-                      </div>
+                      {(() => {
+                        const hasAgent = viewPropertyData && viewPropertyData.agent_id
+                        const hasRole = isAdminRole(user?.role) || isOperationsRole(user?.role) || isAgentManagerRole(user?.role)
+                        const isClickable = hasAgent && hasRole
+                        
+                        return isClickable ? (
+                          <div 
+                            onClick={() => {
+                              const url = `/dashboard/hr?view=${viewPropertyData.agent_id}`
+                              console.log('🔗 Opening HR URL:', url)
+                              window.open(url, '_blank')
+                            }}
+                            className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-900"
+                            title="Click to view agent details"
+                          >
+                            {viewPropertyData.agent_name || 'N/A'}
+                          </div>
+                        ) : (
+                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                            {viewPropertyData.agent_name || 'N/A'}
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
