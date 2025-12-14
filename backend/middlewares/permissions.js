@@ -45,11 +45,11 @@ const PERMISSIONS = {
     statuses: ['create', 'read', 'update', 'delete', 'view_all']
   },
   
-  // Agent Manager: Can manage properties and view agent data, read-only access to leads
+  // Agent Manager: Can manage properties and view agent data, read-only access to leads (cannot add or edit)
   'agent manager': {
     properties: ['create', 'read', 'update', 'delete', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
-    leads: ['read', 'view_all'], // Read-only access to leads
+    leads: ['read', 'view_all'], // Read-only access to leads - cannot create or edit
     viewings: ['create', 'read', 'update', 'delete', 'view_all'],
     analytics: ['view_all', 'view_agent_performance'], // Can see agent performance
     users: ['read', 'view_agents'], // Can view agents but not other roles
@@ -87,11 +87,11 @@ const PERMISSIONS = {
     statuses: ['read'] // Can view statuses (needed for properties page functionality)
   },
   
-  // Accountant: No access to properties, categories, or statuses
+  // Accountant: No access to properties, categories, statuses, or leads
   accountant: {
     properties: [], // No access to properties
     clients: ['read', 'view_assigned'], // Only view their assigned clients
-    leads: ['read', 'view_assigned'], // Only view their assigned leads
+    leads: [], // No access to leads
     viewings: [], // No access to viewings
     analytics: ['view_basic'], // Only basic analytics, no financial data
     users: ['read_self'], // Can only view their own profile
@@ -101,11 +101,11 @@ const PERMISSIONS = {
     statuses: [] // No access to statuses
   },
   
-  // HR: No access to properties, categories, or statuses (same as accountant)
+  // HR: No access to properties, categories, statuses, or leads
   hr: {
     properties: [], // No access to properties
     clients: ['read', 'view_assigned'], // Only view their assigned clients
-    leads: ['read', 'view_assigned'], // Only view their assigned leads
+    leads: [], // No access to leads
     viewings: [], // No access to viewings
     analytics: ['view_basic'], // Only basic analytics, no financial data
     users: ['read_self'], // Can only view their own profile
@@ -328,6 +328,13 @@ const canViewLeads = (req, res, next) => {
   }
 
   const role = req.user.role;
+  // HR and Accountant do not have access to leads
+  if (role === 'hr' || role === 'accountant') {
+    return res.status(403).json({ 
+      message: 'Access denied. HR and Accountant roles do not have access to leads.' 
+    });
+  }
+  
   // Agents and team leaders can view their own leads, others can view all leads
   if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader') {
     next();
@@ -363,7 +370,7 @@ const filterDataByRole = (req, res, next) => {
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
     canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),
-    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
+    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role) && !['hr', 'accountant'].includes(role),
     canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'].includes(role),
     canManageViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewViewings: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),

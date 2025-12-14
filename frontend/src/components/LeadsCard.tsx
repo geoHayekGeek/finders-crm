@@ -69,6 +69,14 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
+      {/* Price - shown for all users including agents and team leaders */}
+      {lead.price !== null && lead.price !== undefined && (
+        <div className="mb-3">
+          <div className="text-xs font-medium text-gray-500 mb-1">Price</div>
+          <div className="text-sm font-medium text-gray-900">${lead.price.toLocaleString()}</div>
+        </div>
+      )}
+
       {/* Agent Information */}
       {!limitedAccess && (
         <div className="mb-3">

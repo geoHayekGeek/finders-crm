@@ -65,6 +65,22 @@ export const getLeadsColumns = (
     }
   },
   {
+    accessorKey: 'price',
+    header: 'Price',
+    cell: ({ row }) => {
+      const lead = row.original
+      return (
+        <div className="text-sm">
+          {lead.price ? (
+            <span className="font-medium text-gray-900">${lead.price.toLocaleString()}</span>
+          ) : (
+            <span className="text-gray-400">-</span>
+          )}
+        </div>
+      )
+    }
+  },
+  {
     accessorKey: 'assigned_agent_name',
     header: 'Agent',
     cell: ({ row }) => {
@@ -218,6 +234,8 @@ export const getLeadsColumns = (
   ]
 
   if (options.limitedAccess) {
+    // For agents and team leaders, only show: Status, Customer Name, Phone Number, Price, Referral History (shown in view modal), Lead Notes (shown in view modal)
+    // Hide: Date, Agent, Operations, Reference Source, Created
     const hiddenKeys = new Set([
       'date',
       'assigned_agent_name',
@@ -230,7 +248,8 @@ export const getLeadsColumns = (
       if (key && hiddenKeys.has(key)) {
         return false
       }
-      return key !== 'operations_name'
+      // Keep: customer_name, phone_number, price, status, actions
+      return true
     })
   }
 

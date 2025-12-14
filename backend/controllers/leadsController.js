@@ -518,10 +518,10 @@ class LeadsController {
         });
       }
 
-      // Check permissions - only admins, operations, operations managers, and agent managers can delete leads
+      // Check permissions - only admins, operations, and operations managers can delete leads (agent manager cannot delete)
       const userRole = req.user.role;
       const normalizedRole = normalizeRole(userRole);
-      if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
+      if (!['admin', 'operations', 'operations_manager'].includes(normalizedRole)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete leads'
