@@ -2,7 +2,7 @@
 'use client'
 
 import { Viewing, VIEWING_STATUSES } from '@/types/viewing'
-import { Calendar, Clock, MapPin, User, Eye, Edit, Trash2, Building2, Phone, Star } from 'lucide-react'
+import { Calendar, Clock, MapPin, User, Eye, Edit, Trash2, Building2, Phone, Star, ArrowRight } from 'lucide-react'
 
 interface ViewingsCardProps {
   viewing: Viewing
@@ -91,6 +91,14 @@ export default function ViewingsCard({
             </div>
           )}
         </div>
+
+        {/* Sub-viewing indicator */}
+        {viewing.parent_viewing_id && (
+          <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+            <ArrowRight className="h-3 w-3" />
+            <span>Follow-up viewing</span>
+          </div>
+        )}
 
         {/* Date & Time */}
         <div className="grid grid-cols-2 gap-2">

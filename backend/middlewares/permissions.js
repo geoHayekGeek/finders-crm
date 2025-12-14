@@ -99,6 +99,20 @@ const PERMISSIONS = {
     dashboard: ['limited_access'],
     categories: [], // No access to categories
     statuses: [] // No access to statuses
+  },
+  
+  // HR: No access to properties, categories, or statuses (same as accountant)
+  hr: {
+    properties: [], // No access to properties
+    clients: ['read', 'view_assigned'], // Only view their assigned clients
+    leads: ['read', 'view_assigned'], // Only view their assigned leads
+    viewings: [], // No access to viewings
+    analytics: ['view_basic'], // Only basic analytics, no financial data
+    users: ['read_self'], // Can only view their own profile
+    settings: ['read_self'],
+    dashboard: ['limited_access'],
+    categories: [], // No access to categories
+    statuses: [] // No access to statuses
   }
 };
 
@@ -211,6 +225,13 @@ const canViewProperties = (req, res, next) => {
   }
 
   const role = req.user.role;
+  // Accountant and HR roles should not have access to properties
+  if (role === 'accountant' || role === 'hr') {
+    return res.status(403).json({ 
+      message: 'Access denied. Accountant and HR roles do not have access to properties.' 
+    });
+  }
+  
   if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent') {
     next();
   } else {
@@ -337,7 +358,7 @@ const filterDataByRole = (req, res, next) => {
     canViewFinancial: ['admin', 'operations manager'].includes(role),
     canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team_leader'].includes(role),
     canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'agent'].includes(role),
+    canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'agent'].includes(role) && !['accountant', 'hr'].includes(role),
     canManageUsers: ['admin', 'operations manager'].includes(role),
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),

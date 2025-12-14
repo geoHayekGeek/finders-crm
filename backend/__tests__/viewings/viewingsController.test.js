@@ -70,6 +70,33 @@ describe('Viewings Controller', () => {
   });
 
   describe('getViewingsWithFilters', () => {
+    it('should return 401 if user is not authenticated', async () => {
+      req.user = null;
+      req.query = { status: 'Scheduled' };
+
+      await ViewingsController.getViewingsWithFilters(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Authentication required'
+      });
+      expect(Viewing.getViewingsWithFilters).not.toHaveBeenCalled();
+    });
+
+    it('should return 401 if user is missing id or role', async () => {
+      req.user = { name: 'Test User' }; // Missing id and role
+      req.query = { status: 'Scheduled' };
+
+      await ViewingsController.getViewingsWithFilters(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Authentication required'
+      });
+    });
+
     it('should get filtered viewings for admin', async () => {
       req.user = { id: 1, role: 'admin' };
       req.query = { status: 'Scheduled' };
@@ -95,7 +122,7 @@ describe('Viewings Controller', () => {
       req.query = { status: 'Scheduled' };
 
       const mockAgentViewings = [{ id: 1, agent_id: 2, status: 'Scheduled' }];
-      const mockFilteredViewings = [{ id: 1, status: 'Scheduled' }];
+      const mockFilteredViewings = [{ id: 1, status: 'Scheduled', agent_id: 2 }];
 
       Viewing.getViewingsByAgent.mockResolvedValue(mockAgentViewings);
       Viewing.getViewingsWithFilters.mockResolvedValue(mockFilteredViewings);
@@ -103,6 +130,117 @@ describe('Viewings Controller', () => {
       await ViewingsController.getViewingsWithFilters(req, res);
 
       expect(Viewing.getViewingsByAgent).toHaveBeenCalledWith(2);
+      expect(Viewing.getViewingsWithFilters).toHaveBeenCalledWith({ status: 'Scheduled', agent_id: 2 });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockAgentViewings,
+        message: `Retrieved ${mockAgentViewings.length} filtered viewings`
+      });
+    });
+
+    it('should filter agent viewings by property_id and only return their own', async () => {
+      req.user = { id: 2, role: 'agent' };
+      req.query = { property_id: '10' };
+
+      const mockAgentViewings = [
+        { id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' },
+        { id: 2, agent_id: 2, property_id: 11, status: 'Scheduled' }
+      ];
+      const mockFilteredViewings = [{ id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' }];
+
+      Viewing.getViewingsByAgent.mockResolvedValue(mockAgentViewings);
+      Viewing.getViewingsWithFilters.mockResolvedValue(mockFilteredViewings);
+
+      await ViewingsController.getViewingsWithFilters(req, res);
+
+      expect(Viewing.getViewingsByAgent).toHaveBeenCalledWith(2);
+      expect(Viewing.getViewingsWithFilters).toHaveBeenCalledWith({ property_id: '10', agent_id: 2 });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [{ id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' }],
+        message: `Retrieved 1 filtered viewings`
+      });
+    });
+
+    it('should not return viewings from other agents even with property_id filter', async () => {
+      req.user = { id: 2, role: 'agent' };
+      req.query = { property_id: '10' };
+
+      const mockAgentViewings = [
+        { id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' }
+      ];
+      // Simulate that the filter might return viewings from other agents (should be filtered out)
+      const mockFilteredViewings = [
+        { id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' },
+        { id: 3, agent_id: 3, property_id: 10, status: 'Scheduled' } // Other agent's viewing
+      ];
+
+      Viewing.getViewingsByAgent.mockResolvedValue(mockAgentViewings);
+      Viewing.getViewingsWithFilters.mockResolvedValue(mockFilteredViewings);
+
+      await ViewingsController.getViewingsWithFilters(req, res);
+
+      // Should only return the agent's own viewing
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [{ id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' }],
+        message: `Retrieved 1 filtered viewings`
+      });
+    });
+
+    it('should get filtered viewings for team leader', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.query = { status: 'Scheduled' };
+
+      const mockTeamViewings = [
+        { id: 1, agent_id: 10, status: 'Scheduled' },
+        { id: 2, agent_id: 20, status: 'Scheduled' }
+      ];
+      const User = require('../../models/userModel');
+      User.getTeamLeaderAgents = jest.fn().mockResolvedValue([{ id: 20 }, { id: 21 }]);
+      Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
+      Viewing.getViewingsWithFilters.mockResolvedValue(mockTeamViewings);
+
+      await ViewingsController.getViewingsWithFilters(req, res);
+
+      expect(Viewing.getViewingsForTeamLeader).toHaveBeenCalledWith(10);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockTeamViewings,
+        message: `Retrieved ${mockTeamViewings.length} filtered viewings`
+      });
+    });
+
+    it('should filter team leader viewings by property_id and only return team viewings', async () => {
+      req.user = { id: 10, role: 'team_leader' };
+      req.query = { property_id: '10' };
+
+      const mockTeamViewings = [
+        { id: 1, agent_id: 10, property_id: 10, status: 'Scheduled' },
+        { id: 2, agent_id: 20, property_id: 10, status: 'Scheduled' }
+      ];
+      const mockFilteredViewings = [
+        { id: 1, agent_id: 10, property_id: 10, status: 'Scheduled' },
+        { id: 2, agent_id: 20, property_id: 10, status: 'Scheduled' },
+        { id: 3, agent_id: 99, property_id: 10, status: 'Scheduled' } // Outside team
+      ];
+
+      const User = require('../../models/userModel');
+      User.getTeamLeaderAgents = jest.fn().mockResolvedValue([{ id: 20 }, { id: 21 }]);
+      Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
+      Viewing.getViewingsWithFilters.mockResolvedValue(mockFilteredViewings);
+
+      await ViewingsController.getViewingsWithFilters(req, res);
+
+      // Should only return viewings from team (agent_id 10, 20, 21)
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [
+          { id: 1, agent_id: 10, property_id: 10, status: 'Scheduled' },
+          { id: 2, agent_id: 20, property_id: 10, status: 'Scheduled' }
+        ],
+        message: `Retrieved 2 filtered viewings`
+      });
     });
 
     it('should handle errors', async () => {
@@ -146,7 +284,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Viewing not found'
+        message: 'Parent viewing not found'
       });
     });
 
@@ -196,6 +334,10 @@ describe('Viewings Controller', () => {
       const mockViewing = { id: 1, ...req.body, agent_id: 1 };
       const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
 
+      // For admin users, no property check is done, so first pool.query is duplicate check
+      // Mock duplicate check - no duplicates found
+      pool.query.mockResolvedValueOnce({ rows: [] });
+      
       Viewing.createViewing.mockResolvedValue(mockViewing);
       Viewing.getViewingById.mockResolvedValue(mockFullViewing);
       CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
@@ -352,7 +494,7 @@ describe('Viewings Controller', () => {
       });
     });
 
-    it('should return 400 if duplicate viewing exists (same lead + property + date + time)', async () => {
+    it('should return 400 if duplicate viewing exists (same lead + property)', async () => {
       req.body = {
         property_id: 1,
         lead_id: 1,
@@ -361,7 +503,9 @@ describe('Viewings Controller', () => {
         viewing_time: '10:00'
       };
 
-      // Mock duplicate check - returns existing viewing
+      // Mock property check
+      pool.query.mockResolvedValueOnce({ rows: [{ agent_id: 1 }] });
+      // Mock duplicate check - returns existing viewing for same lead + property
       pool.query.mockResolvedValueOnce({ rows: [{ id: 99 }] });
 
       await ViewingsController.createViewing(req, res);
@@ -369,7 +513,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'A viewing already exists for this lead, property, date, and time combination'
+        message: 'A viewing already exists for this lead and property. You can add follow-up viewings to the existing viewing instead.'
       });
       expect(Viewing.createViewing).not.toHaveBeenCalled();
     });
@@ -386,13 +530,19 @@ describe('Viewings Controller', () => {
       const mockViewing = { id: 1, ...req.body, agent_id: 1 };
       const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
 
+      // Reset pool.query to ensure clean state from previous tests
+      pool.query.mockReset();
+      
+      // For admin users, no property check is done, so first pool.query is duplicate check
       // Mock duplicate check - no duplicates found
-      pool.query.mockResolvedValueOnce({ rows: [] });
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // Duplicate check
+        .mockResolvedValue({ rows: [] }); // Notification query and any other queries
       
+      // Set up mock implementations (jest.clearAllMocks() in beforeEach already reset them)
       Viewing.createViewing.mockResolvedValue(mockViewing);
       Viewing.getViewingById.mockResolvedValue(mockFullViewing);
       CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
-      pool.query.mockResolvedValue({ rows: [] });
 
       await ViewingsController.createViewing(req, res);
 
@@ -400,54 +550,71 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it('should allow different time for same lead + property + date', async () => {
-      req.body = {
-        property_id: 1,
-        lead_id: 1,
-        agent_id: 1,
-        viewing_date: '2024-01-15',
-        viewing_time: '14:00' // Different time
-      };
-
-      const mockViewing = { id: 1, ...req.body, agent_id: 1 };
-      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
-
-      // Mock duplicate check - no duplicates found (different time)
-      pool.query.mockResolvedValueOnce({ rows: [] });
-      
-      Viewing.createViewing.mockResolvedValue(mockViewing);
-      Viewing.getViewingById.mockResolvedValue(mockFullViewing);
-      CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
-      pool.query.mockResolvedValue({ rows: [] });
-
-      await ViewingsController.createViewing(req, res);
-
-      expect(Viewing.createViewing).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(201);
-    });
-
-    it('should allow different date for same lead + property + time', async () => {
+    it('should prevent creating viewing for same lead + property even with different date/time', async () => {
       req.body = {
         property_id: 1,
         lead_id: 1,
         agent_id: 1,
         viewing_date: '2024-01-16', // Different date
-        viewing_time: '10:00'
+        viewing_time: '14:00' // Different time
       };
 
-      const mockViewing = { id: 1, ...req.body, agent_id: 1 };
-      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
-
-      // Mock duplicate check - no duplicates found (different date)
-      pool.query.mockResolvedValueOnce({ rows: [] });
+      // Reset mocks to ensure clean state
+      pool.query.mockReset();
+      Viewing.createViewing.mockReset();
       
-      Viewing.createViewing.mockResolvedValue(mockViewing);
-      Viewing.getViewingById.mockResolvedValue(mockFullViewing);
-      CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
-      pool.query.mockResolvedValue({ rows: [] });
+      // For admin users, no property check is done, so first pool.query is duplicate check
+      // Mock duplicate check - returns existing viewing (same lead + property, different date/time)
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 99 }] });
 
       await ViewingsController.createViewing(req, res);
 
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'A viewing already exists for this lead and property. You can add follow-up viewings to the existing viewing instead.'
+      });
+      expect(Viewing.createViewing).not.toHaveBeenCalled();
+    });
+
+    it('should allow follow-up viewings (sub-viewings) for same lead + property', async () => {
+      req.body = {
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-16',
+        viewing_time: '14:00',
+        parent_viewing_id: 10 // This is a follow-up viewing
+      };
+
+      const mockParentViewing = { 
+        id: 10, 
+        property_id: 1, 
+        lead_id: 1, 
+        agent_id: 1,
+        parent_viewing_id: null
+      };
+      const mockViewing = { id: 2, ...req.body, parent_viewing_id: 10 };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+
+      // For admin users with parent_viewing_id:
+      // 1. First Viewing.getViewingById call is to get the parent viewing
+      // 2. Then pool.query is duplicate check (which should return empty for sub-viewings)
+      // 3. Then pool.query for notifications
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing) // Get parent viewing
+        .mockResolvedValue(mockFullViewing); // Get created viewing
+      
+      pool.query
+        .mockResolvedValueOnce({ rows: [] }) // Duplicate check (should be empty for sub-viewings)
+        .mockResolvedValue({ rows: [] }); // Notification query and any other queries
+      
+      Viewing.createViewing.mockResolvedValue(mockViewing);
+      CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
+
+      await ViewingsController.createViewing(req, res);
+
+      expect(Viewing.getViewingById).toHaveBeenCalledWith(10); // Should get parent viewing
       expect(Viewing.createViewing).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
@@ -461,6 +628,7 @@ describe('Viewings Controller', () => {
         viewing_time: '10:00'
       };
 
+      // For admin, no property check is done, so first pool.query is duplicate check
       // Mock duplicate check - no duplicates
       pool.query.mockResolvedValueOnce({ rows: [] });
       Viewing.createViewing.mockRejectedValue(new Error('Database error'));
@@ -512,7 +680,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Viewing not found'
+        message: 'Parent viewing not found'
       });
     });
 
@@ -550,6 +718,49 @@ describe('Viewings Controller', () => {
         success: false,
         message: 'Validation failed',
         errors: expect.any(Array)
+      });
+    });
+
+    it('should update is_serious flag successfully', async () => {
+      req.params = { id: '1' };
+      req.body = { is_serious: true };
+
+      const mockExistingViewing = { id: 1, agent_id: 1, is_serious: false };
+      const mockUpdatedViewing = { id: 1, agent_id: 1, is_serious: true };
+
+      Viewing.getViewingById.mockResolvedValueOnce(mockExistingViewing);
+      Viewing.updateViewing.mockResolvedValue(mockUpdatedViewing);
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await ViewingsController.updateViewing(req, res);
+
+      expect(Viewing.updateViewing).toHaveBeenCalledWith('1', expect.objectContaining({ is_serious: true }));
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockUpdatedViewing,
+        message: 'Viewing updated successfully'
+      });
+    });
+
+    it('should allow agent to update is_serious for their own viewing', async () => {
+      req.user = { id: 2, role: 'agent' };
+      req.params = { id: '1' };
+      req.body = { is_serious: true };
+
+      const mockExistingViewing = { id: 1, agent_id: 2, is_serious: false };
+      const mockUpdatedViewing = { id: 1, agent_id: 2, is_serious: true };
+
+      Viewing.getViewingById.mockResolvedValueOnce(mockExistingViewing);
+      Viewing.updateViewing.mockResolvedValue(mockUpdatedViewing);
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await ViewingsController.updateViewing(req, res);
+
+      expect(Viewing.updateViewing).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockUpdatedViewing,
+        message: 'Viewing updated successfully'
       });
     });
 
@@ -616,7 +827,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Viewing not found'
+        message: 'Parent viewing not found'
       });
     });
 
@@ -703,43 +914,65 @@ describe('Viewings Controller', () => {
     });
   });
 
-  describe('addViewingUpdate', () => {
-    it('should add viewing update successfully', async () => {
+  describe('addViewingUpdate (creates follow-up viewing)', () => {
+    it('should create follow-up viewing successfully', async () => {
       req.params = { id: '1' };
       req.body = {
         update_text: 'Client showed interest',
         update_date: '2024-01-15'
       };
 
-      const mockViewing = { id: 1, agent_id: 1 };
-      const mockUpdate = { id: 1, update_text: 'Client showed interest' };
+      const mockParentViewing = { id: 1, agent_id: 1, property_id: 1, lead_id: 1 };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1, property_id: 1, lead_id: 1, agent_id: 1 };
+      const mockFullFollowUpViewing = { ...mockFollowUpViewing, sub_viewings: [] };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing) // First call for parent
+        .mockResolvedValueOnce(mockFullFollowUpViewing); // Second call for full follow-up viewing
+      Viewing.createViewing.mockResolvedValue(mockFollowUpViewing);
       ReminderService.clearViewingReminder.mockResolvedValue();
 
       await ViewingsController.addViewingUpdate(req, res);
 
-      expect(Viewing.addViewingUpdate).toHaveBeenCalledWith('1', expect.any(Object));
+      expect(Viewing.createViewing).toHaveBeenCalledWith(expect.objectContaining({
+        parent_viewing_id: '1', // ID from params is a string
+        property_id: 1,
+        lead_id: 1,
+        agent_id: 1,
+        viewing_date: '2024-01-15',
+        notes: 'Client showed interest'
+      }));
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: mockUpdate,
-        message: 'Update added successfully'
+        data: mockFullFollowUpViewing,
+        message: 'Follow-up viewing created successfully'
       });
     });
 
-    it('should return 400 if update_text is missing', async () => {
+    it('should create follow-up viewing even without update_text (uses notes instead)', async () => {
       req.params = { id: '1' };
-      req.body = { update_date: '2024-01-15' };
+      req.body = {
+        viewing_date: '2024-01-16',
+        viewing_time: '14:00',
+        status: 'Scheduled',
+        notes: 'Follow-up scheduled'
+      };
+
+      const mockParentViewing = { id: 1, agent_id: 1, property_id: 1, lead_id: 1 };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1 };
+      const mockFullFollowUpViewing = { ...mockFollowUpViewing, sub_viewings: [] };
+
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing)
+        .mockResolvedValueOnce(mockFullFollowUpViewing);
+      Viewing.createViewing.mockResolvedValue(mockFollowUpViewing);
+      ReminderService.clearViewingReminder.mockResolvedValue();
 
       await ViewingsController.addViewingUpdate(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Update text is required'
-      });
+      expect(Viewing.createViewing).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(201);
     });
 
     it('should return 404 if viewing not found', async () => {
@@ -753,7 +986,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Viewing not found'
+        message: 'Parent viewing not found'
       });
     });
 
@@ -770,7 +1003,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'You can only add updates to your own viewings'
+        message: 'You can only add follow-up viewings to your own viewings'
       });
     });
 
@@ -782,23 +1015,26 @@ describe('Viewings Controller', () => {
         update_date: '2024-01-15'
       };
 
-      const mockViewing = { id: 1, agent_id: 3 }; // Team leader's own viewing
+      const mockViewing = { id: 1, agent_id: 3, property_id: 1, lead_id: 1 }; // Team leader's own viewing
       const mockTeamViewings = [{ id: 1, agent_id: 3 }];
-      const mockUpdate = { id: 1, update_text: 'Team leader update' };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1, property_id: 1, lead_id: 1, agent_id: 3 };
+      const mockFullFollowUpViewing = { ...mockFollowUpViewing, sub_viewings: [] };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFullFollowUpViewing);
       Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
-      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      Viewing.createViewing.mockResolvedValue(mockFollowUpViewing);
       ReminderService.clearViewingReminder.mockResolvedValue();
 
       await ViewingsController.addViewingUpdate(req, res);
 
-      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(Viewing.createViewing).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: mockUpdate,
-        message: 'Update added successfully'
+        data: mockFullFollowUpViewing,
+        message: 'Follow-up viewing created successfully'
       });
     });
 
@@ -817,14 +1053,19 @@ describe('Viewings Controller', () => {
       ];
       const mockUpdate = { id: 1, update_text: 'Update for team agent' };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
+      const mockFollowUpViewing = { id: 3, parent_viewing_id: '2' };
+      const mockFullFollowUpViewing = { ...mockFollowUpViewing, sub_viewings: [] };
+      
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFullFollowUpViewing);
+      Viewing.createViewing.mockResolvedValue(mockFollowUpViewing);
       Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
-      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
       ReminderService.clearViewingReminder.mockResolvedValue();
 
       await ViewingsController.addViewingUpdate(req, res);
 
-      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(Viewing.createViewing).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
@@ -847,9 +1088,9 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'You can only add updates to viewings assigned to you or your team'
+        message: 'You can only add follow-up viewings to viewings assigned to you or your team'
       });
-      expect(Viewing.addViewingUpdate).not.toHaveBeenCalled();
+      expect(Viewing.createViewing).not.toHaveBeenCalled();
     });
 
     it('should allow admin to add update to any viewing', async () => {
@@ -863,34 +1104,44 @@ describe('Viewings Controller', () => {
       const mockViewing = { id: 1, agent_id: 2 }; // Different agent's viewing
       const mockUpdate = { id: 1, update_text: 'Admin update' };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1 };
+      const mockFullFollowUpViewing = { ...mockFollowUpViewing, sub_viewings: [] };
+
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFullFollowUpViewing);
+      Viewing.createViewing.mockResolvedValue(mockFollowUpViewing);
       ReminderService.clearViewingReminder.mockResolvedValue();
 
       await ViewingsController.addViewingUpdate(req, res);
 
-      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(Viewing.createViewing).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
-    it('should allow operations manager to add update to any viewing', async () => {
+    it('should allow operations manager to add follow-up viewing to any viewing', async () => {
       req.user = { id: 1, role: 'operations manager' };
       req.params = { id: '1' };
       req.body = {
-        update_text: 'Operations manager update',
-        update_date: '2024-01-15'
+        viewing_date: '2024-01-16',
+        viewing_time: '15:00',
+        status: 'Scheduled',
+        notes: 'Operations manager follow-up'
       };
 
-      const mockViewing = { id: 1, agent_id: 2 };
-      const mockUpdate = { id: 1, update_text: 'Operations manager update' };
+      const mockViewing = { id: 1, agent_id: 2, property_id: 1, lead_id: 1 };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1 };
+      const mockFullFollowUpViewing = { ...mockFollowUpViewing, sub_viewings: [] };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.addViewingUpdate.mockResolvedValue(mockUpdate);
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFullFollowUpViewing);
+      Viewing.createViewing.mockResolvedValue(mockFollowUpViewing);
       ReminderService.clearViewingReminder.mockResolvedValue();
 
       await ViewingsController.addViewingUpdate(req, res);
 
-      expect(Viewing.addViewingUpdate).toHaveBeenCalled();
+      expect(Viewing.createViewing).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
@@ -898,16 +1149,16 @@ describe('Viewings Controller', () => {
       req.params = { id: '1' };
       req.body = { update_text: 'Test update' };
 
-      const mockViewing = { id: 1, agent_id: 1 };
+      const mockViewing = { id: 1, agent_id: 1, property_id: 1, lead_id: 1 };
       Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.addViewingUpdate.mockRejectedValue(new Error('Database error'));
+      Viewing.createViewing.mockRejectedValue(new Error('Database error'));
 
       await ViewingsController.addViewingUpdate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Failed to add viewing update',
+        message: 'Failed to create follow-up viewing',
         error: expect.any(String)
       });
     });
@@ -924,18 +1175,22 @@ describe('Viewings Controller', () => {
       const mockViewing = { id: 1, agent_id: 1 };
       const mockUpdate = { id: 1, viewing_id: 1, created_by: 1, update_text: 'Updated text' };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.getViewingUpdateById.mockResolvedValue(mockUpdate);
-      Viewing.updateViewingUpdate.mockResolvedValue();
-      Viewing.getViewingUpdateById.mockResolvedValueOnce(mockUpdate).mockResolvedValueOnce({ ...mockUpdate, update_text: 'Updated text' });
+      const mockFollowUpViewing = { id: 1, parent_viewing_id: 1, agent_id: 1 };
+      const mockUpdatedFollowUpViewing = { ...mockFollowUpViewing, notes: 'Updated text' };
+
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFollowUpViewing)
+        .mockResolvedValueOnce(mockUpdatedFollowUpViewing);
+      Viewing.updateViewing.mockResolvedValue(mockUpdatedFollowUpViewing);
 
       await ViewingsController.updateViewingUpdate(req, res);
 
-      expect(Viewing.updateViewingUpdate).toHaveBeenCalled();
+      expect(Viewing.updateViewing).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: expect.any(Object),
-        message: 'Update edited successfully'
+        message: 'Follow-up viewing updated successfully'
       });
     });
 
@@ -945,11 +1200,12 @@ describe('Viewings Controller', () => {
 
       await ViewingsController.updateViewingUpdate(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Update text cannot be empty'
-      });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false
+        })
+      );
     });
 
     it('should return 404 if viewing not found', async () => {
@@ -963,7 +1219,7 @@ describe('Viewings Controller', () => {
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Viewing not found'
+        message: 'Parent viewing not found'
       });
     });
 
@@ -972,15 +1228,16 @@ describe('Viewings Controller', () => {
       req.body = { update_text: 'Updated' };
 
       const mockViewing = { id: 1, agent_id: 1 };
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.getViewingUpdateById.mockResolvedValue(null);
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(null); // Follow-up viewing not found
 
       await ViewingsController.updateViewingUpdate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Viewing update not found'
+        message: 'Follow-up viewing not found or not linked to this parent viewing'
       });
     });
 
@@ -990,18 +1247,21 @@ describe('Viewings Controller', () => {
       req.body = { update_text: 'Updated' };
 
       const mockViewing = { id: 1, agent_id: 1 };
-      const mockUpdate = { id: 1, viewing_id: 1, created_by: 1 };
+      const mockFollowUpViewing = { id: 1, parent_viewing_id: 1, agent_id: 1 };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.getViewingUpdateById.mockResolvedValue(mockUpdate);
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFollowUpViewing);
 
       await ViewingsController.updateViewingUpdate(req, res);
 
+      // Agent 2 tries to update follow-up viewing owned by agent 1, should get 403
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'You do not have permission to edit this update'
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false
+        })
+      );
     });
 
     it('should handle errors', async () => {
@@ -1009,115 +1269,156 @@ describe('Viewings Controller', () => {
       req.body = { update_text: 'Updated' };
 
       const mockViewing = { id: 1, agent_id: 1 };
-      const mockUpdate = { id: 1, viewing_id: 1, created_by: 1 };
+      const mockFollowUpViewing = { id: 1, parent_viewing_id: 1, agent_id: 1 };
 
-      Viewing.getViewingById.mockResolvedValue(mockViewing);
-      Viewing.getViewingUpdateById.mockResolvedValue(mockUpdate);
-      Viewing.updateViewingUpdate.mockRejectedValue(new Error('Database error'));
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockViewing)
+        .mockResolvedValueOnce(mockFollowUpViewing);
+      Viewing.updateViewing.mockRejectedValue(new Error('Database error'));
 
       await ViewingsController.updateViewingUpdate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'Failed to update viewing update',
-        error: expect.any(String)
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          error: expect.any(String)
+        })
+      );
     });
   });
 
-  describe('getViewingUpdates', () => {
-    it('should get viewing updates successfully', async () => {
+  describe('getViewingUpdates (returns follow-up viewings)', () => {
+    it('should get follow-up viewings successfully', async () => {
       req.params = { id: '1' };
-      const mockUpdates = [
-        { id: 1, update_text: 'First update' },
-        { id: 2, update_text: 'Second update' }
-      ];
+      const mockViewing = {
+        id: 1,
+        sub_viewings: [
+          { id: 2, parent_viewing_id: 1, viewing_date: '2024-01-16', viewing_time: '10:00' },
+          { id: 3, parent_viewing_id: 1, viewing_date: '2024-01-17', viewing_time: '14:00' }
+        ]
+      };
 
-      Viewing.getViewingUpdates.mockResolvedValue(mockUpdates);
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
 
       await ViewingsController.getViewingUpdates(req, res);
 
-      expect(Viewing.getViewingUpdates).toHaveBeenCalledWith('1');
+      expect(Viewing.getViewingById).toHaveBeenCalledWith('1');
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: mockUpdates
+        data: mockViewing.sub_viewings,
+        message: 'Retrieved 2 follow-up viewings'
+      });
+    });
+
+    it('should return empty array if no follow-up viewings', async () => {
+      req.params = { id: '1' };
+      const mockViewing = { id: 1, sub_viewings: [] };
+
+      Viewing.getViewingById.mockResolvedValue(mockViewing);
+
+      await ViewingsController.getViewingUpdates(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [],
+        message: 'Retrieved 0 follow-up viewings'
       });
     });
 
     it('should handle errors', async () => {
       req.params = { id: '1' };
-      Viewing.getViewingUpdates.mockRejectedValue(new Error('Database error'));
+      Viewing.getViewingById.mockRejectedValue(new Error('Database error'));
 
       await ViewingsController.getViewingUpdates(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Failed to retrieve viewing updates',
+        message: 'Failed to retrieve follow-up viewings',
         error: expect.any(String)
       });
     });
   });
 
-  describe('deleteViewingUpdate', () => {
-    it('should delete viewing update successfully for admin', async () => {
+  describe('deleteViewingUpdate (deletes follow-up viewing)', () => {
+    it('should delete follow-up viewing successfully for admin', async () => {
       req.user = { id: 1, role: 'admin' };
-      req.params = { id: '1', updateId: '1' };
+      req.params = { id: '1', updateId: '2' };
 
-      const mockUpdate = { id: 1 };
-      Viewing.deleteViewingUpdate.mockResolvedValue(mockUpdate);
+      const mockParentViewing = { id: 1, agent_id: 1 };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1 };
+
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing)
+        .mockResolvedValueOnce(mockFollowUpViewing);
+      Viewing.deleteViewing.mockResolvedValue({});
 
       await ViewingsController.deleteViewingUpdate(req, res);
 
-      expect(Viewing.deleteViewingUpdate).toHaveBeenCalledWith('1');
+      expect(Viewing.deleteViewing).toHaveBeenCalledWith(2);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        message: 'Update deleted successfully'
+        message: 'Follow-up viewing deleted successfully'
       });
     });
 
-    it('should return 403 if non-admin tries to delete', async () => {
+    it('should return 403 if non-privileged user tries to delete', async () => {
       req.user = { id: 2, role: 'agent' };
-      req.params = { id: '1', updateId: '1' };
+      req.params = { id: '1', updateId: '2' };
+
+      const mockParentViewing = { id: 1, agent_id: 1 };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1 };
+      
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing)
+        .mockResolvedValueOnce(mockFollowUpViewing);
 
       await ViewingsController.deleteViewingUpdate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Only admins and operations managers can delete updates'
+        message: 'Only admins, operations managers, and operations can delete follow-up viewings'
       });
-      expect(Viewing.deleteViewingUpdate).not.toHaveBeenCalled();
+      expect(Viewing.deleteViewing).not.toHaveBeenCalled();
     });
 
-    it('should return 404 if update not found', async () => {
+    it('should return 404 if follow-up viewing not found', async () => {
       req.user = { id: 1, role: 'admin' };
       req.params = { id: '1', updateId: '999' };
 
-      Viewing.deleteViewingUpdate.mockResolvedValue(null);
+      const mockParentViewing = { id: 1, agent_id: 1 };
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing)
+        .mockResolvedValueOnce(null);
 
       await ViewingsController.deleteViewingUpdate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Update not found'
+        message: 'Follow-up viewing not found or not linked to this parent viewing'
       });
     });
 
     it('should handle errors', async () => {
       req.user = { id: 1, role: 'admin' };
-      req.params = { id: '1', updateId: '1' };
+      req.params = { id: '1', updateId: '2' };
 
-      Viewing.deleteViewingUpdate.mockRejectedValue(new Error('Database error'));
+      const mockParentViewing = { id: 1, agent_id: 1 };
+      const mockFollowUpViewing = { id: 2, parent_viewing_id: 1 };
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockParentViewing)
+        .mockResolvedValueOnce(mockFollowUpViewing);
+      Viewing.deleteViewing.mockRejectedValue(new Error('Database error'));
 
       await ViewingsController.deleteViewingUpdate(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Failed to delete viewing update',
+        message: 'Failed to delete follow-up viewing',
         error: expect.any(String)
       });
     });

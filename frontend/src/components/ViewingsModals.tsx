@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Calendar, Clock, User, Building2, Phone, Plus, ChevronDown, ChevronUp, MessageSquare, Edit3, Star } from 'lucide-react'
-import { Viewing, CreateViewingFormData, EditViewingFormData, VIEWING_STATUSES, ViewingUpdate } from '@/types/viewing'
+import { X, Calendar, Clock, User, Building2, Phone, Plus, ChevronDown, ChevronUp, MessageSquare, Edit3, Star, ArrowRight } from 'lucide-react'
+import { Viewing, CreateViewingFormData, EditViewingFormData, VIEWING_STATUSES } from '@/types/viewing'
 import PropertySelectorForViewings from './PropertySelectorForViewings'
 import LeadSelectorForViewings from './LeadSelectorForViewings'
 import { AgentSelector } from './AgentSelector'
@@ -43,89 +43,18 @@ interface ViewingsModalsProps {
   preSelectedPropertyId?: number
 }
 
+
 export function ViewingsModals(props: ViewingsModalsProps) {
   const { user, token } = useAuth()
   const { canManageViewings } = usePermissions()
   const { showSuccess, showError } = useToast()
 
-  const createDefaultUpdateState = () => ({
-    title: '',
-    description: '',
-    date: new Date().toISOString().split('T')[0]
+  const createDefaultFollowUpState = () => ({
+    viewing_date: '',
+    viewing_time: '',
+    status: 'Scheduled',
+    notes: ''
   })
-
-  const parseUpdateContent = (text: string) => {
-    const normalizedText = text || ''
-    const segments = normalizedText.split('\n\n')
-
-    if (segments.length >= 2) {
-      const [title, ...rest] = segments
-      return {
-        title: title.trim(),
-        description: rest.join('\n\n').trim()
-      }
-    }
-
-    return {
-      title: '',
-      description: normalizedText.trim()
-    }
-  }
-
-  const getUpdateTimestamp = (update: ViewingUpdate) => {
-    if (update.created_at) {
-      const createdAt = new Date(update.created_at)
-      if (!Number.isNaN(createdAt.getTime())) {
-        return createdAt.getTime()
-      }
-    }
-
-    if (update.update_date) {
-      const updateDate = new Date(update.update_date)
-      if (!Number.isNaN(updateDate.getTime())) {
-        return updateDate.getTime()
-      }
-    }
-
-    return 0
-  }
-
-  const getUpdateDisplayDate = (update: ViewingUpdate) => {
-    if (update.created_at) {
-      const createdAt = new Date(update.created_at)
-      if (!Number.isNaN(createdAt.getTime())) {
-        return createdAt
-      }
-    }
-
-    if (update.update_date) {
-      const updateDate = new Date(update.update_date)
-      if (!Number.isNaN(updateDate.getTime())) {
-        return updateDate
-      }
-    }
-
-    return new Date()
-  }
-
-  const getFormattedUpdateContent = (text: string) => {
-    const parsed = parseUpdateContent(text)
-    const description = parsed.description
-    let title = parsed.title
-
-    if (!title) {
-      if (description.length > 0) {
-        title = description.length > 50 ? `${description.substring(0, 50)}...` : description
-      } else {
-        title = 'Update'
-      }
-    }
-
-    return {
-      title,
-      description
-    }
-  }
 
   // Add Modal Component
   const AddViewingModal = () => {
@@ -137,9 +66,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       viewing_time: '',
       status: 'Scheduled',
       is_serious: false,
-      notes: '',
-      initial_update_title: '',
-      initial_update_description: ''
+      notes: ''
     })
     const [properties, setProperties] = useState<any[]>([])
     
@@ -202,6 +129,12 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [saving, setSaving] = useState(false)
+    const [includeSubViewing, setIncludeSubViewing] = useState(false)
+    const [subViewingData, setSubViewingData] = useState({
+      viewing_date: '',
+      viewing_time: '',
+      status: 'Scheduled'
+    })
     
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault()
@@ -234,7 +167,32 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       setSaving(true)
       try {
-        await props.onSaveAdd(finalFormData)
+        // Create the main viewing
+        const result = await props.onSaveAdd(finalFormData)
+        
+        // If sub-viewing is included, create it with parent_viewing_id
+        if (includeSubViewing && subViewingData.viewing_date && subViewingData.viewing_time) {
+          try {
+            const parentViewingId = result?.id || (result as any)?.data?.id
+            if (!parentViewingId) {
+              showError('Failed to get parent viewing ID')
+              return
+            }
+            
+            const subViewingFormData: CreateViewingFormData = {
+              ...finalFormData,
+              parent_viewing_id: parentViewingId,
+              viewing_date: subViewingData.viewing_date,
+              viewing_time: subViewingData.viewing_time,
+              status: subViewingData.status,
+            }
+            await props.onSaveAdd(subViewingFormData)
+          } catch (subError) {
+            console.error('Error creating sub-viewing:', subError)
+            showError('Main viewing created but sub-viewing failed: ' + (subError instanceof Error ? subError.message : 'Unknown error'))
+          }
+        }
+        
         props.setShowAddModal(false)
         // Reset form - ensure agents always have their own ID
         setFormData({
@@ -245,9 +203,13 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           viewing_time: '',
           status: 'Scheduled',
           is_serious: false,
-          notes: '',
-          initial_update_title: '',
-          initial_update_description: ''
+          notes: ''
+        })
+        setIncludeSubViewing(false)
+        setSubViewingData({
+          viewing_date: '',
+          viewing_time: '',
+          status: 'Scheduled'
         })
         setErrors({})
       } catch (error) {
@@ -470,41 +432,75 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               />
             </div>
 
-            {/* Divider between viewing details and updates */}
-            <div className="border-t border-gray-200 pt-4 mt-2">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                Follow-up & initial update
-              </p>
-
-              {/* Initial Update */}
-              <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Initial Update (Optional)
-              </label>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Update Title</label>
+            {/* Sub-Viewing (Follow-up) Section */}
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Follow-up Viewing (Optional)
+                </p>
+                <label className="flex items-center gap-2 cursor-pointer">
                   <input
-                    type="text"
-                    value={formData.initial_update_title || ''}
-                    onChange={(e) => setFormData({ ...formData, initial_update_title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Brief title for this update..."
+                    type="checkbox"
+                    checked={includeSubViewing}
+                    onChange={(e) => setIncludeSubViewing(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Update Description</label>
-                  <textarea
-                    value={formData.initial_update_description || ''}
-                    onChange={(e) => setFormData({ ...formData, initial_update_description: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Describe the initial status or any important details..."
-                  />
-                </div>
+                  <span className="text-sm text-gray-700">Add follow-up viewing</span>
+                </label>
               </div>
+              
+              {includeSubViewing && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <p className="text-xs text-blue-800 mb-2">
+                    This will create another viewing with the same client and property, but with its own date.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Calendar className="h-4 w-4 inline mr-1" />
+                        Follow-up Date <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={subViewingData.viewing_date}
+                        onChange={(e) => setSubViewingData({ ...subViewingData, viewing_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required={includeSubViewing}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Clock className="h-4 w-4 inline mr-1" />
+                        Follow-up Time <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="time"
+                        value={subViewingData.viewing_time}
+                        onChange={(e) => setSubViewingData({ ...subViewingData, viewing_time: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required={includeSubViewing}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Follow-up Status</label>
+                    <select
+                      value={subViewingData.status}
+                      onChange={(e) => setSubViewingData({ ...subViewingData, status: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {VIEWING_STATUSES.map(status => (
+                        <option key={status.value} value={status.value}>{status.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
-            </div>
+
             
             {/* Buttons */}
             <div className="flex justify-end space-x-3 pt-4 border-t border-gray-200">
@@ -565,12 +561,14 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     })
     
     const [saving, setSaving] = useState(false)
-    const [newUpdate, setNewUpdate] = useState(() => createDefaultUpdateState())
-    const [addingUpdate, setAddingUpdate] = useState(false)
-    const [savingUpdate, setSavingUpdate] = useState(false)
-    const [editingExistingUpdateId, setEditingExistingUpdateId] = useState<number | null>(null)
-    const [editingExistingUpdate, setEditingExistingUpdate] = useState(() => createDefaultUpdateState())
-    const [savingExistingUpdate, setSavingExistingUpdate] = useState(false)
+    const [addingFollowUp, setAddingFollowUp] = useState(false)
+    const [followUpData, setFollowUpData] = useState({
+      viewing_date: '',
+      viewing_time: '',
+      status: 'Scheduled',
+      notes: ''
+    })
+    const [savingFollowUp, setSavingFollowUp] = useState(false)
     
     // Update form data when editingViewing changes
     useEffect(() => {
@@ -590,110 +588,60 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           is_serious: props.editingViewing.is_serious ?? false,
           notes: props.editingViewing.notes
         })
-        setAddingUpdate(false)
-        setNewUpdate(createDefaultUpdateState())
-        setEditingExistingUpdateId(null)
-        setEditingExistingUpdate(createDefaultUpdateState())
+        setAddingFollowUp(false)
+        setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
       }
     }, [props.editingViewing, user])
     
-    const handleAddUpdate = async () => {
-      if (!props.editingViewing) return
-
-      if (!newUpdate.title.trim() || !newUpdate.description.trim()) {
-        showError('Update title and description are required')
-        return
-      }
-      
-      setSavingUpdate(true)
-      try {
-        await viewingsApi.addUpdate(props.editingViewing.id, {
-          update_text: `${newUpdate.title}\n\n${newUpdate.description}`,
-          update_date: newUpdate.date
-        }, token || undefined)
-        
-        showSuccess('Update added successfully')
-
-        await props.onRefreshViewing(props.editingViewing.id)
-
-        // Reset form
-        setNewUpdate(createDefaultUpdateState())
-        setAddingUpdate(false)
-      } catch (error) {
-        console.error('Error adding update:', error)
-        showError(error instanceof Error ? error.message : 'Failed to add update')
-      } finally {
-        setSavingUpdate(false)
-      }
-    }
-
-    const canEditUpdate = (update: ViewingUpdate) => {
-      if (!user) return false
-      return canManageViewings || update.created_by === user.id
-    }
-    
-    // Check if user can add updates to this viewing
-    const canAddUpdate = (): boolean => {
+    // Check if user can add follow-up viewings to this viewing
+    const canAddFollowUp = (): boolean => {
       if (!props.editingViewing || !user) return false
       
-      // Admin, operations, operations manager, agent manager: can add updates to all viewings
+      // Admin, operations, operations manager, agent manager: can add follow-up viewings to all viewings
       if (canManageViewings) return true
       
-      // Agents: can add updates to their own viewings
+      // Agents: can add follow-up viewings to their own viewings
       if (isAgentRole(user.role)) {
         return props.editingViewing.agent_id === user.id
       }
       
-      // Team leaders: can add updates to their own viewings and their team's viewings
+      // Team leaders: can add follow-up viewings to their own viewings and their team's viewings
       if (isTeamLeaderRole(user.role)) {
-        // The backend will validate this, but we can show the button
-        // Team leaders can add updates to viewings assigned to them or their team
         return true // Backend will enforce the actual permission
       }
       
       return false
     }
 
-    const startEditingExistingUpdate = (update: ViewingUpdate) => {
-      const parsed = parseUpdateContent(update.update_text || '')
-      setEditingExistingUpdateId(update.id)
-      setEditingExistingUpdate({
-        title: parsed.title,
-        description: parsed.description,
-        date: formatDateForInput(update.update_date || '') || createDefaultUpdateState().date
-      })
-      setAddingUpdate(false)
-    }
-
-    const resetEditingExistingUpdate = () => {
-      setEditingExistingUpdateId(null)
-      setEditingExistingUpdate(createDefaultUpdateState())
-    }
-
-    const handleSaveExistingUpdate = async (updateId: number) => {
+    const handleAddFollowUp = async () => {
       if (!props.editingViewing) return
 
-      if (!editingExistingUpdate.title.trim() || !editingExistingUpdate.description.trim()) {
-        showError('Update title and description are required')
+      if (!followUpData.viewing_date || !followUpData.viewing_time) {
+        showError('Follow-up viewing date and time are required')
         return
       }
 
-      setSavingExistingUpdate(true)
+      setSavingFollowUp(true)
       try {
-        await viewingsApi.updateUpdate(props.editingViewing.id, updateId, {
-          update_text: `${editingExistingUpdate.title.trim()}\n\n${editingExistingUpdate.description.trim()}`,
-          update_date: editingExistingUpdate.date
+        await viewingsApi.addUpdate(props.editingViewing.id, {
+          viewing_date: followUpData.viewing_date,
+          viewing_time: followUpData.viewing_time,
+          status: followUpData.status,
+          notes: followUpData.notes || ''
         }, token || undefined)
-
-        showSuccess('Update edited successfully')
+        
+        showSuccess('Follow-up viewing created successfully')
 
         await props.onRefreshViewing(props.editingViewing.id)
-        resetEditingExistingUpdate()
+
+        // Reset form
+        setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
+        setAddingFollowUp(false)
       } catch (error) {
-        console.error('Error updating viewing update:', error)
-        showError(error instanceof Error ? error.message : 'Failed to update viewing update')
+        console.error('Error adding follow-up viewing:', error)
+        showError(error instanceof Error ? error.message : 'Failed to add follow-up viewing')
       } finally {
-        setSavingExistingUpdate(false)
+        setSavingFollowUp(false)
       }
     }
 
@@ -877,206 +825,183 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               />
             </div>
             
-            {/* Add Update */}
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-medium text-gray-700">
-                  Updates
+            {/* Follow-up Viewings List (if this viewing has follow-ups) */}
+            {props.editingViewing.sub_viewings && props.editingViewing.sub_viewings.length > 0 && (
+              <div className="mt-6 border-t border-gray-200 pt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center">
+                  <ArrowRight className="h-4 w-4 mr-2 text-blue-600" />
+                  Follow-up Viewings ({props.editingViewing.sub_viewings.length})
                 </h4>
-                {canAddUpdate() && (
-                  <button
-                    type="button"
-                    onClick={() => setAddingUpdate(!addingUpdate)}
-                    className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Add Update
-                  </button>
-                )}
-              </div>
-
-              {/* Add Update Form */}
-              {addingUpdate && (
-                <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex flex-col gap-2">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Update Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newUpdate.date}
-                        onChange={(e) => setNewUpdate({ ...newUpdate, date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Update Title <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={newUpdate.title}
-                        onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                        placeholder="Brief title for this update..."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        value={newUpdate.description}
-                        onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                        placeholder="Describe what happened or any changes..."
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleAddUpdate}
-                        disabled={!newUpdate.title.trim() || !newUpdate.description.trim() || savingUpdate}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {savingUpdate ? 'Adding...' : 'Add'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setAddingUpdate(false)
-                          setNewUpdate(createDefaultUpdateState())
-                        }}
-                        className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {props.editingViewing.updates && props.editingViewing.updates.length > 0 ? (
                 <div className="space-y-2">
-                  {[...(props.editingViewing.updates || [])]
-                    .sort((a, b) => getUpdateTimestamp(b) - getUpdateTimestamp(a))
-                    .map((update: ViewingUpdate, index) => {
-                      const updateDate = getUpdateDisplayDate(update)
-                      const isRecent = index === 0
-                      const formatted = getFormattedUpdateContent(update.update_text)
-                      const isEditing = editingExistingUpdateId === update.id
-
-                      return (
-                        <div
-                          key={update.id}
-                          className={`p-3 rounded-lg border ${
-                            isRecent
-                              ? 'border-blue-200 bg-blue-50'
-                              : 'border-gray-200 bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1">
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Update Date
-                                    </label>
-                                    <input
-                                      type="date"
-                                      value={editingExistingUpdate.date}
-                                      onChange={(e) => setEditingExistingUpdate({ ...editingExistingUpdate, date: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Update Title <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={editingExistingUpdate.title}
-                                      onChange={(e) => setEditingExistingUpdate({ ...editingExistingUpdate, title: e.target.value })}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                                      placeholder="Brief title for this update..."
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                                      Description <span className="text-red-500">*</span>
-                                    </label>
-                                    <textarea
-                                      value={editingExistingUpdate.description}
-                                      onChange={(e) => setEditingExistingUpdate({ ...editingExistingUpdate, description: e.target.value })}
-                                      rows={3}
-                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                                      placeholder="Describe what happened or any changes..."
-                                    />
-                                  </div>
-                                  <div className="flex gap-2 justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleSaveExistingUpdate(update.id)}
-                                      disabled={!editingExistingUpdate.title.trim() || !editingExistingUpdate.description.trim() || savingExistingUpdate}
-                                      className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                    >
-                                      {savingExistingUpdate ? 'Saving...' : 'Save'}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={resetEditingExistingUpdate}
-                                      className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-medium text-gray-900">
-                                      {formatted.title}
-                                    </span>
-                                    {isRecent && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                        Latest
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="mt-1 text-sm text-gray-600">
-                                    {updateDate.toLocaleDateString()} at{' '}
-                                    {updateDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </div>
-                                  {formatted.description && (
-                                    <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
-                                      {formatted.description}
-                                    </div>
-                                  )}
-                                  <div className="mt-1 text-xs text-gray-500">
-                                    by {update.created_by_name}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                            {canEditUpdate(update) && !isEditing && (
-                              <button
-                                type="button"
-                                onClick={() => startEditingExistingUpdate(update)}
-                                className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
-                                title="Edit update"
+                  {props.editingViewing.sub_viewings.map((subViewing) => {
+                    const subStatusInfo = VIEWING_STATUSES.find(s => s.value === subViewing.status)
+                    return (
+                      <div key={subViewing.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-gray-600" />
+                              <span className="font-medium text-gray-900 text-sm">
+                                {new Date(subViewing.viewing_date).toLocaleDateString()} at {subViewing.viewing_time}
+                              </span>
+                              <span
+                                className="px-2 py-0.5 rounded-full text-xs font-medium"
+                                style={{
+                                  backgroundColor: subStatusInfo?.color ? subStatusInfo.color + '20' : '#E5E7EB',
+                                  color: subStatusInfo?.color || '#6B7280'
+                                }}
                               >
-                                <Edit3 className="w-4 h-4" />
-                              </button>
+                                {subStatusInfo?.label || subViewing.status}
+                              </span>
+                            </div>
+                            {subViewing.notes && (
+                              <p className="text-xs text-gray-600 mt-1">{subViewing.notes}</p>
                             )}
                           </div>
                         </div>
-                      )
-                    })}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Follow-up Viewings Display */}
+            <div className="mt-6 border-t border-gray-200 pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">
+                Follow-up Viewings
+              </h4>
+              
+              {props.editingViewing.sub_viewings && props.editingViewing.sub_viewings.length > 0 ? (
+                <div className="space-y-2">
+                  {props.editingViewing.sub_viewings.map((subViewing: Viewing) => {
+                    const statusConfig = VIEWING_STATUSES.find(s => s.value === subViewing.status) || VIEWING_STATUSES[0]
+                    const viewingDate = new Date(subViewing.viewing_date)
+                    
+                    return (
+                      <div
+                        key={subViewing.id}
+                        className="p-3 rounded-lg border border-gray-200 bg-gray-50"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white"
+                                style={{ backgroundColor: statusConfig.color }}
+                              >
+                                {statusConfig.label}
+                              </span>
+                              <span className="text-sm font-medium text-gray-900">
+                                {viewingDate.toLocaleDateString()} at {subViewing.viewing_time}
+                              </span>
+                            </div>
+                            {subViewing.notes && (
+                              <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                                {subViewing.notes}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               ) : (
                 <div className="text-sm text-gray-500 italic">
-                  No updates available
+                  No follow-up viewings available
+                </div>
+              )}
+
+              {/* Add Follow-up Viewing Button */}
+              {canAddFollowUp() && !addingFollowUp && (
+                <button
+                  type="button"
+                  onClick={() => setAddingFollowUp(true)}
+                  className="w-full mt-3 py-2 px-3 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50/50 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Follow-up Viewing</span>
+                </button>
+              )}
+
+              {/* Add Follow-up Viewing Form */}
+              {addingFollowUp && (
+                <div className="mt-3 p-3 bg-gray-50 rounded-lg space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Date *
+                      </label>
+                      <input
+                        type="date"
+                        value={followUpData.viewing_date}
+                        onChange={(e) => setFollowUpData({ ...followUpData, viewing_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        Time *
+                      </label>
+                      <input
+                        type="time"
+                        value={followUpData.viewing_time}
+                        onChange={(e) => setFollowUpData({ ...followUpData, viewing_time: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={followUpData.status}
+                      onChange={(e) => setFollowUpData({ ...followUpData, status: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {VIEWING_STATUSES.map((status) => (
+                        <option key={status.value} value={status.value}>
+                          {status.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Notes
+                    </label>
+                    <textarea
+                      value={followUpData.notes}
+                      onChange={(e) => setFollowUpData({ ...followUpData, notes: e.target.value })}
+                      placeholder="Enter notes for this follow-up viewing..."
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddFollowUp}
+                      disabled={!followUpData.viewing_date || !followUpData.viewing_time || savingFollowUp}
+                      className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {savingFollowUp ? 'Adding...' : 'Add Follow-up Viewing'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingFollowUp(false)
+                        setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
+                      }}
+                      className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1106,113 +1031,66 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     )
   }
 
-  // View Modal Component with Updates
+  // View Modal Component with Follow-up Viewings
   const ViewViewingModal = () => {
-    const [newUpdate, setNewUpdate] = useState(() => createDefaultUpdateState())
-    const [addingUpdate, setAddingUpdate] = useState(false)
-    const [savingUpdate, setSavingUpdate] = useState(false)
-    const [showUpdates, setShowUpdates] = useState(true)
-    const [editingUpdateId, setEditingUpdateId] = useState<number | null>(null)
-    const [editingUpdate, setEditingUpdate] = useState(() => createDefaultUpdateState())
-    const [savingEditedUpdate, setSavingEditedUpdate] = useState(false)
+    const [addingFollowUp, setAddingFollowUp] = useState(false)
+    const [followUpData, setFollowUpData] = useState({
+      viewing_date: '',
+      viewing_time: '',
+      status: 'Scheduled',
+      notes: ''
+    })
+    const [savingFollowUp, setSavingFollowUp] = useState(false)
+    const [showFollowUps, setShowFollowUps] = useState(true)
 
-    const resetNewUpdateState = () => setNewUpdate(createDefaultUpdateState())
-    const resetEditingUpdateState = () => {
-      setEditingUpdateId(null)
-      setEditingUpdate(createDefaultUpdateState())
-    }
-
-    const canEditUpdate = (update: ViewingUpdate) => {
-      if (!user) return false
-      return canManageViewings || update.created_by === user.id
-    }
-    
-    // Check if user can add updates to this viewing
-    const canAddUpdate = (): boolean => {
+    // Check if user can add follow-up viewings to this viewing
+    const canAddFollowUp = (): boolean => {
       if (!props.viewingViewing || !user) return false
       
-      // Admin, operations, operations manager, agent manager: can add updates to all viewings
+      // Admin, operations, operations manager, agent manager: can add follow-up viewings to all viewings
       if (canManageViewings) return true
       
-      // Agents: can add updates to their own viewings
+      // Agents: can add follow-up viewings to their own viewings
       if (isAgentRole(user.role)) {
         return props.viewingViewing.agent_id === user.id
       }
       
-      // Team leaders: can add updates to their own viewings and their team's viewings
+      // Team leaders: can add follow-up viewings to their own viewings and their team's viewings
       if (isTeamLeaderRole(user.role)) {
-        // The backend will validate this, but we can show the button
-        // Team leaders can add updates to viewings assigned to them or their team
         return true // Backend will enforce the actual permission
       }
       
       return false
     }
 
-    const handleAddUpdate = async () => {
-      if (!props.viewingViewing || !newUpdate.title.trim() || !newUpdate.description.trim()) {
-        showError('Update title and description are required')
+    const handleAddFollowUp = async () => {
+      if (!props.viewingViewing || !followUpData.viewing_date || !followUpData.viewing_time) {
+        showError('Follow-up viewing date and time are required')
         return
       }
       
-      setSavingUpdate(true)
+      setSavingFollowUp(true)
       try {
         await viewingsApi.addUpdate(props.viewingViewing.id, {
-          update_text: `${newUpdate.title}\n\n${newUpdate.description}`,
-          update_date: newUpdate.date
+          viewing_date: followUpData.viewing_date,
+          viewing_time: followUpData.viewing_time,
+          status: followUpData.status,
+          notes: followUpData.notes || ''
         }, token || undefined)
 
-        showSuccess('Update added successfully')
+        showSuccess('Follow-up viewing added successfully')
         
         // Refresh the viewing
         await props.onRefreshViewing(props.viewingViewing.id)
         
         // Reset form
-        resetNewUpdateState()
-        setAddingUpdate(false)
+        setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
+        setAddingFollowUp(false)
       } catch (error) {
-        console.error('Error adding update:', error)
-        showError(error instanceof Error ? error.message : 'Failed to add update')
+        console.error('Error adding follow-up viewing:', error)
+        showError(error instanceof Error ? error.message : 'Failed to add follow-up viewing')
       } finally {
-        setSavingUpdate(false)
-      }
-    }
-
-    const startEditingUpdate = (update: ViewingUpdate) => {
-      const parsed = parseUpdateContent(update.update_text || '')
-      setEditingUpdateId(update.id)
-      setEditingUpdate({
-        title: parsed.title,
-        description: parsed.description,
-        date: formatDateForInput(update.update_date || '') || createDefaultUpdateState().date
-      })
-      setAddingUpdate(false)
-    }
-
-    const handleUpdateViewingUpdate = async (updateId: number) => {
-      if (!props.viewingViewing) return
-
-      if (!editingUpdate.title.trim() || !editingUpdate.description.trim()) {
-        showError('Update title and description are required')
-        return
-      }
-
-      setSavingEditedUpdate(true)
-      try {
-        await viewingsApi.updateUpdate(props.viewingViewing.id, updateId, {
-          update_text: `${editingUpdate.title.trim()}\n\n${editingUpdate.description.trim()}`,
-          update_date: editingUpdate.date
-        }, token || undefined)
-
-        showSuccess('Update edited successfully')
-
-        await props.onRefreshViewing(props.viewingViewing.id)
-        resetEditingUpdateState()
-      } catch (error) {
-        console.error('Error updating viewing update:', error)
-        showError(error instanceof Error ? error.message : 'Failed to update viewing update')
-      } finally {
-        setSavingEditedUpdate(false)
+        setSavingFollowUp(false)
       }
     }
 
@@ -1328,93 +1206,166 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 </div>
               </div>
             )}
+
+            {/* Sub-viewing indicator */}
+            {props.viewingViewing.parent_viewing_id && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2">
+                  <ArrowRight className="h-5 w-5 text-blue-600" />
+                  <div>
+                    <p className="font-semibold text-blue-900">Follow-up Viewing</p>
+                    <p className="text-sm text-blue-700">This is a follow-up viewing linked to a parent viewing.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Follow-up Viewings Section (if this is a parent viewing) */}
+            {!props.viewingViewing.parent_viewing_id && props.viewingViewing.sub_viewings && props.viewingViewing.sub_viewings.length > 0 && (
+              <div className="border-t border-gray-200 pt-4">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center">
+                  <ArrowRight className="h-5 w-5 mr-2 text-blue-600" />
+                  Follow-up Viewings ({props.viewingViewing.sub_viewings.length})
+                </h3>
+                <div className="space-y-3">
+                  {props.viewingViewing.sub_viewings.map((subViewing) => {
+                    const subStatusInfo = VIEWING_STATUSES.find(s => s.value === subViewing.status)
+                    return (
+                      <div key={subViewing.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Calendar className="h-4 w-4 text-gray-600" />
+                              <span className="font-medium text-gray-900">
+                                {new Date(subViewing.viewing_date).toLocaleDateString()} at {subViewing.viewing_time}
+                              </span>
+                              <span
+                                className="px-2 py-1 rounded-full text-xs font-medium"
+                                style={{
+                                  backgroundColor: subStatusInfo?.color ? subStatusInfo.color + '20' : '#E5E7EB',
+                                  color: subStatusInfo?.color || '#6B7280'
+                                }}
+                              >
+                                {subStatusInfo?.label || subViewing.status}
+                              </span>
+                            </div>
+                            {subViewing.notes && (
+                              <p className="text-sm text-gray-600 mt-2">{subViewing.notes}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
             
-            {/* Updates Section */}
+            {/* Follow-up Viewings Section */}
             <div className="mt-6">
               <div className="flex items-center justify-between mb-3">
                 <button
                   type="button"
-                  onClick={() => setShowUpdates(!showUpdates)}
+                  onClick={() => setShowFollowUps(!showFollowUps)}
                   className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
                 >
-                  <MessageSquare className="h-4 w-4" />
-                  Updates ({props.viewingViewing.updates?.length || 0})
-                  {showUpdates ? (
+                  <Calendar className="h-4 w-4" />
+                  Follow-up Viewings ({props.viewingViewing.sub_viewings?.length || 0})
+                  {showFollowUps ? (
                     <ChevronUp className="h-4 w-4" />
                   ) : (
                     <ChevronDown className="h-4 w-4" />
                   )}
                 </button>
                 <div className="flex items-center gap-2">
-                  {canAddUpdate() && (
+                  {canAddFollowUp() && (
                     <button
                       type="button"
                       onClick={() => {
-                        if (!addingUpdate) {
-                          resetEditingUpdateState()
+                        setAddingFollowUp(!addingFollowUp)
+                        if (addingFollowUp) {
+                          setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
                         }
-                        setAddingUpdate(!addingUpdate)
                       }}
                       className="flex items-center gap-1 px-3 py-1 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                     >
                       <Plus className="w-4 h-4" />
-                      Add Update
+                      Add Follow-up
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Add Update Form */}
-              {addingUpdate && (
+              {/* Add Follow-up Viewing Form */}
+              {addingFollowUp && (
                 <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
-                  <div className="flex flex-col gap-2">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Update Date
-                      </label>
-                      <input
-                        type="date"
-                        value={newUpdate.date}
-                        onChange={(e) => setNewUpdate({ ...newUpdate, date: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                      />
+                  <div className="flex flex-col gap-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Date *
+                        </label>
+                        <input
+                          type="date"
+                          value={followUpData.viewing_date}
+                          onChange={(e) => setFollowUpData({ ...followUpData, viewing_date: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Time *
+                        </label>
+                        <input
+                          type="time"
+                          value={followUpData.viewing_time}
+                          onChange={(e) => setFollowUpData({ ...followUpData, viewing_time: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          required
+                        />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Update Title <span className="text-red-500">*</span>
+                        Status
                       </label>
-                      <input
-                        type="text"
-                        value={newUpdate.title}
-                        onChange={(e) => setNewUpdate({ ...newUpdate, title: e.target.value })}
+                      <select
+                        value={followUpData.status}
+                        onChange={(e) => setFollowUpData({ ...followUpData, status: e.target.value })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                        placeholder="Brief title for this update..."
-                      />
+                      >
+                        {VIEWING_STATUSES.map((status) => (
+                          <option key={status.value} value={status.value}>
+                            {status.label}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Description <span className="text-red-500">*</span>
+                        Notes
                       </label>
                       <textarea
-                        value={newUpdate.description}
-                        onChange={(e) => setNewUpdate({ ...newUpdate, description: e.target.value })}
+                        value={followUpData.notes}
+                        onChange={(e) => setFollowUpData({ ...followUpData, notes: e.target.value })}
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                        placeholder="Describe what happened or any changes..."
+                        placeholder="Enter notes for this follow-up viewing..."
                       />
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={handleAddUpdate}
-                        disabled={!newUpdate.title.trim() || !newUpdate.description.trim() || savingUpdate}
+                        onClick={handleAddFollowUp}
+                        disabled={!followUpData.viewing_date || !followUpData.viewing_time || savingFollowUp}
                         className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
-                        {savingUpdate ? 'Adding...' : 'Add'}
+                        {savingFollowUp ? 'Adding...' : 'Add Follow-up Viewing'}
                       </button>
                       <button
                         onClick={() => {
-                          setAddingUpdate(false)
-                          resetNewUpdateState()
+                          setAddingFollowUp(false)
+                          setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
                         }}
                         className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
                       >
@@ -1425,126 +1376,47 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 </div>
               )}
 
-              {/* Updates List - Expandable */}
-              {showUpdates && (
+              {/* Follow-up Viewings List - Expandable */}
+              {showFollowUps && (
                 <>
-                  {(!props.viewingViewing.updates || props.viewingViewing.updates.length === 0) ? (
+                  {(!props.viewingViewing.sub_viewings || props.viewingViewing.sub_viewings.length === 0) ? (
                     <div className="text-sm text-gray-500 italic">
-                      No updates available
+                      No follow-up viewings available
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {props.viewingViewing.updates
-                        .sort((a, b) => getUpdateTimestamp(b) - getUpdateTimestamp(a))
-                        .map((update: ViewingUpdate, index) => {
-                          const updateDate = getUpdateDisplayDate(update)
-                          const isRecent = index === 0
-                      const formatted = getFormattedUpdateContent(update.update_text)
-                          
-                          return (
-                            <div
-                              key={update.id}
-                              className={`p-3 rounded-lg border ${
-                                isRecent
-                                  ? 'border-blue-200 bg-blue-50'
-                                  : 'border-gray-200 bg-gray-50'
-                              }`}
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex-1">
-                                  {editingUpdateId === update.id ? (
-                                    <div className="space-y-2">
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                          Update Date
-                                        </label>
-                                        <input
-                                          type="date"
-                                          value={editingUpdate.date}
-                                          onChange={(e) => setEditingUpdate({ ...editingUpdate, date: e.target.value })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                          Update Title <span className="text-red-500">*</span>
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={editingUpdate.title}
-                                          onChange={(e) => setEditingUpdate({ ...editingUpdate, title: e.target.value })}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                                          placeholder="Brief title for this update..."
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-gray-600 mb-1">
-                                          Description <span className="text-red-500">*</span>
-                                        </label>
-                                        <textarea
-                                          value={editingUpdate.description}
-                                          onChange={(e) => setEditingUpdate({ ...editingUpdate, description: e.target.value })}
-                                          rows={3}
-                                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                                          placeholder="Describe what happened or any changes..."
-                                        />
-                                      </div>
-                                      <div className="flex gap-2 justify-end">
-                                        <button
-                                          onClick={() => handleUpdateViewingUpdate(update.id)}
-                                          disabled={!editingUpdate.title.trim() || !editingUpdate.description.trim() || savingEditedUpdate}
-                                          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                        >
-                                          {savingEditedUpdate ? 'Saving...' : 'Save'}
-                                        </button>
-                                        <button
-                                          onClick={resetEditingUpdateState}
-                                          className="px-4 py-2 text-gray-600 text-sm rounded-lg hover:bg-gray-100 transition-colors"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <>
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-medium text-gray-900">
-                                          {formatted.title}
-                                        </span>
-                                        {isRecent && (
-                                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                            Latest
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="mt-1 text-sm text-gray-600">
-                                        {updateDate.toLocaleDateString()} at{' '}
-                                        {updateDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                      </div>
-                                      {formatted.description && (
-                                        <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
-                                          {formatted.description}
-                                        </div>
-                                      )}
-                                      <div className="mt-1 text-xs text-gray-500">
-                                        by {update.created_by_name}
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                                {canEditUpdate(update) && editingUpdateId !== update.id && (
-                                  <button
-                                    onClick={() => startEditingUpdate(update)}
-                                    className="p-2 text-gray-500 hover:text-blue-600 transition-colors"
-                                    title="Edit update"
+                      {props.viewingViewing.sub_viewings.map((subViewing: Viewing) => {
+                        const statusConfig = VIEWING_STATUSES.find(s => s.value === subViewing.status) || VIEWING_STATUSES[0]
+                        const viewingDate = new Date(subViewing.viewing_date)
+                        
+                        return (
+                          <div
+                            key={subViewing.id}
+                            className="p-3 rounded-lg border border-gray-200 bg-gray-50"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span
+                                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-white"
+                                    style={{ backgroundColor: statusConfig.color }}
                                   >
-                                    <Edit3 className="w-4 h-4" />
-                                  </button>
+                                    {statusConfig.label}
+                                  </span>
+                                  <span className="text-sm font-medium text-gray-900">
+                                    {viewingDate.toLocaleDateString()} at {subViewing.viewing_time}
+                                  </span>
+                                </div>
+                                {subViewing.notes && (
+                                  <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">
+                                    {subViewing.notes}
+                                  </div>
                                 )}
                               </div>
                             </div>
-                          )
-                        })}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
                 </>

@@ -33,5 +33,16 @@ router.get('/monthly/:id/export/excel', dcsrReportsController.exportDCSRReportTo
 // Export DCSR report to PDF
 router.get('/monthly/:id/export/pdf', dcsrReportsController.exportDCSRReportToPDF);
 
+// Get team-level DCSR breakdown
+router.get('/team-breakdown', dcsrReportsController.getTeamDCSRBreakdown);
+
+// Get all teams DCSR breakdown (includes unassigned)
+router.get('/teams-breakdown', dcsrReportsController.getAllTeamsDCSRBreakdown);
+
+// Get detailed data for a team
+router.get('/team/:teamLeaderId/properties', dcsrReportsController.getTeamProperties);
+router.get('/team/:teamLeaderId/leads', dcsrReportsController.getTeamLeads);
+router.get('/team/:teamLeaderId/viewings', dcsrReportsController.getTeamViewings);
+
 module.exports = router;
 

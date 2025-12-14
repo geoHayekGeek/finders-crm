@@ -498,5 +498,304 @@ describe('DCSR Reports Model', () => {
       expect(result).toBe(false);
     });
   });
+
+  describe('calculateTeamDCSRData', () => {
+    it('should calculate DCSR data for a team', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      // Mock team members query
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }] }) // team members
+        .mockResolvedValueOnce({ rows: [{ count: '5' }] }) // listings
+        .mockResolvedValueOnce({ rows: [{ count: '3' }] }) // leads
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] }) // sales
+        .mockResolvedValueOnce({ rows: [{ count: '1' }] }) // rent
+        .mockResolvedValueOnce({ rows: [{ count: '4' }] }) // viewings
+        .mockResolvedValueOnce({ rows: [{ name: 'Team Leader', user_code: 'TL001' }] }) // team leader info
+        .mockResolvedValueOnce({ rows: [ // team members info
+          { id: 1, name: 'Team Leader', user_code: 'TL001', role: 'team_leader' },
+          { id: 2, name: 'Agent 1', user_code: 'A001', role: 'agent' },
+          { id: 3, name: 'Agent 2', user_code: 'A002', role: 'agent' }
+        ] });
+
+      const result = await dcsrReportsModel.calculateTeamDCSRData(teamLeaderId, startDate, endDate);
+
+      expect(result).toBeDefined();
+      expect(result.team_leader_id).toBe(teamLeaderId);
+      expect(result.team_leader_name).toBe('Team Leader');
+      expect(result.listings_count).toBe(5);
+      expect(result.leads_count).toBe(3);
+      expect(result.sales_count).toBe(2);
+      expect(result.rent_count).toBe(1);
+      expect(result.viewings_count).toBe(4);
+      expect(result.team_members).toHaveLength(3);
+    });
+
+    it('should throw error if team has no members', async () => {
+      const teamLeaderId = 999;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no team members
+
+      await expect(
+        dcsrReportsModel.calculateTeamDCSRData(teamLeaderId, startDate, endDate)
+      ).rejects.toThrow('Team not found or has no members');
+    });
+  });
+
+  describe('getTeamProperties', () => {
+    it('should get properties for a team with filters', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+      const filters = { property_type: 'sale', status_id: 1 };
+
+      // Mock team members query
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] }) // team members
+        .mockResolvedValueOnce({ rows: [ // properties
+          {
+            id: 1,
+            reference_number: 'REF001',
+            property_type: 'sale',
+            location: 'Location 1',
+            status_name: 'Active',
+            status_color: '#00FF00',
+            category_name: 'Category 1',
+            category_code: 'CAT1',
+            agent_name: 'Agent 1',
+            agent_code: 'A001',
+            price: 100000,
+            created_at: '2024-01-15T00:00:00Z'
+          }
+        ] });
+
+      const result = await dcsrReportsModel.getTeamProperties(teamLeaderId, startDate, endDate, filters);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(1);
+      expect(result[0].reference_number).toBe('REF001');
+    });
+
+    it('should return empty array if team has no members', async () => {
+      const teamLeaderId = 999;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no team members
+
+      const result = await dcsrReportsModel.getTeamProperties(teamLeaderId, startDate, endDate);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should apply all property filters correctly', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+      const filters = { 
+        property_type: 'rent', 
+        status_id: 2, 
+        category_id: 3, 
+        agent_id: 5 
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 5 }] }) // team members
+        .mockResolvedValueOnce({ rows: [] }); // properties
+
+      const result = await dcsrReportsModel.getTeamProperties(teamLeaderId, startDate, endDate, filters);
+
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle invalid date range', async () => {
+      const teamLeaderId = 1;
+      const startDate = 'invalid-date';
+      const endDate = '2024-01-31';
+
+      await expect(
+        dcsrReportsModel.getTeamProperties(teamLeaderId, startDate, endDate)
+      ).rejects.toThrow('Invalid date range supplied');
+    });
+  });
+
+  describe('getTeamLeads', () => {
+    it('should get leads for a team with filters', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+      const filters = { status: 'active' };
+
+      // Mock team members query
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] }) // team members
+        .mockResolvedValueOnce({ rows: [ // leads
+          {
+            id: 1,
+            date: '2024-01-15',
+            customer_name: 'Customer 1',
+            phone_number: '1234567890',
+            agent_name: 'Agent 1',
+            agent_code: 'A001',
+            status: 'active',
+            created_at: '2024-01-15T00:00:00Z'
+          }
+        ] });
+
+      const result = await dcsrReportsModel.getTeamLeads(teamLeaderId, startDate, endDate, filters);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(1);
+      expect(result[0].customer_name).toBe('Customer 1');
+    });
+
+    it('should return empty array if team has no members', async () => {
+      const teamLeaderId = 999;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no team members
+
+      const result = await dcsrReportsModel.getTeamLeads(teamLeaderId, startDate, endDate);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should apply all lead filters correctly', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+      const filters = { status: 'closed', agent_id: 5 };
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 5 }] }) // team members
+        .mockResolvedValueOnce({ rows: [] }); // leads
+
+      const result = await dcsrReportsModel.getTeamLeads(teamLeaderId, startDate, endDate, filters);
+
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle invalid date range', async () => {
+      const teamLeaderId = 1;
+      const startDate = 'invalid-date';
+      const endDate = '2024-01-31';
+
+      await expect(
+        dcsrReportsModel.getTeamLeads(teamLeaderId, startDate, endDate)
+      ).rejects.toThrow('Invalid date range supplied');
+    });
+  });
+
+  describe('getTeamViewings', () => {
+    it('should get viewings for a team with filters', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+      const filters = { status: 'Completed' };
+
+      // Mock team members query
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }] }) // team members
+        .mockResolvedValueOnce({ rows: [ // viewings
+          {
+            id: 1,
+            viewing_date: '2024-01-15',
+            viewing_time: '10:00',
+            property_reference: 'REF001',
+            property_location: 'Location 1',
+            lead_name: 'Lead 1',
+            lead_phone: '1234567890',
+            agent_name: 'Agent 1',
+            agent_code: 'A001',
+            status: 'Completed',
+            created_at: '2024-01-15T00:00:00Z'
+          }
+        ] });
+
+      const result = await dcsrReportsModel.getTeamViewings(teamLeaderId, startDate, endDate, filters);
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(1);
+      expect(result[0].property_reference).toBe('REF001');
+      expect(result[0].status).toBe('Completed');
+    });
+
+    it('should return empty array if team has no members', async () => {
+      const teamLeaderId = 999;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no team members
+
+      const result = await dcsrReportsModel.getTeamViewings(teamLeaderId, startDate, endDate);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should apply all viewing filters correctly', async () => {
+      const teamLeaderId = 1;
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+      const filters = { status: 'Scheduled', agent_id: 5 };
+
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 5 }] }) // team members
+        .mockResolvedValueOnce({ rows: [] }); // viewings
+
+      const result = await dcsrReportsModel.getTeamViewings(teamLeaderId, startDate, endDate, filters);
+
+      expect(mockClient.query).toHaveBeenCalledTimes(2);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle invalid date range', async () => {
+      const teamLeaderId = 1;
+      const startDate = 'invalid-date';
+      const endDate = '2024-01-31';
+
+      await expect(
+        dcsrReportsModel.getTeamViewings(teamLeaderId, startDate, endDate)
+      ).rejects.toThrow('Invalid date range supplied');
+    });
+  });
+
+  describe('getAllTeams', () => {
+    it('should get all teams successfully', async () => {
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [
+          { id: 1, name: 'Leader 1', user_code: 'TL1' }
+        ] })
+        .mockResolvedValueOnce({ rows: [
+          { id: 1, name: 'Leader 1', user_code: 'TL1', role: 'team_leader' },
+          { id: 2, name: 'Agent 1', user_code: 'A1', role: 'agent' }
+        ] });
+
+      const result = await dcsrReportsModel.getAllTeams();
+
+      expect(result).toBeDefined();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(1);
+      expect(result[0].team_leader_id).toBe(1);
+      expect(result[0].team_leader_name).toBe('Leader 1');
+    });
+
+    it('should return empty array if no teams exist', async () => {
+      mockClient.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await dcsrReportsModel.getAllTeams();
+
+      expect(result).toEqual([]);
+    });
+  });
 });
 

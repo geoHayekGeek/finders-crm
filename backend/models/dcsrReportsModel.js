@@ -380,8 +380,538 @@ async function deleteDCSRReport(id) {
   return result.rowCount > 0;
 }
 
+/**
+ * Get all team leaders with their assigned agents
+ * @returns {array} Array of team leaders with their team members
+ */
+async function getAllTeams() {
+  const client = await pool.connect();
+  
+  try {
+    // Get all team leaders
+    const teamLeadersResult = await client.query(
+      `SELECT id, name, user_code, role
+       FROM users
+       WHERE role = 'team_leader'
+       ORDER BY name ASC`
+    );
+    
+    const teams = [];
+    
+    for (const leader of teamLeadersResult.rows) {
+      // Get team members (agents assigned to this team leader)
+      const membersResult = await client.query(
+        `SELECT DISTINCT u.id, u.name, u.user_code, u.role
+         FROM users u
+         WHERE u.id = $1 
+         OR u.id IN (
+           SELECT ta.agent_id 
+           FROM team_agents ta 
+           WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
+         )
+         OR (u.assigned_to = $1 AND u.role = 'agent')
+         ORDER BY u.role DESC, u.name ASC`,
+        [leader.id]
+      );
+      
+      teams.push({
+        team_leader_id: leader.id,
+        team_leader_name: leader.name,
+        team_leader_code: leader.user_code,
+        team_members: membersResult.rows
+      });
+    }
+    
+    return teams;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Calculate DCSR data for a specific team (team leader + all assigned agents)
+ * @param {number} teamLeaderId - ID of the team leader
+ * @param {Date|string} startDateInput - Inclusive start date
+ * @param {Date|string} endDateInput - Inclusive end date
+ * @returns {object} Calculated report data for the team
+ */
+async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput) {
+  const client = await pool.connect();
+  
+  try {
+    const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
+    const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new Error('Invalid date range supplied for calculation');
+    }
+
+    const startDateUtc = new Date(Date.UTC(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      0, 0, 0, 0
+    ));
+    const endDateUtc = new Date(Date.UTC(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate(),
+      23, 59, 59, 999
+    ));
+
+    const startDateStr = startDateUtc.toISOString().split('T')[0];
+    const endDateStr = endDateUtc.toISOString().split('T')[0];
+
+    // Get all agent IDs in this team (team leader + all assigned agents)
+    const teamMembersResult = await client.query(
+      `SELECT DISTINCT u.id
+       FROM users u
+       WHERE u.id = $1 
+       OR u.id IN (
+         SELECT ta.agent_id 
+         FROM team_agents ta 
+         WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
+       )
+       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+      [teamLeaderId]
+    );
+    
+    const teamMemberIds = teamMembersResult.rows.map(row => row.id);
+    
+    if (teamMemberIds.length === 0) {
+      throw new Error('Team not found or has no members');
+    }
+
+    const teamMemberIdsArray = teamMemberIds;
+
+    // Count listings created by team members in the range
+    const listingsResult = await client.query(
+      `SELECT COUNT(*) as count 
+       FROM properties 
+       WHERE agent_id = ANY($1::int[])
+       AND created_at >= $2::timestamp
+       AND created_at <= $3::timestamp`,
+      [teamMemberIdsArray, startDateUtc.toISOString(), endDateUtc.toISOString()]
+    );
+    const listingsCount = parseInt(listingsResult.rows[0].count) || 0;
+    
+    // Count leads assigned to team members in the range
+    const leadsResult = await client.query(
+      `SELECT COUNT(*) as count 
+       FROM leads 
+       WHERE agent_id = ANY($1::int[])
+       AND DATE(date) >= $2::date
+       AND DATE(date) <= $3::date`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+    const leadsCount = parseInt(leadsResult.rows[0].count) || 0;
+    
+    // Count sales closures by team members
+    const salesResult = await client.query(
+      `SELECT COUNT(*) as count 
+       FROM properties p
+       WHERE p.agent_id = ANY($1::int[])
+       AND p.closed_date IS NOT NULL
+       AND p.closed_date >= $2::date
+       AND p.closed_date <= $3::date
+       AND p.property_type = 'sale'`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+    const salesCount = parseInt(salesResult.rows[0].count) || 0;
+    
+    // Count rent closures by team members
+    const rentResult = await client.query(
+      `SELECT COUNT(*) as count 
+       FROM properties p
+       WHERE p.agent_id = ANY($1::int[])
+       AND p.closed_date IS NOT NULL
+       AND p.closed_date >= $2::date
+       AND p.closed_date <= $3::date
+       AND p.property_type = 'rent'`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+    const rentCount = parseInt(rentResult.rows[0].count) || 0;
+    
+    // Count viewings conducted by team members
+    const viewingsResult = await client.query(
+      `SELECT COUNT(*) as count 
+       FROM viewings 
+       WHERE agent_id = ANY($1::int[])
+       AND viewing_date >= $2::date
+       AND viewing_date <= $3::date`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+    const viewingsCount = parseInt(viewingsResult.rows[0].count) || 0;
+    
+    // Get team leader name
+    const teamLeaderResult = await client.query(
+      `SELECT name, user_code FROM users WHERE id = $1`,
+      [teamLeaderId]
+    );
+    const teamLeaderName = teamLeaderResult.rows[0]?.name || 'Unknown';
+    const teamLeaderCode = teamLeaderResult.rows[0]?.user_code || null;
+    
+    // Get team members info
+    const membersResult = await client.query(
+      `SELECT DISTINCT u.id, u.name, u.user_code, u.role
+       FROM users u
+       WHERE u.id = $1 
+       OR u.id IN (
+         SELECT ta.agent_id 
+         FROM team_agents ta 
+         WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
+       )
+       OR (u.assigned_to = $1 AND u.role = 'agent')
+       ORDER BY u.role DESC, u.name ASC`,
+      [teamLeaderId]
+    );
+    
+    return {
+      team_leader_id: teamLeaderId,
+      team_leader_name: teamLeaderName,
+      team_leader_code: teamLeaderCode,
+      team_members: membersResult.rows.map(row => ({
+        id: row.id,
+        name: row.name,
+        user_code: row.user_code,
+        role: row.role
+      })),
+      listings_count: listingsCount,
+      leads_count: leadsCount,
+      sales_count: salesCount,
+      rent_count: rentCount,
+      viewings_count: viewingsCount
+    };
+    
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Get detailed properties list for a team with filters
+ * @param {number} teamLeaderId - ID of the team leader
+ * @param {Date|string} startDateInput - Inclusive start date
+ * @param {Date|string} endDateInput - Inclusive end date
+ * @param {object} filters - Optional filters (property_type, status_id, category_id)
+ * @returns {array} Array of properties with details
+ */
+async function getTeamProperties(teamLeaderId, startDateInput, endDateInput, filters = {}) {
+  const client = await pool.connect();
+  
+  try {
+    const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
+    const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new Error('Invalid date range supplied');
+    }
+
+    const startDateUtc = new Date(Date.UTC(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      0, 0, 0, 0
+    ));
+    const endDateUtc = new Date(Date.UTC(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate(),
+      23, 59, 59, 999
+    ));
+
+    // Get all agent IDs in this team
+    const teamMembersResult = await client.query(
+      `SELECT DISTINCT u.id
+       FROM users u
+       WHERE u.id = $1 
+       OR u.id IN (
+         SELECT ta.agent_id 
+         FROM team_agents ta 
+         WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
+       )
+       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+      [teamLeaderId]
+    );
+    
+    const teamMemberIds = teamMembersResult.rows.map(row => row.id);
+    
+    if (teamMemberIds.length === 0) {
+      return [];
+    }
+
+    const teamMemberIdsArray = teamMemberIds;
+
+    // Build query with filters
+    let query = `
+      SELECT 
+        p.id,
+        p.reference_number,
+        p.status_id,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
+        p.property_type,
+        p.location,
+        p.category_id,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
+        p.building_name,
+        p.owner_name,
+        p.phone_number,
+        p.surface,
+        p.price,
+        p.agent_id,
+        u.name as agent_name,
+        u.user_code as agent_code,
+        u.role as agent_role,
+        p.closed_date,
+        p.sold_amount,
+        p.created_at,
+        p.updated_at
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
+      LEFT JOIN users u ON p.agent_id = u.id
+      WHERE p.agent_id = ANY($1::int[])
+      AND p.created_at >= $2::timestamp
+      AND p.created_at <= $3::timestamp
+    `;
+    
+    const params = [teamMemberIdsArray, startDateUtc.toISOString(), endDateUtc.toISOString()];
+    let paramCount = 3;
+
+    // Add filters
+    if (filters.property_type) {
+      paramCount++;
+      query += ` AND p.property_type = $${paramCount}`;
+      params.push(filters.property_type);
+    }
+
+    if (filters.status_id) {
+      paramCount++;
+      query += ` AND p.status_id = $${paramCount}`;
+      params.push(parseInt(filters.status_id));
+    }
+
+    if (filters.category_id) {
+      paramCount++;
+      query += ` AND p.category_id = $${paramCount}`;
+      params.push(parseInt(filters.category_id));
+    }
+
+    if (filters.agent_id) {
+      paramCount++;
+      query += ` AND p.agent_id = $${paramCount}`;
+      params.push(parseInt(filters.agent_id));
+    }
+
+    query += ` ORDER BY p.created_at DESC`;
+
+    const result = await client.query(query, params);
+    return result.rows;
+    
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Get detailed leads list for a team with filters
+ * @param {number} teamLeaderId - ID of the team leader
+ * @param {Date|string} startDateInput - Inclusive start date
+ * @param {Date|string} endDateInput - Inclusive end date
+ * @param {object} filters - Optional filters (status, agent_id)
+ * @returns {array} Array of leads with details
+ */
+async function getTeamLeads(teamLeaderId, startDateInput, endDateInput, filters = {}) {
+  const client = await pool.connect();
+  
+  try {
+    const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
+    const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new Error('Invalid date range supplied');
+    }
+
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    // Get all agent IDs in this team
+    const teamMembersResult = await client.query(
+      `SELECT DISTINCT u.id
+       FROM users u
+       WHERE u.id = $1 
+       OR u.id IN (
+         SELECT ta.agent_id 
+         FROM team_agents ta 
+         WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
+       )
+       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+      [teamLeaderId]
+    );
+    
+    const teamMemberIds = teamMembersResult.rows.map(row => row.id);
+    
+    if (teamMemberIds.length === 0) {
+      return [];
+    }
+
+    const teamMemberIdsArray = teamMemberIds;
+
+    // Build query with filters
+    let query = `
+      SELECT 
+        l.id,
+        l.date,
+        l.customer_name,
+        l.phone_number,
+        l.agent_id,
+        u.name as agent_name,
+        u.user_code as agent_code,
+        u.role as agent_role,
+        l.status,
+        l.notes,
+        l.created_at,
+        l.updated_at
+      FROM leads l
+      LEFT JOIN users u ON l.agent_id = u.id
+      WHERE l.agent_id = ANY($1::int[])
+      AND DATE(l.date) >= $2::date
+      AND DATE(l.date) <= $3::date
+    `;
+    
+    const params = [teamMemberIdsArray, startDateStr, endDateStr];
+    let paramCount = 3;
+
+    // Add filters
+    if (filters.status) {
+      paramCount++;
+      query += ` AND l.status = $${paramCount}`;
+      params.push(filters.status);
+    }
+
+    if (filters.agent_id) {
+      paramCount++;
+      query += ` AND l.agent_id = $${paramCount}`;
+      params.push(parseInt(filters.agent_id));
+    }
+
+    query += ` ORDER BY l.date DESC, l.created_at DESC`;
+
+    const result = await client.query(query, params);
+    return result.rows;
+    
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Get detailed viewings list for a team with filters
+ * @param {number} teamLeaderId - ID of the team leader
+ * @param {Date|string} startDateInput - Inclusive start date
+ * @param {Date|string} endDateInput - Inclusive end date
+ * @param {object} filters - Optional filters (status, agent_id)
+ * @returns {array} Array of viewings with details
+ */
+async function getTeamViewings(teamLeaderId, startDateInput, endDateInput, filters = {}) {
+  const client = await pool.connect();
+  
+  try {
+    const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
+    const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      throw new Error('Invalid date range supplied');
+    }
+
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+
+    // Get all agent IDs in this team
+    const teamMembersResult = await client.query(
+      `SELECT DISTINCT u.id
+       FROM users u
+       WHERE u.id = $1 
+       OR u.id IN (
+         SELECT ta.agent_id 
+         FROM team_agents ta 
+         WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
+       )
+       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+      [teamLeaderId]
+    );
+    
+    const teamMemberIds = teamMembersResult.rows.map(row => row.id);
+    
+    if (teamMemberIds.length === 0) {
+      return [];
+    }
+
+    const teamMemberIdsArray = teamMemberIds;
+
+    // Build query with filters
+    let query = `
+      SELECT 
+        v.id,
+        v.viewing_date,
+        v.viewing_time,
+        v.status,
+        v.agent_id,
+        u.name as agent_name,
+        u.user_code as agent_code,
+        v.property_id,
+        p.reference_number as property_reference,
+        p.location as property_location,
+        v.lead_id,
+        l.customer_name as lead_name,
+        l.phone_number as lead_phone,
+        v.created_at,
+        v.updated_at
+      FROM viewings v
+      LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN properties p ON v.property_id = p.id
+      LEFT JOIN leads l ON v.lead_id = l.id
+      WHERE v.agent_id = ANY($1::int[])
+      AND v.viewing_date >= $2::date
+      AND v.viewing_date <= $3::date
+    `;
+    
+    const params = [teamMemberIdsArray, startDateStr, endDateStr];
+    let paramCount = 3;
+
+    // Add filters
+    if (filters.status) {
+      paramCount++;
+      query += ` AND v.status = $${paramCount}`;
+      params.push(filters.status);
+    }
+
+    if (filters.agent_id) {
+      paramCount++;
+      query += ` AND v.agent_id = $${paramCount}`;
+      params.push(parseInt(filters.agent_id));
+    }
+
+    query += ` ORDER BY v.viewing_date DESC, v.viewing_time DESC`;
+
+    const result = await client.query(query, params);
+    return result.rows;
+    
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   calculateDCSRData,
+  calculateTeamDCSRData,
+  getAllTeams,
+  getTeamProperties,
+  getTeamLeads,
+  getTeamViewings,
+  normalizeDateRange,
   createDCSRReport,
   getAllDCSRReports,
   getDCSRReportById,

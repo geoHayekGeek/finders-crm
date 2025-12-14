@@ -3,7 +3,7 @@
 
 import { ColumnDef } from '@tanstack/react-table'
 import { Viewing, VIEWING_STATUSES } from '@/types/viewing'
-import { Eye, Edit, Trash2, Star } from 'lucide-react'
+import { Eye, Edit, Trash2, Star, ArrowRight } from 'lucide-react'
 
 export const getViewingsColumns = (
   canManageViewings: boolean,
@@ -15,14 +15,25 @@ export const getViewingsColumns = (
       header: 'Date',
       cell: ({ row }) => {
         const date = new Date(row.original.viewing_date)
+        const isSubViewing = !!row.original.parent_viewing_id
         return (
-          <span className="font-medium">
-            {date.toLocaleDateString('en-US', { 
-              year: 'numeric', 
-              month: 'short', 
-              day: 'numeric' 
-            })}
-          </span>
+          <div className="flex items-center gap-2">
+            {isSubViewing && (
+              <ArrowRight className="h-4 w-4 text-gray-400" title="Follow-up viewing" />
+            )}
+            <span className="font-medium">
+              {date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric' 
+              })}
+            </span>
+            {isSubViewing && (
+              <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                Follow-up
+              </span>
+            )}
+          </div>
         )
       }
     },

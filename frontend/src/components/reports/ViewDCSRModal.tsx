@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, AlertCircle, RefreshCw, Users, Building2, Table, Filter } from 'lucide-react'
-import { DCSRFormData, DCSRMonthlyReport } from '@/types/reports'
+import { DCSRMonthlyReport } from '@/types/reports'
 import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -11,21 +11,20 @@ import { User } from '@/types/user'
 import { Status } from '@/types/status'
 import { Category } from '@/types/category'
 
-interface CreateDCSRModalProps {
+interface ViewDCSRModalProps {
+  report: DCSRMonthlyReport
   onClose: () => void
-  onSuccess: () => void
+  onSuccess?: () => void
 }
 
-export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalProps) {
+export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRModalProps) {
   const { token } = useAuth()
-  const { showSuccess, showError } = useToast()
+  const { showError } = useToast()
   const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<'company' | 'team'>('company')
   const [loading, setLoading] = useState(false)
-  const [calculating, setCalculating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [previewData, setPreviewData] = useState<Partial<DCSRMonthlyReport> | null>(null)
   
   // Team breakdown state
   const [teamLeaders, setTeamLeaders] = useState<User[]>([])
@@ -63,31 +62,24 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
   const [statuses, setStatuses] = useState<Status[]>([])
   const [categories, setCategories] = useState<Category[]>([])
 
-  // Default to previous month range
-  const now = new Date()
-  const previousMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-  const previousMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
-  const defaultStartDate = previousMonthStart.toISOString().split('T')[0]
-  const defaultEndDate = previousMonthEnd.toISOString().split('T')[0]
+  // Get date range from report
+  const startDate = report.start_date || (report.year && report.month 
+    ? new Date(Date.UTC(report.year, report.month - 1, 1)).toISOString().split('T')[0]
+    : new Date().toISOString().split('T')[0])
+  const endDate = report.end_date || (report.year && report.month
+    ? new Date(Date.UTC(report.year, report.month, 0)).toISOString().split('T')[0]
+    : new Date().toISOString().split('T')[0])
 
-  const [formData, setFormData] = useState<DCSRFormData>({
-    start_date: defaultStartDate,
-    end_date: defaultEndDate,
-    listings_count: 0,
-    leads_count: 0,
-    sales_count: 0,
-    rent_count: 0,
-    viewings_count: 0
-  })
-
-  // Load team leaders, statuses, and categories
-  useEffect(() => {
-    if (token) {
-      loadTeamLeaders()
-      loadStatuses()
-      loadCategories()
+  const loadTeamLeaders = async () => {
+    try {
+      const response = await usersApi.getUsersByRole('team_leader', token!)
+      if (response.success) {
+        setTeamLeaders(response.data || [])
+      }
+    } catch (error: any) {
+      console.error('Error loading team leaders:', error)
     }
-  }, [token])
+  }
 
   const loadStatuses = async () => {
     try {
@@ -111,54 +103,17 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     }
   }
 
-  // Calculate preview when month/year changes (company-wide)
+  // Load team leaders, statuses, and categories
   useEffect(() => {
-    if (activeTab === 'company' && formData.start_date && formData.end_date && token) {
-      calculatePreview()
+    if (token) {
+      loadTeamLeaders()
+      loadStatuses()
+      loadCategories()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.start_date, formData.end_date, token, activeTab])
-
-  // Load team breakdown when team leader or dates change
-  useEffect(() => {
-    if (activeTab === 'team' && formData.start_date && formData.end_date && token) {
-      if (showAllTeams) {
-        loadAllTeamsBreakdown()
-      } else if (selectedTeamLeaderId) {
-        if (teamViewTab === 'overview') {
-          loadTeamBreakdown()
-        } else if (teamViewTab === 'detailed') {
-          loadDetailedData()
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTeamLeaderId, formData.start_date, formData.end_date, token, activeTab, showAllTeams, teamViewTab, propertyFilters, leadFilters, viewingFilters, detailedViewTab])
-
-  // Reset showAllTeams when switching tabs
-  useEffect(() => {
-    if (activeTab !== 'team') {
-      setShowAllTeams(false)
-      setSelectedTeamLeaderId(undefined)
-    }
-  }, [activeTab])
-
-  const loadTeamLeaders = async () => {
-    try {
-      const response = await usersApi.getAll(token!)
-      if (response.success) {
-        const teamLeadersList = response.users.filter(
-          (u: User) => u.role === 'team_leader'
-        )
-        setTeamLeaders(teamLeadersList)
-      }
-    } catch (error) {
-      console.error('Error loading team leaders:', error)
-    }
-  }
+  }, [token])
 
   const loadTeamBreakdown = async () => {
-    if (!selectedTeamLeaderId || !formData.start_date || !formData.end_date) return
+    if (!selectedTeamLeaderId || !startDate || !endDate) return
     
     try {
       setLoadingTeamBreakdown(true)
@@ -166,8 +121,8 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       
       const response = await dcsrApi.getTeamBreakdown(
         selectedTeamLeaderId,
-        formData.start_date,
-        formData.end_date,
+        startDate,
+        endDate,
         token
       )
       
@@ -183,15 +138,15 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
   }
 
   const loadAllTeamsBreakdown = async () => {
-    if (!formData.start_date || !formData.end_date) return
+    if (!startDate || !endDate) return
     
     try {
       setLoadingTeamBreakdown(true)
       setError(null)
       
       const response = await dcsrApi.getAllTeamsBreakdown(
-        formData.start_date,
-        formData.end_date,
+        startDate,
+        endDate,
         token
       )
       
@@ -207,7 +162,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
   }
 
   const loadDetailedData = async () => {
-    if (!selectedTeamLeaderId || !formData.start_date || !formData.end_date) return
+    if (!selectedTeamLeaderId || !startDate || !endDate) return
     
     try {
       setLoadingDetailedData(true)
@@ -216,8 +171,8 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       if (detailedViewTab === 'properties') {
         const response = await dcsrApi.getTeamProperties(
           selectedTeamLeaderId,
-          formData.start_date,
-          formData.end_date,
+          startDate,
+          endDate,
           propertyFilters,
           token
         )
@@ -227,8 +182,8 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       } else if (detailedViewTab === 'leads') {
         const response = await dcsrApi.getTeamLeads(
           selectedTeamLeaderId,
-          formData.start_date,
-          formData.end_date,
+          startDate,
+          endDate,
           leadFilters,
           token
         )
@@ -238,8 +193,8 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       } else if (detailedViewTab === 'viewings') {
         const response = await dcsrApi.getTeamViewings(
           selectedTeamLeaderId,
-          formData.start_date,
-          formData.end_date,
+          startDate,
+          endDate,
           viewingFilters,
           token
         )
@@ -255,127 +210,33 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     }
   }
 
-  const calculatePreview = async () => {
-    try {
-      setCalculating(true)
-      setError(null)
-      
-      // Create a temporary report to get calculated values
-      const tempReport = await dcsrApi.create(
-        {
-          start_date: formData.start_date,
-          end_date: formData.end_date
-        },
-        token
-      )
-
-      if (tempReport.success) {
-        setPreviewData(tempReport.data)
-        setFormData(prev => ({
-          ...prev,
-          listings_count: tempReport.data.listings_count,
-          leads_count: tempReport.data.leads_count,
-          sales_count: tempReport.data.sales_count,
-          rent_count: tempReport.data.rent_count,
-          viewings_count: tempReport.data.viewings_count
-        }))
-        
-        // Delete the temporary report
-        await dcsrApi.delete(tempReport.data.id, token)
-      }
-    } catch (error: any) {
-      // If report already exists, show specific message
-      if (error.message?.includes('already exists')) {
-        setError('A report already exists for this date range. Please select a different window.')
-      } else {
-        console.error('Error calculating preview:', error)
-      }
-    } finally {
-      setCalculating(false)
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-
-    try {
-      setLoading(true)
-      
-      // Create the report with the values
-      const response = await dcsrApi.create(
-        {
-          start_date: formData.start_date,
-          end_date: formData.end_date
-        },
-        token
-      )
-
-      if (response.success) {
-        // Update with edited values if any fields were changed
-        const hasManualEdits = previewData && (
-          formData.listings_count !== previewData.listings_count ||
-          formData.leads_count !== previewData.leads_count ||
-          formData.sales_count !== previewData.sales_count ||
-          formData.rent_count !== previewData.rent_count ||
-          formData.viewings_count !== previewData.viewings_count
-        )
-
-        if (hasManualEdits) {
-          // Update the report with custom values
-          await dcsrApi.update(
-            response.data.id,
-            {
-              listings_count: formData.listings_count,
-              leads_count: formData.leads_count,
-              sales_count: formData.sales_count,
-              rent_count: formData.rent_count,
-              viewings_count: formData.viewings_count
-            },
-            token
-          )
-          showSuccess('DCSR report created successfully with custom values')
-        } else {
-          showSuccess('DCSR report created successfully')
+  // Load team breakdown when team leader or dates change
+  useEffect(() => {
+    if (activeTab === 'team' && startDate && endDate && token) {
+      if (showAllTeams) {
+        loadAllTeamsBreakdown()
+      } else if (selectedTeamLeaderId) {
+        if (teamViewTab === 'overview') {
+          loadTeamBreakdown()
+        } else if (teamViewTab === 'detailed') {
+          loadDetailedData()
         }
-        
-        onSuccess()
       }
-    } catch (error: any) {
-      console.error('Error creating DCSR report:', error)
-      
-      if (error.message?.includes('already exists')) {
-        setError('A report already exists for this date range. Please select a different window.')
-      } else {
-        setError(error.message || 'Failed to create DCSR report')
-      }
-    } finally {
-      setLoading(false)
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTeamLeaderId, startDate, endDate, token, activeTab, showAllTeams, teamViewTab, propertyFilters, leadFilters, viewingFilters, detailedViewTab])
 
-  const handleChange = (field: keyof DCSRFormData, value: any) => {
-    setFormData(prev => {
-      if (field === 'start_date') {
-        if (value && prev.end_date && value > prev.end_date) {
-          return { ...prev, start_date: value, end_date: value }
-        }
-        return { ...prev, start_date: value }
-      }
-
-      if (field === 'end_date') {
-        if (value && prev.start_date && value < prev.start_date) {
-          return { ...prev, start_date: value, end_date: value }
-        }
-        return { ...prev, end_date: value }
-      }
-
-      return { ...prev, [field]: value }
-    })
-    setError(null)
-    if (field === 'start_date' || field === 'end_date') {
-      setPreviewData(null) // Clear preview when changing selection
+  const formatRangeDisplay = () => {
+    if (report.start_date && report.end_date) {
+      const start = new Date(report.start_date)
+      const end = new Date(report.end_date)
+      const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+      return `${formatter.format(start)} → ${formatter.format(end)}`
+    } else if (report.year && report.month) {
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+      return `${monthNames[report.month - 1]} ${report.year}`
     }
+    return 'Date range not specified'
   }
 
   return (
@@ -383,7 +244,12 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full my-8">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-lg z-10">
-          <h2 className="text-xl font-semibold text-gray-900">Create DCSR Report</h2>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">View DCSR Report</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {formatRangeDisplay()}
+            </p>
+          </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -427,7 +293,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+        <div className="p-6 space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
           {/* Error Message */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start">
@@ -439,70 +305,22 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             </div>
           )}
 
-          {/* Selection Section */}
+          {/* Date Range Display */}
           <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-200 rounded-lg p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wider">
-              {activeTab === 'company' ? 'Reporting window (company-wide)' : 'Reporting window (team breakdown)'}
+              Reporting Window
             </h3>
-            
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
-              <input
-                type="date"
-                value={formData.start_date}
-                onChange={(e) => handleChange('start_date', e.target.value || undefined)}
-                className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                max={formData.end_date || undefined}
-                min="2020-01-01"
-                required
-              />
+              <div className="px-3 py-2 border border-blue-200 rounded-lg bg-white text-gray-900">
+                {startDate}
+              </div>
               <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
                 —
               </div>
-              <input
-                type="date"
-                value={formData.end_date}
-                onChange={(e) => handleChange('end_date', e.target.value || undefined)}
-                className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                min={formData.start_date || "2020-01-01"}
-                required
-              />
+              <div className="px-3 py-2 border border-blue-200 rounded-lg bg-white text-gray-900">
+                {endDate}
+              </div>
             </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {[
-                { label: 'Previous Month', start: defaultStartDate, end: defaultEndDate },
-                { label: 'Month to Date', start: (() => {
-                  const today = new Date();
-                  const year = today.getFullYear();
-                  const month = String(today.getMonth() + 1).padStart(2, '0');
-                  return `${year}-${month}-01`;
-                })(), end: new Date().toISOString().split('T')[0] },
-                { label: 'Last 30 Days', start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: new Date().toISOString().split('T')[0] },
-                { label: 'Quarter to Date', start: (() => {
-                  const d = new Date();
-                  const quarterStartMonth = Math.floor(d.getMonth() / 3) * 3;
-                  return new Date(d.getFullYear(), quarterStartMonth, 1).toISOString().split('T')[0];
-                })(), end: new Date().toISOString().split('T')[0] }
-              ].map((preset) => (
-                <button
-                  type="button"
-                  key={preset.label}
-                  onClick={() => {
-                    handleChange('start_date', preset.start)
-                    handleChange('end_date', preset.end)
-                  }}
-                  className="px-3 py-1 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-
-            <p className="mt-3 text-xs text-blue-700 leading-relaxed">
-              {activeTab === 'company' 
-                ? 'We automatically prevent overlapping duplicates. Pick the exact days you want to analyse—even multi-month windows are allowed.'
-                : 'Select a team leader to view their team\'s aggregated data for the selected date range.'}
-            </p>
           </div>
 
           {/* Team Leader Selection (Team Breakdown Tab) */}
@@ -566,20 +384,20 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             </div>
           )}
 
-          {/* Calculating Indicator */}
-          {(calculating || loadingTeamBreakdown) && (
+          {/* Loading Indicator */}
+          {(loading || loadingTeamBreakdown) && (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mr-3" />
               <span className="text-gray-600">
                 {activeTab === 'company' 
-                  ? 'Calculating values from database...'
+                  ? 'Loading report data...'
                   : 'Loading team breakdown...'}
               </span>
             </div>
           )}
 
-          {/* Company-wide Read-only Values Section */}
-          {activeTab === 'company' && previewData && !calculating && (
+          {/* Company-wide View */}
+          {activeTab === 'company' && !loading && (
             <div className="space-y-4">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h3 className="text-sm font-medium text-gray-900 mb-4">
@@ -597,7 +415,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                       <input
                         type="number"
                         min="0"
-                        value={formData.listings_count}
+                        value={report.listings_count}
                         readOnly
                         disabled
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -611,7 +429,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                       <input
                         type="number"
                         min="0"
-                        value={formData.leads_count}
+                        value={report.leads_count}
                         readOnly
                         disabled
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -631,7 +449,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                       <input
                         type="number"
                         min="0"
-                        value={formData.sales_count}
+                        value={report.sales_count}
                         readOnly
                         disabled
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -645,7 +463,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                       <input
                         type="number"
                         min="0"
-                        value={formData.rent_count}
+                        value={report.rent_count}
                         readOnly
                         disabled
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -662,7 +480,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                   <input
                     type="number"
                     min="0"
-                    value={formData.viewings_count}
+                    value={report.viewings_count}
                     readOnly
                     disabled
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-700 cursor-not-allowed"
@@ -731,46 +549,9 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                     </div>
                     <p className="text-xs text-yellow-700">
                       These listings are not assigned to any team (NULL agent_id or assigned to agents not in any team).
-                      This explains the difference between company-wide total ({previewData?.listings_count || 0}) and team totals.
                     </p>
                   </div>
                 )}
-
-                {/* Summary Totals */}
-                <div className="mt-4 pt-4 border-t border-indigo-200">
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Total Listings</div>
-                      <div className="text-lg font-bold text-blue-900">
-                        {allTeamsBreakdown.teams.reduce((sum: number, t: any) => sum + t.listings_count, 0) + (allTeamsBreakdown.unassigned_listings || 0)}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Total Leads</div>
-                      <div className="text-lg font-bold text-blue-900">
-                        {allTeamsBreakdown.teams.reduce((sum: number, t: any) => sum + t.leads_count, 0)}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Total Sales</div>
-                      <div className="text-lg font-bold text-green-900">
-                        {allTeamsBreakdown.teams.reduce((sum: number, t: any) => sum + t.sales_count, 0)}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Total Rent</div>
-                      <div className="text-lg font-bold text-green-900">
-                        {allTeamsBreakdown.teams.reduce((sum: number, t: any) => sum + t.rent_count, 0)}
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Total Viewings</div>
-                      <div className="text-lg font-bold text-purple-900">
-                        {allTeamsBreakdown.teams.reduce((sum: number, t: any) => sum + t.viewings_count, 0)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -815,7 +596,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                   <h3 className="text-sm font-semibold text-purple-900 mb-4 uppercase tracking-wider">
                     Team: {teamBreakdownData.team_leader_name} {teamBreakdownData.team_leader_code ? `(${teamBreakdownData.team_leader_code})` : ''}
                   </h3>
-                
+
                 {/* Team Members */}
                 <div className="mb-4">
                   <h4 className="text-xs font-medium text-gray-600 mb-2">Team Members ({teamBreakdownData.team_members.length})</h4>
@@ -910,7 +691,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
               </div>
             )}
 
-              {/* Detailed View Tab */}
+              {/* Detailed View Tab - Same as CreateDCSRModal */}
               {teamViewTab === 'detailed' && (
                 <div className="space-y-4">
                   {/* Detailed View Sub-tabs */}
@@ -1339,21 +1120,6 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
           )}
 
           {/* Info Messages */}
-          {activeTab === 'company' && !previewData && !calculating && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <AlertCircle className="h-5 w-5 text-blue-600" />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-blue-700">
-                    Select a reporting window to see company-wide calculated values. All fields will be editable.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
           {activeTab === 'team' && !teamBreakdownData && !allTeamsBreakdown && !loadingTeamBreakdown && (
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <div className="flex">
@@ -1362,7 +1128,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-purple-700">
-                    {showAllTeams 
+                    {showAllTeams
                       ? 'Click "All Teams Summary" to view all teams breakdown with unassigned listings.'
                       : 'Select a team leader or click "All Teams Summary" to view team breakdown data.'}
                   </p>
@@ -1376,24 +1142,15 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             <button
               type="button"
               onClick={onClose}
-              disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              Cancel
+              Close
             </button>
-            {activeTab === 'company' && (
-              <button
-                type="submit"
-                disabled={loading || calculating}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? 'Creating...' : 'Create Report'}
-              </button>
-            )}
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )
 }
+
 

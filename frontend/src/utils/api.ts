@@ -599,22 +599,27 @@ export const viewingsApi = {
   // Get viewing statistics
   getStats: (token?: AuthToken) => apiRequest<ViewingStatsApiResponse>('/viewings/stats', {}, token),
   
-  // Get updates for a specific viewing
+  // Get follow-up viewings for a specific viewing (replaces old getUpdates)
+  // Returns sub_viewings (follow-up viewings) instead of text updates
   getUpdates: (viewingId: number, token?: AuthToken) => apiRequest<ViewingUpdatesResponse>(`/viewings/${viewingId}/updates`, {}, token),
   
-  // Add update to a viewing
+  // Add follow-up viewing to a viewing (replaces old addUpdate)
+  // Use new format: { viewing_date, viewing_time, status, notes }
+  // Old format (update_text, update_date) still supported for backward compatibility
   addUpdate: (viewingId: number, data: ViewingUpdateInput, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message?: string }>(`/viewings/${viewingId}/updates`, {
     method: 'POST',
     body: JSON.stringify(data),
   }, token),
 
-  // Update a viewing update
+  // Update a follow-up viewing (replaces old updateViewingUpdate)
+  // The updateId is now a follow-up viewing ID
   updateUpdate: (viewingId: number, updateId: number, data: ViewingUpdateInput, token?: AuthToken) => apiRequest<{ success: boolean; data: any; message?: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   }, token),
   
-  // Delete viewing update
+  // Delete follow-up viewing (replaces old deleteViewingUpdate)
+  // The updateId is now a follow-up viewing ID
   deleteUpdate: (viewingId: number, updateId: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(`/viewings/${viewingId}/updates/${updateId}`, {
     method: 'DELETE',
   }, token),
@@ -1339,6 +1344,193 @@ export const dcsrApi = {
 
     return response.blob()
   },
+
+  // Get team-level DCSR breakdown
+  getTeamBreakdown: (teamLeaderId: number, startDate: string, endDate: string, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    params.append('team_leader_id', String(teamLeaderId))
+    params.append('start_date', startDate)
+    params.append('end_date', endDate)
+    return apiRequest<{ 
+      success: boolean
+      data: {
+        team_leader_id: number
+        team_leader_name: string
+        team_leader_code: string | null
+        team_members: Array<{
+          id: number
+          name: string
+          user_code: string | null
+          role: string
+        }>
+        listings_count: number
+        leads_count: number
+        sales_count: number
+        rent_count: number
+        viewings_count: number
+      }
+      message: string 
+    }>(
+      `/dcsr-reports/team-breakdown?${params.toString()}`,
+      {},
+      token
+    )
+  },
+
+  // Get all teams breakdown (includes unassigned)
+  getAllTeamsBreakdown: (startDate: string, endDate: string, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    params.append('start_date', startDate)
+    params.append('end_date', endDate)
+    return apiRequest<{ 
+      success: boolean
+      data: {
+        teams: Array<{
+          team_leader_id: number
+          team_leader_name: string
+          team_leader_code: string | null
+          team_members: Array<{
+            id: number
+            name: string
+            user_code: string | null
+            role: string
+          }>
+          listings_count: number
+          leads_count: number
+          sales_count: number
+          rent_count: number
+          viewings_count: number
+        }>
+        unassigned_listings: number
+        total_teams: number
+      }
+      message: string 
+    }>(
+      `/dcsr-reports/teams-breakdown?${params.toString()}`,
+      {},
+      token
+    )
+  },
+
+  // Get detailed team properties
+  getTeamProperties: (teamLeaderId: number, startDate: string, endDate: string, filters?: {
+    property_type?: string
+    status_id?: number
+    category_id?: number
+    agent_id?: number
+  }, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    params.append('start_date', startDate)
+    params.append('end_date', endDate)
+    if (filters?.property_type) params.append('property_type', filters.property_type)
+    if (filters?.status_id) params.append('status_id', String(filters.status_id))
+    if (filters?.category_id) params.append('category_id', String(filters.category_id))
+    if (filters?.agent_id) params.append('agent_id', String(filters.agent_id))
+    return apiRequest<{ 
+      success: boolean
+      data: Array<{
+        id: number
+        reference_number: string
+        status_id: number
+        status_name: string
+        status_color: string
+        property_type: string
+        location: string
+        category_id: number
+        category_name: string
+        category_code: string
+        building_name: string | null
+        owner_name: string
+        phone_number: string
+        surface: number
+        price: number
+        agent_id: number | null
+        agent_name: string | null
+        agent_code: string | null
+        agent_role: string | null
+        closed_date: string | null
+        sold_amount: number | null
+        created_at: string
+        updated_at: string
+      }>
+      message: string 
+    }>(
+      `/dcsr-reports/team/${teamLeaderId}/properties?${params.toString()}`,
+      {},
+      token
+    )
+  },
+
+  // Get detailed team leads
+  getTeamLeads: (teamLeaderId: number, startDate: string, endDate: string, filters?: {
+    status?: string
+    agent_id?: number
+  }, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    params.append('start_date', startDate)
+    params.append('end_date', endDate)
+    if (filters?.status) params.append('status', filters.status)
+    if (filters?.agent_id) params.append('agent_id', String(filters.agent_id))
+    return apiRequest<{ 
+      success: boolean
+      data: Array<{
+        id: number
+        date: string
+        customer_name: string
+        phone_number: string | null
+        agent_id: number | null
+        agent_name: string | null
+        agent_code: string | null
+        agent_role: string | null
+        status: string
+        notes: string | null
+        created_at: string
+        updated_at: string
+      }>
+      message: string 
+    }>(
+      `/dcsr-reports/team/${teamLeaderId}/leads?${params.toString()}`,
+      {},
+      token
+    )
+  },
+
+  // Get detailed team viewings
+  getTeamViewings: (teamLeaderId: number, startDate: string, endDate: string, filters?: {
+    status?: string
+    agent_id?: number
+  }, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    params.append('start_date', startDate)
+    params.append('end_date', endDate)
+    if (filters?.status) params.append('status', filters.status)
+    if (filters?.agent_id) params.append('agent_id', String(filters.agent_id))
+    return apiRequest<{ 
+      success: boolean
+      data: Array<{
+        id: number
+        viewing_date: string
+        viewing_time: string | null
+        status: string
+        agent_id: number | null
+        agent_name: string | null
+        agent_code: string | null
+        property_id: number | null
+        property_reference: string | null
+        property_location: string | null
+        lead_id: number | null
+        lead_name: string | null
+        lead_phone: string | null
+        created_at: string
+        updated_at: string
+      }>
+      message: string 
+    }>(
+      `/dcsr-reports/team/${teamLeaderId}/viewings?${params.toString()}`,
+      {},
+      token
+    )
+  }
 }
 
 // Operations Commission Reports API

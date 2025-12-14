@@ -3,6 +3,7 @@
 
 const dcsrReportsModel = require('../models/dcsrReportsModel');
 const { exportDCSRToExcel, exportDCSRToPDF } = require('../utils/dcsrReportExporter');
+const pool = require('../config/db');
 
 /**
  * Get all DCSR reports with optional filters
@@ -341,6 +342,378 @@ async function exportDCSRReportToPDF(req, res) {
   }
 }
 
+/**
+ * Get all teams breakdown for a date range
+ * GET /api/dcsr-reports/teams-breakdown
+ */
+async function getAllTeamsDCSRBreakdown(req, res) {
+  try {
+    const { start_date, end_date } = req.query;
+    
+    // Validation
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    }
+
+    // Get all teams
+    const teams = await dcsrReportsModel.getAllTeams();
+    
+    // Calculate data for each team
+    const teamsData = await Promise.all(
+      teams.map(async (team) => {
+        try {
+          const teamData = await dcsrReportsModel.calculateTeamDCSRData(
+            team.team_leader_id,
+            start_date,
+            end_date
+          );
+          return teamData;
+        } catch (error) {
+          console.error(`Error calculating data for team ${team.team_leader_id}:`, error);
+          return null;
+        }
+      })
+    );
+
+    // Filter out null results
+    const validTeamsData = teamsData.filter(team => team !== null);
+    
+    // Calculate unassigned listings (listings not in any team)
+    const { startDateUtc, endDateUtc, startDateStr, endDateStr } = dcsrReportsModel.normalizeDateRange(start_date, end_date);
+    
+    // Get all team member IDs
+    const allTeamMemberIds = validTeamsData.flatMap(team => 
+      team.team_members.map(member => member.id)
+    );
+    
+    // Count unassigned listings (NULL agent_id or agent_id not in any team)
+    let unassignedListings = 0;
+    if (allTeamMemberIds.length > 0) {
+      const unassignedListingsResult = await pool.query(
+        `SELECT COUNT(*) as count 
+         FROM properties 
+         WHERE (agent_id IS NULL OR agent_id NOT IN (SELECT unnest($1::int[])))
+         AND created_at >= $2::timestamp
+         AND created_at <= $3::timestamp`,
+        [allTeamMemberIds, startDateUtc.toISOString(), endDateUtc.toISOString()]
+      );
+      unassignedListings = parseInt(unassignedListingsResult.rows[0].count) || 0;
+    } else {
+      // If no teams exist, count all listings with NULL agent_id
+      const unassignedListingsResult = await pool.query(
+        `SELECT COUNT(*) as count 
+         FROM properties 
+         WHERE agent_id IS NULL
+         AND created_at >= $1::timestamp
+         AND created_at <= $2::timestamp`,
+        [startDateUtc.toISOString(), endDateUtc.toISOString()]
+      );
+      unassignedListings = parseInt(unassignedListingsResult.rows[0].count) || 0;
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        teams: validTeamsData,
+        unassigned_listings: unassignedListings,
+        total_teams: validTeamsData.length
+      },
+      message: 'All teams DCSR breakdown retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching all teams DCSR breakdown:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch teams DCSR breakdown',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get detailed properties for a team
+ * GET /api/dcsr-reports/team/:teamLeaderId/properties
+ */
+async function getTeamProperties(req, res) {
+  try {
+    const { teamLeaderId } = req.params;
+    const { start_date, end_date, property_type, status_id, category_id, agent_id } = req.query;
+    
+    // Validation
+    if (!teamLeaderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    }
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    }
+
+    const filters = {};
+    if (property_type) filters.property_type = property_type;
+    if (status_id) filters.status_id = status_id;
+    if (category_id) filters.category_id = category_id;
+    if (agent_id) filters.agent_id = agent_id;
+
+    const properties = await dcsrReportsModel.getTeamProperties(
+      parseInt(teamLeaderId),
+      start_date,
+      end_date,
+      filters
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: properties,
+      message: 'Team properties retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching team properties:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch team properties',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get detailed leads for a team
+ * GET /api/dcsr-reports/team/:teamLeaderId/leads
+ */
+async function getTeamLeads(req, res) {
+  try {
+    const { teamLeaderId } = req.params;
+    const { start_date, end_date, status, agent_id } = req.query;
+    
+    // Validation
+    if (!teamLeaderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    }
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    }
+
+    const filters = {};
+    if (status) filters.status = status;
+    if (agent_id) filters.agent_id = agent_id;
+
+    const leads = await dcsrReportsModel.getTeamLeads(
+      parseInt(teamLeaderId),
+      start_date,
+      end_date,
+      filters
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: leads,
+      message: 'Team leads retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching team leads:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch team leads',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get detailed viewings for a team
+ * GET /api/dcsr-reports/team/:teamLeaderId/viewings
+ */
+async function getTeamViewings(req, res) {
+  try {
+    const { teamLeaderId } = req.params;
+    const { start_date, end_date, status, agent_id } = req.query;
+    
+    // Validation
+    if (!teamLeaderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    }
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    }
+
+    const filters = {};
+    if (status) filters.status = status;
+    if (agent_id) filters.agent_id = agent_id;
+
+    const viewings = await dcsrReportsModel.getTeamViewings(
+      parseInt(teamLeaderId),
+      start_date,
+      end_date,
+      filters
+    );
+    
+    res.status(200).json({
+      success: true,
+      data: viewings,
+      message: 'Team viewings retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching team viewings:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch team viewings',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Get team-level DCSR breakdown
+ * GET /api/dcsr-reports/team-breakdown
+ */
+async function getTeamDCSRBreakdown(req, res) {
+  try {
+    const { team_leader_id, start_date, end_date } = req.query;
+    
+    // Validation
+    if (!team_leader_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    }
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    }
+
+    const teamData = await dcsrReportsModel.calculateTeamDCSRData(
+      parseInt(team_leader_id),
+      start_date,
+      end_date
+    );
+    
+    res.json({
+      success: true,
+      data: teamData,
+      message: 'Team DCSR breakdown retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error fetching team DCSR breakdown:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch team DCSR breakdown',
+      error: error.message
+    });
+  }
+}
+
 module.exports = {
   getAllDCSRReports,
   getDCSRReportById,
@@ -349,6 +722,11 @@ module.exports = {
   recalculateDCSRReport,
   deleteDCSRReport,
   exportDCSRReportToExcel,
-  exportDCSRReportToPDF
+  exportDCSRReportToPDF,
+  getTeamDCSRBreakdown,
+  getAllTeamsDCSRBreakdown,
+  getTeamProperties,
+  getTeamLeads,
+  getTeamViewings
 };
 

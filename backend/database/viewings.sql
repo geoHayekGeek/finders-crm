@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS viewings (
   viewing_time TIME NOT NULL,
   status VARCHAR(50) DEFAULT 'Scheduled',
   notes TEXT,
+  parent_viewing_id INTEGER REFERENCES viewings(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
@@ -24,6 +25,7 @@ CREATE INDEX IF NOT EXISTS idx_viewings_agent_id ON viewings(agent_id);
 CREATE INDEX IF NOT EXISTS idx_viewings_viewing_date ON viewings(viewing_date);
 CREATE INDEX IF NOT EXISTS idx_viewings_status ON viewings(status);
 CREATE INDEX IF NOT EXISTS idx_viewings_created_at ON viewings(created_at);
+CREATE INDEX IF NOT EXISTS idx_viewings_parent_viewing_id ON viewings(parent_viewing_id);
 
 -- Create viewing_updates table for tracking viewing updates/history
 CREATE TABLE IF NOT EXISTS viewing_updates (
@@ -67,6 +69,7 @@ COMMENT ON COLUMN viewings.agent_id IS 'Reference to the agent conducting the vi
 COMMENT ON COLUMN viewings.viewing_date IS 'Date of the viewing appointment';
 COMMENT ON COLUMN viewings.viewing_time IS 'Time of the viewing appointment';
 COMMENT ON COLUMN viewings.status IS 'Current status of the viewing (Scheduled, Completed, Cancelled, No Show, Rescheduled)';
+COMMENT ON COLUMN viewings.parent_viewing_id IS 'Reference to the parent viewing if this is a follow-up/sub viewing';
 COMMENT ON COLUMN viewing_updates.update_text IS 'Text content of the update/note';
 COMMENT ON COLUMN viewing_updates.update_date IS 'Date when the update was made (user-specified)';
 COMMENT ON COLUMN viewing_updates.created_by IS 'User who created this update';

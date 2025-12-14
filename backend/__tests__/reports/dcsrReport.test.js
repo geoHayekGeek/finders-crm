@@ -706,5 +706,321 @@ describe('DCSR Report', () => {
       });
     });
   });
+
+  describe('getTeamProperties', () => {
+    beforeEach(() => {
+      dcsrReportsModel.getTeamProperties = jest.fn();
+    });
+
+    it('should get team properties successfully', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        property_type: 'sale'
+      };
+
+      const mockProperties = [
+        {
+          id: 1,
+          reference_number: 'REF001',
+          property_type: 'sale',
+          location: 'Location 1',
+          status_name: 'Active',
+          agent_name: 'Agent 1',
+          price: 100000
+        }
+      ];
+
+      dcsrReportsModel.getTeamProperties.mockResolvedValue(mockProperties);
+
+      await dcsrReportsController.getTeamProperties(req, res);
+
+      expect(dcsrReportsModel.getTeamProperties).toHaveBeenCalledWith(
+        1,
+        '2024-01-01',
+        '2024-01-31',
+        { property_type: 'sale' }
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockProperties,
+        message: 'Team properties retrieved successfully'
+      });
+    });
+
+    it('should handle invalid date format', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: 'invalid-date',
+        end_date: '2024-01-31'
+      };
+
+      await dcsrReportsController.getTeamProperties(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    });
+
+    it('should handle end date before start date', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-31',
+        end_date: '2024-01-01'
+      };
+
+      await dcsrReportsController.getTeamProperties(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    });
+
+    it('should handle errors from model', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const error = new Error('Database error');
+      dcsrReportsModel.getTeamProperties.mockRejectedValue(error);
+
+      await dcsrReportsController.getTeamProperties(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to fetch team properties',
+        error: 'Database error'
+      });
+    });
+
+    it('should return 400 if team leader ID is missing', async () => {
+      req.params = {};
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      await dcsrReportsController.getTeamProperties(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    });
+
+    it('should return 400 if dates are missing', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {};
+
+      await dcsrReportsController.getTeamProperties(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    });
+  });
+
+  describe('getTeamLeads', () => {
+    beforeEach(() => {
+      dcsrReportsModel.getTeamLeads = jest.fn();
+    });
+
+    it('should get team leads successfully', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        status: 'active'
+      };
+
+      const mockLeads = [
+        {
+          id: 1,
+          date: '2024-01-15',
+          customer_name: 'Customer 1',
+          phone_number: '1234567890',
+          agent_name: 'Agent 1',
+          status: 'active'
+        }
+      ];
+
+      dcsrReportsModel.getTeamLeads.mockResolvedValue(mockLeads);
+
+      await dcsrReportsController.getTeamLeads(req, res);
+
+      expect(dcsrReportsModel.getTeamLeads).toHaveBeenCalledWith(
+        1,
+        '2024-01-01',
+        '2024-01-31',
+        { status: 'active' }
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockLeads,
+        message: 'Team leads retrieved successfully'
+      });
+    });
+
+    it('should handle invalid date format', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: 'invalid-date',
+        end_date: '2024-01-31'
+      };
+
+      await dcsrReportsController.getTeamLeads(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    });
+
+    it('should handle errors from model', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const error = new Error('Database error');
+      dcsrReportsModel.getTeamLeads.mockRejectedValue(error);
+
+      await dcsrReportsController.getTeamLeads(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to fetch team leads',
+        error: 'Database error'
+      });
+    });
+
+    it('should return 400 if team leader ID is missing', async () => {
+      req.params = {};
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      await dcsrReportsController.getTeamLeads(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    });
+  });
+
+  describe('getTeamViewings', () => {
+    beforeEach(() => {
+      dcsrReportsModel.getTeamViewings = jest.fn();
+    });
+
+    it('should get team viewings successfully', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        status: 'Completed'
+      };
+
+      const mockViewings = [
+        {
+          id: 1,
+          viewing_date: '2024-01-15',
+          viewing_time: '10:00',
+          property_reference: 'REF001',
+          lead_name: 'Lead 1',
+          agent_name: 'Agent 1',
+          status: 'Completed'
+        }
+      ];
+
+      dcsrReportsModel.getTeamViewings.mockResolvedValue(mockViewings);
+
+      await dcsrReportsController.getTeamViewings(req, res);
+
+      expect(dcsrReportsModel.getTeamViewings).toHaveBeenCalledWith(
+        1,
+        '2024-01-01',
+        '2024-01-31',
+        { status: 'Completed' }
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockViewings,
+        message: 'Team viewings retrieved successfully'
+      });
+    });
+
+    it('should handle invalid date format', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: 'invalid-date',
+        end_date: '2024-01-31'
+      };
+
+      await dcsrReportsController.getTeamViewings(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    });
+
+    it('should handle errors from model', async () => {
+      req.params = { teamLeaderId: '1' };
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      const error = new Error('Database error');
+      dcsrReportsModel.getTeamViewings.mockRejectedValue(error);
+
+      await dcsrReportsController.getTeamViewings(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to fetch team viewings',
+        error: 'Database error'
+      });
+    });
+
+    it('should return 400 if team leader ID is missing', async () => {
+      req.params = {};
+      req.query = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      await dcsrReportsController.getTeamViewings(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Team leader ID is required'
+      });
+    });
+  });
 });
 

@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Edit, Trash2, CalendarRange, X, BarChart2 } from 'lucide-react'
+import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Eye, Trash2, CalendarRange, X, BarChart2 } from 'lucide-react'
 import { DCSRMonthlyReport, DCSRReportFilters } from '@/types/reports'
 import { dcsrApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateDCSRModal from './CreateDCSRModal'
-import EditDCSRModal from './EditDCSRModal'
+import ViewDCSRModal from './ViewDCSRModal'
 
 export default function DCSRTab() {
   const { token } = useAuth()
@@ -121,8 +121,8 @@ export default function DCSRTab() {
     }
   }
 
-  // Handle edit report
-  const handleEditReport = (report: DCSRMonthlyReport) => {
+  // Handle view report
+  const handleViewReport = (report: DCSRMonthlyReport) => {
     setEditingReport(report)
     setShowEditModal(true)
   }
@@ -468,11 +468,11 @@ export default function DCSRTab() {
                     <td className="sticky right-0 z-10 bg-white px-6 py-4 whitespace-nowrap text-sm text-center">
                       <div className="flex items-center justify-center space-x-2">
                         <button
-                          onClick={() => handleEditReport(report)}
+                          onClick={() => handleViewReport(report)}
                           className="text-gray-600 hover:text-gray-900"
-                          title="Edit"
+                          title="View"
                         >
-                          <Edit className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleRecalculate(report.id)}
@@ -524,7 +524,7 @@ export default function DCSRTab() {
       )}
 
       {showEditModal && editingReport && (
-        <EditDCSRModal
+        <ViewDCSRModal
           report={editingReport}
           onClose={() => {
             setShowEditModal(false)

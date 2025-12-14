@@ -27,10 +27,11 @@ import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategori
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
+import { getDefaultPage } from '@/utils/getDefaultPage'
 
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageProperties, canViewProperties } = usePermissions()
+  const { canManageProperties, canViewProperties, canViewLeads, canAccessHR } = usePermissions()
   const { showSuccess, showError, showWarning } = useToast()
   const router = useRouter()
   
@@ -123,14 +124,15 @@ export default function PropertiesPage() {
     }
   }, [showExportDropdown])
 
-  // Check if user can view properties (redirect accountant)
+  // Check if user can view properties (redirect to appropriate page)
   useEffect(() => {
     if (isAuthenticated && user && !canViewProperties) {
-      // Accountant or other roles without property access should be redirected
+      // Accountant or other roles without property access should be redirected to their default page
+      const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
       showError('You do not have permission to view properties')
-      router.push('/dashboard')
+      router.push(defaultPage)
     }
-  }, [isAuthenticated, user, canViewProperties, router, showError])
+  }, [isAuthenticated, user, canViewProperties, canViewLeads, canAccessHR, router, showError])
 
   // Initialize filters from URL parameters (must run before loadData)
   useEffect(() => {
@@ -219,7 +221,7 @@ export default function PropertiesPage() {
       if (hasFilters) {
         Object.entries(effectiveFilters).forEach(([key, value]) => {
           // Include agent_id if it's a valid positive number
-          if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && value > 0) {
+          if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && typeof value === 'number' && value > 0) {
             queryParams.append(key, value.toString())
           } 
           // For other filters, exclude empty/zero values
@@ -335,7 +337,7 @@ export default function PropertiesPage() {
       if (hasFilters) {
         Object.entries(effectiveFilters).forEach(([key, value]) => {
           // Include agent_id if it's a valid positive number
-          if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && value > 0) {
+          if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && typeof value === 'number' && value > 0) {
             queryParams.append(key, value.toString())
           } 
           // For other filters, exclude empty/zero values

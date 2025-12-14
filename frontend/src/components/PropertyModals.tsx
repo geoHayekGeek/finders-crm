@@ -22,6 +22,7 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole } from '@/utils/roleUtils'
 import { CreateViewingFormData, Viewing } from '@/types/viewing'
 import { viewingsApi } from '@/utils/api'
+import { canViewViewingsForProperty as canViewViewingsForPropertyUtil } from '@/utils/propertyViewingsPermissions'
 
 // Reusable Input Field Component with Validation
 const InputField = ({ 
@@ -258,10 +259,58 @@ export function PropertyModals({
   const { user, token } = useAuth()
   const { canViewViewings } = usePermissions()
   const [skipDuplicates, setSkipDuplicates] = useState(true)
+  const [teamAgentIds, setTeamAgentIds] = useState<number[]>([])
   
   // Viewing modal state
   const [showAddViewingModal, setShowAddViewingModal] = useState(false)
   const [selectedPropertyForViewing, setSelectedPropertyForViewing] = useState<Property | null>(null)
+  
+  // Load team agents for team leaders
+  useEffect(() => {
+    const loadTeamAgents = async () => {
+      if (isTeamLeaderRole(user?.role) && user?.id && token) {
+        try {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:271',message:'Loading team agents for team leader',data:{teamLeaderId:user.id,role:user.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          const { usersApi } = await import('@/utils/api')
+          const response = await usersApi.getTeamLeaderAgents(user.id, token)
+          if (response.success) {
+            const agentIds = response.agents.map((agent: any) => agent.id)
+            const allIds = [user.id, ...agentIds]
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:277',message:'Team agents loaded successfully',data:{teamLeaderId:user.id,agentIds,allIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            setTeamAgentIds(allIds)
+          } else {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:280',message:'Team agents API failed, using only team leader ID',data:{teamLeaderId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            setTeamAgentIds([user.id])
+          }
+        } catch (error) {
+          console.error('Error loading team agents:', error)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:285',message:'Error loading team agents',data:{teamLeaderId:user.id,error:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+          // #endregion
+          setTeamAgentIds([user.id])
+        }
+      }
+    }
+    loadTeamAgents()
+  }, [user?.role, user?.id, token])
+  
+  // Check if user can view viewings for a specific property
+  const canViewViewingsForProperty = (property: Property | null): boolean => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:302',message:'canViewViewingsForProperty called',data:{hasProperty:!!property,hasUser:!!user,propertyId:property?.id,propertyAgentId:property?.agent_id,userId:user?.id,userRole:user?.role,canManageProperties},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    const result = canViewViewingsForPropertyUtil(property, user, canManageProperties, teamAgentIds)
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:305',message:'canViewViewingsForProperty result',data:{result,propertyId:property?.id,propertyAgentId:property?.agent_id,userId:user?.id,userRole:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+    return result
+  }
   
   // Check if user can create viewings
   const canCreateViewings = () => {
@@ -3702,25 +3751,33 @@ export function PropertyModals({
                       canEdit={false}
                     />
 
-                    {/* Viewings Section */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-3">Property Viewings</label>
-                      <PropertyViewingsSection
-                        propertyId={viewPropertyData.id}
-                        canEdit={canManageProperties}
-                        canAddViewing={canViewViewings && canCreateViewings()}
-                        propertyAgentId={viewPropertyData.agent_id}
-                        onAddViewing={() => {
-                          // Security: Double-check that agent can add viewing to this property
-                          if (isAgentRole(user?.role) && viewPropertyData.agent_id !== user?.id && viewPropertyData.agent_id !== undefined) {
-                            showError('You can only create viewings for properties assigned to you')
-                            return
-                          }
-                          setSelectedPropertyForViewing(viewPropertyData)
-                          setShowAddViewingModal(true)
-                        }}
-                      />
-                    </div>
+                    {/* Viewings Section - Only show if user has permission to view viewings for this property */}
+                    {(() => {
+                      const canView = canViewViewingsForProperty(viewPropertyData)
+                      // #region agent log
+                      fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:3752',message:'Rendering Property Viewings section check',data:{canView,propertyId:viewPropertyData?.id,propertyAgentId:viewPropertyData?.agent_id,userId:user?.id,userRole:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+                      // #endregion
+                      return canView ? (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-3">Property Viewings</label>
+                          <PropertyViewingsSection
+                            propertyId={viewPropertyData.id}
+                            canEdit={canManageProperties}
+                            canAddViewing={canViewViewings && canCreateViewings()}
+                            propertyAgentId={viewPropertyData.agent_id}
+                            onAddViewing={() => {
+                              // Security: Double-check that agent can add viewing to this property
+                              if (isAgentRole(user?.role) && viewPropertyData.agent_id !== user?.id && viewPropertyData.agent_id !== undefined) {
+                                showError('You can only create viewings for properties assigned to you')
+                                return
+                              }
+                              setSelectedPropertyForViewing(viewPropertyData)
+                              setShowAddViewingModal(true)
+                            }}
+                          />
+                        </div>
+                      ) : null
+                    })()}
                   </div>
                 </div>
 

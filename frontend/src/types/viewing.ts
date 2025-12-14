@@ -23,6 +23,7 @@ export interface Viewing {
   is_serious: boolean // Flag for serious/high-priority viewings
   description?: string // Detailed description of viewing context
   notes?: string
+  parent_viewing_id?: number // Reference to parent viewing if this is a sub-viewing
   created_at: string
   updated_at: string
   
@@ -42,6 +43,9 @@ export interface Viewing {
   latest_update_status?: string
   latest_update_date?: string
   
+  // Sub-viewings array (for parent viewings)
+  sub_viewings?: Viewing[]
+  
   // Action handlers for table/card components
   onView?: (viewing: Viewing) => void
   onEdit?: (viewing: Viewing) => void
@@ -58,10 +62,18 @@ export interface ViewingFilters {
   search?: string
 }
 
+// Input for creating/updating follow-up viewings (replaces old ViewingUpdateInput)
+// Supports both new format (viewing_date, viewing_time, notes) and old format (update_text, update_date) for backward compatibility
 export interface ViewingUpdateInput {
-  update_text: string
+  // New format for follow-up viewings
+  viewing_date?: string
+  viewing_time?: string
+  notes?: string
+  status?: string
+  
+  // Old format (deprecated, kept for backward compatibility)
+  update_text?: string
   update_date?: string
-  status?: string // Status of the viewing process at this update
 }
 
 export interface EditViewingFormData {
@@ -90,6 +102,7 @@ export interface CreateViewingFormData {
   is_serious?: boolean
   description?: string
   notes?: string
+  parent_viewing_id?: number // Reference to parent viewing if creating a sub-viewing
   initial_update_title?: string
   initial_update_description?: string
   initial_update_status?: string

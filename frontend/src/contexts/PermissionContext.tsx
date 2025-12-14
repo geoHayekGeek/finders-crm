@@ -29,11 +29,14 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   // Permission logic based on user role
   const role = user?.role || null
   
-  const canAccessHR = role === 'admin' || role === 'operations manager' || role === 'operations'
+  // HR role should have access to HR page
+  const canAccessHR = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'hr'
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
-  const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
+  // Accountant and HR (if it exists as a role) should not have access to properties
+  const canViewProperties = (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent') && role !== 'accountant' && role !== 'hr'
   const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
-  const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
+  // Accountant and HR can view leads according to backend permissions (read, view_assigned)
+  const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader' || role === 'accountant' || role === 'hr'
   const canManageViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
   const canViewClients = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader'

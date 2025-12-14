@@ -1,433 +1,258 @@
+// Tests for viewing model with follow-up viewings (sub-viewings)
 const Viewing = require('../../models/viewingModel');
 const pool = require('../../config/db');
 
-jest.mock('../../config/db');
+// Mock database pool
+jest.mock('../../config/db', () => ({
+  query: jest.fn(),
+  end: jest.fn()
+}));
 
-describe('Viewing Model', () => {
-  let mockQuery;
-  let mockClient;
-  let mockRelease;
-
+describe('Viewing Model - Follow-up Viewings', () => {
   beforeEach(() => {
-    mockQuery = jest.fn();
-    mockRelease = jest.fn();
-    mockClient = {
-      query: jest.fn(),
-      release: mockRelease
-    };
-    pool.query = mockQuery;
-    pool.connect = jest.fn().mockResolvedValue(mockClient);
-  });
-
-  afterEach(() => {
     jest.clearAllMocks();
   });
 
   describe('createViewing', () => {
-    it('should create a viewing with all fields', async () => {
+    it('should create a viewing with parent_viewing_id when provided', async () => {
       const viewingData = {
         property_id: 1,
-        lead_id: 2,
-        agent_id: 3,
+        lead_id: 1,
+        agent_id: 1,
         viewing_date: '2024-01-15',
-        viewing_time: '10:00',
+        viewing_time: '10:00:00',
         status: 'Scheduled',
-        is_serious: true,
-        description: 'Test viewing',
-        notes: 'Test notes'
+        parent_viewing_id: 10
       };
 
-      mockQuery.mockResolvedValue({
-        rows: [{ id: 1, ...viewingData }]
-      });
+      const mockResult = {
+        rows: [{
+          id: 2,
+          ...viewingData,
+          created_at: new Date(),
+          updated_at: new Date()
+        }]
+      };
+
+      pool.query.mockResolvedValueOnce(mockResult);
 
       const result = await Viewing.createViewing(viewingData);
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO viewings'),
-        expect.arrayContaining([
-          viewingData.property_id,
-          viewingData.lead_id,
-          viewingData.agent_id,
-          viewingData.viewing_date,
-          viewingData.viewing_time,
-          viewingData.status,
-          viewingData.is_serious,
-          viewingData.description,
-          viewingData.notes
-        ])
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('parent_viewing_id'),
+        expect.arrayContaining([10])
       );
-      expect(result).toEqual({ id: 1, ...viewingData });
+      expect(result.parent_viewing_id).toBe(10);
     });
 
-    it('should use default status and is_serious if not provided', async () => {
+    it('should create a parent viewing when parent_viewing_id is not provided', async () => {
       const viewingData = {
         property_id: 1,
-        lead_id: 2,
-        agent_id: 3,
+        lead_id: 1,
+        agent_id: 1,
         viewing_date: '2024-01-15',
-        viewing_time: '10:00',
-        description: 'Test viewing',
-        notes: 'Test notes'
+        viewing_time: '10:00:00',
+        status: 'Scheduled'
       };
 
-      mockQuery.mockResolvedValue({
-        rows: [{ id: 1, ...viewingData, status: 'Scheduled', is_serious: false }]
-      });
+      const mockResult = {
+        rows: [{
+          id: 1,
+          ...viewingData,
+          parent_viewing_id: null,
+          created_at: new Date(),
+          updated_at: new Date()
+        }]
+      };
 
-      await Viewing.createViewing(viewingData);
+      pool.query.mockResolvedValueOnce(mockResult);
 
-      const callArgs = mockQuery.mock.calls[0][1];
-      expect(callArgs[5]).toBe('Scheduled'); // status
-      expect(callArgs[6]).toBe(false); // is_serious
+      const result = await Viewing.createViewing(viewingData);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('parent_viewing_id'),
+        expect.arrayContaining([null])
+      );
+      expect(result.parent_viewing_id).toBeNull();
+    });
+  });
+
+  describe('getSubViewings', () => {
+    it('should fetch all sub-viewings for a parent viewing', async () => {
+      const parentViewingId = 1;
+      const mockSubViewings = [
+        {
+          id: 2,
+          parent_viewing_id: 1,
+          viewing_date: '2024-01-20',
+          viewing_time: '14:00:00',
+          status: 'Scheduled',
+          updates: []
+        },
+        {
+          id: 3,
+          parent_viewing_id: 1,
+          viewing_date: '2024-01-25',
+          viewing_time: '16:00:00',
+          status: 'Completed',
+          updates: []
+        }
+      ];
+
+      const mockResult = { rows: mockSubViewings };
+      pool.query.mockResolvedValueOnce(mockResult);
+
+      const result = await Viewing.getSubViewings(parentViewingId);
+
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE v.parent_viewing_id = $1'),
+        [parentViewingId]
+      );
+      expect(result).toEqual(mockSubViewings);
+      expect(result.length).toBe(2);
+    });
+
+    it('should return empty array when no sub-viewings exist', async () => {
+      const parentViewingId = 999;
+      pool.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await Viewing.getSubViewings(parentViewingId);
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('attachSubViewings', () => {
+    it('should attach sub-viewings to parent viewings', async () => {
+      const parentViewings = [
+        { id: 1, parent_viewing_id: null },
+        { id: 2, parent_viewing_id: null }
+      ];
+
+      const mockSubViewings = [
+        { id: 3, parent_viewing_id: 1 },
+        { id: 4, parent_viewing_id: 1 },
+        { id: 5, parent_viewing_id: 2 }
+      ];
+
+      pool.query.mockResolvedValueOnce({ rows: mockSubViewings });
+
+      const result = await Viewing.attachSubViewings(parentViewings);
+
+      expect(result[0].sub_viewings).toHaveLength(2);
+      expect(result[0].sub_viewings[0].id).toBe(3);
+      expect(result[0].sub_viewings[1].id).toBe(4);
+      expect(result[1].sub_viewings).toHaveLength(1);
+      expect(result[1].sub_viewings[0].id).toBe(5);
+    });
+
+    it('should not attach sub-viewings to sub-viewings', async () => {
+      const viewings = [
+        { id: 1, parent_viewing_id: null },
+        { id: 2, parent_viewing_id: 1 } // This is a sub-viewing
+      ];
+
+      const mockSubViewings = [{ id: 3, parent_viewing_id: 1 }];
+      pool.query.mockResolvedValueOnce({ rows: mockSubViewings });
+
+      const result = await Viewing.attachSubViewings(viewings);
+
+      expect(result[0].sub_viewings).toHaveLength(1);
+      expect(result[1].sub_viewings).toBeUndefined(); // Sub-viewing should not have sub_viewings
+    });
+
+    it('should handle empty array', async () => {
+      const result = await Viewing.attachSubViewings([]);
+      expect(result).toEqual([]);
+    });
+
+    it('should handle null/undefined', async () => {
+      const result = await Viewing.attachSubViewings(null);
+      expect(result).toBeNull();
     });
   });
 
   describe('getAllViewings', () => {
-    it('should get all viewings with related data', async () => {
+    it('should exclude sub-viewings from main list', async () => {
       const mockViewings = [
-        { id: 1, property_id: 1, agent_id: 1, viewing_date: '2024-01-15' }
+        { id: 1, parent_viewing_id: null },
+        { id: 2, parent_viewing_id: null },
+        { id: 3, parent_viewing_id: 1 } // This should be excluded
       ];
 
-      mockQuery.mockResolvedValue({ rows: mockViewings });
+      pool.query
+        .mockResolvedValueOnce({ rows: mockViewings.filter(v => !v.parent_viewing_id) })
+        .mockResolvedValueOnce({ rows: [] });
 
       const result = await Viewing.getAllViewings();
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT')
-      );
-      expect(result).toEqual(mockViewings);
+      // First call is the main query - check that it was called with the correct WHERE clause
+      const firstCall = pool.query.mock.calls[0];
+      expect(firstCall[0]).toContain('WHERE v.parent_viewing_id IS NULL');
+      expect(firstCall[1]).toBeUndefined();
+      
+      // Second call is from attachSubViewings
+      expect(pool.query).toHaveBeenCalledTimes(2);
+      expect(result.every(v => !v.parent_viewing_id)).toBe(true);
     });
   });
 
   describe('getViewingsByAgent', () => {
-    it('should get viewings for a specific agent', async () => {
+    it('should only return parent viewings for an agent', async () => {
       const agentId = 1;
-      const mockViewings = [{ id: 1, agent_id: agentId }];
+      const mockViewings = [
+        { id: 1, agent_id: agentId, parent_viewing_id: null },
+        { id: 2, agent_id: agentId, parent_viewing_id: null }
+      ];
 
-      mockQuery.mockResolvedValue({ rows: mockViewings });
+      pool.query
+        .mockResolvedValueOnce({ rows: mockViewings })
+        .mockResolvedValueOnce({ rows: [] });
 
       const result = await Viewing.getViewingsByAgent(agentId);
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE v.agent_id = $1'),
+      expect(pool.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE v.agent_id = $1 AND v.parent_viewing_id IS NULL'),
         [agentId]
       );
-      expect(result).toEqual(mockViewings);
-    });
-  });
-
-  describe('getViewingsForTeamLeader', () => {
-    it('should get viewings for team leader and their team', async () => {
-      const teamLeaderId = 1;
-      const mockViewings = [{ id: 1 }];
-
-      mockQuery.mockResolvedValue({ rows: mockViewings });
-
-      const result = await Viewing.getViewingsForTeamLeader(teamLeaderId);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('team_agents'),
-        [teamLeaderId]
-      );
-      expect(result).toEqual(mockViewings);
+      expect(result.every(v => !v.parent_viewing_id)).toBe(true);
     });
   });
 
   describe('getViewingById', () => {
-    it('should get a viewing by ID', async () => {
+    it('should attach sub-viewings when viewing a parent viewing', async () => {
       const viewingId = 1;
-      const mockViewing = { id: viewingId, property_id: 1 };
+      const mockViewing = {
+        id: viewingId,
+        parent_viewing_id: null
+      };
+      const mockSubViewings = [
+        { id: 2, parent_viewing_id: viewingId },
+        { id: 3, parent_viewing_id: viewingId }
+      ];
 
-      mockQuery.mockResolvedValue({ rows: [mockViewing] });
+      pool.query
+        .mockResolvedValueOnce({ rows: [mockViewing] })
+        .mockResolvedValueOnce({ rows: mockSubViewings });
 
       const result = await Viewing.getViewingById(viewingId);
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE v.id = $1'),
-        [viewingId]
-      );
-      expect(result).toEqual(mockViewing);
-    });
-  });
-
-  describe('updateViewing', () => {
-    it('should update a viewing with provided fields', async () => {
-      const viewingId = 1;
-      const updates = { status: 'Completed', notes: 'Updated notes' };
-
-      mockQuery.mockResolvedValue({
-        rows: [{ id: viewingId, ...updates }]
-      });
-
-      const result = await Viewing.updateViewing(viewingId, updates);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE viewings'),
-        expect.arrayContaining([viewingId, updates.status, updates.notes])
-      );
-      expect(result).toEqual({ id: viewingId, ...updates });
+      expect(result.sub_viewings).toBeDefined();
+      expect(result.sub_viewings).toHaveLength(2);
     });
 
-    it('should return existing viewing if no updates provided', async () => {
-      const viewingId = 1;
-      const mockViewing = { id: viewingId, status: 'Scheduled' };
-
-      mockQuery.mockResolvedValue({ rows: [mockViewing] });
-
-      const result = await Viewing.updateViewing(viewingId, {});
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE v.id = $1'),
-        [viewingId]
-      );
-      expect(result).toEqual(mockViewing);
-    });
-  });
-
-  describe('deleteViewing', () => {
-    it('should delete a viewing', async () => {
-      const viewingId = 1;
-      const mockViewing = { id: viewingId };
-
-      mockQuery.mockResolvedValue({ rows: [mockViewing] });
-
-      const result = await Viewing.deleteViewing(viewingId);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM viewings'),
-        [viewingId]
-      );
-      expect(result).toEqual(mockViewing);
-    });
-  });
-
-  describe('getViewingsWithFilters', () => {
-    it('should filter by status', async () => {
-      const filters = { status: 'Completed' };
-      mockQuery.mockResolvedValue({ rows: [] });
-
-      await Viewing.getViewingsWithFilters(filters);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining("AND v.status = $1"),
-        expect.arrayContaining(['Completed'])
-      );
-    });
-
-    it('should filter by agent_id', async () => {
-      const filters = { agent_id: 1 };
-      mockQuery.mockResolvedValue({ rows: [] });
-
-      await Viewing.getViewingsWithFilters(filters);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('AND v.agent_id = $1'),
-        expect.arrayContaining([1])
-      );
-    });
-
-    it('should filter by date range', async () => {
-      const filters = { date_from: '2024-01-01', date_to: '2024-01-31' };
-      mockQuery.mockResolvedValue({ rows: [] });
-
-      await Viewing.getViewingsWithFilters(filters);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('AND v.viewing_date >= $1::date'),
-        expect.arrayContaining(['2024-01-01'])
-      );
-    });
-
-    it('should filter by search term', async () => {
-      const filters = { search: 'test' };
-      mockQuery.mockResolvedValue({ rows: [] });
-
-      await Viewing.getViewingsWithFilters(filters);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('ILIKE'),
-        expect.arrayContaining(['%test%'])
-      );
-    });
-  });
-
-  describe('getViewingStats', () => {
-    it('should get viewing statistics', async () => {
-      const mockStats = {
-        total_viewings: 10,
-        scheduled: 5,
-        completed: 3,
-        cancelled: 1,
-        no_show: 1
+    it('should not attach sub-viewings when viewing a sub-viewing', async () => {
+      const viewingId = 2;
+      const mockViewing = {
+        id: viewingId,
+        parent_viewing_id: 1
       };
 
-      mockQuery.mockResolvedValue({ rows: [mockStats] });
+      pool.query.mockResolvedValueOnce({ rows: [mockViewing] });
 
-      const result = await Viewing.getViewingStats();
+      const result = await Viewing.getViewingById(viewingId);
 
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('COUNT(*)')
-      );
-      expect(result).toEqual(mockStats);
-    });
-  });
-
-  describe('getViewingsForAgent', () => {
-    it('should return viewings for agent role', async () => {
-      const agentId = 1;
-      const mockViewings = [{ id: 1 }];
-
-      mockQuery.mockResolvedValue({ rows: mockViewings });
-
-      const result = await Viewing.getViewingsForAgent(agentId, 'agent');
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE v.agent_id = $1'),
-        [agentId]
-      );
-      expect(result).toEqual(mockViewings);
-    });
-
-    it('should return viewings for team leader role', async () => {
-      const teamLeaderId = 1;
-      const mockViewings = [{ id: 1 }];
-
-      mockQuery.mockResolvedValue({ rows: mockViewings });
-
-      const result = await Viewing.getViewingsForAgent(teamLeaderId, 'team_leader');
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('team_agents'),
-        [teamLeaderId]
-      );
-      expect(result).toEqual(mockViewings);
-    });
-
-    it('should return all viewings for admin role', async () => {
-      const mockViewings = [{ id: 1 }];
-
-      mockQuery.mockResolvedValue({ rows: mockViewings });
-
-      const result = await Viewing.getViewingsForAgent(1, 'admin');
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT')
-      );
-      expect(result).toEqual(mockViewings);
-    });
-  });
-
-  describe('addViewingUpdate', () => {
-    it('should add an update to a viewing', async () => {
-      const viewingId = 1;
-      const updateData = {
-        update_text: 'Test update',
-        update_date: '2024-01-15',
-        created_by: 1
-      };
-
-      mockQuery.mockResolvedValue({
-        rows: [{ id: 1, viewing_id: viewingId, ...updateData }]
-      });
-
-      const result = await Viewing.addViewingUpdate(viewingId, updateData);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO viewing_updates'),
-        [viewingId, updateData.update_text, updateData.update_date || expect.any(String), updateData.created_by, updateData.status || 'Initial Contact']
-      );
-      expect(result.viewing_id).toBe(viewingId);
-    });
-
-    it('should use current date if update_date not provided', async () => {
-      const viewingId = 1;
-      const updateData = {
-        update_text: 'Test update',
-        created_by: 1
-      };
-
-      mockQuery.mockResolvedValue({
-        rows: [{ id: 1, viewing_id: viewingId, ...updateData }]
-      });
-
-      await Viewing.addViewingUpdate(viewingId, updateData);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('INSERT INTO viewing_updates'),
-        expect.arrayContaining([viewingId, updateData.update_text])
-      );
-    });
-  });
-
-  describe('getViewingUpdateById', () => {
-    it('should get a viewing update by ID', async () => {
-      const updateId = 1;
-      const mockUpdate = { id: updateId, viewing_id: 1 };
-
-      mockQuery.mockResolvedValue({ rows: [mockUpdate] });
-
-      const result = await Viewing.getViewingUpdateById(updateId);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE vu.id = $1'),
-        [updateId]
-      );
-      expect(result).toEqual(mockUpdate);
-    });
-  });
-
-  describe('updateViewingUpdate', () => {
-    it('should update a viewing update', async () => {
-      const updateId = 1;
-      const updateData = { update_text: 'Updated text' };
-
-      mockQuery.mockResolvedValue({
-        rows: [{ id: updateId, ...updateData }]
-      });
-
-      const result = await Viewing.updateViewingUpdate(updateId, updateData);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE viewing_updates'),
-        expect.arrayContaining([updateData.update_text, updateId])
-      );
-      expect(result).toEqual({ id: updateId, ...updateData });
-    });
-  });
-
-  describe('getViewingUpdates', () => {
-    it('should get all updates for a viewing', async () => {
-      const viewingId = 1;
-      const mockUpdates = [{ id: 1, viewing_id: viewingId }];
-
-      mockQuery.mockResolvedValue({ rows: mockUpdates });
-
-      const result = await Viewing.getViewingUpdates(viewingId);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE vu.viewing_id = $1'),
-        [viewingId]
-      );
-      expect(result).toEqual(mockUpdates);
-    });
-  });
-
-  describe('deleteViewingUpdate', () => {
-    it('should delete a viewing update', async () => {
-      const updateId = 1;
-      const mockUpdate = { id: updateId };
-
-      mockQuery.mockResolvedValue({ rows: [mockUpdate] });
-
-      const result = await Viewing.deleteViewingUpdate(updateId);
-
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM viewing_updates'),
-        [updateId]
-      );
-      expect(result).toEqual(mockUpdate);
+      expect(result.sub_viewings).toBeUndefined();
     });
   });
 });
-

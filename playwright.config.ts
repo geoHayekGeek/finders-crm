@@ -94,7 +94,7 @@ export default defineConfig({
     {
       command: 'cd backend && npm start',
       url: process.env.BACKEND_URL || 'http://localhost:10000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       timeout: 120 * 1000,
       stdout: 'ignore',
       stderr: 'pipe',
@@ -102,7 +102,7 @@ export default defineConfig({
     {
       command: 'cd frontend && npm run dev',
       url: process.env.FRONTEND_URL || 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: true,
       timeout: 120 * 1000,
       stdout: 'ignore',
       stderr: 'pipe',

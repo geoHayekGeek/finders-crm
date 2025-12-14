@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { getDefaultPage } from '@/utils/getDefaultPage'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -22,7 +23,7 @@ export default function ProtectedRoute({
   allowedRoles = []
 }: ProtectedRouteProps) {
   const { user, loading } = useAuth()
-  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance } = usePermissions()
+  const { canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewProperties, canViewLeads, canAccessHR } = usePermissions()
   const router = useRouter()
   const [isAuthorized, setIsAuthorized] = useState(false)
 
@@ -42,8 +43,9 @@ export default function ProtectedRoute({
 
     // Check role-based access
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-      console.log('ProtectedRoute - Role not allowed, redirecting to properties')
-      router.push('/properties')
+      console.log('ProtectedRoute - Role not allowed, redirecting to default page')
+      const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
+      router.push(defaultPage)
       return
     }
 
@@ -67,14 +69,15 @@ export default function ProtectedRoute({
     }
 
     if (!hasRequiredPermissions) {
-      console.log('ProtectedRoute - Missing required permissions, redirecting to properties')
-      router.push('/properties')
+      console.log('ProtectedRoute - Missing required permissions, redirecting to default page')
+      const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
+      router.push(defaultPage)
       return
     }
 
     console.log('ProtectedRoute - Access granted')
     setIsAuthorized(true)
-  }, [user, loading, router, allowedRoles, requiredPermissions, canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance])
+  }, [user, loading, router, allowedRoles, requiredPermissions, canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewProperties, canViewLeads, canAccessHR])
 
   if (loading) {
     return (

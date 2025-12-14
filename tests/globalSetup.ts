@@ -151,13 +151,37 @@ async function seedTestDatabase() {
     `);
 
     // Seed lead statuses
-    await pool.query(`
-      INSERT INTO lead_statuses (name, code, description, is_active) VALUES
-      ('Active', 'ACT', 'Lead is active', true),
-      ('Closed', 'CLS', 'Lead is closed', true),
-      ('Follow Up', 'FLW', 'Lead requires follow up', true)
-      ON CONFLICT (name) DO NOTHING;
+    // Check if the table has the extended columns (code, description, is_active)
+    const leadStatusColumns = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'lead_statuses' 
+      AND column_name IN ('code', 'description', 'is_active', 'status_name')
     `);
+    
+    const hasExtendedColumns = leadStatusColumns.rows.some(r => 
+      ['code', 'description', 'is_active'].includes(r.column_name)
+    );
+    
+    if (hasExtendedColumns) {
+      // Use extended schema with code, description, is_active
+      await pool.query(`
+        INSERT INTO lead_statuses (status_name, code, description, is_active) VALUES
+        ('Active', 'ACT', 'Lead is active', true),
+        ('Closed', 'CLS', 'Lead is closed', true),
+        ('Follow Up', 'FLW', 'Lead requires follow up', true)
+        ON CONFLICT (status_name) DO NOTHING;
+      `);
+    } else {
+      // Use basic schema with only status_name
+      await pool.query(`
+        INSERT INTO lead_statuses (status_name) VALUES
+        ('Active'),
+        ('Closed'),
+        ('Follow Up')
+        ON CONFLICT (status_name) DO NOTHING;
+      `);
+    }
 
     // Seed users
     const adminPassword = await bcrypt.hash(process.env.TEST_ADMIN_PASSWORD || 'admin123', saltRounds);
@@ -229,7 +253,17 @@ async function seedTestDatabase() {
     }
 
     // Seed leads
-    const leadStatusResult = await pool.query("SELECT id FROM lead_statuses WHERE code = 'ACT'");
+    // Try to find by code first, fallback to status_name if code doesn't exist
+    let leadStatusResult;
+    try {
+      leadStatusResult = await pool.query("SELECT id FROM lead_statuses WHERE code = 'ACT'");
+      if (leadStatusResult.rows.length === 0) {
+        leadStatusResult = await pool.query("SELECT id FROM lead_statuses WHERE status_name = 'Active'");
+      }
+    } catch (error) {
+      // If code column doesn't exist, use status_name
+      leadStatusResult = await pool.query("SELECT id FROM lead_statuses WHERE status_name = 'Active'");
+    }
     const activeLeadStatus = leadStatusResult.rows[0];
 
     if (activeLeadStatus && agentUser) {
@@ -247,7 +281,7 @@ async function seedTestDatabase() {
     // Seed calendar events
     if (adminUser) {
       await pool.query(`
-        INSERT INTO calendar_events (title, description, start_time, end_time, all_day, color, type, created_by_id) VALUES
+        INSERT INTO calendar_events (title, description, start_time, end_time, all_day, color, type, created_by) VALUES
         ('Property Showing', 'Showing property A-001 to customer', CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP + INTERVAL '1 day' + INTERVAL '1 hour', false, 'blue', 'showing', $1),
         ('Team Meeting', 'Weekly team meeting', CURRENT_TIMESTAMP + INTERVAL '2 days', CURRENT_TIMESTAMP + INTERVAL '2 days' + INTERVAL '2 hours', false, 'green', 'meeting', $1),
         ('Property Inspection', 'Inspection for property V-001', CURRENT_TIMESTAMP + INTERVAL '3 days', CURRENT_TIMESTAMP + INTERVAL '3 days' + INTERVAL '30 minutes', false, 'yellow', 'inspection', $1)
@@ -271,30 +305,44 @@ async function loginAndSaveStorageState(
   storageStatePath: string
 ) {
   try {
-    await page.goto(baseURL);
+    console.log(`  → Navigating to ${baseURL}...`);
+    await page.goto(baseURL, { waitUntil: 'networkidle' });
     
-    // Wait for login form
-    await page.waitForSelector('input[type="email"], input[name="email"]', { timeout: 10000 });
+    // Wait for login form - try multiple selectors
+    console.log('  → Waiting for login form...');
+    await page.waitForSelector('input[type="email"], input[name="email"], form', { timeout: 15000 });
     
     // Fill login form
-    const emailInput = page.locator('input[type="email"], input[name="email"]').first();
-    const passwordInput = page.locator('input[type="password"], input[name="password"]').first();
-    const submitButton = page.locator('button[type="submit"], button:has-text("Sign in"), button:has-text("Login")').first();
+    console.log('  → Filling login form...');
+    const emailInput = page.locator('input[type="email"]').first();
+    const passwordInput = page.locator('input[type="password"]').first();
+    const submitButton = page.locator('button[type="submit"], form button').first();
 
     await emailInput.fill(credentials.email);
     await passwordInput.fill(credentials.password);
     
     // Submit form and wait for navigation
-    await Promise.all([
-      page.waitForURL(/\/properties|\/dashboard/, { timeout: 15000 }),
-      submitButton.click(),
-    ]);
+    console.log('  → Submitting login form...');
+    await submitButton.click();
+    
+    // Wait for navigation to properties page or dashboard
+    console.log('  → Waiting for redirect...');
+    await page.waitForURL(/\/properties|\/dashboard/, { timeout: 20000 });
+    
+    // Wait a bit more to ensure the page is fully loaded
+    await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {
+      // Ignore timeout, page might already be loaded
+    });
 
     // Save storage state
     await page.context().storageState({ path: storageStatePath });
     console.log(`  ✅ Saved storage state to ${storageStatePath}`);
   } catch (error) {
+    // Take a screenshot for debugging
+    const screenshotPath = storageStatePath.replace('.json', '-error.png');
+    await page.screenshot({ path: screenshotPath }).catch(() => {});
     console.error(`❌ Error logging in and saving storage state for ${credentials.email}:`, error);
+    console.error(`   Screenshot saved to: ${screenshotPath}`);
     throw error;
   }
 }

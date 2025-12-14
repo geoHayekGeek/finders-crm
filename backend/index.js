@@ -38,6 +38,11 @@ app.use('/assets', express.static('public/assets'));
 app.use('/images', express.static('public/images'));
 app.use('/uploads', express.static('public/uploads'));
 
+// Health check endpoint for Playwright and monitoring
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
 app.use('/api', indexRoutes);
 
 // Error handling middleware

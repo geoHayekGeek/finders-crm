@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import { apiClient, ApiError } from '@/utils/api'
 import { useRouter } from 'next/navigation'
+import { getDefaultPage } from '@/utils/getDefaultPage'
 import { 
   Building2, 
   Users, 
@@ -36,15 +38,17 @@ export default function HomePage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth()
+  const { login, isAuthenticated, isLoading: authLoading, user } = useAuth()
   const { settings } = useSettings()
+  const { canViewProperties, canViewLeads, canAccessHR } = usePermissions()
   const router = useRouter()
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated) {
-      router.replace('/properties')
+    if (!authLoading && isAuthenticated && user) {
+      const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
+      router.replace(defaultPage)
     }
-  }, [authLoading, isAuthenticated, router])
+  }, [authLoading, isAuthenticated, user, router, canViewProperties, canViewLeads, canAccessHR])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,12 +67,13 @@ export default function HomePage() {
         
         // Use the login function from auth context
         login(loginData.token, loginData.user)
-        console.log('User logged in, redirecting to properties...')
+        console.log('User logged in, redirecting to default page...')
         
         // Add a small delay to ensure state is updated, then redirect
         setTimeout(() => {
-          router.replace('/properties')
-          console.log('Router.replace called')
+          const defaultPage = getDefaultPage(loginData.user, { canViewProperties, canViewLeads, canAccessHR })
+          router.replace(defaultPage)
+          console.log('Router.replace called with:', defaultPage)
         }, 100)
       } else {
         console.log('Login failed:', response.message)
@@ -92,7 +97,7 @@ export default function HomePage() {
   if (!authLoading && isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <div className="text-center text-gray-600">Redirecting to properties...</div>
+        <div className="text-center text-gray-600">Redirecting...</div>
       </div>
     )
   }

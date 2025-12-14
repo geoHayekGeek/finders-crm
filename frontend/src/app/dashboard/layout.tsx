@@ -68,7 +68,7 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canAccessHR, canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
+  const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
   const { settings } = useSettings()
   const router = useRouter()
 
@@ -95,27 +95,29 @@ export default function DashboardLayout({
     }
 
     // For all other roles (non-agents): show full navigation
-    // Properties with submenu for management roles
-    const submenuItems = [
-      { name: 'All Properties', href: '/properties', icon: Building2 }
-    ]
-    
-    // Add categories and statuses to submenu only if user can manage them
-    if (canManageCategoriesAndStatuses) {
-      submenuItems.push(
-        { name: 'Categories', href: '/properties/categories', icon: Tag },
-        { name: 'Statuses', href: '/properties/statuses', icon: Circle }
-      )
-    }
+    // Properties with submenu for management roles - only show if user can view properties
+    if (canViewProperties) {
+      const submenuItems = [
+        { name: 'All Properties', href: '/properties', icon: Building2 }
+      ]
+      
+      // Add categories and statuses to submenu only if user can manage them
+      if (canManageCategoriesAndStatuses) {
+        submenuItems.push(
+          { name: 'Categories', href: '/properties/categories', icon: Tag },
+          { name: 'Statuses', href: '/properties/statuses', icon: Circle }
+        )
+      }
 
-    baseNavigation.push({ 
-      name: 'Properties', 
-      href: '/properties', 
-      icon: Building2, 
-      alwaysVisible: true,
-      hasSubmenu: submenuItems.length > 1,
-      submenu: submenuItems.length > 1 ? submenuItems : undefined
-    })
+      baseNavigation.push({ 
+        name: 'Properties', 
+        href: '/properties', 
+        icon: Building2, 
+        alwaysVisible: true,
+        hasSubmenu: submenuItems.length > 1,
+        submenu: submenuItems.length > 1 ? submenuItems : undefined
+      })
+    }
 
     // Leads with submenu for management roles only
     if (canViewLeads) {

@@ -1,7 +1,94 @@
 // models/viewingModel.js
 const pool = require('../config/db');
+const fs = require('fs');
+const logPath = 'c:\\Users\\GeorgioHayek\\Desktop\\Applications\\finders-system\\finders-crm\\.cursor\\debug.log';
 
 class Viewing {
+  // Helper method to fetch sub-viewings for a viewing
+  static async getSubViewingsForViewing(parentViewingId) {
+    const result = await pool.query(`
+      SELECT 
+        sv.id,
+        sv.property_id,
+        sv.lead_id,
+        sv.agent_id,
+        sv.viewing_date,
+        sv.viewing_time,
+        sv.status,
+        sv.is_serious,
+        sv.description,
+        sv.notes,
+        sv.parent_viewing_id,
+        sv.created_at,
+        sv.updated_at,
+        sp.reference_number as property_reference,
+        sp.location as property_location,
+        sp.property_type,
+        sl.customer_name as lead_name,
+        sl.phone_number as lead_phone,
+        su.name as agent_name,
+        su.role as agent_role
+      FROM viewings sv
+      LEFT JOIN properties sp ON sv.property_id = sp.id
+      LEFT JOIN leads sl ON sv.lead_id = sl.id
+      LEFT JOIN users su ON sv.agent_id = su.id
+      WHERE sv.parent_viewing_id = $1
+      ORDER BY sv.viewing_date DESC, sv.viewing_time DESC
+    `, [parentViewingId]);
+    return result.rows;
+  }
+
+  // Helper method to attach sub-viewings to viewing objects
+  static async attachSubViewings(viewings) {
+    if (!viewings || viewings.length === 0) return viewings;
+    
+    const viewingIds = viewings.map(v => v.id);
+    const allSubViewings = await pool.query(`
+      SELECT 
+        sv.id,
+        sv.property_id,
+        sv.lead_id,
+        sv.agent_id,
+        sv.viewing_date,
+        sv.viewing_time,
+        sv.status,
+        sv.is_serious,
+        sv.description,
+        sv.notes,
+        sv.parent_viewing_id,
+        sv.created_at,
+        sv.updated_at,
+        sp.reference_number as property_reference,
+        sp.location as property_location,
+        sp.property_type,
+        sl.customer_name as lead_name,
+        sl.phone_number as lead_phone,
+        su.name as agent_name,
+        su.role as agent_role
+      FROM viewings sv
+      LEFT JOIN properties sp ON sv.property_id = sp.id
+      LEFT JOIN leads sl ON sv.lead_id = sl.id
+      LEFT JOIN users su ON sv.agent_id = su.id
+      WHERE sv.parent_viewing_id = ANY($1::int[])
+      ORDER BY sv.parent_viewing_id, sv.viewing_date DESC, sv.viewing_time DESC
+    `, [viewingIds]);
+    
+    // Group sub-viewings by parent viewing ID
+    const subViewingsMap = new Map();
+    allSubViewings.rows.forEach(sv => {
+      if (!subViewingsMap.has(sv.parent_viewing_id)) {
+        subViewingsMap.set(sv.parent_viewing_id, []);
+      }
+      subViewingsMap.get(sv.parent_viewing_id).push(sv);
+    });
+    
+    // Attach sub-viewings to parent viewings
+    return viewings.map(viewing => ({
+      ...viewing,
+      sub_viewings: subViewingsMap.get(viewing.id) || []
+    }));
+  }
+
   // Create a new viewing
   static async createViewing(viewingData) {
     const {
@@ -13,13 +100,14 @@ class Viewing {
       status,
       is_serious,
       description,
-      notes
+      notes,
+      parent_viewing_id
     } = viewingData;
 
     const result = await pool.query(
       `INSERT INTO viewings (
-        property_id, lead_id, agent_id, viewing_date, viewing_time, status, is_serious, description, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        property_id, lead_id, agent_id, viewing_date, viewing_time, status, is_serious, description, notes, parent_viewing_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
         property_id,
@@ -30,13 +118,14 @@ class Viewing {
         status || 'Scheduled',
         is_serious || false,
         description,
-        notes
+        notes,
+        parent_viewing_id || null
       ]
     );
     return result.rows[0];
   }
 
-  // Get all viewings with related data
+  // Get all viewings with related data and sub-viewings
   static async getAllViewings() {
     try {
       console.log('🔍 Executing getAllViewings query...');
@@ -52,6 +141,7 @@ class Viewing {
           v.is_serious,
           v.description,
           v.notes,
+          v.parent_viewing_id,
           v.created_at,
           v.updated_at,
           p.reference_number as property_reference,
@@ -60,42 +150,27 @@ class Viewing {
           l.customer_name as lead_name,
           l.phone_number as lead_phone,
           u.name as agent_name,
-          u.role as agent_role,
-          COALESCE(
-            json_agg(
-              json_build_object(
-                'id', vu.id,
-                'update_text', vu.update_text,
-                'update_date', vu.update_date,
-                'status', vu.status,
-                'created_by', vu.created_by,
-                'created_by_name', creator.name,
-                'created_at', vu.created_at
-              ) ORDER BY vu.update_date DESC, vu.created_at DESC
-            ) FILTER (WHERE vu.id IS NOT NULL),
-            '[]'::json
-          ) as updates
+          u.role as agent_role
         FROM viewings v
         LEFT JOIN properties p ON v.property_id = p.id
         LEFT JOIN leads l ON v.lead_id = l.id
         LEFT JOIN users u ON v.agent_id = u.id
-        LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
-        LEFT JOIN users creator ON vu.created_by = creator.id
-        GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-                 v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
-                 p.reference_number, p.location, p.property_type,
-                 l.customer_name, l.phone_number, u.name, u.role
+        WHERE v.parent_viewing_id IS NULL
         ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
       `);
-      console.log('✅ Query executed successfully, rows returned:', result.rows.length);
-      return result.rows;
+      
+      // Fetch and attach sub-viewings
+      const viewingsWithSubViewings = await Viewing.attachSubViewings(result.rows);
+      
+      console.log('✅ Query executed successfully, rows returned:', viewingsWithSubViewings.length);
+      return viewingsWithSubViewings;
     } catch (error) {
       console.error('❌ Error in getAllViewings:', error);
       throw error;
     }
   }
 
-  // Get viewings by agent
+  // Get viewings by agent (only parent viewings, sub-viewings attached via helper)
   static async getViewingsByAgent(agentId) {
     const result = await pool.query(`
       SELECT 
@@ -109,6 +184,7 @@ class Viewing {
         v.is_serious,
         v.description,
         v.notes,
+        v.parent_viewing_id,
         v.created_at,
         v.updated_at,
         p.reference_number as property_reference,
@@ -117,38 +193,18 @@ class Viewing {
         l.customer_name as lead_name,
         l.phone_number as lead_phone,
         u.name as agent_name,
-        u.role as agent_role,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', vu.id,
-              'update_text', vu.update_text,
-              'update_date', vu.update_date,
-              'status', vu.status,
-              'created_by', vu.created_by,
-              'created_by_name', creator.name,
-              'created_at', vu.created_at
-            ) ORDER BY vu.update_date DESC, vu.created_at DESC
-          ) FILTER (WHERE vu.id IS NOT NULL),
-          '[]'::json
-        ) as updates
+        u.role as agent_role
       FROM viewings v
       LEFT JOIN properties p ON v.property_id = p.id
       LEFT JOIN leads l ON v.lead_id = l.id
       LEFT JOIN users u ON v.agent_id = u.id
-      LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
-      LEFT JOIN users creator ON vu.created_by = creator.id
-      WHERE v.agent_id = $1
-      GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
-               p.reference_number, p.location, p.property_type,
-               l.customer_name, l.phone_number, u.name, u.role
+      WHERE v.agent_id = $1 AND v.parent_viewing_id IS NULL
       ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
     `, [agentId]);
-    return result.rows;
+    return await Viewing.attachSubViewings(result.rows);
   }
 
-  // Get viewings by team leader (their own + their team's)
+  // Get viewings by team leader (their own + their team's) - only parent viewings
   static async getViewingsForTeamLeader(teamLeaderId) {
     const result = await pool.query(`
       SELECT 
@@ -162,6 +218,7 @@ class Viewing {
         v.is_serious,
         v.description,
         v.notes,
+        v.parent_viewing_id,
         v.created_at,
         v.updated_at,
         p.reference_number as property_reference,
@@ -170,43 +227,24 @@ class Viewing {
         l.customer_name as lead_name,
         l.phone_number as lead_phone,
         u.name as agent_name,
-        u.role as agent_role,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', vu.id,
-              'update_text', vu.update_text,
-              'update_date', vu.update_date,
-              'status', vu.status,
-              'created_by', vu.created_by,
-              'created_by_name', creator.name,
-              'created_at', vu.created_at
-            ) ORDER BY vu.update_date DESC, vu.created_at DESC
-          ) FILTER (WHERE vu.id IS NOT NULL),
-          '[]'::json
-        ) as updates
+        u.role as agent_role
       FROM viewings v
       LEFT JOIN properties p ON v.property_id = p.id
       LEFT JOIN leads l ON v.lead_id = l.id
       LEFT JOIN users u ON v.agent_id = u.id
-      LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
-      LEFT JOIN users creator ON vu.created_by = creator.id
-      WHERE v.agent_id = $1 
+      WHERE (v.agent_id = $1 
          OR v.agent_id IN (
            SELECT ta.agent_id 
            FROM team_agents ta 
            WHERE ta.team_leader_id = $1 AND ta.is_active = true
-         )
-      GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
-               p.reference_number, p.location, p.property_type,
-               l.customer_name, l.phone_number, u.name, u.role
+         ))
+         AND v.parent_viewing_id IS NULL
       ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
     `, [teamLeaderId]);
-    return result.rows;
+    return await Viewing.attachSubViewings(result.rows);
   }
 
-  // Get viewing by ID
+  // Get viewing by ID with sub-viewings
   static async getViewingById(id) {
     const result = await pool.query(`
       SELECT 
@@ -220,6 +258,7 @@ class Viewing {
         v.is_serious,
         v.description,
         v.notes,
+        v.parent_viewing_id,
         v.created_at,
         v.updated_at,
         p.reference_number as property_reference,
@@ -251,11 +290,24 @@ class Viewing {
       LEFT JOIN users creator ON vu.created_by = creator.id
       WHERE v.id = $1
       GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
+               v.status, v.is_serious, v.description, v.notes, v.parent_viewing_id, v.created_at, v.updated_at,
                p.reference_number, p.location, p.property_type,
                l.customer_name, l.phone_number, u.name, u.role
     `, [id]);
-    return result.rows[0];
+    
+    if (!result.rows[0]) {
+      return null;
+    }
+    
+    const viewing = result.rows[0];
+    
+    // If this is a parent viewing, attach sub-viewings
+    if (!viewing.parent_viewing_id) {
+      const subViewings = await Viewing.getSubViewings(viewing.id);
+      viewing.sub_viewings = subViewings;
+    }
+    
+    return viewing;
   }
 
   // Update viewing
@@ -290,6 +342,14 @@ class Viewing {
 
   // Get viewings with filters
   static async getViewingsWithFilters(filters = {}) {
+    // #region debug log
+    const fs = require('fs');
+    const logPath = 'c:\\Users\\GeorgioHayek\\Desktop\\Applications\\finders-system\\finders-crm\\.cursor\\debug.log';
+    try {
+      fs.appendFileSync(logPath, JSON.stringify({location:'viewingModel.js:292',message:'getViewingsWithFilters called',data:{filters},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'O'})+'\n');
+    } catch(e){}
+    // #endregion
+    
     let query = `
       SELECT 
         v.id,
@@ -302,6 +362,7 @@ class Viewing {
         v.is_serious,
         v.description,
         v.notes,
+        v.parent_viewing_id,
         v.created_at,
         v.updated_at,
         p.reference_number as property_reference,
@@ -310,28 +371,12 @@ class Viewing {
         l.customer_name as lead_name,
         l.phone_number as lead_phone,
         u.name as agent_name,
-        u.role as agent_role,
-        COALESCE(
-          json_agg(
-            json_build_object(
-              'id', vu.id,
-              'update_text', vu.update_text,
-              'update_date', vu.update_date,
-              'status', vu.status,
-              'created_by', vu.created_by,
-              'created_by_name', creator.name,
-              'created_at', vu.created_at
-            ) ORDER BY vu.update_date DESC, vu.created_at DESC
-          ) FILTER (WHERE vu.id IS NOT NULL),
-          '[]'::json
-        ) as updates
+        u.role as agent_role
       FROM viewings v
       LEFT JOIN properties p ON v.property_id = p.id
       LEFT JOIN leads l ON v.lead_id = l.id
       LEFT JOIN users u ON v.agent_id = u.id
-      LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
-      LEFT JOIN users creator ON vu.created_by = creator.id
-      WHERE 1=1
+      WHERE v.parent_viewing_id IS NULL
     `;
     
     const values = [];
@@ -344,16 +389,40 @@ class Viewing {
     }
 
     if (filters.agent_id) {
-      query += ` AND v.agent_id = $${valueIndex}`;
-      values.push(filters.agent_id);
-      valueIndex++;
+      // Ensure agent_id is a number (convert string to number if needed)
+      const agentIdNum = typeof filters.agent_id === 'string' ? parseInt(filters.agent_id, 10) : filters.agent_id;
+      // #region debug log
+      try {
+        fs.appendFileSync(logPath, JSON.stringify({location:'viewingModel.js:346',message:'Processing agent_id filter',data:{originalValue:filters.agent_id,originalType:typeof filters.agent_id,convertedValue:agentIdNum,convertedType:typeof agentIdNum,isNaN:isNaN(agentIdNum)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'S'})+'\n');
+      } catch(e){}
+      // #endregion
+      if (!isNaN(agentIdNum) && agentIdNum > 0) {
+        query += ` AND v.agent_id = $${valueIndex}`;
+        values.push(agentIdNum);
+        valueIndex++;
+      }
     }
 
     if (filters.property_id) {
-      query += ` AND v.property_id = $${valueIndex}`;
-      values.push(filters.property_id);
-      valueIndex++;
+      // Ensure property_id is a number (convert string to number if needed)
+      const propertyIdNum = typeof filters.property_id === 'string' ? parseInt(filters.property_id, 10) : filters.property_id;
+      // #region debug log
+      try {
+        fs.appendFileSync(logPath, JSON.stringify({location:'viewingModel.js:352',message:'Processing property_id filter',data:{originalValue:filters.property_id,originalType:typeof filters.property_id,convertedValue:propertyIdNum,convertedType:typeof propertyIdNum,isNaN:isNaN(propertyIdNum)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'R'})+'\n');
+      } catch(e){}
+      // #endregion
+      if (!isNaN(propertyIdNum) && propertyIdNum > 0) {
+        query += ` AND v.property_id = $${valueIndex}`;
+        values.push(propertyIdNum);
+        valueIndex++;
+      }
     }
+    
+    // #region debug log
+    try {
+      fs.appendFileSync(logPath, JSON.stringify({location:'viewingModel.js:356',message:'SQL query built',data:{query:query.substring(0,200)+'...',values,hasAgentIdFilter:!!filters.agent_id,hasPropertyIdFilter:!!filters.property_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'P'})+'\n');
+    } catch(e){}
+    // #endregion
 
     if (filters.lead_id) {
       query += ` AND v.lead_id = $${valueIndex}`;
@@ -379,16 +448,28 @@ class Viewing {
       valueIndex++;
     }
 
+    // Exclude sub-viewings from main list (they should only show when viewing a parent)
+    query += ` AND (v.parent_viewing_id IS NULL)`;
+
     query += ` 
-      GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
-               v.status, v.is_serious, v.description, v.notes, v.created_at, v.updated_at,
-               p.reference_number, p.location, p.property_type,
-               l.customer_name, l.phone_number, u.name, u.role
       ORDER BY v.is_serious DESC, v.viewing_date DESC, v.viewing_time DESC
     `;
+    
+    // #region debug log
+    try {
+      fs.appendFileSync(logPath, JSON.stringify({location:'viewingModel.js:388',message:'Executing SQL query',data:{queryLength:query.length,paramCount:values.length,values,hasAgentIdFilter:!!filters.agent_id,hasPropertyIdFilter:!!filters.property_id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'T'})+'\n');
+    } catch(e){}
+    // #endregion
 
     const result = await pool.query(query, values);
-    return result.rows;
+    // #region debug log
+    try {
+      fs.appendFileSync(logPath, JSON.stringify({location:'viewingModel.js:391',message:'Query results',data:{rowCount:result.rows.length,viewingIds:result.rows.map(r=>r.id),viewingAgentIds:result.rows.map(r=>r.agent_id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'Q'})+'\n');
+    } catch(e){}
+    // #endregion
+    
+    // Attach sub-viewings to filtered results
+    return await Viewing.attachSubViewings(result.rows);
   }
 
   // Get viewing statistics
@@ -527,6 +608,147 @@ class Viewing {
       [updateId]
     );
     return result.rows[0];
+  }
+
+  // Get sub-viewings (follow-up viewings) for a parent viewing
+  static async getSubViewings(parentViewingId) {
+    const result = await pool.query(`
+      SELECT 
+        v.id,
+        v.property_id,
+        v.lead_id,
+        v.agent_id,
+        v.viewing_date,
+        v.viewing_time,
+        v.status,
+        v.is_serious,
+        v.description,
+        v.notes,
+        v.parent_viewing_id,
+        v.created_at,
+        v.updated_at,
+        p.reference_number as property_reference,
+        p.location as property_location,
+        p.property_type,
+        l.customer_name as lead_name,
+        l.phone_number as lead_phone,
+        u.name as agent_name,
+        u.role as agent_role,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', vu.id,
+              'update_text', vu.update_text,
+              'update_date', vu.update_date,
+              'status', vu.status,
+              'created_by', vu.created_by,
+              'created_by_name', creator.name,
+              'created_at', vu.created_at
+            ) ORDER BY vu.update_date DESC, vu.created_at DESC
+          ) FILTER (WHERE vu.id IS NOT NULL),
+          '[]'::json
+        ) as updates
+      FROM viewings v
+      LEFT JOIN properties p ON v.property_id = p.id
+      LEFT JOIN leads l ON v.lead_id = l.id
+      LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
+      LEFT JOIN users creator ON vu.created_by = creator.id
+      WHERE v.parent_viewing_id = $1
+      GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
+               v.status, v.is_serious, v.description, v.notes, v.parent_viewing_id, v.created_at, v.updated_at,
+               p.reference_number, p.location, p.property_type,
+               l.customer_name, l.phone_number, u.name, u.role
+      ORDER BY v.viewing_date DESC, v.viewing_time DESC
+    `, [parentViewingId]);
+    return result.rows;
+  }
+
+  // Attach sub-viewings to parent viewings
+  static async attachSubViewings(viewings) {
+    if (!viewings || viewings.length === 0) {
+      return viewings;
+    }
+
+    // Get all parent viewing IDs
+    const parentViewingIds = viewings
+      .filter(v => !v.parent_viewing_id)
+      .map(v => v.id);
+
+    if (parentViewingIds.length === 0) {
+      return viewings;
+    }
+
+    // Fetch all sub-viewings for these parents
+    const subViewingsResult = await pool.query(`
+      SELECT 
+        v.id,
+        v.property_id,
+        v.lead_id,
+        v.agent_id,
+        v.viewing_date,
+        v.viewing_time,
+        v.status,
+        v.is_serious,
+        v.description,
+        v.notes,
+        v.parent_viewing_id,
+        v.created_at,
+        v.updated_at,
+        p.reference_number as property_reference,
+        p.location as property_location,
+        p.property_type,
+        l.customer_name as lead_name,
+        l.phone_number as lead_phone,
+        u.name as agent_name,
+        u.role as agent_role,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', vu.id,
+              'update_text', vu.update_text,
+              'update_date', vu.update_date,
+              'status', vu.status,
+              'created_by', vu.created_by,
+              'created_by_name', creator.name,
+              'created_at', vu.created_at
+            ) ORDER BY vu.update_date DESC, vu.created_at DESC
+          ) FILTER (WHERE vu.id IS NOT NULL),
+          '[]'::json
+        ) as updates
+      FROM viewings v
+      LEFT JOIN properties p ON v.property_id = p.id
+      LEFT JOIN leads l ON v.lead_id = l.id
+      LEFT JOIN users u ON v.agent_id = u.id
+      LEFT JOIN viewing_updates vu ON v.id = vu.viewing_id
+      LEFT JOIN users creator ON vu.created_by = creator.id
+      WHERE v.parent_viewing_id = ANY($1::int[])
+      GROUP BY v.id, v.property_id, v.lead_id, v.agent_id, v.viewing_date, v.viewing_time,
+               v.status, v.is_serious, v.description, v.notes, v.parent_viewing_id, v.created_at, v.updated_at,
+               p.reference_number, p.location, p.property_type,
+               l.customer_name, l.phone_number, u.name, u.role
+      ORDER BY v.viewing_date DESC, v.viewing_time DESC
+    `, [parentViewingIds]);
+
+    // Group sub-viewings by parent_id
+    const subViewingsByParent = {};
+    subViewingsResult.rows.forEach(subViewing => {
+      const parentId = subViewing.parent_viewing_id;
+      if (!subViewingsByParent[parentId]) {
+        subViewingsByParent[parentId] = [];
+      }
+      subViewingsByParent[parentId].push(subViewing);
+    });
+
+    // Attach sub-viewings to parent viewings
+    return viewings.map(viewing => {
+      if (viewing.parent_viewing_id) {
+        // This is a sub-viewing, don't attach anything
+        return viewing;
+      }
+      viewing.sub_viewings = subViewingsByParent[viewing.id] || [];
+      return viewing;
+    });
   }
 }
 
