@@ -9,7 +9,8 @@ import {
   Edit,
   Trash2,
   Calendar,
-  Share2
+  Share2,
+  UserPlus
 } from 'lucide-react'
 import { Property } from '@/types/property'
 import { getFullImageUrl } from '@/utils/imageUpload'
@@ -87,12 +88,26 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
           </span>
         </div>
         
-        {/* Reference number + share */}
+        {/* Reference number + share + refer */}
         <div className="absolute top-3 right-3 flex flex-col items-end space-y-2">
           <span className="bg-gray-800 text-white px-2 py-1 rounded text-xs font-mono">
             {property.reference_number}
           </span>
-          <PropertyShareMenu property={property} variant="icon" className="mt-1" />
+          <div className="flex items-center gap-2">
+            {canReferProperty && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowReferModal(true)
+                }}
+                className="p-1.5 bg-white/90 hover:bg-white rounded-lg shadow-sm transition-colors text-blue-600 hover:text-blue-700"
+                title="Refer property to another agent"
+              >
+                <UserPlus className="h-4 w-4" />
+              </button>
+            )}
+            <PropertyShareMenu property={property} variant="icon" className="mt-0" />
+          </div>
         </div>
       </div>
 
@@ -160,10 +175,11 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
           {canReferProperty && (
             <button 
               onClick={() => setShowReferModal(true)}
-              className="px-3 py-2 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-blue-600 hover:text-blue-700"
+              className="px-3 py-2 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-blue-600 hover:text-blue-700 flex items-center gap-2"
               title="Refer property to another agent"
             >
-              <Share2 className="h-4 w-4" />
+              <UserPlus className="h-4 w-4" />
+              <span>Refer</span>
             </button>
           )}
           {canManageProperties && (

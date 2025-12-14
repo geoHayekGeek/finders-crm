@@ -242,7 +242,7 @@ class Property {
       
       if (propertyIds.length > 0) {
         const referralsResult = await pool.query(
-          `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id
+          `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id, created_at
            FROM referrals 
            WHERE property_id = ANY($1::int[]) 
            ORDER BY property_id, 
@@ -265,7 +265,8 @@ class Property {
             external: referral.external,
             status: referral.status,
             referred_to_agent_id: referral.referred_to_agent_id,
-            referred_by_user_id: referral.referred_by_user_id
+            referred_by_user_id: referral.referred_by_user_id,
+            created_at: referral.created_at
           });
         });
       }
@@ -465,7 +466,7 @@ class Property {
       
       if (propertyIds.length > 0) {
         const referralsResult = await pool.query(
-          `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id
+          `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id, created_at
            FROM referrals 
            WHERE property_id = ANY($1::int[]) 
            ORDER BY property_id, 
@@ -488,7 +489,8 @@ class Property {
             external: referral.external,
             status: referral.status,
             referred_to_agent_id: referral.referred_to_agent_id,
-            referred_by_user_id: referral.referred_by_user_id
+            referred_by_user_id: referral.referred_by_user_id,
+            created_at: referral.created_at
           });
         });
       }
@@ -745,7 +747,7 @@ class Property {
     
     // Fetch referrals for this property
     const referralsResult = await pool.query(
-      `SELECT id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id 
+      `SELECT id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id, created_at 
        FROM referrals 
        WHERE property_id = $1 
        ORDER BY 
@@ -932,7 +934,7 @@ class Property {
       );
       
       const referralsResult = await client.query(
-        `SELECT id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id 
+        `SELECT id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id, created_at 
          FROM referrals 
          WHERE property_id = $1 
          ORDER BY 
@@ -1092,7 +1094,7 @@ class Property {
     
     if (propertyIds.length > 0) {
       const referralsResult = await pool.query(
-        `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id
+        `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id, created_at
          FROM referrals 
          WHERE property_id = ANY($1::int[]) 
          ORDER BY property_id, 
@@ -1115,7 +1117,8 @@ class Property {
           external: referral.external,
           status: referral.status,
           referred_to_agent_id: referral.referred_to_agent_id,
-          referred_by_user_id: referral.referred_by_user_id
+          referred_by_user_id: referral.referred_by_user_id,
+          created_at: referral.created_at
         });
       });
     }

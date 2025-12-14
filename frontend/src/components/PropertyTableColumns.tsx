@@ -2,7 +2,7 @@
 
 import { ColumnDef } from '@tanstack/react-table'
 import { Property } from '@/types/property'
-import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar, Share2 } from 'lucide-react'
+import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar, Share2, UserPlus } from 'lucide-react'
 import { PropertyShareMenu } from './PropertyShareMenu'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -214,7 +214,7 @@ export const getPropertyColumns = (canManageProperties: boolean, canReferPropert
               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
               title="Refer Property"
             >
-              <Share2 className="h-4 w-4" />
+              <UserPlus className="h-4 w-4" />
             </button>
           )}
           {canManageProperties && (
@@ -344,7 +344,7 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean, canRefe
               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
               title="Refer Property"
             >
-              <Share2 className="h-4 w-4" />
+              <UserPlus className="h-4 w-4" />
             </button>
           )}
           {canManageProperties && (

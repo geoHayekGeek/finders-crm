@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useState, useEffect } from 'react'
-import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2, User, Calendar, Copy } from 'lucide-react'
+import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2, User, Calendar, Copy, UserPlus } from 'lucide-react'
 import { Property, Category, Status, EditFormData, Referral } from '@/types/property'
 import { compressAndConvertToBase64, getRecommendedCompressionOptions } from '@/utils/imageCompression'
 import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, validateImageFiles, createImagePreview, getFullImageUrl } from '@/utils/imageUpload'
@@ -16,6 +16,7 @@ import { PropertyReferralsSection } from './PropertyReferralsSection'
 import { PropertyShareMenu } from './PropertyShareMenu'
 import { PropertyViewingsSection } from './PropertyViewingsSection'
 import { ViewingsModals } from './ViewingsModals'
+import { ReferPropertyModal } from './ReferPropertyModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
@@ -264,6 +265,9 @@ export function PropertyModals({
   // Viewing modal state
   const [showAddViewingModal, setShowAddViewingModal] = useState(false)
   const [selectedPropertyForViewing, setSelectedPropertyForViewing] = useState<Property | null>(null)
+  
+  // Refer property modal state
+  const [showReferPropertyModal, setShowReferPropertyModal] = useState(false)
   
   // Load team agents for team leaders
   useEffect(() => {
@@ -3335,7 +3339,30 @@ export function PropertyModals({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <PropertyShareMenu property={viewPropertyData} variant="button" />
+                {(() => {
+                  // Check if user can refer this property
+                  const isClosed = viewPropertyData.status_name && 
+                    ['sold', 'rented', 'closed'].includes(viewPropertyData.status_name.toLowerCase())
+                  const canReferProperty = (user?.role === 'agent' || user?.role === 'team_leader') && 
+                                           viewPropertyData.agent_id === user?.id &&
+                                           !isClosed
+                  
+                  return (
+                    <>
+                      {canReferProperty && (
+                        <button
+                          onClick={() => setShowReferPropertyModal(true)}
+                          className="px-3 py-2 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                          title="Refer property to another agent"
+                        >
+                          <UserPlus className="h-4 w-4" />
+                          <span>Refer</span>
+                        </button>
+                      )}
+                      <PropertyShareMenu property={viewPropertyData} variant="button" />
+                    </>
+                  )
+                })()}
                 <button
                   onClick={() => setShowViewPropertyModal(false)}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -4047,6 +4074,21 @@ export function PropertyModals({
           setDeleteConfirmation={() => {}}
           onConfirmDelete={async () => {}}
           preSelectedPropertyId={selectedPropertyForViewing.id}
+        />
+      )}
+
+      {/* Refer Property Modal */}
+      {showReferPropertyModal && viewPropertyData && (
+        <ReferPropertyModal
+          isOpen={showReferPropertyModal}
+          onClose={() => setShowReferPropertyModal(false)}
+          property={viewPropertyData}
+          onSuccess={() => {
+            setShowReferPropertyModal(false)
+            if (onRefreshProperties) {
+              onRefreshProperties()
+            }
+          }}
         />
       )}
     </>

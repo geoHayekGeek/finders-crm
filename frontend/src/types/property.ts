@@ -4,6 +4,7 @@ export interface Referral {
   type: 'employee' | 'custom'
   employee_id?: number
   date: string
+  created_at?: string // Timestamp when the referral was created
   external?: boolean // Whether the referral is external (no longer earns commission)
   status?: 'pending' | 'confirmed' | 'rejected' // Status for property referrals
   referred_to_agent_id?: number // Agent/team leader the property is referred to

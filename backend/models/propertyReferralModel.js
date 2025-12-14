@@ -226,11 +226,12 @@ class PropertyReferral {
       );
       const employeeName = employeeNameResult.rows[0]?.name || 'Unknown Employee';
       
+      // Use CURRENT_DATE to avoid timezone issues
       const newReferralResult = await client.query(
         `INSERT INTO referrals (property_id, employee_id, name, type, date, external)
-         VALUES ($1, $2, $3, $4, $5, FALSE)
+         VALUES ($1, $2, $3, $4, CURRENT_DATE, FALSE)
          RETURNING *`,
-        [propertyId, newEmployeeId, employeeName, 'employee', currentTime]
+        [propertyId, newEmployeeId, employeeName, 'employee']
       );
       
       result.newReferral = newReferralResult.rows[0];
@@ -447,6 +448,7 @@ class PropertyReferral {
 
       // Create the referral with pending status
       // employee_id should be the person who made the referral (Omar), not who it's referred to (Ali)
+      // Use CURRENT_DATE to avoid timezone issues - this ensures the date is set correctly in the database's timezone
       const result = await client.query(
         `INSERT INTO referrals (
           property_id, 
@@ -459,14 +461,13 @@ class PropertyReferral {
           referred_to_agent_id, 
           referred_by_user_id
         )
-        VALUES ($1, $2, $3, $4, $5, FALSE, 'pending', $6, $7)
+        VALUES ($1, $2, $3, $4, CURRENT_DATE, FALSE, 'pending', $5, $6)
         RETURNING *`,
         [
           propertyId,
           referredByUserId, // employee_id should be the referrer (Omar), for commission tracking
           referrerName, // Name of the person who made the referral
           'employee',
-          new Date(),
           referredToAgentId, // referred_to_agent_id (Ali)
           referredByUserId // referred_by_user_id (Omar)
         ]

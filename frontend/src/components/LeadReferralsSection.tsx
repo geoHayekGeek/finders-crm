@@ -190,7 +190,21 @@ export function LeadReferralsSection({
       ) : (
         <div className="space-y-2">
         {referrals.map((referral, index) => {
-          const referralDate = new Date(referral.referral_date)
+          // Use created_at for relative time display (when referral was actually created)
+          // This is more accurate than using the referral date
+          // Fall back to referral_date if created_at is not available
+          const referralTimestamp = (referral as any).created_at || referral.referral_date
+          // Parse the date string properly to avoid timezone issues
+          // If it's a date-only string (YYYY-MM-DD), append local noon to avoid UTC conversion issues
+          let referralDate: Date
+          if (referralTimestamp.includes('T')) {
+            // It's a full timestamp, use it directly
+            referralDate = new Date(referralTimestamp)
+          } else {
+            // It's a date-only string, create date at local noon to avoid timezone shift
+            const [year, month, day] = referralTimestamp.split('-').map(Number)
+            referralDate = new Date(year, month - 1, day, 12, 0, 0)
+          }
           // Only confirmed referrals (not pending/rejected) can be "current" and earn commission
           const isConfirmed = referral.status === 'confirmed' || (!referral.status && referral.external !== undefined)
           const isPending = referral.status === 'pending'
