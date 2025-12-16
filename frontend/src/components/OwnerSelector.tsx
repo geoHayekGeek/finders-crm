@@ -15,12 +15,14 @@ interface Owner {
 
 interface OwnerSelectorProps {
   selectedOwnerId?: number
+  selectedOwnerName?: string // Optional: display name while owner is being found in list
   onOwnerChange: (owner: Owner | undefined) => void
   placeholder?: string
 }
 
 export function OwnerSelector({ 
   selectedOwnerId, 
+  selectedOwnerName,
   onOwnerChange, 
   placeholder = "Select an owner (lead)..."
 }: OwnerSelectorProps) {
@@ -71,6 +73,32 @@ export function OwnerSelector({
     }
   }, [token])
 
+  // Re-fetch owners when selectedOwnerId changes (if owners list is empty or owner not found)
+  // This ensures the owner is found when the component receives a selectedOwnerId prop
+  useEffect(() => {
+    if (token && selectedOwnerId !== undefined && selectedOwnerId !== null) {
+      // Check if owner exists with robust type matching
+      const ownerExists = owners.find(o => {
+        if (o.id === selectedOwnerId) return true
+        if (o.id == selectedOwnerId) return true
+        const ownerIdNum = Number(o.id)
+        const selectedIdNum = Number(selectedOwnerId)
+        return !isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum
+      })
+      
+      if (owners.length === 0 && !isLoading) {
+        console.log('🔄 Re-fetching owners because selectedOwnerId is set but owners list is empty')
+        fetchOwners()
+      } else if (owners.length > 0 && !ownerExists && !isLoading) {
+        console.log('🔄 Owner not found in current list, re-fetching owners...')
+        console.log('🔍 Looking for owner ID:', selectedOwnerId, 'type:', typeof selectedOwnerId)
+        console.log('📋 Current owner IDs:', owners.slice(0, 5).map(o => ({ id: o.id, type: typeof o.id })))
+        fetchOwners()
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedOwnerId])
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -103,39 +131,49 @@ export function OwnerSelector({
     onOwnerChange(undefined)
   }
 
+  // Find selected owner with robust type matching
   const selectedOwner = owners.find(o => {
-    const match = o.id == selectedOwnerId // Use == for type coercion
-    if (selectedOwnerId && !match) {
-      // Only log when we're looking for a specific ID but haven't found it yet
-      if (owners.length > 0 && owners.length < 10) {
-        console.log('🔍 OwnerSelector - Checking owner:', o.id, 'type:', typeof o.id, 'against:', selectedOwnerId, 'type:', typeof selectedOwnerId, 'match:', match)
-      }
-    }
-    return match
+    // Try strict equality first
+    if (o.id === selectedOwnerId) return true
+    // Then try loose equality for type coercion
+    if (o.id == selectedOwnerId) return true
+    // Try converting both to numbers
+    const ownerIdNum = Number(o.id)
+    const selectedIdNum = Number(selectedOwnerId)
+    if (!isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum) return true
+    return false
   })
   
+  // Notify parent when owner is found after owners load (for cases where component mounts before owners load)
+  useEffect(() => {
+    if (selectedOwnerId !== undefined && selectedOwnerId !== null && owners.length > 0 && !selectedOwner) {
+      const found = owners.find(o => {
+        if (o.id === selectedOwnerId) return true
+        if (o.id == selectedOwnerId) return true
+        const ownerIdNum = Number(o.id)
+        const selectedIdNum = Number(selectedOwnerId)
+        return !isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum
+      })
+      
+      if (found) {
+        console.log('✅ OwnerSelector - Owner found after owners loaded, notifying parent:', found.customer_name, 'ID:', found.id)
+        // Don't call onOwnerChange here as it might cause infinite loops
+        // The selectedOwner will be computed on next render
+      } else {
+        console.log('⚠️ OwnerSelector - Owner ID', selectedOwnerId, 'type:', typeof selectedOwnerId, 'not found in owners list')
+        console.log('📋 OwnerSelector - Sample owner IDs:', owners.slice(0, 5).map(o => ({ id: o.id, type: typeof o.id, name: o.customer_name })))
+      }
+    } else if (selectedOwnerId !== undefined && selectedOwnerId !== null && owners.length > 0 && selectedOwner) {
+      console.log('✅ OwnerSelector - Owner already found:', selectedOwner.customer_name, 'ID:', selectedOwner.id)
+    }
+  }, [owners, selectedOwnerId, selectedOwner])
+  
   // Debug logging
-  console.log('🔍 OwnerSelector - selectedOwnerId:', selectedOwnerId, 'type:', typeof selectedOwnerId)
-  console.log('🔍 OwnerSelector - owners length:', owners.length)
   if (selectedOwnerId !== undefined && selectedOwnerId !== null) {
-    console.log('🔍 OwnerSelector - looking for owner with ID:', selectedOwnerId)
-    // Check first few owner IDs to see their types
-    if (owners.length > 0) {
-      console.log('🔍 OwnerSelector - First 3 owner IDs:', owners.slice(0, 3).map(o => ({ id: o.id, type: typeof o.id, name: o.customer_name })))
-    }
-    const foundOwner = owners.find(o => {
-      const idMatch = o.id === selectedOwnerId
-      const looseMatch = o.id == selectedOwnerId
-      return idMatch || looseMatch
-    })
-    console.log('🔍 OwnerSelector - found owner:', foundOwner)
-    if (!foundOwner && owners.length > 0) {
-      // Check if any owner has a matching ID with different type
-      const allIds = owners.map(o => ({ id: o.id, type: typeof o.id }))
-      console.log('🔍 OwnerSelector - Sample of owner IDs in list:', allIds.slice(0, 10))
-    }
+    console.log('🔍 OwnerSelector - selectedOwnerId:', selectedOwnerId, 'type:', typeof selectedOwnerId)
+    console.log('🔍 OwnerSelector - owners length:', owners.length)
+    console.log('🔍 OwnerSelector - selectedOwner:', selectedOwner ? `${selectedOwner.customer_name} (ID: ${selectedOwner.id}, type: ${typeof selectedOwner.id})` : 'not found')
   }
-  console.log('🔍 OwnerSelector - selectedOwner:', selectedOwner)
 
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
@@ -154,25 +192,37 @@ export function OwnerSelector({
     }
   }
 
+  // Determine what to display - prefer selectedOwner from list, fallback to selectedOwnerName prop
+  const displayOwner = selectedOwner || (selectedOwnerId && selectedOwnerName ? {
+    id: selectedOwnerId,
+    customer_name: selectedOwnerName,
+    phone_number: undefined,
+    date: '',
+    status: undefined
+  } : null)
+
   return (
     <div className="space-y-2">
       {/* Display selected owner */}
-      {selectedOwnerId !== undefined && selectedOwnerId !== null && selectedOwner && (
+      {selectedOwnerId !== undefined && selectedOwnerId !== null && displayOwner && (
         <div className="flex items-center gap-2 p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
           <div className="flex items-center gap-2 flex-1">
             <UserCircle className="h-4 w-4 text-indigo-600" />
             <div className="flex flex-col">
               <span className="text-sm font-medium text-indigo-800">
-                {selectedOwner.customer_name}
+                {displayOwner.customer_name}
               </span>
               <div className="flex items-center gap-2">
-                {selectedOwner.phone_number && (
-                  <span className="text-xs text-indigo-600">{selectedOwner.phone_number}</span>
+                {displayOwner.phone_number && (
+                  <span className="text-xs text-indigo-600">{displayOwner.phone_number}</span>
                 )}
-                {selectedOwner.status && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(selectedOwner.status)}`}>
-                    {selectedOwner.status}
+                {displayOwner.status && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(displayOwner.status)}`}>
+                    {displayOwner.status}
                   </span>
+                )}
+                {!selectedOwner && selectedOwnerName && (
+                  <span className="text-xs text-gray-500 italic">(Loading details...)</span>
                 )}
               </div>
             </div>
@@ -198,8 +248,8 @@ export function OwnerSelector({
             disabled={isLoading}
           >
             <div className="flex items-center justify-between">
-              <span className={selectedOwner ? "text-gray-900" : "text-gray-600"}>
-                {isLoading ? 'Loading...' : (selectedOwner ? selectedOwner.customer_name : placeholder)}
+              <span className={displayOwner ? "text-gray-900" : "text-gray-600"}>
+                {isLoading ? 'Loading...' : (displayOwner ? displayOwner.customer_name : placeholder)}
               </span>
               <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </div>

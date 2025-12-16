@@ -1525,7 +1525,9 @@ describe('Leads Controller', () => {
       const mockLead = {
         id: 100,
         agent_id: 27,
-        customer_name: 'John Doe'
+        customer_name: 'John Doe',
+        status: 'Active',
+        status_can_be_referred: true
       };
       const mockReferral = {
         id: 1,
@@ -1549,6 +1551,33 @@ describe('Leads Controller', () => {
         message: expect.stringContaining('Lead referred successfully'),
         data: mockReferral
       });
+    });
+
+    it('should return 400 if lead status does not allow referrals', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewLeads = true;
+      req.roleFilters.role = 'admin';
+
+      const mockLead = {
+        id: 100,
+        agent_id: 27,
+        customer_name: 'John Doe',
+        status: 'Closed',
+        status_can_be_referred: false
+      };
+
+      Lead.getLeadById.mockResolvedValue(mockLead);
+
+      await LeadsController.referLeadToAgent(req, res);
+
+      expect(Lead.getLeadById).toHaveBeenCalledWith('100');
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Leads with status "Closed" cannot be referred.'
+      });
+      expect(LeadReferral.referLeadToAgent).not.toHaveBeenCalled();
     });
 
     it('should return 404 if lead not found', async () => {

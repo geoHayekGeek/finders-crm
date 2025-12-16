@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { Lead, LEAD_STATUSES } from '@/types/leads'
-import { Eye, Edit3, Trash2, Phone, Calendar, User, Users, Share2 } from 'lucide-react'
+import { Eye, Edit3, Trash2, Phone, Calendar, User, Users, Share2, UserPlus } from 'lucide-react'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { ReferLeadModal } from './ReferLeadModal'
 import { useAuth } from '@/contexts/AuthContext'
+import { isTeamLeaderRole } from '@/utils/roleUtils'
 
 interface LeadsCardProps {
   lead: Lead
@@ -24,12 +25,44 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
   const statusLabel = statusConfig?.label || lead.status
   
   // Check if lead is closed
-  const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
+  // Check if the lead's status allows referrals
+  let canBeReferred = true
+  if (lead.status_can_be_referred === false) {
+    canBeReferred = false
+    console.log('🚫 [LeadsCard] Lead cannot be referred - status_can_be_referred is false', {
+      leadId: lead.id,
+      status: lead.status,
+      status_can_be_referred: lead.status_can_be_referred
+    })
+  } else if (lead.status_can_be_referred === undefined || lead.status_can_be_referred === null) {
+    // For backward compatibility, if status_can_be_referred is undefined, 
+    // fall back to checking status name (for old data)
+    const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
+    if (isClosed) {
+      canBeReferred = false
+      console.log('🚫 [LeadsCard] Lead cannot be referred - status is closed/converted', {
+        leadId: lead.id,
+        status: lead.status
+      })
+    }
+  }
   
-  // Agents and team leaders can only refer leads that are assigned to them (and not closed)
+  // Agents and team leaders can only refer leads that are assigned to them
   const canReferLead = (user?.role === 'agent' || user?.role === 'team_leader') && 
                       lead.agent_id === user?.id &&
-                      !isClosed
+                      canBeReferred
+  
+  // Debug logging
+  if (lead.status_can_be_referred === false && canReferLead) {
+    console.warn('⚠️ [LeadsCard] Inconsistency detected - status_can_be_referred is false but canReferLead is true', {
+      leadId: lead.id,
+      status: lead.status,
+      status_can_be_referred: lead.status_can_be_referred,
+      userRole: user?.role,
+      leadAgentId: lead.agent_id,
+      userId: user?.id
+    })
+  }
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
@@ -77,8 +110,8 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Agent Information */}
-      {!limitedAccess && (
+      {/* Agent Information - Show for team leaders, hide for agents */}
+      {(!limitedAccess || isTeamLeaderRole(user?.role)) && (
         <div className="mb-3">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-gray-400" />
@@ -158,7 +191,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
             className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors text-sm border border-blue-300"
             title="Refer lead to another agent"
           >
-            <Share2 className="h-4 w-4" />
+            <UserPlus className="h-4 w-4" />
             <span>Refer</span>
           </button>
         )}

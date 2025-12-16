@@ -182,13 +182,64 @@ describe('Status Controller', () => {
         code: 'FOR_SALE',
         description: 'Property for sale',
         color: '#10B981',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         message: 'Status created successfully',
         data: mockStatus
+      });
+    });
+
+    it('should create status with can_be_referred field', async () => {
+      req.body = {
+        name: 'Sold',
+        code: 'SOLD',
+        description: 'Property has been sold',
+        color: '#EF4444',
+        is_active: true,
+        can_be_referred: false
+      };
+
+      const mockStatus = { id: 1, ...req.body };
+      Status.createStatus.mockResolvedValue(mockStatus);
+
+      await StatusController.createStatus(req, res);
+
+      expect(Status.createStatus).toHaveBeenCalledWith({
+        name: 'Sold',
+        code: 'SOLD',
+        description: 'Property has been sold',
+        color: '#EF4444',
+        is_active: true,
+        can_be_referred: false
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should use default can_be_referred if not provided', async () => {
+      req.body = {
+        name: 'Active',
+        code: 'ACTIVE',
+        description: 'Property is active',
+        color: '#10B981',
+        is_active: true
+      };
+
+      const mockStatus = { id: 1, ...req.body, can_be_referred: true };
+      Status.createStatus.mockResolvedValue(mockStatus);
+
+      await StatusController.createStatus(req, res);
+
+      expect(Status.createStatus).toHaveBeenCalledWith({
+        name: 'Active',
+        code: 'ACTIVE',
+        description: 'Property is active',
+        color: '#10B981',
+        is_active: true,
+        can_be_referred: true
       });
     });
 
@@ -208,7 +259,8 @@ describe('Status Controller', () => {
         code: 'FOR_SALE',
         description: undefined,
         color: '#6B7280',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       });
     });
 
@@ -283,7 +335,7 @@ describe('Status Controller', () => {
         color: '#10B981'
       };
 
-      const mockStatus = { id: 1, name: 'Updated Status', color: '#10B981' };
+      const mockStatus = { id: 1, name: 'Updated Status', color: '#10B981', can_be_referred: true };
       Status.updateStatus.mockResolvedValue(mockStatus);
 
       await StatusController.updateStatus(req, res);
@@ -296,6 +348,57 @@ describe('Status Controller', () => {
         success: true,
         message: 'Status updated successfully',
         data: mockStatus
+      });
+    });
+
+    it('should update status with can_be_referred field', async () => {
+      req.params = { id: '1' };
+      req.body = {
+        name: 'Sold',
+        can_be_referred: false
+      };
+
+      const mockStatus = { id: 1, name: 'Sold', can_be_referred: false };
+      Status.updateStatus.mockResolvedValue(mockStatus);
+
+      await StatusController.updateStatus(req, res);
+
+      expect(Status.updateStatus).toHaveBeenCalledWith('1', {
+        name: 'Sold',
+        can_be_referred: false
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Status updated successfully',
+        data: mockStatus
+      });
+    });
+
+    it('should update multiple fields including can_be_referred', async () => {
+      req.params = { id: '1' };
+      req.body = {
+        name: 'Sold',
+        color: '#EF4444',
+        can_be_referred: false,
+        description: 'Property has been sold'
+      };
+
+      const mockStatus = { 
+        id: 1, 
+        name: 'Sold', 
+        color: '#EF4444', 
+        can_be_referred: false,
+        description: 'Property has been sold'
+      };
+      Status.updateStatus.mockResolvedValue(mockStatus);
+
+      await StatusController.updateStatus(req, res);
+
+      expect(Status.updateStatus).toHaveBeenCalledWith('1', {
+        name: 'Sold',
+        color: '#EF4444',
+        can_be_referred: false,
+        description: 'Property has been sold'
       });
     });
 
@@ -505,6 +608,8 @@ describe('Status Controller', () => {
     });
   });
 });
+
+
 
 
 

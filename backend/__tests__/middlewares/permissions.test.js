@@ -264,10 +264,61 @@ describe('Permissions Middleware', () => {
       expect(next).toHaveBeenCalled();
     });
 
+    it('should allow HR to manage users', () => {
+      req.user = { role: 'hr' };
+      permissions.canManageUsers(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
     it('should deny operations access to manage users', () => {
       req.user = { role: 'operations' };
       permissions.canManageUsers(req, res, next);
       expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. User management restricted to admin and HR only.'
+      });
+    });
+
+    it('should deny agent access to manage users', () => {
+      req.user = { role: 'agent' };
+      permissions.canManageUsers(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe('canViewAllUsers', () => {
+    it('should allow admin to view all users', () => {
+      req.user = { role: 'admin' };
+      permissions.canViewAllUsers(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should allow HR to view all users', () => {
+      req.user = { role: 'hr' };
+      permissions.canViewAllUsers(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should deny operations access to view all users', () => {
+      req.user = { role: 'operations' };
+      permissions.canViewAllUsers(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Access denied. Viewing all users restricted to admin and HR only.'
+      });
+    });
+
+    it('should deny agent access to view all users', () => {
+      req.user = { role: 'agent' };
+      permissions.canViewAllUsers(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should return 403 if user role not found', () => {
+      req.user = null;
+      permissions.canViewAllUsers(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: 'User role not found' });
     });
   });
 
@@ -373,6 +424,7 @@ describe('Permissions Middleware', () => {
         canManageProperties: true,
         canViewProperties: true,
         canManageUsers: true,
+        canViewAllUsers: true,
         canManageCategoriesAndStatuses: true,
         canViewCategoriesAndStatuses: true,
         canManageLeads: true,
@@ -398,6 +450,7 @@ describe('Permissions Middleware', () => {
         canManageProperties: false,
         canViewProperties: true,
         canManageUsers: false,
+        canViewAllUsers: false,
         canManageCategoriesAndStatuses: false,
         canViewCategoriesAndStatuses: true,
         canManageLeads: false,
@@ -429,6 +482,8 @@ describe('Permissions Middleware', () => {
     });
   });
 });
+
+
 
 
 

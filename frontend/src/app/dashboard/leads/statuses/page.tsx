@@ -17,6 +17,7 @@ interface LeadStatus {
   color: string
   description: string
   is_active: boolean
+  can_be_referred: boolean
   created_at: string
   modified_at: string
 }
@@ -116,6 +117,7 @@ export default function LeadStatusesPage() {
     setStatuses(prev => prev.filter(s => s.id !== statusId))
     setShowDeleteModal(false)
     setDeletingStatus(null)
+    showSuccess('Lead status deleted successfully')
   }
 
   // Clear search

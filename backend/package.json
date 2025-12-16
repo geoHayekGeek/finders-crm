@@ -13,7 +13,8 @@
     "setup-properties": "node setup-properties-db.js",
     "add-demo-properties": "node add-demo-properties.js",
     "show-demo-data": "node show-demo-data.js",
-    "test-properties": "node test-properties-db.js"
+    "test-properties": "node test-properties-db.js",
+    "migrate-lead-statuses": "node run-lead-statuses-migration.js"
   },
   "keywords": [],
   "author": "",

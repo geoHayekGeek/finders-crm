@@ -29,8 +29,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   // Permission logic based on user role
   const role = user?.role || null
   
-  // HR role should have access to HR page
-  const canAccessHR = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'hr'
+  // Everyone can access HR page, but only admin and HR can manage all users
+  const canAccessHR = !!role // All authenticated users can access HR page
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   // Accountant and HR (if it exists as a role) should not have access to properties
   const canViewProperties = (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent') && role !== 'accountant' && role !== 'hr'
@@ -41,7 +41,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const canManageViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   const canViewViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
   const canViewClients = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader'
-  const canManageUsers = role === 'admin' || role === 'operations manager'
+  const canManageUsers = role === 'admin' || role === 'hr'
   const canViewFinancial = role === 'admin' || role === 'operations manager'
   const canViewAgentPerformance = role === 'admin' || role === 'operations manager' || role === 'agent manager' || role === 'team_leader'
   const canManageCategoriesAndStatuses = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'

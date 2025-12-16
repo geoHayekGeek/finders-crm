@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator, Edit3, Building2, Eye } from 'lucide-react'
+import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator, Edit3, Building2, Eye, UserPlus } from 'lucide-react'
 import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser, LeadReferralInput, LeadNote } from '@/types/leads'
 import { AgentSelector } from './AgentSelector'
 import { StatusSelector } from './StatusSelector'
@@ -55,6 +55,9 @@ interface LeadsModalsProps {
   
   // Refresh callback
   onRefreshLead?: (leadId: number) => Promise<void>
+  
+  // Refer Lead callback
+  onReferLead?: (lead: Lead) => void
 }
 
 export function LeadsModals({
@@ -78,7 +81,8 @@ export function LeadsModals({
   deleteConfirmation,
   setDeleteConfirmation,
   onConfirmDelete,
-  onRefreshLead
+  onRefreshLead,
+  onReferLead
 }: LeadsModalsProps) {
   const { showSuccess, showError } = useToast()
   const { token, user } = useAuth()
@@ -1191,12 +1195,57 @@ export function LeadsModals({
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Lead Details</h2>
-                <button
-                  onClick={() => setShowViewLeadModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-6 w-6" />
-                </button>
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    // Check if user can refer this lead (matching logic from leads page)
+                    if (!user || !viewingLead || !onReferLead) {
+                      return null
+                    }
+                    
+                    // Check if the lead's status allows referrals
+                    if (viewingLead.status_can_be_referred === false) {
+                      return null
+                    }
+                    
+                    // For backward compatibility, if status_can_be_referred is undefined or null,
+                    // fall back to checking status name (for old data)
+                    if (viewingLead.status_can_be_referred === undefined || viewingLead.status_can_be_referred === null) {
+                      const isClosed = viewingLead.status && ['closed', 'converted'].includes(viewingLead.status.toLowerCase())
+                      if (isClosed) {
+                        return null
+                      }
+                    }
+                    
+                    // Check user role and assignment
+                    const canRefer = (user.role === 'agent' || user.role === 'team_leader') &&
+                                     viewingLead.agent_id === user.id
+                    
+                    if (!canRefer) {
+                      return null
+                    }
+                    
+                    return (
+                      <button
+                        onClick={() => {
+                          if (viewingLead && onReferLead) {
+                            onReferLead(viewingLead)
+                          }
+                        }}
+                        className="px-3 py-2 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                        title="Refer lead to another agent"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        <span>Refer</span>
+                      </button>
+                    )
+                  })()}
+                  <button
+                    onClick={() => setShowViewLeadModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
               </div>
 
               {/* Tabs - Only show for admin, operations manager, operations, agent manager */}
@@ -1269,20 +1318,23 @@ export function LeadsModals({
                   </p>
                 </div>
 
+                {/* Show agent assignment for team leaders, hide other fields for limited access */}
+                {(!limitedAccess || isTeamLeaderRole(user?.role)) && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Agent</label>
+                    <p className="text-gray-900">
+                      {viewingLead.assigned_agent_name || viewingLead.agent_name || 'Not assigned'}
+                      {viewingLead.agent_role && (
+                        <span className="text-gray-500 ml-1 capitalize">
+                          ({viewingLead.agent_role.replace('_', ' ')})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
+
                 {!limitedAccess && (
                   <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Assigned Agent</label>
-                      <p className="text-gray-900">
-                        {viewingLead.assigned_agent_name || viewingLead.agent_name || 'Not assigned'}
-                        {viewingLead.agent_role && (
-                          <span className="text-gray-500 ml-1 capitalize">
-                            ({viewingLead.agent_role.replace('_', ' ')})
-                          </span>
-                        )}
-                      </p>
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>
                       <p className="text-gray-900">{viewingLead.reference_source_name || 'Not assigned'}</p>

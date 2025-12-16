@@ -134,20 +134,14 @@ export default function CalendarPage() {
         return
       }
 
-      // Build query parameters for admin filters
+      // Build query parameters for admin filters only
       const queryParams = new URLSearchParams()
-      if (filters) {
+      if (filters && user?.role === 'admin') {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== '') {
             queryParams.append(key, value)
           }
         })
-      }
-
-      if (user?.role !== 'admin' && user?.id) {
-        if (!queryParams.has('attendee')) {
-          queryParams.append('attendee', String(user.id))
-        }
       }
 
       const url = queryParams.toString() 
@@ -165,6 +159,7 @@ export default function CalendarPage() {
         const data = await response.json()
         if (data.success && data.events) {
           // Convert the events to the expected format
+          // Backend handles all permission filtering, so we just display what's returned
           const formattedEvents: CalendarEvent[] = data.events.map((event: any) => ({
             id: String(event.id),
             title: event.title,
@@ -185,23 +180,11 @@ export default function CalendarPage() {
             leadId: event.leadId,
             leadName: event.leadName,
             leadPhone: event.leadPhone,
-            createdById: event.createdById ? String(event.createdById) : undefined,
+            createdById: event.createdBy ? String(event.createdBy) : undefined,
             createdByName: event.createdByName
           }))
 
-          if (user?.role === 'admin') {
-            setEvents(formattedEvents)
-          } else if (user?.id) {
-            const currentUserId = String(user.id)
-            const scopedEvents = formattedEvents.filter(evt => {
-              const attendeeMatch = evt.attendees?.some(att => att === currentUserId)
-              const creatorMatch = evt.createdById === currentUserId
-              return attendeeMatch || creatorMatch
-            })
-            setEvents(scopedEvents)
-          } else {
-            setEvents(formattedEvents)
-          }
+          setEvents(formattedEvents)
         } else {
           setError('Failed to load events')
         }

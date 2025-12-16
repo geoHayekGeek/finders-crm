@@ -35,6 +35,7 @@ class LeadsController {
           reference_source_name: lead.reference_source_name,
           price: lead.price,
           status: lead.status,
+          status_can_be_referred: lead.status_can_be_referred,
           created_at: lead.created_at,
           updated_at: lead.updated_at
         }));
@@ -112,6 +113,7 @@ class LeadsController {
           reference_source_name: lead.reference_source_name,
           price: lead.price,
           status: lead.status,
+          status_can_be_referred: lead.status_can_be_referred,
           created_at: lead.created_at,
           updated_at: lead.updated_at
         }));
@@ -783,16 +785,101 @@ class LeadsController {
   }
 
   // Lead Notes: visibility rules helper
-  static filterNotesForUser(notes, lead, user) {
+  // Helper method to get all agent IDs who have been assigned/referred to a lead
+  static async getLeadAgentIds(leadId) {
+    const agentIds = new Set();
+    
+    // Get current agent_id from lead
+    const lead = await Lead.getLeadById(leadId);
+    if (lead && lead.agent_id) {
+      agentIds.add(lead.agent_id);
+    }
+    
+    // Get all agents from confirmed referrals
+    const referralsResult = await pool.query(
+      `SELECT DISTINCT referred_to_agent_id, agent_id
+       FROM lead_referrals
+       WHERE lead_id = $1 
+       AND status = 'confirmed'
+       AND (referred_to_agent_id IS NOT NULL OR agent_id IS NOT NULL)`,
+      [leadId]
+    );
+    
+    referralsResult.rows.forEach(row => {
+      if (row.referred_to_agent_id) agentIds.add(row.referred_to_agent_id);
+      if (row.agent_id) agentIds.add(row.agent_id);
+    });
+    
+    return Array.from(agentIds);
+  }
+
+  // Helper method to check if an agent is in a team leader's team
+  static async isAgentInTeamLeaderTeam(teamLeaderId, agentId) {
+    if (!teamLeaderId || !agentId) return false;
+    
+    const result = await pool.query(
+      `SELECT 1 FROM team_agents 
+       WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+      [teamLeaderId, agentId]
+    );
+    
+    return result.rows.length > 0;
+  }
+
+  static async filterNotesForUser(notes, lead, user) {
     const role = normalizeRole(user.role);
+    const userId = user.id;
 
     // Admin and Operations Manager see all notes
     if (role === 'admin' || role === 'operations_manager') {
       return notes;
     }
 
-    // Everyone else sees only their own notes
-    return notes.filter(n => n.created_by === user.id);
+    // Operations and Agent Manager see only their own notes
+    if (['operations', 'agent_manager'].includes(role)) {
+      return notes.filter(n => n.created_by === userId);
+    }
+
+    // Team Leader sees notes from agents in their team + their own notes
+    if (role === 'team_leader') {
+      // Get all agent IDs in the team leader's team
+      const teamAgentsResult = await pool.query(
+        `SELECT agent_id FROM team_agents 
+         WHERE team_leader_id = $1 AND is_active = TRUE`,
+        [userId]
+      );
+      const teamAgentIds = new Set(teamAgentsResult.rows.map(row => row.agent_id));
+      
+      return notes.filter(note => {
+        // Always show own notes
+        if (note.created_by === userId) {
+          return true;
+        }
+        
+        // Show notes from agents in the team
+        return teamAgentIds.has(note.created_by);
+      });
+    }
+
+    // Agent sees their own notes + notes from previous agents who had this lead
+    if (role === 'agent') {
+      // Get all agent IDs who have been assigned/referred to this lead
+      const leadAgentIds = await LeadsController.getLeadAgentIds(lead.id);
+      
+      return notes.filter(note => {
+        // Always show own notes
+        if (note.created_by === userId) {
+          return true;
+        }
+        
+        // Show notes from agents who have been assigned/referred to this lead
+        // (including current agent and previous agents)
+        return leadAgentIds.includes(note.created_by);
+      });
+    }
+
+    // Default: only own notes
+    return notes.filter(n => n.created_by === userId);
   }
 
   // GET /api/leads/:id/notes - Get notes for a lead
@@ -809,7 +896,7 @@ class LeadsController {
       }
 
       const notes = await LeadNote.getNotesForLead(id);
-      const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
+      const filtered = await LeadsController.filterNotesForUser(notes, lead, req.user);
 
       res.json({
         success: true,
@@ -847,19 +934,35 @@ class LeadsController {
         });
       }
 
-      // Anyone who can view the lead can add notes to it
-      // Check if user can view this lead
+      // Check if user can add notes to this lead
       const role = normalizeRole(req.user.role);
       const userId = req.user.id;
-      let canViewLead = false;
+      let canAddNote = false;
 
-      if (['admin', 'operations', 'operations_manager', 'agent_manager'].includes(role)) {
-        canViewLead = true;
-      } else if (role === 'agent' && lead.agent_id === userId) {
-        canViewLead = true;
-      } else if (role === 'team_leader') {
+      // Admin can always add notes
+      if (role === 'admin') {
+        canAddNote = true;
+      }
+      // Operations, Operations Manager, Agent Manager can add notes (but can't see others' notes)
+      else if (['operations', 'operations_manager', 'agent_manager'].includes(role)) {
+        canAddNote = true;
+      }
+      // Agent can add notes if they have access to the lead
+      else if (role === 'agent') {
+        // Agent can add notes if they are currently assigned to the lead
+        // OR if they have been assigned/referred to this lead before
         if (lead.agent_id === userId) {
-          canViewLead = true;
+          canAddNote = true;
+        } else {
+          // Check if agent was previously assigned/referred to this lead
+          const leadAgentIds = await LeadsController.getLeadAgentIds(id);
+          canAddNote = leadAgentIds.includes(userId);
+        }
+      }
+      // Team Leader can add notes if they have access to the lead
+      else if (role === 'team_leader') {
+        if (lead.agent_id === userId) {
+          canAddNote = true;
         } else {
           // Check if the lead belongs to an agent under this team leader
           const teamAgentCheck = await pool.query(
@@ -867,11 +970,11 @@ class LeadsController {
              WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
             [userId, lead.agent_id]
           );
-          canViewLead = teamAgentCheck.rows.length > 0;
+          canAddNote = teamAgentCheck.rows.length > 0;
         }
       }
 
-      if (!canViewLead) {
+      if (!canAddNote) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to add notes to this lead',
@@ -880,7 +983,7 @@ class LeadsController {
 
       const note = await LeadNote.createNote(id, req.user, note_text.toString().trim());
       const notes = await LeadNote.getNotesForLead(id);
-      const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
+      const filtered = await LeadsController.filterNotesForUser(notes, lead, req.user);
       const createdForUser = filtered.find(n => n.id === note.id) || note;
 
       res.status(201).json({
@@ -1065,7 +1168,7 @@ class LeadsController {
       // Get all notes and filter for user visibility
       const lead = await Lead.getLeadById(id);
       const notes = await LeadNote.getNotesForLead(id);
-      const filtered = LeadsController.filterNotesForUser(notes, lead, req.user);
+      const filtered = await LeadsController.filterNotesForUser(notes, lead, req.user);
       const updatedForUser = filtered.find(n => n.id === updatedNote.id) || updatedNote;
 
       res.json({
@@ -1157,6 +1260,23 @@ class LeadsController {
       const lead = await Lead.getLeadById(id);
       if (!lead) {
         return res.status(404).json({ message: 'Lead not found' });
+      }
+
+      // Check if the lead's status allows referrals
+      if (lead.status_can_be_referred === false) {
+        return res.status(400).json({ 
+          message: `Leads with status "${lead.status}" cannot be referred.` 
+        });
+      }
+      
+      // Fallback check for undefined/null (shouldn't happen after migration, but just in case)
+      if (lead.status_can_be_referred === undefined || lead.status_can_be_referred === null) {
+        const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase());
+        if (isClosed) {
+          return res.status(400).json({ 
+            message: `Leads with status "${lead.status}" cannot be referred.` 
+          });
+        }
       }
 
       // For agents and team leaders, they can only refer leads assigned to them

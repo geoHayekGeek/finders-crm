@@ -18,8 +18,8 @@ describe('LeadStatus Model', () => {
   describe('getAllStatuses', () => {
     it('should get all lead statuses', async () => {
       const mockStatuses = [
-        { id: 1, status_name: 'New', code: 'new', is_active: true },
-        { id: 2, status_name: 'Contacted', code: 'contacted', is_active: true }
+        { id: 1, status_name: 'New', code: 'new', is_active: true, can_be_referred: true },
+        { id: 2, status_name: 'Contacted', code: 'contacted', is_active: true, can_be_referred: false }
       ];
 
       mockQuery.mockResolvedValue({ rows: mockStatuses });
@@ -27,16 +27,18 @@ describe('LeadStatus Model', () => {
       const result = await LeadStatus.getAllStatuses();
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('SELECT id, status_name, code, color, description, is_active')
+        expect.stringContaining('SELECT id, status_name, code, color, description, is_active, can_be_referred')
       );
       expect(result).toEqual(mockStatuses);
+      expect(result[0].can_be_referred).toBe(true);
+      expect(result[1].can_be_referred).toBe(false);
     });
   });
 
   describe('getStatusById', () => {
     it('should get a status by ID', async () => {
       const statusId = 1;
-      const mockStatus = { id: statusId, status_name: 'New', code: 'new' };
+      const mockStatus = { id: statusId, status_name: 'New', code: 'new', can_be_referred: true };
 
       mockQuery.mockResolvedValue({ rows: [mockStatus] });
 
@@ -47,6 +49,18 @@ describe('LeadStatus Model', () => {
         [statusId]
       );
       expect(result).toEqual(mockStatus);
+      expect(result.can_be_referred).toBe(true);
+    });
+
+    it('should return status with can_be_referred false', async () => {
+      const statusId = 2;
+      const mockStatus = { id: statusId, status_name: 'Closed', code: 'closed', can_be_referred: false };
+
+      mockQuery.mockResolvedValue({ rows: [mockStatus] });
+
+      const result = await LeadStatus.getStatusById(statusId);
+
+      expect(result.can_be_referred).toBe(false);
     });
   });
 
@@ -57,7 +71,8 @@ describe('LeadStatus Model', () => {
         code: 'new_status',
         color: '#FF0000',
         description: 'Test description',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       };
 
       mockQuery.mockResolvedValue({
@@ -73,10 +88,39 @@ describe('LeadStatus Model', () => {
           statusData.code,
           statusData.color,
           statusData.description,
-          statusData.is_active
+          statusData.is_active,
+          statusData.can_be_referred
         ]
       );
       expect(result).toEqual({ id: 1, ...statusData });
+    });
+
+    it('should default can_be_referred to true if not provided', async () => {
+      const statusData = {
+        status_name: 'New Status',
+        code: 'new_status',
+        color: '#FF0000',
+        description: 'Test description',
+        is_active: true
+      };
+
+      mockQuery.mockResolvedValue({
+        rows: [{ id: 1, ...statusData, can_be_referred: true }]
+      });
+
+      const result = await LeadStatus.createStatus(statusData);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO lead_statuses'),
+        [
+          statusData.status_name,
+          statusData.code,
+          statusData.color,
+          statusData.description,
+          statusData.is_active,
+          true
+        ]
+      );
     });
   });
 
@@ -88,7 +132,8 @@ describe('LeadStatus Model', () => {
         code: 'updated_status',
         color: '#00FF00',
         description: 'Updated description',
-        is_active: false
+        is_active: false,
+        can_be_referred: false
       };
 
       mockQuery.mockResolvedValue({
@@ -105,10 +150,28 @@ describe('LeadStatus Model', () => {
           statusData.color,
           statusData.description,
           statusData.is_active,
+          statusData.can_be_referred,
           statusId
         ]
       );
       expect(result).toEqual({ id: statusId, ...statusData });
+    });
+  });
+
+  describe('getStatusByName', () => {
+    it('should get a status by name', async () => {
+      const statusName = 'Active';
+      const mockStatus = { id: 1, status_name: 'Active', code: 'ACTIVE', can_be_referred: true };
+
+      mockQuery.mockResolvedValue({ rows: [mockStatus] });
+
+      const result = await LeadStatus.getStatusByName(statusName);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE LOWER(status_name) = LOWER($1)'),
+        [statusName]
+      );
+      expect(result).toEqual(mockStatus);
     });
   });
 
@@ -129,6 +192,8 @@ describe('LeadStatus Model', () => {
     });
   });
 });
+
+
 
 
 

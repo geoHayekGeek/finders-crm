@@ -359,13 +359,17 @@ describe('Calendar Controller', () => {
   });
 
   describe('getEventById', () => {
-    it('should get event by id', async () => {
+    it('should get event by id for admin (any event)', async () => {
       req.params.id = '1';
+      req.user = { id: 1, name: 'Admin', role: 'admin' };
       const mockEvent = {
         id: 1,
         title: 'Event 1',
         start_time: '2024-01-01T10:00:00Z',
-        end_time: '2024-01-01T11:00:00Z'
+        end_time: '2024-01-01T11:00:00Z',
+        created_by: 2,
+        assigned_to: 3,
+        attendees: []
       };
 
       calendarEventModel.findById.mockResolvedValue(mockEvent);
@@ -378,6 +382,82 @@ describe('Calendar Controller', () => {
         event: expect.objectContaining({
           id: 1,
           title: 'Event 1'
+        })
+      });
+    });
+
+    it('should get event by id for non-admin if it is their own event', async () => {
+      req.params.id = '1';
+      req.user = { id: 2, name: 'User', role: 'agent' };
+      const mockEvent = {
+        id: 1,
+        title: 'My Event',
+        start_time: '2024-01-01T10:00:00Z',
+        end_time: '2024-01-01T11:00:00Z',
+        created_by: 2,
+        assigned_to: 2,
+        attendees: []
+      };
+
+      calendarEventModel.findById.mockResolvedValue(mockEvent);
+
+      await calendarController.getEventById(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        event: expect.objectContaining({
+          id: 1,
+          title: 'My Event'
+        })
+      });
+    });
+
+    it('should return 403 for non-admin trying to access another users event', async () => {
+      req.params.id = '1';
+      req.user = { id: 2, name: 'User', role: 'agent' };
+      const mockEvent = {
+        id: 1,
+        title: 'Other Event',
+        start_time: '2024-01-01T10:00:00Z',
+        end_time: '2024-01-01T11:00:00Z',
+        created_by: 3,
+        assigned_to: 3,
+        attendees: []
+      };
+
+      calendarEventModel.findById.mockResolvedValue(mockEvent);
+
+      await calendarController.getEventById(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Access denied: You can only view your own events'
+      });
+    });
+
+    it('should allow access if user is in attendees list', async () => {
+      req.params.id = '1';
+      req.user = { id: 2, name: 'User Name', role: 'agent' };
+      const mockEvent = {
+        id: 1,
+        title: 'Event with Attendee',
+        start_time: '2024-01-01T10:00:00Z',
+        end_time: '2024-01-01T11:00:00Z',
+        created_by: 3,
+        assigned_to: 3,
+        attendees: ['User Name']
+      };
+
+      calendarEventModel.findById.mockResolvedValue(mockEvent);
+
+      await calendarController.getEventById(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        event: expect.objectContaining({
+          id: 1,
+          title: 'Event with Attendee'
         })
       });
     });
@@ -557,10 +637,11 @@ describe('Calendar Controller', () => {
       assigned_to: 1
     };
 
-    it('should update event successfully', async () => {
+    it('should update own event successfully', async () => {
       req.params.id = '1';
       req.body = { title: 'Updated Event' };
-      const mockEventWithRole = { ...mockEvent, created_by_role: 'admin' };
+      req.user = { id: 1, role: 'agent' };
+      const mockEventWithRole = { ...mockEvent, created_by_role: 'agent' };
       const mockUpdatedEvent = { ...mockEvent, title: 'Updated Event' };
 
       calendarEventModel.findById.mockResolvedValueOnce(mockEventWithRole);
@@ -580,6 +661,51 @@ describe('Calendar Controller', () => {
           title: 'Updated Event'
         })
       });
+    });
+
+    it('should allow admin to update any event', async () => {
+      req.params.id = '1';
+      req.body = { title: 'Updated Event' };
+      req.user = { id: 1, role: 'admin' };
+      const mockEventWithRole = { ...mockEvent, created_by: 2, created_by_role: 'agent' };
+      const mockUpdatedEvent = { ...mockEventWithRole, title: 'Updated Event' };
+
+      calendarEventModel.findById.mockResolvedValueOnce(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.updateEvent.mockResolvedValue(mockUpdatedEvent);
+      Notification.createCalendarEventNotification.mockResolvedValue({});
+      ReminderService.scheduleEventReminders.mockResolvedValue({});
+
+      await calendarController.updateEvent(req, res);
+
+      expect(calendarEventModel.updateEvent).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Event updated successfully',
+        event: expect.objectContaining({
+          id: 1,
+          title: 'Updated Event'
+        })
+      });
+    });
+
+    it('should return 403 if non-admin tries to update another users event', async () => {
+      req.params.id = '1';
+      req.body = { title: 'Updated Event' };
+      req.user = { id: 2, role: 'agent' };
+      const mockEventWithRole = { ...mockEvent, created_by: 3, assigned_to: 3, created_by_role: 'agent' };
+
+      calendarEventModel.findById.mockResolvedValueOnce(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+
+      await calendarController.updateEvent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: expect.stringContaining('Access denied')
+      });
+      expect(calendarEventModel.updateEvent).not.toHaveBeenCalled();
     });
 
     it('should return 400 if id is missing', async () => {
@@ -649,12 +775,14 @@ describe('Calendar Controller', () => {
     const mockEvent = {
       id: 1,
       title: 'Event 1',
-      created_by: 1
+      created_by: 1,
+      assigned_to: 1
     };
 
-    it('should delete event successfully', async () => {
+    it('should delete own event successfully', async () => {
       req.params.id = '1';
-      const mockEventWithRole = { ...mockEvent, created_by_role: 'admin' };
+      req.user = { id: 1, role: 'agent' };
+      const mockEventWithRole = { ...mockEvent, created_by_role: 'agent' };
 
       calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
       calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
@@ -668,6 +796,43 @@ describe('Calendar Controller', () => {
         success: true,
         message: 'Event deleted successfully'
       });
+    });
+
+    it('should allow admin to delete any event', async () => {
+      req.params.id = '1';
+      req.user = { id: 1, role: 'admin' };
+      const mockEventWithRole = { ...mockEvent, created_by: 2, created_by_role: 'agent' };
+
+      calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.deleteEvent.mockResolvedValue({});
+      Notification.createCalendarEventNotification.mockResolvedValue({});
+
+      await calendarController.deleteEvent(req, res);
+
+      expect(calendarEventModel.deleteEvent).toHaveBeenCalledWith('1');
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Event deleted successfully'
+      });
+    });
+
+    it('should return 403 if non-admin tries to delete another users event', async () => {
+      req.params.id = '1';
+      req.user = { id: 2, role: 'agent' };
+      const mockEventWithRole = { ...mockEvent, created_by: 3, assigned_to: 3, created_by_role: 'agent' };
+
+      calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+
+      await calendarController.deleteEvent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: expect.stringContaining('Access denied')
+      });
+      expect(calendarEventModel.deleteEvent).not.toHaveBeenCalled();
     });
 
     it('should return 400 if id is missing', async () => {
@@ -721,9 +886,11 @@ describe('Calendar Controller', () => {
       assigned_to: 1
     };
 
-    it('should check event permissions successfully', async () => {
+    it('should allow admin to edit any event', async () => {
       req.params.id = '1';
-      const mockEventWithRole = { ...mockEvent, created_by_role: 'admin' };
+      req.user = { id: 1, role: 'admin' };
+      // Event created by user 2, assigned to user 3 - not admin's own event
+      const mockEventWithRole = { ...mockEvent, created_by: 2, assigned_to: 3, created_by_role: 'agent' };
 
       calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
       calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
@@ -734,7 +901,51 @@ describe('Calendar Controller', () => {
         success: true,
         canEdit: true,
         canDelete: true,
-        reason: expect.any(String),
+        reason: expect.stringContaining('Admin can edit all events'),
+        event: expect.objectContaining({
+          id: 1,
+          title: 'Event 1'
+        })
+      });
+    });
+
+    it('should allow user to edit own event', async () => {
+      req.params.id = '1';
+      req.user = { id: 1, role: 'agent' };
+      const mockEventWithRole = { ...mockEvent, created_by_role: 'agent' };
+
+      calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+
+      await calendarController.checkEventPermissions(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        canEdit: true,
+        canDelete: true,
+        reason: expect.stringContaining('You can edit your own events'),
+        event: expect.objectContaining({
+          id: 1,
+          title: 'Event 1'
+        })
+      });
+    });
+
+    it('should deny non-admin from editing another users event', async () => {
+      req.params.id = '1';
+      req.user = { id: 2, role: 'agent' };
+      const mockEventWithRole = { ...mockEvent, created_by: 3, assigned_to: 3, created_by_role: 'agent' };
+
+      calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+
+      await calendarController.checkEventPermissions(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        canEdit: false,
+        canDelete: false,
+        reason: expect.stringContaining('You can only edit your own events'),
         event: expect.objectContaining({
           id: 1,
           title: 'Event 1'

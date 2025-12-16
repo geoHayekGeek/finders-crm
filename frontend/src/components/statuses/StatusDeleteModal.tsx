@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Trash2, AlertTriangle, Circle } from 'lucide-react'
 import { Status } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { statusesApi } from '@/utils/api'
 
 interface StatusDeleteModalProps {
@@ -15,6 +16,7 @@ interface StatusDeleteModalProps {
 
 export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }: StatusDeleteModalProps) {
   const { token } = useAuth()
+  const { showSuccess, showError } = useToast()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmText, setConfirmText] = useState('')
@@ -32,13 +34,19 @@ export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }
       const response = await statusesApi.delete(status.id, token || undefined)
 
       if (response.success) {
+        showSuccess('Status deleted successfully!')
         onSuccess(status.id)
+        onClose()
       } else {
-        setError(response.message || 'Failed to delete status')
+        const errorMessage = response.message || 'Failed to delete status'
+        setError(errorMessage)
+        showError(errorMessage)
       }
     } catch (err) {
       console.error('Error deleting status:', err)
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred')
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred'
+      setError(errorMessage)
+      showError(errorMessage)
     } finally {
       setLoading(false)
     }

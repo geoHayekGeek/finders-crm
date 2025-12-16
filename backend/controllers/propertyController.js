@@ -1102,6 +1102,13 @@ const referPropertyToAgent = async (req, res) => {
       }
     }
 
+    // Check if property status allows referrals
+    if (property.status_can_be_referred === false) {
+      return res.status(400).json({ 
+        message: `Properties with status "${property.status_name}" cannot be referred.` 
+      });
+    }
+
     // Create the referral
     const referral = await PropertyReferral.referPropertyToAgent(
       parseInt(id),

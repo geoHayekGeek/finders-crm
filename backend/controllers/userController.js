@@ -5,6 +5,24 @@ const jwtUtil = require('../utils/jwt');
 
 const registerUser = async (req, res) => {
   try {
+    // Check if user is authenticated (for creating new users, only admin and HR can do this)
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Authentication required' 
+      });
+    }
+
+    const currentUserRole = req.user.role;
+    
+    // Only admin and HR can create users
+    if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied. Only admin and HR can create users.' 
+      });
+    }
+
     const { name, email, password, role, location, phone, dob, work_location } = req.body;
 
     // Basic validation
@@ -140,11 +158,33 @@ const checkUserExists = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await userModel.getAllUsers();
-    console.log('📊 Fetched users from database:', users.length);
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
+
+    // Get all users from database
+    const allUsers = await userModel.getAllUsers();
+    console.log('📊 Fetched users from database:', allUsers.length);
+
+    // Filter users based on role
+    let filteredUsers = allUsers;
+    
+    // Only admin and HR can see all users
+    if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      // Other users can only see themselves
+      filteredUsers = allUsers.filter(user => user.id === currentUserId);
+    }
+
     res.json({
       success: true,
-      users: users.map(user => ({
+      users: filteredUsers.map(user => ({
         id: user.id,
         name: user.name,
         email: user.email,
@@ -177,20 +217,62 @@ const getAllUsers = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Authentication required' 
+      });
+    }
+
     const { id } = req.params;
     const { name, email, role, location, phone, dob, work_location, user_code, is_active, password } = req.body;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
 
     // Check if user exists
     const existingUser = await userModel.findById(id);
     if (!existingUser) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+
+    // Permission check: Only admin and HR can update other users
+    // Users can only update themselves (read-only fields only)
+    if (parseInt(id) !== currentUserId) {
+      if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+        return res.status(403).json({ 
+          success: false,
+          message: 'Access denied. Only admin and HR can update other users.' 
+        });
+      }
+    } else {
+      // Users updating themselves can only update certain fields (not role, is_active, etc.)
+      // For now, we'll allow self-updates but restrict sensitive fields
+      if (role && role !== existingUser.role) {
+        return res.status(403).json({ 
+          success: false,
+          message: 'You cannot change your own role.' 
+        });
+      }
+      if (is_active !== undefined && is_active !== existingUser.is_active) {
+        return res.status(403).json({ 
+          success: false,
+          message: 'You cannot change your own account status.' 
+        });
+      }
     }
 
     // If updating user_code, check if it's already taken by another user
     if (user_code && user_code !== existingUser.user_code) {
       const userWithCode = await userModel.findByUserCode(user_code);
       if (userWithCode && userWithCode.id !== parseInt(id)) {
-        return res.status(409).json({ message: 'User code already taken' });
+        return res.status(409).json({ 
+          success: false,
+          message: 'User code already taken' 
+        });
       }
     }
 
@@ -232,7 +314,18 @@ const updateUser = async (req, res) => {
 
 const deleteUser = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { id } = req.params;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
+
     console.log('🗑️ Deleting user:', id);
 
     // Check if user exists
@@ -241,6 +334,22 @@ const deleteUser = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    // Permission check: Only admin and HR can delete users
+    if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only admin and HR can delete users.'
+      });
+    }
+
+    // Prevent users from deleting themselves
+    if (parseInt(id) === currentUserId) {
+      return res.status(403).json({
+        success: false,
+        message: 'You cannot delete your own account'
       });
     }
 

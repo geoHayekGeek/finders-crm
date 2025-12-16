@@ -1226,6 +1226,31 @@ describe('Property Controller', () => {
       });
     });
 
+    it('should return 400 if property status does not allow referrals', async () => {
+      req.params.id = '100';
+      req.body.referred_to_agent_id = 28;
+      req.user.id = 27;
+      req.roleFilters.canViewProperties = true;
+      req.roleFilters.role = 'agent';
+
+      const mockProperty = {
+        id: 100,
+        agent_id: 27,
+        reference_number: 'PROP-001',
+        status_name: 'Sold',
+        status_can_be_referred: false
+      };
+
+      Property.getPropertyById.mockResolvedValue(mockProperty);
+
+      await propertyController.referPropertyToAgent(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Properties with status "Sold" cannot be referred.'
+      });
+    });
+
     it('should return 400 if referred_to_agent_id is missing', async () => {
       req.params.id = '100';
       req.body = {};

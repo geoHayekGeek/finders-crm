@@ -13,6 +13,7 @@ interface LeadStatus {
   color: string
   description: string
   is_active: boolean
+  can_be_referred: boolean
   created_at: string
   modified_at: string
 }
@@ -53,7 +54,8 @@ export default function LeadStatusModal({ isOpen, onClose, onSuccess, status, ti
     code: '',
     description: '',
     color: '#6B7280',
-    is_active: true
+    is_active: true,
+    can_be_referred: true
   })
 
   // Validation functions
@@ -95,7 +97,8 @@ export default function LeadStatusModal({ isOpen, onClose, onSuccess, status, ti
           code: status.code,
           description: status.description || '',
           color: status.color || '#6B7280',
-          is_active: status.is_active
+          is_active: status.is_active,
+          can_be_referred: status.can_be_referred !== undefined ? status.can_be_referred : true
         })
       } else {
         setFormData({
@@ -103,7 +106,8 @@ export default function LeadStatusModal({ isOpen, onClose, onSuccess, status, ti
           code: '',
           description: '',
           color: '#6B7280',
-          is_active: true
+          is_active: true,
+          can_be_referred: true
         })
       }
       setError(null)
@@ -161,7 +165,8 @@ export default function LeadStatusModal({ isOpen, onClose, onSuccess, status, ti
         code: formData.code.trim().toUpperCase(),
         color: formData.color,
         description: formData.description.trim() || undefined,
-        is_active: formData.is_active
+        is_active: formData.is_active,
+        can_be_referred: formData.can_be_referred
       }
 
       let response
@@ -366,6 +371,41 @@ export default function LeadStatusModal({ isOpen, onClose, onSuccess, status, ti
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                           formData.is_active ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="can_be_referred" className="text-sm font-medium text-gray-700">
+                      Can Be Referred
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.can_be_referred ? 'Leads with this status can be referred to other agents' : 'Leads with this status cannot be referred'}
+                    </p>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      id="can_be_referred"
+                      name="can_be_referred"
+                      checked={formData.can_be_referred}
+                      onChange={handleInputChange}
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="can_be_referred"
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                        formData.can_be_referred ? 'bg-green-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          formData.can_be_referred ? 'translate-x-5' : 'translate-x-0'
                         }`}
                       />
                     </label>

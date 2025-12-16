@@ -105,7 +105,8 @@ describe('Lead Status Controller', () => {
         code: 'NEW',
         color: '#10B981',
         description: 'New lead status',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       };
 
       const mockStatus = { id: 1, ...req.body };
@@ -118,7 +119,8 @@ describe('Lead Status Controller', () => {
         code: 'NEW',
         color: '#10B981',
         description: 'New lead status',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
@@ -145,7 +147,8 @@ describe('Lead Status Controller', () => {
         code: 'NEW',
         color: '#10B981',
         description: '',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       });
     });
 
@@ -165,7 +168,8 @@ describe('Lead Status Controller', () => {
         code: 'NEW',
         color: '#6B7280',
         description: '',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       });
     });
 
@@ -239,7 +243,8 @@ describe('Lead Status Controller', () => {
         code: 'UPDATED',
         color: '#10B981',
         description: 'Updated description',
-        is_active: true
+        is_active: true,
+        can_be_referred: false
       };
 
       const mockStatus = { id: 1, ...req.body };
@@ -252,7 +257,8 @@ describe('Lead Status Controller', () => {
         code: 'UPDATED',
         color: '#10B981',
         description: 'Updated description',
-        is_active: true
+        is_active: true,
+        can_be_referred: false
       });
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -279,7 +285,8 @@ describe('Lead Status Controller', () => {
         code: 'UPDATED',
         color: '#10B981',
         description: '',
-        is_active: true
+        is_active: true,
+        can_be_referred: true
       });
     });
 
@@ -424,6 +431,8 @@ describe('Lead Status Controller', () => {
     });
   });
 });
+
+
 
 
 

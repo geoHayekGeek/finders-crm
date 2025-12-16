@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const userDocumentController = require('../controllers/userDocumentController');
+const { authenticateToken } = require('../middlewares/permissions');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -56,13 +57,13 @@ const upload = multer({
   }
 });
 
-// Routes
-router.post('/:userId/documents', upload.single('document'), userDocumentController.uploadDocument);
-router.get('/:userId/documents', userDocumentController.getUserDocuments);
-router.get('/documents/:documentId', userDocumentController.getDocument);
-router.get('/documents/:documentId/download', userDocumentController.downloadDocument);
-router.put('/documents/:documentId', userDocumentController.updateDocument);
-router.delete('/documents/:documentId', userDocumentController.deleteDocument);
-router.get('/:userId/documents/search', userDocumentController.searchDocuments);
+// Routes (all require authentication)
+router.post('/:userId/documents', authenticateToken, upload.single('document'), userDocumentController.uploadDocument);
+router.get('/:userId/documents', authenticateToken, userDocumentController.getUserDocuments);
+router.get('/documents/:documentId', authenticateToken, userDocumentController.getDocument);
+router.get('/documents/:documentId/download', authenticateToken, userDocumentController.downloadDocument);
+router.put('/documents/:documentId', authenticateToken, userDocumentController.updateDocument);
+router.delete('/documents/:documentId', authenticateToken, userDocumentController.deleteDocument);
+router.get('/:userId/documents/search', authenticateToken, userDocumentController.searchDocuments);
 
 module.exports = router;

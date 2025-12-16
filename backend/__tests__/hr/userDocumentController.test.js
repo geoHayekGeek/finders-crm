@@ -35,7 +35,49 @@ describe('User Document Controller', () => {
   });
 
   describe('uploadDocument', () => {
-    it('should upload document successfully', async () => {
+    it('should upload document successfully as admin', async () => {
+      req.user = { id: 1, role: 'admin' };
+      req.params.userId = '2';
+      req.body = { document_label: 'ID Card', notes: 'Front side' };
+      req.file = {
+        originalname: 'id-card.pdf',
+        path: '/uploads/documents/id-card.pdf',
+        mimetype: 'application/pdf',
+        size: 1024
+      };
+
+      const mockDocument = {
+        id: 1,
+        user_id: 2,
+        document_name: 'id-card.pdf',
+        document_label: 'ID Card',
+        file_path: '/uploads/documents/id-card.pdf'
+      };
+
+      UserDocument.create.mockResolvedValue(mockDocument);
+
+      await userDocumentController.uploadDocument(req, res);
+
+      expect(UserDocument.create).toHaveBeenCalledWith({
+        user_id: 2,
+        document_name: 'id-card.pdf',
+        document_label: 'ID Card',
+        file_path: '/uploads/documents/id-card.pdf',
+        file_type: 'application/pdf',
+        file_size: 1024,
+        uploaded_by: 1,
+        notes: 'Front side'
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Document uploaded successfully',
+        data: mockDocument
+      });
+    });
+
+    it('should upload document successfully for own user', async () => {
+      req.user = { id: 1, role: 'agent' };
       req.params.userId = '1';
       req.body = { document_label: 'ID Card', notes: 'Front side' };
       req.file = {
@@ -57,21 +99,42 @@ describe('User Document Controller', () => {
 
       await userDocumentController.uploadDocument(req, res);
 
-      expect(UserDocument.create).toHaveBeenCalledWith({
-        user_id: 1,
-        document_name: 'id-card.pdf',
-        document_label: 'ID Card',
-        file_path: '/uploads/documents/id-card.pdf',
-        file_type: 'application/pdf',
-        file_size: 1024,
-        uploaded_by: 1,
-        notes: 'Front side'
-      });
       expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should return 403 if non-admin/HR tries to upload for another user', async () => {
+      req.user = { id: 1, role: 'agent' };
+      req.params.userId = '2';
+      req.body = { document_label: 'ID Card' };
+      req.file = {
+        originalname: 'id-card.pdf',
+        path: '/uploads/documents/id-card.pdf'
+      };
+
+      await userDocumentController.uploadDocument(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        message: 'Document uploaded successfully',
-        data: mockDocument
+        success: false,
+        message: 'Access denied. You can only upload documents for yourself.'
+      });
+    });
+
+    it('should return 401 if user is not authenticated', async () => {
+      req.user = null;
+      req.params.userId = '1';
+      req.body = { document_label: 'ID Card' };
+      req.file = {
+        originalname: 'id-card.pdf',
+        path: '/uploads/documents/id-card.pdf'
+      };
+
+      await userDocumentController.uploadDocument(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Authentication required'
       });
     });
 
@@ -127,7 +190,26 @@ describe('User Document Controller', () => {
   });
 
   describe('getUserDocuments', () => {
-    it('should get user documents successfully', async () => {
+    it('should get user documents successfully as admin', async () => {
+      req.user = { id: 1, role: 'admin' };
+      req.params.userId = '2';
+      const mockDocuments = [
+        { id: 1, user_id: 2, document_name: 'id-card.pdf', document_label: 'ID Card' }
+      ];
+
+      UserDocument.getUserDocuments.mockResolvedValue(mockDocuments);
+
+      await userDocumentController.getUserDocuments(req, res);
+
+      expect(UserDocument.getUserDocuments).toHaveBeenCalledWith(2);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockDocuments
+      });
+    });
+
+    it('should get own user documents successfully', async () => {
+      req.user = { id: 1, role: 'agent' };
       req.params.userId = '1';
       const mockDocuments = [
         { id: 1, user_id: 1, document_name: 'id-card.pdf', document_label: 'ID Card' }
@@ -141,6 +223,32 @@ describe('User Document Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockDocuments
+      });
+    });
+
+    it('should return 403 if non-admin/HR tries to view another user documents', async () => {
+      req.user = { id: 1, role: 'agent' };
+      req.params.userId = '2';
+
+      await userDocumentController.getUserDocuments(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Access denied. You can only view your own documents.'
+      });
+    });
+
+    it('should return 401 if user is not authenticated', async () => {
+      req.user = null;
+      req.params.userId = '1';
+
+      await userDocumentController.getUserDocuments(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Authentication required'
       });
     });
 
@@ -159,11 +267,12 @@ describe('User Document Controller', () => {
   });
 
   describe('getDocument', () => {
-    it('should get document successfully', async () => {
+    it('should get document successfully as admin', async () => {
+      req.user = { id: 1, role: 'admin' };
       req.params.documentId = '1';
       const mockDocument = {
         id: 1,
-        user_id: 1,
+        user_id: 2,
         document_name: 'id-card.pdf',
         document_label: 'ID Card'
       };
@@ -176,6 +285,60 @@ describe('User Document Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockDocument
+      });
+    });
+
+    it('should get own document successfully', async () => {
+      req.user = { id: 1, role: 'agent' };
+      req.params.documentId = '1';
+      const mockDocument = {
+        id: 1,
+        user_id: 1,
+        document_name: 'id-card.pdf',
+        document_label: 'ID Card'
+      };
+
+      UserDocument.getById.mockResolvedValue(mockDocument);
+
+      await userDocumentController.getDocument(req, res);
+
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockDocument
+      });
+    });
+
+    it('should return 403 if non-admin/HR tries to view another user document', async () => {
+      req.user = { id: 1, role: 'agent' };
+      req.params.documentId = '1';
+      const mockDocument = {
+        id: 1,
+        user_id: 2,
+        document_name: 'id-card.pdf',
+        document_label: 'ID Card'
+      };
+
+      UserDocument.getById.mockResolvedValue(mockDocument);
+
+      await userDocumentController.getDocument(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Access denied. You can only view your own documents.'
+      });
+    });
+
+    it('should return 401 if user is not authenticated', async () => {
+      req.user = null;
+      req.params.documentId = '1';
+
+      await userDocumentController.getDocument(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Authentication required'
       });
     });
 
@@ -276,8 +439,16 @@ describe('User Document Controller', () => {
 
   describe('updateDocument', () => {
     it('should update document successfully', async () => {
+      req.user = { id: 1, role: 'admin' };
       req.params.documentId = '1';
       req.body = { document_label: 'Updated ID Card', notes: 'Updated notes' };
+
+      const existingDocument = {
+        id: 1,
+        user_id: 2,
+        document_label: 'ID Card',
+        notes: 'Original notes'
+      };
 
       const mockDocument = {
         id: 1,
@@ -285,10 +456,12 @@ describe('User Document Controller', () => {
         notes: 'Updated notes'
       };
 
+      UserDocument.getById.mockResolvedValue(existingDocument);
       UserDocument.update.mockResolvedValue(mockDocument);
 
       await userDocumentController.updateDocument(req, res);
 
+      expect(UserDocument.getById).toHaveBeenCalledWith(1);
       expect(UserDocument.update).toHaveBeenCalledWith(1, {
         document_label: 'Updated ID Card',
         notes: 'Updated notes'
@@ -314,10 +487,11 @@ describe('User Document Controller', () => {
     });
 
     it('should return 404 if document not found', async () => {
+      req.user = { id: 1, role: 'admin' };
       req.params.documentId = '999';
       req.body = { document_label: 'Updated ID Card' };
 
-      UserDocument.update.mockResolvedValue(null);
+      UserDocument.getById.mockResolvedValue(null);
 
       await userDocumentController.updateDocument(req, res);
 
@@ -329,9 +503,18 @@ describe('User Document Controller', () => {
     });
 
     it('should handle errors', async () => {
+      req.user = { id: 1, role: 'admin' };
       req.params.documentId = '1';
       req.body = { document_label: 'Updated ID Card' };
 
+      const existingDocument = {
+        id: 1,
+        user_id: 2,
+        document_label: 'ID Card',
+        notes: 'Original notes'
+      };
+
+      UserDocument.getById.mockResolvedValue(existingDocument);
       UserDocument.update.mockRejectedValue(new Error('Database error'));
 
       await userDocumentController.updateDocument(req, res);

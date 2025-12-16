@@ -188,7 +188,18 @@ useEffect(() => {
       console.log('📡 [DEBUG] API response received', { success: response.success, dataLength: response.data?.length })
       
       if (response.success) {
-        setLeads(response.data || [])
+        const leadsData = response.data || []
+        // Debug: Check if status_can_be_referred is present in the data
+        if (leadsData.length > 0) {
+          const sampleLead = leadsData[0]
+          console.log('📊 [DEBUG] Sample lead data:', {
+            id: sampleLead.id,
+            status: sampleLead.status,
+            status_can_be_referred: sampleLead.status_can_be_referred,
+            hasField: 'status_can_be_referred' in sampleLead
+          })
+        }
+        setLeads(leadsData)
         console.log('✅ [DEBUG] Leads updated successfully')
       } else {
         // Handle validation errors gracefully
@@ -521,10 +532,45 @@ useEffect(() => {
   // Function to check if a lead can be referred
   const canReferLead = useCallback((lead: Lead) => {
     if (!user) return false
-    const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
-    return (user.role === 'agent' || user.role === 'team_leader') && 
-           lead.agent_id === user.id &&
-           !isClosed
+    
+    // Check if the lead's status allows referrals
+    // Explicitly check for false (not just falsy values)
+    if (lead.status_can_be_referred === false) {
+      console.log('🚫 [canReferLead] Lead cannot be referred - status_can_be_referred is false', {
+        leadId: lead.id,
+        status: lead.status,
+        status_can_be_referred: lead.status_can_be_referred
+      })
+      return false
+    }
+    
+    // For backward compatibility, if status_can_be_referred is undefined or null, 
+    // fall back to checking status name (for old data)
+    if (lead.status_can_be_referred === undefined || lead.status_can_be_referred === null) {
+      const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
+      if (isClosed) {
+        console.log('🚫 [canReferLead] Lead cannot be referred - status is closed/converted', {
+          leadId: lead.id,
+          status: lead.status
+        })
+        return false
+      }
+    }
+    
+    // Check user role and assignment
+    const canRefer = (user.role === 'agent' || user.role === 'team_leader') && 
+                     lead.agent_id === user.id
+    
+    if (!canRefer) {
+      console.log('🚫 [canReferLead] User cannot refer - role or assignment check failed', {
+        leadId: lead.id,
+        userRole: user.role,
+        leadAgentId: lead.agent_id,
+        userId: user.id
+      })
+    }
+    
+    return canRefer
   }, [user])
 
   // Paginated leads for table view (with action handlers)
@@ -1179,7 +1225,7 @@ useEffect(() => {
       ) : (
         // Table View
         <DataTable
-          columns={getLeadsColumns(canManageLeads, { limitedAccess: limitedLeadAccess, canReferLead })}
+          columns={getLeadsColumns(canManageLeads, { limitedAccess: limitedLeadAccess, canReferLead, userRole: user?.role })}
           data={paginatedLeads}
         />
       )}
@@ -1223,6 +1269,7 @@ useEffect(() => {
         setDeleteConfirmation={setDeleteConfirmation}
         onConfirmDelete={handleConfirmDelete}
         onRefreshLead={handleRefreshLead}
+        onReferLead={handleReferLead}
       />
 
       {/* Refer Lead Modal */}

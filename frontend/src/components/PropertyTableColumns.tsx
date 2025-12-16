@@ -188,10 +188,8 @@ export const getPropertyColumns = (canManageProperties: boolean, canReferPropert
     header: 'Actions',
     cell: ({ row }) => {
       const property = row.original
-      // Check if property is closed (Sold, Rented, or Closed status)
-      const isClosed = property.status_name && 
-        ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
-      const canRefer = canReferProperty ? canReferProperty(property) && !isClosed : false
+      // Check if property can be referred based on status
+      const canRefer = canReferProperty ? canReferProperty(property) && (property.status_can_be_referred !== false) : false
       return (
         <div className="flex items-center space-x-2">
           <PropertyShareMenu property={property} variant="icon" align="right" className="flex-shrink-0" />
@@ -318,10 +316,8 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean, canRefe
     header: 'Actions',
     cell: ({ row }) => {
       const property = row.original
-      // Check if property is closed (Sold, Rented, or Closed status)
-      const isClosed = property.status_name && 
-        ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
-      const canRefer = canReferProperty ? canReferProperty(property) && !isClosed : false
+      // Check if property can be referred based on status
+      const canRefer = canReferProperty ? canReferProperty(property) && (property.status_can_be_referred !== false) : false
       return (
         <div className="flex items-center space-x-2">
           <PropertyShareMenu property={property} variant="icon" align="right" className="flex-shrink-0" />

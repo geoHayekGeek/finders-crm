@@ -101,14 +101,14 @@ const PERMISSIONS = {
     statuses: [] // No access to statuses
   },
   
-  // HR: No access to properties, categories, statuses, or leads
+  // HR: Full access to users (like admin), but no access to properties, categories, statuses, or leads
   hr: {
     properties: [], // No access to properties
     clients: ['read', 'view_assigned'], // Only view their assigned clients
     leads: [], // No access to leads
     viewings: [], // No access to viewings
     analytics: ['view_basic'], // Only basic analytics, no financial data
-    users: ['read_self'], // Can only view their own profile
+    users: ['create', 'read', 'update', 'delete', 'view_all'], // Full access to users like admin
     settings: ['read_self'],
     dashboard: ['limited_access'],
     categories: [], // No access to categories
@@ -248,11 +248,27 @@ const canManageUsers = (req, res, next) => {
   }
 
   const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager') {
+  if (role === 'admin' || role === 'hr') {
     next();
   } else {
     return res.status(403).json({ 
-      message: 'Access denied. User management restricted to admin and operations manager only.' 
+      message: 'Access denied. User management restricted to admin and HR only.' 
+    });
+  }
+};
+
+// Middleware to check if user can view all users (not just themselves)
+const canViewAllUsers = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  if (role === 'admin' || role === 'hr') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Viewing all users restricted to admin and HR only.' 
     });
   }
 };
@@ -366,7 +382,8 @@ const filterDataByRole = (req, res, next) => {
     canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team_leader'].includes(role),
     canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'agent'].includes(role) && !['accountant', 'hr'].includes(role),
-    canManageUsers: ['admin', 'operations manager'].includes(role),
+    canManageUsers: ['admin', 'hr'].includes(role),
+    canViewAllUsers: ['admin', 'hr'].includes(role),
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
     canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),
@@ -389,6 +406,7 @@ module.exports = {
   canManageProperties,
   canViewProperties,
   canManageUsers,
+  canViewAllUsers,
   canManageCategoriesAndStatuses,
   canViewCategoriesAndStatuses,
   canViewAllData,

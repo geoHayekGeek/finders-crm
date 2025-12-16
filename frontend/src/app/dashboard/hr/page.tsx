@@ -62,7 +62,6 @@ const formatRoleLabel = (role: User['role']) =>
 
 export default function HRPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canAccessHR } = usePermissions()
   const { showSuccess, showError, showWarning } = useToast()
   
   const currentUserRole = user?.role
@@ -70,71 +69,48 @@ export default function HRPage() {
   const normalizedCurrentUserRole = normalizeRoleKey(currentUserRole)
 
   const allowedCreateRoles = useMemo<User['role'][]>(() => {
-    switch (normalizedCurrentUserRole) {
-      case 'admin':
-        return ALL_USER_ROLES
-      case 'operations manager':
-        return ['operations', 'agent manager', 'team_leader', 'agent', 'accountant']
-      case 'operations':
-        return ['agent manager', 'team_leader', 'agent']
-      default:
-        return []
+    // Only admin and HR can create users
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+      return ALL_USER_ROLES
     }
+    return []
   }, [normalizedCurrentUserRole])
 
   const filterUsersForCurrentUser = (usersList: User[]): User[] => {
     if (!user || !currentUserRole) return []
     return usersList.filter(candidate => {
+      // Users can always see themselves
       if (candidate.id === currentUserId) {
         return true
       }
-      switch (normalizedCurrentUserRole) {
-        case 'admin':
-          return true
-        case 'operations manager':
-          if (roleEquals(candidate.role, 'admin')) return false
-          if (roleEquals(candidate.role, 'operations manager') && candidate.id !== currentUserId) return false
-          return true
-        case 'operations':
-          return roleIn(candidate.role, ['agent manager', 'team_leader', 'agent', 'accountant'])
-        default:
-          return false
+      // Only admin and HR can see all users
+      if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+        return true
       }
+      // All other users can only see themselves (already handled above)
+      return false
     })
   }
 
   const canManageUser = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
-    if (targetUser.id === currentUserId) return true
-    switch (normalizedCurrentUserRole) {
-      case 'admin':
-        return true
-      case 'operations manager':
-        if (roleEquals(targetUser.role, 'admin')) return false
-        if (roleEquals(targetUser.role, 'operations manager') && targetUser.id !== currentUserId) return false
-        return true
-      case 'operations':
-        return roleIn(targetUser.role, ['agent manager', 'team_leader', 'agent'])
-      default:
-        return false
+    // Users cannot manage themselves (read-only for their own profile)
+    // Only admin and HR can manage users
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+      return true
     }
+    return false
   }
 
   const canViewUserDetails = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
+    // Users can always view their own details
     if (targetUser.id === currentUserId) return true
-    switch (normalizedCurrentUserRole) {
-      case 'admin':
-        return true
-      case 'operations manager':
-        if (roleEquals(targetUser.role, 'admin')) return false
-        if (roleEquals(targetUser.role, 'operations manager') && targetUser.id !== currentUserId) return false
-        return true
-      case 'operations':
-        return roleIn(targetUser.role, ['agent manager', 'team_leader', 'agent', 'accountant'])
-      default:
-        return false
+    // Only admin and HR can view other users' details
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+      return true
     }
+    return false
   }
 
   const canDeleteUser = (targetUser: User): boolean => {
@@ -144,41 +120,23 @@ export default function HRPage() {
 
   const canManageDocuments = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
+    // Users can manage their own documents
     if (targetUser.id === currentUserId) return true
-    switch (normalizedCurrentUserRole) {
-      case 'admin':
-        return true
-      case 'operations manager':
-        if (roleEquals(targetUser.role, 'admin')) return false
-        if (roleEquals(targetUser.role, 'operations manager') && targetUser.id !== currentUserId) return false
-        return true
-      case 'operations':
-        return roleIn(targetUser.role, ['agent manager', 'team_leader', 'agent', 'accountant'])
-      default:
-        return false
+    // Only admin and HR can manage other users' documents
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+      return true
     }
+    return false
   }
 
   const getEditableRolesForUser = (targetUser: User): User['role'][] => {
     if (!currentUserRole) return []
-    if (normalizedCurrentUserRole === 'admin') {
+    // Only admin and HR can edit users and change their roles
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
       return ALL_USER_ROLES
     }
-
-    const roles = new Set<User['role']>(allowedCreateRoles)
-    roles.add(targetUser.role)
-
-    if (targetUser.id === currentUserId) {
-      roles.add(targetUser.role)
-      if (normalizedCurrentUserRole === 'operations manager') {
-        roles.add('operations manager')
-      }
-      if (normalizedCurrentUserRole === 'operations') {
-        roles.add('operations')
-      }
-    }
-
-    return Array.from(roles)
+    // Other users cannot edit other users
+    return []
   }
 
   // State management
@@ -231,14 +189,14 @@ export default function HRPage() {
 
   // Load data on component mount
   useEffect(() => {
-    if (isAuthenticated && canAccessHR) {
+    if (isAuthenticated) {
       loadData()
     } else {
       setLoading(false)
       setUsers([])
       setStats(null)
     }
-  }, [isAuthenticated, canAccessHR])
+  }, [isAuthenticated])
 
   // Load users
   const loadData = async () => {
@@ -252,10 +210,7 @@ export default function HRPage() {
         return
       }
 
-      if (!canAccessHR) {
-        setError('You do not have permission to view this page')
-        return
-      }
+      // Everyone can access the page, but backend will filter users based on role
       
       console.log('🔍 Loading users...')
       
@@ -839,16 +794,8 @@ export default function HRPage() {
     },
   ]
 
-  if (isAuthenticated && !canAccessHR) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">⚠️</div>
-          <p className="text-red-600">You do not have access to the Human Resources page.</p>
-        </div>
-      </div>
-    )
-  }
+  // Everyone can access the HR page, but permissions are enforced in the data filtering
+  // No need to block access here - the backend will filter data appropriately
 
   // Loading state
   if (loading) {
@@ -887,7 +834,9 @@ export default function HRPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Human Resources</h1>
           <p className="text-gray-600 mt-1">
-            Manage all system users ({filteredUsers.length} users)
+            {normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' 
+              ? `Manage all system users (${filteredUsers.length} users)`
+              : `View your profile (${filteredUsers.length} user)`}
           </p>
         </div>
         

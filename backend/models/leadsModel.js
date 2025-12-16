@@ -61,12 +61,14 @@ class Lead {
           op.name as operations_name,
           op.role as operations_role,
           l.status,
+          ls.can_be_referred as status_can_be_referred,
           l.created_at,
           l.updated_at
         FROM leads l
         LEFT JOIN users u ON l.agent_id = u.id
         LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
         LEFT JOIN users op ON l.operations_id = op.id
+        LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
         ORDER BY l.created_at DESC
       `);
       console.log('✅ Query executed successfully, rows returned:', result.rows.length);
@@ -101,12 +103,14 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.status,
+        ls.can_be_referred as status_can_be_referred,
         l.created_at,
         l.updated_at
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
       LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       WHERE l.agent_id = $1
       ORDER BY l.created_at DESC
     `, [agentId]);
@@ -132,6 +136,7 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.status,
+        ls.can_be_referred as status_can_be_referred,
         l.created_at,
         l.updated_at,
         'assigned' as agent_relationship
@@ -139,6 +144,7 @@ class Lead {
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
       LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       WHERE l.agent_id = $1
       ORDER BY l.created_at DESC
     `, [agentId]);
@@ -163,6 +169,7 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.status,
+        ls.can_be_referred as status_can_be_referred,
         l.created_at,
         l.updated_at,
         COALESCE(
@@ -194,6 +201,7 @@ class Lead {
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
       LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
       LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
       LEFT JOIN users referred_by ON lr.referred_by_user_id = referred_by.id
@@ -201,7 +209,7 @@ class Lead {
       WHERE l.id = $1
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.status, ls.can_be_referred, l.created_at, l.updated_at
     `, [id]);
     return result.rows[0];
   }
@@ -302,6 +310,7 @@ class Lead {
         op.name as operations_name,
         op.role as operations_role,
         l.status,
+        ls.can_be_referred as status_can_be_referred,
         l.created_at,
         l.updated_at,
         COALESCE(
@@ -322,6 +331,7 @@ class Lead {
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
       LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
       LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
       WHERE 1=1
@@ -373,7 +383,7 @@ class Lead {
     query += ` 
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
                u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.status, l.created_at, l.updated_at
+               op.name, op.role, l.status, ls.can_be_referred, l.created_at, l.updated_at
       ORDER BY l.created_at DESC
     `;
 
@@ -581,12 +591,14 @@ class Lead {
             op.name as operations_name,
             op.role as operations_role,
             l.status,
+            ls.can_be_referred as status_can_be_referred,
             l.created_at,
             l.updated_at
           FROM leads l
           LEFT JOIN users u ON l.agent_id = u.id
           LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
           LEFT JOIN users op ON l.operations_id = op.id
+          LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
           WHERE l.agent_id = ANY($1::int[])
           ORDER BY l.created_at DESC
         `, [teamAgentIds]);

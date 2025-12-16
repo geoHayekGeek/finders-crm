@@ -34,6 +34,7 @@ export interface Property {
   status_id: number
   status_name: string
   status_color: string
+  status_can_be_referred?: boolean
   property_type: 'sale' | 'rent'
   location: string
   category_id: number
@@ -128,6 +129,7 @@ export interface Status {
   description?: string
   color: string
   is_active: boolean
+  can_be_referred?: boolean
   created_at: string
   updated_at: string
 }

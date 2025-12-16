@@ -33,13 +33,13 @@ class Status {
   }
 
   static async createStatus(statusData) {
-    const { name, code, description, color, is_active } = statusData;
+    const { name, code, description, color, is_active, can_be_referred } = statusData;
     
     const result = await pool.query(
-      `INSERT INTO statuses (name, code, description, color, is_active) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO statuses (name, code, description, color, is_active, can_be_referred) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [name, code, description, color, is_active !== undefined ? is_active : true]
+      [name, code, description, color, is_active !== undefined ? is_active : true, can_be_referred !== undefined ? can_be_referred : true]
     );
     return result.rows[0];
   }

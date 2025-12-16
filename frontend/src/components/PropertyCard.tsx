@@ -32,14 +32,10 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
   const { canManageProperties } = usePermissions()
   const { user } = useAuth()
   
-  // Check if property is closed (Sold, Rented, or Closed status)
-  const isClosed = property.status_name && 
-    ['sold', 'rented', 'closed'].includes(property.status_name.toLowerCase())
-  
-  // Agents and team leaders can only refer properties that are assigned to them (and not closed)
+  // Agents and team leaders can only refer properties that are assigned to them and can be referred
   const canReferProperty = (user?.role === 'agent' || user?.role === 'team_leader') && 
                            property.agent_id === user?.id &&
-                           !isClosed
+                           (property.status_can_be_referred !== false) // Default to true if not set
   const formatPrice = (price?: number) => {
     if (!price) return 'Price on request'
     return new Intl.NumberFormat('en-US', {

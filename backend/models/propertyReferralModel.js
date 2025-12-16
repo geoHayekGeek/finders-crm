@@ -426,6 +426,24 @@ class PropertyReferral {
         throw new Error('Can only refer properties to agents or team leaders');
       }
 
+      // Check if property status allows referrals
+      const propertyResult = await client.query(
+        `SELECT p.id, s.can_be_referred, s.name as status_name
+         FROM properties p
+         LEFT JOIN statuses s ON p.status_id = s.id
+         WHERE p.id = $1`,
+        [propertyId]
+      );
+
+      if (!propertyResult.rows[0]) {
+        throw new Error('Property not found');
+      }
+
+      const property = propertyResult.rows[0];
+      if (property.can_be_referred === false) {
+        throw new Error(`Properties with status "${property.status_name}" cannot be referred.`);
+      }
+
       // Check if there's already a pending referral for this property to this agent
       const existingPending = await client.query(
         `SELECT id FROM referrals 

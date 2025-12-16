@@ -6,19 +6,20 @@ CREATE TABLE IF NOT EXISTS statuses (
   description TEXT,
   color VARCHAR(20) DEFAULT '#6B7280',
   is_active BOOLEAN DEFAULT TRUE,
+  can_be_referred BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Insert default statuses
-INSERT INTO statuses (name, code, description, color) VALUES
-  ('Active', 'active', 'Property is available for sale/rent', '#10B981'),
-  ('Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280'),
-  ('Sold', 'sold', 'Property has been sold', '#EF4444'),
-  ('Rented', 'rented', 'Property has been rented', '#8B5CF6'),
-  ('Under Contract', 'under_contract', 'Property is under contract', '#F59E0B'),
-  ('Pending', 'pending', 'Property is pending approval', '#3B82F6'),
-  ('Reserved', 'reserved', 'Property is reserved for a client', '#EC4899')
+INSERT INTO statuses (name, code, description, color, can_be_referred) VALUES
+  ('Active', 'active', 'Property is available for sale/rent', '#10B981', TRUE),
+  ('Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', TRUE),
+  ('Sold', 'sold', 'Property has been sold', '#EF4444', FALSE),
+  ('Rented', 'rented', 'Property has been rented', '#8B5CF6', FALSE),
+  ('Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', TRUE),
+  ('Pending', 'pending', 'Property is pending approval', '#3B82F6', TRUE),
+  ('Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', TRUE)
 ON CONFLICT (name) DO NOTHING;
 
 -- Create index on code for faster lookups

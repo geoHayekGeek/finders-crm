@@ -33,6 +33,7 @@ export interface Lead {
   operations_role?: string
   referrals?: LeadReferral[] // Lead referral tracking
   status: string
+  status_can_be_referred?: boolean // Whether the lead's status allows referrals
   created_at: string
   updated_at: string
 

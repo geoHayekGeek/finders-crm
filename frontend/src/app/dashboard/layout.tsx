@@ -76,7 +76,7 @@ export default function DashboardLayout({
   const getNavigation = (): NavigationItem[] => {
     const baseNavigation: NavigationItem[] = []
 
-    // For agents: show properties, leads, viewings, and calendar
+    // For agents: show properties, leads, viewings, calendar, and HR
     if (role === 'agent') {
       baseNavigation.push({ 
         name: 'Properties', 
@@ -91,6 +91,7 @@ export default function DashboardLayout({
         alwaysVisible: true
       })
       baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
+      baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
       return baseNavigation
     }
 
@@ -150,10 +151,8 @@ export default function DashboardLayout({
       baseNavigation.push({ name: 'Reports', href: '/dashboard/reports', icon: BarChart3, alwaysVisible: true })
     }
 
-    // HR - visible to admin, operations manager, and operations (with scoped permissions)
-    if (canAccessHR) {
-      baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
-    }
+    // HR - visible to everyone (all authenticated users can see their own profile)
+    baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
 
     // Settings - only visible to admin
     if (role === 'admin') {

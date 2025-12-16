@@ -2683,7 +2683,9 @@ export function PropertyModals({
                       Owner (Lead) <span className="text-red-500">*</span>
                     </label>
                     <OwnerSelector
+                      key={`edit-owner-${showEditPropertyModal}-${editFormData.owner_id || 'none'}-${editingProperty?.id || 'new'}`}
                       selectedOwnerId={editFormData.owner_id}
+                      selectedOwnerName={editFormData.owner_name}
                       onOwnerChange={(owner) => {
                         console.log('Owner selected in edit:', owner)
                         if (owner) {
@@ -3341,11 +3343,9 @@ export function PropertyModals({
               <div className="flex items-center gap-3">
                 {(() => {
                   // Check if user can refer this property
-                  const isClosed = viewPropertyData.status_name && 
-                    ['sold', 'rented', 'closed'].includes(viewPropertyData.status_name.toLowerCase())
                   const canReferProperty = (user?.role === 'agent' || user?.role === 'team_leader') && 
                                            viewPropertyData.agent_id === user?.id &&
-                                           !isClosed
+                                           (viewPropertyData.status_can_be_referred !== false) // Default to true if not set
                   
                   return (
                     <>

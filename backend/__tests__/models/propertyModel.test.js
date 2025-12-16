@@ -388,8 +388,8 @@ describe('Property Model', () => {
     it('should get all properties with referrals', async () => {
       const mockProperties = {
         rows: [
-          { id: 1, reference_number: 'APT-001', status_id: 1 },
-          { id: 2, reference_number: 'APT-002', status_id: 1 }
+          { id: 1, reference_number: 'APT-001', status_id: 1, status_can_be_referred: true },
+          { id: 2, reference_number: 'APT-002', status_id: 1, status_can_be_referred: false }
         ]
       };
       const mockReferrals = {
@@ -407,6 +407,27 @@ describe('Property Model', () => {
       expect(result).toHaveLength(2);
       expect(result[0].referrals).toHaveLength(1);
       expect(result[1].referrals).toHaveLength(0);
+      expect(result[0].status_can_be_referred).toBe(true);
+      expect(result[1].status_can_be_referred).toBe(false);
+    });
+
+    it('should include status_can_be_referred in query', async () => {
+      const mockProperties = {
+        rows: [
+          { id: 1, reference_number: 'APT-001', status_can_be_referred: true }
+        ]
+      };
+      const mockReferrals = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce(mockProperties)
+        .mockResolvedValueOnce(mockReferrals);
+
+      await Property.getAllProperties();
+
+      const queryCall = mockQuery.mock.calls[0][0];
+      expect(queryCall).toContain('status_can_be_referred');
+      expect(queryCall).toContain('COALESCE(s.can_be_referred, TRUE) as status_can_be_referred');
     });
 
     it('should handle empty properties list', async () => {
@@ -424,7 +445,8 @@ describe('Property Model', () => {
         rows: [{
           id: 1,
           reference_number: 'APT-001',
-          status_id: 1
+          status_id: 1,
+          status_can_be_referred: true
         }]
       };
       const mockReferrals = {
@@ -441,6 +463,47 @@ describe('Property Model', () => {
 
       expect(result.id).toBe(1);
       expect(result.referrals).toHaveLength(1);
+      expect(result.status_can_be_referred).toBe(true);
+    });
+
+    it('should include status_can_be_referred in query', async () => {
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          reference_number: 'APT-001',
+          status_can_be_referred: false
+        }]
+      };
+      const mockReferrals = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce(mockProperty)
+        .mockResolvedValueOnce(mockReferrals);
+
+      await Property.getPropertyById(1);
+
+      const queryCall = mockQuery.mock.calls[0][0];
+      expect(queryCall).toContain('status_can_be_referred');
+      expect(queryCall).toContain('COALESCE(s.can_be_referred, TRUE) as status_can_be_referred');
+    });
+
+    it('should return property with status_can_be_referred false', async () => {
+      const mockProperty = {
+        rows: [{
+          id: 2,
+          reference_number: 'APT-002',
+          status_can_be_referred: false
+        }]
+      };
+      const mockReferrals = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce(mockProperty)
+        .mockResolvedValueOnce(mockReferrals);
+
+      const result = await Property.getPropertyById(2);
+
+      expect(result.status_can_be_referred).toBe(false);
     });
 
     it('should return null for invalid id', async () => {
@@ -462,8 +525,8 @@ describe('Property Model', () => {
     it('should get properties for a specific agent', async () => {
       const mockProperties = {
         rows: [
-          { id: 1, reference_number: 'APT-001', agent_id: 1 },
-          { id: 2, reference_number: 'APT-002', agent_id: 1 }
+          { id: 1, reference_number: 'APT-001', agent_id: 1, status_can_be_referred: true },
+          { id: 2, reference_number: 'APT-002', agent_id: 1, status_can_be_referred: false }
         ]
       };
 
@@ -472,10 +535,28 @@ describe('Property Model', () => {
       const result = await Property.getPropertiesByAgent(1);
 
       expect(result).toHaveLength(2);
+      expect(result[0].status_can_be_referred).toBe(true);
+      expect(result[1].status_can_be_referred).toBe(false);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('WHERE p.agent_id = $1'),
         [1]
       );
+    });
+
+    it('should include status_can_be_referred in query', async () => {
+      const mockProperties = {
+        rows: [
+          { id: 1, reference_number: 'APT-001', status_can_be_referred: true }
+        ]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockProperties);
+
+      await Property.getPropertiesByAgent(1);
+
+      const queryCall = mockQuery.mock.calls[0][0];
+      expect(queryCall).toContain('status_can_be_referred');
+      expect(queryCall).toContain('COALESCE(s.can_be_referred, TRUE) as status_can_be_referred');
     });
   });
 

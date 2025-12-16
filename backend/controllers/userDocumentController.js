@@ -8,8 +8,26 @@ const fs = require('fs').promises;
  */
 const uploadDocument = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { userId } = req.params;
     const { document_label, notes } = req.body;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
+
+    // Permission check: Only admin, HR, or the user themselves can upload documents
+    if (parseInt(userId) !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only upload documents for yourself.'
+      });
+    }
 
     // Check if file was uploaded
     if (!req.file) {
@@ -28,7 +46,7 @@ const uploadDocument = async (req, res) => {
     }
 
     // Get the uploaded by user ID from auth token
-    const uploaded_by = req.user?.id;
+    const uploaded_by = req.user.id;
 
     // Create document record
     const document = await UserDocument.create({
@@ -62,7 +80,25 @@ const uploadDocument = async (req, res) => {
  */
 const getUserDocuments = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { userId } = req.params;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
+
+    // Permission check: Only admin, HR, or the user themselves can view documents
+    if (parseInt(userId) !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own documents.'
+      });
+    }
 
     const documents = await UserDocument.getUserDocuments(parseInt(userId));
 
@@ -85,7 +121,17 @@ const getUserDocuments = async (req, res) => {
  */
 const getDocument = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { documentId } = req.params;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
 
     const document = await UserDocument.getById(parseInt(documentId));
 
@@ -93,6 +139,14 @@ const getDocument = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Document not found'
+      });
+    }
+
+    // Permission check: Only admin, HR, or the document owner can view the document
+    if (document.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own documents.'
       });
     }
 
@@ -115,7 +169,17 @@ const getDocument = async (req, res) => {
  */
 const downloadDocument = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { documentId } = req.params;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
 
     const document = await UserDocument.getById(parseInt(documentId));
 
@@ -123,6 +187,14 @@ const downloadDocument = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Document not found'
+      });
+    }
+
+    // Permission check: Only admin, HR, or the document owner can download the document
+    if (document.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only download your own documents.'
       });
     }
 
@@ -153,14 +225,41 @@ const downloadDocument = async (req, res) => {
  */
 const updateDocument = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { documentId } = req.params;
     const { document_label, notes } = req.body;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
 
     // Validate document label
     if (!document_label || document_label.trim() === '') {
       return res.status(400).json({
         success: false,
         message: 'Document label is required'
+      });
+    }
+
+    // First get the document to check permissions
+    const existingDocument = await UserDocument.getById(parseInt(documentId));
+    if (!existingDocument) {
+      return res.status(404).json({
+        success: false,
+        message: 'Document not found'
+      });
+    }
+
+    // Permission check: Only admin, HR, or the document owner can update the document
+    if (existingDocument.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only update your own documents.'
       });
     }
 
@@ -196,8 +295,18 @@ const updateDocument = async (req, res) => {
  */
 const deleteDocument = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { documentId } = req.params;
     const { hardDelete } = req.query; // Optional query param for hard delete
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
 
     const document = await UserDocument.getById(parseInt(documentId));
 
@@ -205,6 +314,14 @@ const deleteDocument = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Document not found'
+      });
+    }
+
+    // Permission check: Only admin, HR, or the document owner can delete the document
+    if (document.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only delete your own documents.'
       });
     }
 
@@ -242,8 +359,26 @@ const deleteDocument = async (req, res) => {
  */
 const searchDocuments = async (req, res) => {
   try {
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
     const { userId } = req.params;
     const { search } = req.query;
+    const currentUserRole = req.user.role;
+    const currentUserId = req.user.id;
+
+    // Permission check: Only admin, HR, or the user themselves can search documents
+    if (parseInt(userId) !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only search your own documents.'
+      });
+    }
 
     if (!search || search.trim() === '') {
       return res.status(400).json({

@@ -1,14 +1,15 @@
 'use client'
 
 import { Lead, LEAD_STATUSES } from '@/types/leads'
-import { Eye, Edit3, Trash2, Phone, Calendar, User, Share2 } from 'lucide-react'
+import { Eye, Edit3, Trash2, Phone, Calendar, User, Share2, UserPlus } from 'lucide-react'
 import { ColumnDef } from '@tanstack/react-table'
 import { formatDateForDisplay } from '@/utils/dateUtils'
-import { useAuth } from '@/contexts/AuthContext'
+import { isTeamLeaderRole } from '@/utils/roleUtils'
 
 interface LeadsColumnOptions {
   limitedAccess?: boolean
   canReferLead?: (lead: Lead) => boolean
+  userRole?: string | null
 }
 
 // Function to generate columns with permission-based actions
@@ -182,9 +183,19 @@ export const getLeadsColumns = (
     header: 'Actions',
     cell: ({ row }) => {
       const lead = row.original
-      // Check if lead is closed
-      const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
-      const canRefer = options.canReferLead ? options.canReferLead(lead) && !isClosed : false
+      // Check if lead can be referred (using status_can_be_referred or fallback to status name)
+      const canRefer = options.canReferLead ? options.canReferLead(lead) : false
+      
+      // Debug logging
+      if (lead.status_can_be_referred === false) {
+        console.log('🚫 [LeadsTableColumns] Refer button should be hidden', {
+          leadId: lead.id,
+          status: lead.status,
+          status_can_be_referred: lead.status_can_be_referred,
+          canRefer
+        })
+      }
+      
       return (
         <div className="flex items-center gap-2">
           <button
@@ -203,10 +214,10 @@ export const getLeadsColumns = (
                   lead.onRefer(lead)
                 }
               }}
-              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors border border-blue-300"
+              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-blue-300"
               title="Refer lead"
             >
-              <Share2 className="h-4 w-4" />
+              <UserPlus className="h-4 w-4" />
             </button>
           )}
           {canManageLeads && (
@@ -234,21 +245,25 @@ export const getLeadsColumns = (
   ]
 
   if (options.limitedAccess) {
-    // For agents and team leaders, only show: Status, Customer Name, Phone Number, Price, Referral History (shown in view modal), Lead Notes (shown in view modal)
-    // Hide: Date, Agent, Operations, Reference Source, Created
+    const isTeamLeader = isTeamLeaderRole(options.userRole)
+    
+    // For agents: only show Status, Customer Name, Phone Number, Price
+    // For team leaders: show Status, Customer Name, Phone Number, Price, Agent (to see which agent the lead is assigned to)
+    // Hide: Date, Operations, Reference Source, Created
     const hiddenKeys = new Set([
       'date',
-      'assigned_agent_name',
       'operations_name',
       'reference_source_name',
-      'created_at'
+      'created_at',
+      // Hide agent column only for agents, not for team leaders
+      ...(isTeamLeader ? [] : ['assigned_agent_name'])
     ])
     return columns.filter(column => {
       const key = 'accessorKey' in column ? (column.accessorKey as string | undefined) : undefined
       if (key && hiddenKeys.has(key)) {
         return false
       }
-      // Keep: customer_name, phone_number, price, status, actions
+      // Keep: customer_name, phone_number, price, status, actions, and agent (for team leaders)
       return true
     })
   }

@@ -342,6 +342,7 @@ describe('PropertyReferral Model', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [{ id: 100, can_be_referred: true, status_name: 'Active' }] }) // SELECT property
         .mockResolvedValueOnce({ rows: [] }) // Check existing pending
         .mockResolvedValueOnce({ rows: [{ name: 'Omar Referrer' }] }) // Get referrer name
         .mockResolvedValueOnce({ rows: [mockReferral] }) // INSERT referral
@@ -367,7 +368,7 @@ describe('PropertyReferral Model', () => {
     it('should throw error if agent not found', async () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
-        .mockResolvedValueOnce({ rows: [] }); // SELECT agent - not found
+        .mockResolvedValueOnce({ rows: [] }); // SELECT agent - not found (will throw before property check)
 
       await expect(
         PropertyReferral.referPropertyToAgent(100, 999, 27)
@@ -382,7 +383,7 @@ describe('PropertyReferral Model', () => {
 
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
-        .mockResolvedValueOnce({ rows: [mockUser] }); // SELECT user
+        .mockResolvedValueOnce({ rows: [mockUser] }); // SELECT user (will throw before property check)
 
       await expect(
         PropertyReferral.referPropertyToAgent(100, 999, 27)
@@ -398,11 +399,72 @@ describe('PropertyReferral Model', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [{ id: 100, can_be_referred: true, status_name: 'Active' }] }) // SELECT property
         .mockResolvedValueOnce({ rows: [{ id: 1 }] }); // Existing pending referral
 
       await expect(
         PropertyReferral.referPropertyToAgent(100, 28, 27)
       ).rejects.toThrow('A pending referral already exists');
+    });
+
+    it('should throw error if property status does not allow referrals (can_be_referred = false)', async () => {
+      const mockAgent = {
+        name: 'Ali Agent',
+        role: 'agent'
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [{ id: 100, can_be_referred: false, status_name: 'Sold' }] }); // SELECT property with can_be_referred = false
+
+      await expect(
+        PropertyReferral.referPropertyToAgent(100, 28, 27)
+      ).rejects.toThrow('Properties with status "Sold" cannot be referred.');
+    });
+
+    it('should allow referral when property status allows referrals (can_be_referred = true)', async () => {
+      const mockAgent = {
+        name: 'Ali Agent',
+        role: 'agent'
+      };
+      const mockReferral = {
+        id: 1,
+        property_id: 100,
+        status: 'pending',
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [{ id: 100, can_be_referred: true, status_name: 'Active' }] }) // SELECT property with can_be_referred = true
+        .mockResolvedValueOnce({ rows: [] }) // No existing pending referral
+        .mockResolvedValueOnce({ rows: [{ name: 'Omar Referrer' }] }) // Get referrer name
+        .mockResolvedValueOnce({ rows: [mockReferral] }) // INSERT referral
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await PropertyReferral.referPropertyToAgent(100, 28, 27);
+
+      expect(result).toEqual(mockReferral);
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    it('should throw error if property not found when checking can_be_referred', async () => {
+      const mockAgent = {
+        name: 'Ali Agent',
+        role: 'agent'
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [mockAgent] }) // SELECT agent
+        .mockResolvedValueOnce({ rows: [] }); // Property not found
+
+      await expect(
+        PropertyReferral.referPropertyToAgent(999, 28, 27)
+      ).rejects.toThrow('Property not found');
     });
   });
 

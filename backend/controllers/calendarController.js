@@ -45,7 +45,8 @@ const scheduleEventReminders = async (eventId, eventData) => {
 
 
 
-// Helper function to check if a user can edit an event based on hierarchy
+// Helper function to check if a user can edit an event
+// Only admin can edit others' events; all users can edit their own events
 const canEditEvent = async (editorId, editorRole, eventId) => {
   try {
     // Get the event details
@@ -54,60 +55,18 @@ const canEditEvent = async (editorId, editorRole, eventId) => {
       return { canEdit: false, reason: 'Event not found' };
     }
 
-    const editorLevel = ROLE_HIERARCHY[editorRole] || 0;
-    const creatorLevel = ROLE_HIERARCHY[event.created_by_role] || 0;
-
     // Users can always edit their own events (highest priority)
-    if (event.created_by === editorId) {
+    if (event.created_by === editorId || event.assigned_to === editorId) {
       return { canEdit: true, reason: 'You can edit your own events' };
     }
 
-    // Admin can edit everything
+    // Only admin can edit other users' events
     if (editorRole === 'admin') {
       return { canEdit: true, reason: 'Admin can edit all events' };
     }
 
-    // Operations Manager can edit operations and below
-    if (editorRole === 'operations manager') {
-      if (event.created_by_role === 'operations' || event.created_by_role === 'agent manager' || 
-          event.created_by_role === 'team_leader' || event.created_by_role === 'agent' || 
-          event.created_by_role === 'accountant') {
-        return { canEdit: true, reason: 'Operations Manager can edit operations and below' };
-      }
-    }
-
-    // Operations can only edit themselves and other operations
-    if (editorRole === 'operations') {
-      if (event.created_by_role === 'operations' || event.created_by === editorId) {
-        return { canEdit: true, reason: 'Operations can edit operations events' };
-      }
-    }
-
-    // Agent Manager can edit anything related to agents
-    if (editorRole === 'agent manager') {
-      if (event.created_by_role === 'agent' || event.created_by_role === 'team_leader' || 
-          event.assigned_to_role === 'agent' || event.assigned_to_role === 'team_leader') {
-        return { canEdit: true, reason: 'Agent Manager can edit agent-related events' };
-      }
-    }
-
-    // Team Leader can edit events for agents under them
-    if (editorRole === 'team_leader') {
-      // Check if the event creator or assignee is an agent under this team leader
-      const isAgentUnderTeamLeader = await calendarEventModel.isAgentUnderTeamLeader(editorId, event.created_by);
-      const isAssignedToAgentUnderTeamLeader = await calendarEventModel.isAgentUnderTeamLeader(editorId, event.assigned_to);
-      
-      if (isAgentUnderTeamLeader || isAssignedToAgentUnderTeamLeader) {
-        return { canEdit: true, reason: 'Team Leader can edit events for their agents' };
-      }
-    }
-
-    // Agents cannot edit other users' events (their own events are handled above)
-    if (editorRole === 'agent') {
-      return { canEdit: false, reason: 'Agents can only edit their own events' };
-    }
-
-    return { canEdit: false, reason: 'Insufficient permissions based on role hierarchy' };
+    // All other roles can only edit their own events
+    return { canEdit: false, reason: 'You can only edit your own events' };
 
   } catch (error) {
     console.error('Error checking edit permissions:', error);
@@ -439,6 +398,8 @@ const getEventsByDay = async (req, res) => {
 const getEventById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
+    const userRole = req.user.role;
     
     if (!id) {
       return res.status(400).json({
@@ -454,6 +415,21 @@ const getEventById = async (req, res) => {
         success: false,
         message: 'Event not found'
       });
+    }
+
+    // Check permissions: admin can see all events, others can only see their own
+    if (userRole !== 'admin') {
+      const isOwnEvent = event.created_by === userId || 
+                        event.assigned_to === userId ||
+                        (event.attendees && Array.isArray(event.attendees) && 
+                         event.attendees.includes(req.user.name));
+      
+      if (!isOwnEvent) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied: You can only view your own events'
+        });
+      }
     }
 
     res.json({

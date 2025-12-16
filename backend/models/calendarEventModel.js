@@ -331,7 +331,7 @@ class CalendarEvent {
     return result.rows.length > 0;
   }
 
-  // Get events for a user based on hierarchy (own events + events from subordinates)
+  // Get events for a user - admin sees all, others see only their own
   static async getEventsForUserWithHierarchy(userId, userRole) {
     let query = `
       SELECT 
@@ -349,51 +349,23 @@ class CalendarEvent {
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
       LEFT JOIN users assignee ON ce.assigned_to = assignee.id
-      WHERE (
+    `;
+
+    const params = [];
+
+    // Admin can see all events - no WHERE clause needed
+    if (userRole === 'admin') {
+      // No restrictions for admin
+    } else {
+      // All other roles can only see their own events
+      query += ` WHERE (
         ce.assigned_to = $1 
         OR ce.created_by = $1 
         OR (ce.attendees IS NOT NULL AND EXISTS (
           SELECT 1 FROM users u WHERE u.id = $1 AND u.name = ANY(ce.attendees)
         ))
-    `;
-
-    const params = [userId];
-
-    // Add hierarchy-based visibility based on role
-    if (userRole === 'admin') {
-      // Admin can see all events - no additional restrictions needed
-      query += `)`;
-    } else if (userRole === 'operations manager') {
-      // Operations Manager can see operations and below
-      query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')
-                 OR assignee.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')`;
-      query += `)`;
-    } else if (userRole === 'operations') {
-      // Operations can see other operations
-      query += ` OR (creator.role = 'operations' AND creator.id != $1)
-                 OR (assignee.role = 'operations' AND assignee.id != $1)`;
-      query += `)`;
-    } else if (userRole === 'agent manager') {
-      // Agent Manager can see agent-related events
-      query += ` OR creator.role IN ('agent', 'team_leader')
-                 OR assignee.role IN ('agent', 'team_leader')`;
-      query += `)`;
-    } else if (userRole === 'team_leader') {
-      // Team Leader can see events from their agents
-      query += ` OR ce.created_by IN (
-                   SELECT ta.agent_id 
-                   FROM team_agents ta 
-                   WHERE ta.team_leader_id = $1 AND ta.is_active = true
-                 )
-                 OR ce.assigned_to IN (
-                   SELECT ta.agent_id 
-                   FROM team_agents ta 
-                   WHERE ta.team_leader_id = $1 AND ta.is_active = true
-                 )`;
-      query += `)`;
-    } else {
-      // For other roles (agent, accountant), only their own events
-      query += `)`;
+      )`;
+      params.push(userId);
     }
 
     query += ` ORDER BY ce.start_time ASC`;
@@ -402,7 +374,7 @@ class CalendarEvent {
     return result.rows;
   }
 
-  // Get events for a user based on hierarchy within a date range
+  // Get events for a user within a date range - admin sees all, others see only their own
   static async getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate) {
     let query = `
       SELECT 
@@ -420,66 +392,40 @@ class CalendarEvent {
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
       LEFT JOIN users assignee ON ce.assigned_to = assignee.id
-      WHERE (
-        ce.assigned_to = $1 
-        OR ce.created_by = $1 
-        OR (ce.attendees IS NOT NULL AND EXISTS (
-          SELECT 1 FROM users u WHERE u.id = $1 AND u.name = ANY(ce.attendees)
-        ))
     `;
 
-    const params = [userId];
+    const params = [];
+    let paramCount = 0;
 
-    // Add hierarchy-based visibility based on role
+    // Admin can see all events - only date range filter
     if (userRole === 'admin') {
-      // Admin can see all events - no additional restrictions needed
-      query += `)`;
-    } else if (userRole === 'operations manager') {
-      // Operations Manager can see operations and below
-      query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')
-                 OR assignee.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')`;
-      query += `)`;
-    } else if (userRole === 'operations') {
-      // Operations can see other operations
-      query += ` OR (creator.role = 'operations' AND creator.id != $1)
-                 OR (assignee.role = 'operations' AND assignee.id != $1)`;
-      query += `)`;
-    } else if (userRole === 'agent manager') {
-      // Agent Manager can see agent-related events
-      query += ` OR creator.role IN ('agent', 'team_leader')
-                 OR assignee.role IN ('agent', 'team_leader')`;
-      query += `)`;
-    } else if (userRole === 'team_leader') {
-      // Team Leader can see events from their agents
-      query += ` OR ce.created_by IN (
-                   SELECT ta.agent_id 
-                   FROM team_agents ta 
-                   WHERE ta.team_leader_id = $1 AND ta.is_active = true
-                 )
-                 OR ce.assigned_to IN (
-                   SELECT ta.agent_id 
-                   FROM team_agents ta 
-                   WHERE ta.team_leader_id = $1 AND ta.is_active = true
-                 )`;
-      query += `)`;
+      paramCount++;
+      query += ` WHERE ((ce.start_time >= $${paramCount} AND ce.start_time <= $${paramCount + 1})
+               OR (ce.end_time >= $${paramCount} AND ce.end_time <= $${paramCount + 1})
+               OR (ce.start_time <= $${paramCount} AND ce.end_time >= $${paramCount + 1}))`;
+      params.push(startDate, endDate);
     } else {
-      // For other roles (agent, accountant), only their own events
-      query += `)`;
+      // All other roles can only see their own events within date range
+      paramCount++;
+      query += ` WHERE (
+        ce.assigned_to = $${paramCount} 
+        OR ce.created_by = $${paramCount} 
+        OR (ce.attendees IS NOT NULL AND EXISTS (
+          SELECT 1 FROM users u WHERE u.id = $${paramCount} AND u.name = ANY(ce.attendees)
+        ))
+      ) AND ((ce.start_time >= $${paramCount + 1} AND ce.start_time <= $${paramCount + 2})
+               OR (ce.end_time >= $${paramCount + 1} AND ce.end_time <= $${paramCount + 2})
+               OR (ce.start_time <= $${paramCount + 1} AND ce.end_time >= $${paramCount + 2}))`;
+      params.push(userId, startDate, endDate);
     }
 
-    // Add date range filter
-    query += ` AND ((ce.start_time >= $2 AND ce.start_time <= $3)
-               OR (ce.end_time >= $2 AND ce.end_time <= $3)
-               OR (ce.start_time <= $2 AND ce.end_time >= $3))`;
-
-    params.push(startDate, endDate);
     query += ` ORDER BY ce.start_time ASC`;
 
     const result = await pool.query(query, params);
     return result.rows;
   }
 
-  // Search events for a user based on hierarchy
+  // Search events for a user - admin sees all, others see only their own
   static async searchEventsForUserWithHierarchy(userId, userRole, searchQuery) {
     let query = `
       SELECT 
@@ -498,57 +444,29 @@ class CalendarEvent {
       LEFT JOIN users creator ON ce.created_by = creator.id
       LEFT JOIN users assignee ON ce.assigned_to = assignee.id
       WHERE (
-        ce.title ILIKE $2 
-        OR ce.description ILIKE $2 
-        OR ce.location ILIKE $2 
-        OR ce.notes ILIKE $2
-        OR p.reference_number ILIKE $2
-        OR p.location ILIKE $2
-        OR l.customer_name ILIKE $2
-        OR l.phone_number ILIKE $2
-      ) AND (
-        ce.assigned_to = $1 
-        OR ce.created_by = $1 
-        OR (ce.attendees IS NOT NULL AND creator.name = ANY(ce.attendees))
+        ce.title ILIKE $1 
+        OR ce.description ILIKE $1 
+        OR ce.location ILIKE $1 
+        OR ce.notes ILIKE $1
+        OR p.reference_number ILIKE $1
+        OR p.location ILIKE $1
+        OR l.customer_name ILIKE $1
+        OR l.phone_number ILIKE $1
+      )
     `;
 
-    const params = [userId, `%${searchQuery}%`];
+    const params = [`%${searchQuery}%`];
 
-    // Add hierarchy-based visibility based on role
-    if (userRole === 'admin') {
-      // Admin can see all events - add condition to see all events
-      query += ` OR 1=1)`;
-    } else if (userRole === 'operations manager') {
-      // Operations Manager can see operations and below
-      query += ` OR creator.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')
-                 OR assignee.role IN ('operations', 'agent manager', 'team_leader', 'agent', 'accountant')`;
-      query += `)`;
-    } else if (userRole === 'operations') {
-      // Operations can see other operations
-      query += ` OR (creator.role = 'operations' AND creator.id != $1)
-                 OR (assignee.role = 'operations' AND assignee.id != $1)`;
-      query += `)`;
-    } else if (userRole === 'agent manager') {
-      // Agent Manager can see agent-related events
-      query += ` OR creator.role IN ('agent', 'team_leader')
-                 OR assignee.role IN ('agent', 'team_leader')`;
-      query += `)`;
-    } else if (userRole === 'team_leader') {
-      // Team Leader can see events from their agents
-      query += ` OR ce.created_by IN (
-                   SELECT ta.agent_id 
-                   FROM team_agents ta 
-                   WHERE ta.team_leader_id = $1 AND ta.is_active = true
-                 )
-                 OR ce.assigned_to IN (
-                   SELECT ta.agent_id 
-                   FROM team_agents ta 
-                   WHERE ta.team_leader_id = $1 AND ta.is_active = true
-                 )`;
-      query += `)`;
-    } else {
-      // For other roles (agent, accountant), only their own events
-      query += `)`;
+    // Admin can see all events matching search, others only their own
+    if (userRole !== 'admin') {
+      params.push(userId);
+      query += ` AND (
+        ce.assigned_to = $2 
+        OR ce.created_by = $2 
+        OR (ce.attendees IS NOT NULL AND EXISTS (
+          SELECT 1 FROM users u WHERE u.id = $2 AND u.name = ANY(ce.attendees)
+        ))
+      )`;
     }
 
     query += ` ORDER BY ce.start_time ASC`;

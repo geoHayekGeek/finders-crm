@@ -347,35 +347,146 @@ describe('CalendarEvent Model', () => {
   });
 
   describe('getEventsForUserWithHierarchy', () => {
-    it('should get events for admin (all events)', async () => {
+    it('should get all events for admin (no WHERE clause)', async () => {
       const userId = 1;
       const userRole = 'admin';
-      const mockEvents = [{ id: 1 }];
+      const mockEvents = [{ id: 1 }, { id: 2 }, { id: 3 }];
 
       mockQuery.mockResolvedValue({ rows: mockEvents });
 
       const result = await CalendarEvent.getEventsForUserWithHierarchy(userId, userRole);
 
+      // Admin should have no WHERE clause restrictions - empty params array
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('SELECT'),
+        []
+      );
+      // Verify no WHERE clause in query
+      const queryString = mockQuery.mock.calls[0][0];
+      expect(queryString).not.toContain('WHERE');
+      expect(result).toEqual(mockEvents);
+    });
+
+    it('should get only own events for non-admin users', async () => {
+      const userId = 2;
+      const userRole = 'agent';
+      const mockEvents = [{ id: 1, created_by: 2 }];
+
+      mockQuery.mockResolvedValue({ rows: mockEvents });
+
+      const result = await CalendarEvent.getEventsForUserWithHierarchy(userId, userRole);
+
+      // Non-admin should have WHERE clause with user restrictions
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('WHERE'),
         [userId]
       );
+      expect(mockQuery.mock.calls[0][0]).toContain('ce.assigned_to = $1');
+      expect(mockQuery.mock.calls[0][0]).toContain('ce.created_by = $1');
       expect(result).toEqual(mockEvents);
     });
 
-    it('should get events for team leader (own + team)', async () => {
-      const userId = 1;
+    it('should include attendee check for non-admin users', async () => {
+      const userId = 3;
       const userRole = 'team_leader';
-      const mockEvents = [{ id: 1 }];
+      const mockEvents = [{ id: 1, attendees: ['User Name'] }];
 
       mockQuery.mockResolvedValue({ rows: mockEvents });
 
       const result = await CalendarEvent.getEventsForUserWithHierarchy(userId, userRole);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('team_agents'),
+        expect.stringContaining('attendees'),
         [userId]
       );
+      expect(result).toEqual(mockEvents);
+    });
+  });
+
+  describe('getEventsForUserWithHierarchyByDateRange', () => {
+    it('should get all events for admin within date range', async () => {
+      const userId = 1;
+      const userRole = 'admin';
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-31');
+      const mockEvents = [{ id: 1 }, { id: 2 }];
+
+      mockQuery.mockResolvedValue({ rows: mockEvents });
+
+      const result = await CalendarEvent.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
+
+      // Admin should only have date range filter, no user restrictions
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE'),
+        [startDate, endDate]
+      );
+      const queryString = mockQuery.mock.calls[0][0];
+      // Check that WHERE clause doesn't contain user restrictions (should only have date range)
+      expect(queryString).not.toMatch(/WHERE.*ce\.assigned_to\s*=/);
+      expect(queryString).not.toMatch(/WHERE.*ce\.created_by\s*=/);
+      expect(result).toEqual(mockEvents);
+    });
+
+    it('should get only own events for non-admin within date range', async () => {
+      const userId = 2;
+      const userRole = 'agent';
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-31');
+      const mockEvents = [{ id: 1, created_by: 2 }];
+
+      mockQuery.mockResolvedValue({ rows: mockEvents });
+
+      const result = await CalendarEvent.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
+
+      // Non-admin should have both user and date restrictions
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE'),
+        [userId, startDate, endDate]
+      );
+      expect(mockQuery.mock.calls[0][0]).toContain('ce.assigned_to =');
+      expect(result).toEqual(mockEvents);
+    });
+  });
+
+  describe('searchEventsForUserWithHierarchy', () => {
+    it('should search all events for admin', async () => {
+      const userId = 1;
+      const userRole = 'admin';
+      const searchQuery = 'meeting';
+      const mockEvents = [{ id: 1, title: 'Meeting 1' }, { id: 2, title: 'Meeting 2' }];
+
+      mockQuery.mockResolvedValue({ rows: mockEvents });
+
+      const result = await CalendarEvent.searchEventsForUserWithHierarchy(userId, userRole, searchQuery);
+
+      // Admin should have no user restrictions in search
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE'),
+        [`%${searchQuery}%`]
+      );
+      const queryString = mockQuery.mock.calls[0][0];
+      // Check that WHERE clause doesn't contain user restrictions
+      expect(queryString).not.toMatch(/AND\s*\(.*ce\.assigned_to\s*=/);
+      expect(queryString).not.toMatch(/AND\s*\(.*ce\.created_by\s*=/);
+      expect(result).toEqual(mockEvents);
+    });
+
+    it('should search only own events for non-admin', async () => {
+      const userId = 2;
+      const userRole = 'agent';
+      const searchQuery = 'meeting';
+      const mockEvents = [{ id: 1, title: 'My Meeting', created_by: 2 }];
+
+      mockQuery.mockResolvedValue({ rows: mockEvents });
+
+      const result = await CalendarEvent.searchEventsForUserWithHierarchy(userId, userRole, searchQuery);
+
+      // Non-admin should have user restrictions in search
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('AND'),
+        [`%${searchQuery}%`, userId]
+      );
+      expect(mockQuery.mock.calls[0][0]).toContain('ce.assigned_to =');
       expect(result).toEqual(mockEvents);
     });
   });

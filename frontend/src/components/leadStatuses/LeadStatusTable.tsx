@@ -9,6 +9,7 @@ interface LeadStatus {
   color: string
   description: string
   is_active: boolean
+  can_be_referred: boolean
   created_at: string
   modified_at: string
 }
@@ -48,6 +49,9 @@ export default function LeadStatusTable({ statuses, onEdit, onDelete, canManage 
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Status
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Can Be Referred
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Created
@@ -107,6 +111,17 @@ export default function LeadStatusTable({ statuses, onEdit, onDelete, canManage 
                 ) : (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     Inactive
+                  </span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                {status.can_be_referred ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Yes
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    No
                   </span>
                 )}
               </td>

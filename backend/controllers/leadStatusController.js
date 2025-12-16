@@ -51,7 +51,7 @@ class LeadStatusController {
   // Create new lead status
   static async createStatus(req, res) {
     try {
-      const { status_name, code, color, description, is_active } = req.body;
+      const { status_name, code, color, description, is_active, can_be_referred } = req.body;
       console.log('➕ Creating new lead status:', status_name);
       
       if (!status_name) {
@@ -73,7 +73,8 @@ class LeadStatusController {
         code: code.toUpperCase(),
         color: color || '#6B7280',
         description: description || '',
-        is_active: is_active !== undefined ? is_active : true
+        is_active: is_active !== undefined ? is_active : true,
+        can_be_referred: can_be_referred !== undefined ? can_be_referred : true
       };
       
       const status = await LeadStatus.createStatus(statusData);
@@ -103,7 +104,7 @@ class LeadStatusController {
   static async updateStatus(req, res) {
     try {
       const { id } = req.params;
-      const { status_name, code, color, description, is_active } = req.body;
+      const { status_name, code, color, description, is_active, can_be_referred } = req.body;
       console.log('📝 Updating lead status:', id, '->', status_name);
       
       if (!status_name) {
@@ -125,7 +126,8 @@ class LeadStatusController {
         code: code.toUpperCase(),
         color: color || '#6B7280',
         description: description || '',
-        is_active: is_active !== undefined ? is_active : true
+        is_active: is_active !== undefined ? is_active : true,
+        can_be_referred: can_be_referred !== undefined ? can_be_referred : true
       };
       
       const status = await LeadStatus.updateStatus(id, statusData);
