@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { Plus, RefreshCw, FileSpreadsheet, FileText, Eye } from 'lucide-react'
+import { Plus, RefreshCw, FileSpreadsheet, FileText, Eye, Filter, X } from 'lucide-react'
 import { SaleRentSourceRow, SaleRentSourceFilters } from '@/types/reports'
 import { saleRentSourceApi, usersApi } from '@/utils/api'
 import type { User } from '@/types/user'
@@ -122,8 +122,15 @@ export default function SaleRentSourceTab() {
     })
   }, [reports, filters])
 
-  const currentRows: SaleRentSourceRow[] =
-    selectedReportId !== null ? reportRows[selectedReportId] || [] : []
+  // Filter current rows based on filters
+  const currentRows: SaleRentSourceRow[] = useMemo(() => {
+    const rows = selectedReportId !== null ? reportRows[selectedReportId] || [] : []
+    return rows.filter(row => {
+      if (filters.source && row.source_name !== filters.source) return false
+      if (filters.sold_rented && row.sold_rented !== filters.sold_rented) return false
+      return true
+    })
+  }, [selectedReportId, reportRows, filters.source, filters.sold_rented])
 
   // Auto-preview when agent and dates are set
   useEffect(() => {
@@ -398,6 +405,25 @@ export default function SaleRentSourceTab() {
     setSelectedReportId(null)
   }
 
+  // Get unique sources and sold_rented values from currently selected report rows for filter dropdowns
+  const uniqueSources = useMemo(() => {
+    const rows = selectedReportId !== null ? reportRows[selectedReportId] || [] : []
+    const sources = new Set<string>()
+    rows.forEach(row => {
+      if (row.source_name) sources.add(row.source_name)
+    })
+    return Array.from(sources).sort()
+  }, [selectedReportId, reportRows])
+
+  const uniqueSoldRented = useMemo(() => {
+    const rows = selectedReportId !== null ? reportRows[selectedReportId] || [] : []
+    const soldRented = new Set<string>()
+    rows.forEach(row => {
+      if (row.sold_rented) soldRented.add(row.sold_rented)
+    })
+    return Array.from(soldRented).sort()
+  }, [selectedReportId, reportRows])
+
   return (
     <div className="space-y-6">
       {/* Filters that filter existing report rows (like Monthly Agent Stats) */}
@@ -406,6 +432,7 @@ export default function SaleRentSourceTab() {
         setFilters={setFilters}
         onClearFilters={() => setFilters({})}
       />
+
 
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
@@ -560,6 +587,93 @@ export default function SaleRentSourceTab() {
             </div>
 
             <div className="p-4 overflow-y-auto max-h-[calc(80vh-120px)]">
+              {/* Filter Section inside the modal */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <Filter className="h-4 w-4 text-gray-400 mr-2" />
+                    <h4 className="text-sm font-medium text-gray-900">Filter Rows</h4>
+                  </div>
+                  {(filters.source || filters.sold_rented) && (
+                    <button
+                      onClick={() => setFilters({ ...filters, source: undefined, sold_rented: undefined })}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* Source Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Source
+                    </label>
+                    <select
+                      value={filters.source || ''}
+                      onChange={(e) => setFilters({ ...filters, source: e.target.value || undefined })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                    >
+                      <option value="">All Sources</option>
+                      {uniqueSources.map((source) => (
+                        <option key={source} value={source}>
+                          {source}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Sold/Rented Filter */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Sold/Rented
+                    </label>
+                    <select
+                      value={filters.sold_rented || ''}
+                      onChange={(e) => setFilters({ ...filters, sold_rented: e.target.value || undefined })}
+                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                    >
+                      <option value="">All Types</option>
+                      {uniqueSoldRented.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active Filters Summary */}
+                {(filters.source || filters.sold_rented) && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {filters.source && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Source: {filters.source}
+                        <button
+                          onClick={() => setFilters({ ...filters, source: undefined })}
+                          className="ml-1.5 text-blue-600 hover:text-blue-800"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                    {filters.sold_rented && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        Sold/Rented: {filters.sold_rented}
+                        <button
+                          onClick={() => setFilters({ ...filters, sold_rented: undefined })}
+                          className="ml-1.5 text-blue-600 hover:text-blue-800"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {currentRows.length === 0 ? (
                 <div className="py-8 text-center text-gray-500">
                   No closures found for this report.
@@ -575,6 +689,9 @@ export default function SaleRentSourceTab() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Ref#
                       </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Client Name
+                      </th>
                       <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Sold/Rented
                       </th>
@@ -583,9 +700,6 @@ export default function SaleRentSourceTab() {
                       </th>
                       <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Find Com
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Client Name
                       </th>
                     </tr>
                   </thead>
@@ -598,6 +712,9 @@ export default function SaleRentSourceTab() {
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
                           {row.reference_number}
                         </td>
+                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                          {row.client_name}
+                        </td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-center text-gray-900">
                           {row.sold_rented}
                         </td>
@@ -609,9 +726,6 @@ export default function SaleRentSourceTab() {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
                           })}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                          {row.client_name}
                         </td>
                       </tr>
                     ))}

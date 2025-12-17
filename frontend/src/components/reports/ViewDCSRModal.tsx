@@ -72,9 +72,12 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
 
   const loadTeamLeaders = async () => {
     try {
-      const response = await usersApi.getUsersByRole('team_leader', token!)
+      const response = await usersApi.getAll(token!)
       if (response.success) {
-        setTeamLeaders(response.data || [])
+        const teamLeadersList = response.users.filter(
+          (u: User) => u.role === 'team_leader'
+        )
+        setTeamLeaders(teamLeadersList)
       }
     } catch (error: any) {
       console.error('Error loading team leaders:', error)
@@ -1066,7 +1069,15 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
                               </tr>
                             ) : (
                               teamViewings.map((viewing: any) => (
-                                <tr key={viewing.id} className="hover:bg-gray-50">
+                                <tr 
+                                  key={viewing.id} 
+                                  className="hover:bg-blue-50 cursor-pointer transition-colors"
+                                  onClick={() => {
+                                    if (viewing.property_id) {
+                                      window.open(`/dashboard/properties?view=${viewing.property_id}#viewings`, '_blank')
+                                    }
+                                  }}
+                                >
                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                                     {new Date(viewing.viewing_date).toLocaleDateString()}
                                   </td>

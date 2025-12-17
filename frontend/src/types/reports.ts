@@ -207,7 +207,10 @@ export interface SaleRentSourceRow {
   client_name: string
 }
 
-export interface SaleRentSourceFilters extends ReportFilters {}
+export interface SaleRentSourceFilters extends ReportFilters {
+  source?: string
+  sold_rented?: string
+}
 
 // Operations Daily Report Types
 export interface OperationsDailyReport {

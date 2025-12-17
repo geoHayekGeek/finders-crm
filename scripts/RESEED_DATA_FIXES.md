@@ -123,3 +123,5 @@ If creating properties with "closed" statuses (sold, rented, closed), the script
 
 
 
+
+

@@ -727,8 +727,9 @@ export default function PropertiesPage() {
     if (property) {
       console.log('✅ Found property in list, opening modal:', propertyId)
       handleViewProperty(property)
-      // Clean up URL parameter
-      const newUrl = window.location.pathname
+      // Clean up URL parameter but preserve hash (for scrolling to viewings)
+      const hash = window.location.hash
+      const newUrl = window.location.pathname + (hash ? hash : '')
       window.history.replaceState({}, '', newUrl)
       return
     }
@@ -750,8 +751,9 @@ export default function PropertiesPage() {
             onRefer: handleReferProperty
           }
           handleViewProperty(fetchedProperty)
-          // Clean up URL parameter
-          const newUrl = window.location.pathname
+          // Clean up URL parameter but preserve hash (for scrolling to viewings)
+          const hash = window.location.hash
+          const newUrl = window.location.pathname + (hash ? hash : '')
           window.history.replaceState({}, '', newUrl)
         } else {
           console.error('❌ Failed to fetch property:', response)

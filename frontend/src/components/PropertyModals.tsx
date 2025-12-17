@@ -304,6 +304,23 @@ export function PropertyModals({
     loadTeamAgents()
   }, [user?.role, user?.id, token])
   
+  // Scroll to viewings section when modal opens with #viewings hash
+  useEffect(() => {
+    if (showViewPropertyModal && typeof window !== 'undefined' && window.location.hash === '#viewings') {
+      // Wait for modal content to render
+      const timer = setTimeout(() => {
+        const viewingsElement = document.getElementById('viewings')
+        if (viewingsElement) {
+          viewingsElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          // Clean up hash from URL
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        }
+      }, 300) // Small delay to ensure modal content is rendered
+      
+      return () => clearTimeout(timer)
+    }
+  }, [showViewPropertyModal])
+  
   // Check if user can view viewings for a specific property
   const canViewViewingsForProperty = (property: Property | null): boolean => {
     // #region agent log
@@ -3785,7 +3802,7 @@ export function PropertyModals({
                       fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:3752',message:'Rendering Property Viewings section check',data:{canView,propertyId:viewPropertyData?.id,propertyAgentId:viewPropertyData?.agent_id,userId:user?.id,userRole:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
                       // #endregion
                       return canView ? (
-                        <div>
+                        <div id="viewings">
                           <label className="block text-sm font-medium text-gray-700 mb-3">Property Viewings</label>
                           <PropertyViewingsSection
                             propertyId={viewPropertyData.id}
