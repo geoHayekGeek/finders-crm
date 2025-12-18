@@ -74,36 +74,77 @@ async function exportToExcel(report) {
     currentRow++; // Add spacing
   };
 
-  // Performance Metrics
-  addSection('Performance Metrics', [
+  // Performance Metrics (exclude boosts if not available - for team leaders)
+  const performanceMetrics = [
     ['Listings', report.listings_count],
-    ['Viewings', report.viewings_count],
-    ['Boosts', `$${parseFloat(report.boosts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+    ['Viewings', report.viewings_count]
+  ];
+  
+  // Only add boosts if it exists (team leaders won't have this field)
+  if (report.boosts !== undefined && report.boosts !== null) {
+    performanceMetrics.push(['Boosts', `$${parseFloat(report.boosts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+  }
+  
+  performanceMetrics.push(
     ['Sales Count', report.sales_count],
     ['Sales Amount', `$${parseFloat(report.sales_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-  ]);
+  );
+  
+  addSection('Performance Metrics', performanceMetrics);
 
-  // Lead Sources
-  if (report.lead_sources && Object.keys(report.lead_sources).length > 0) {
+  // Lead Sources - only show if available (team leaders won't have this)
+  if (report.lead_sources && typeof report.lead_sources === 'object' && Object.keys(report.lead_sources).length > 0) {
     const leadSourcesData = Object.entries(report.lead_sources).map(([source, count]) => [source, count]);
     addSection('Lead Sources', leadSourcesData);
   }
 
-  // Commissions on Agent Properties - highlight TOTAL COMMISSION row
-  addSection('Commissions on Agent Properties', [
-    ['Agent Commission', `$${parseFloat(report.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Finders Commission', `$${parseFloat(report.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Team Leader Commission', `$${parseFloat(report.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Administration Commission', `$${parseFloat(report.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Referrals On Properties', `$${parseFloat(report.referrals_on_properties_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${report.referrals_on_properties_count || 0})`],
-    ['TOTAL COMMISSION', `$${parseFloat(report.total_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-  ], true); // true = highlight the last row (TOTAL COMMISSION)
+  // Commissions - only show if available (team leaders won't have commission fields)
+  if (report.agent_commission !== undefined || report.total_commission !== undefined) {
+    const commissionsData = [];
+    
+    if (report.agent_commission !== undefined) {
+      commissionsData.push(['Agent Commission', `$${parseFloat(report.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    }
+    if (report.finders_commission !== undefined) {
+      commissionsData.push(['Finders Commission', `$${parseFloat(report.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    }
+    if (report.team_leader_commission !== undefined) {
+      commissionsData.push(['Team Leader Commission', `$${parseFloat(report.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    }
+    if (report.administration_commission !== undefined) {
+      commissionsData.push(['Administration Commission', `$${parseFloat(report.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    }
+    if (report.referrals_on_properties_commission !== undefined) {
+      commissionsData.push(['Referrals On Properties', `$${parseFloat(report.referrals_on_properties_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${report.referrals_on_properties_count || 0})`]);
+    }
+    if (report.total_commission !== undefined) {
+      commissionsData.push(['TOTAL COMMISSION', `$${parseFloat(report.total_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    }
+    
+    if (commissionsData.length > 0) {
+      addSection('Commissions on Agent Properties', commissionsData, true); // true = highlight the last row (TOTAL COMMISSION)
+    }
+  }
 
-  // Commissions on Referrals Given By Agent
-  addSection('Commissions on Referrals Given By Agent', [
-    ['Referrals Count', report.referral_received_count || 0],
-    ['Commission Received', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-  ]);
+  // Referrals Received - show count for everyone, commission only if available
+  if (report.referral_received_count !== undefined || report.referral_received_commission !== undefined) {
+    const referralData = [];
+    if (report.referral_received_count !== undefined) {
+      referralData.push(['Referrals Received Count', report.referral_received_count || 0]);
+    }
+    // Only show commission if available (team leaders won't have this)
+    if (report.referral_received_commission !== undefined) {
+      referralData.push(['Commission Received', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+    }
+    
+    if (referralData.length > 0) {
+      // If only count is shown (for team leaders), use a simpler title
+      const sectionTitle = report.referral_received_commission !== undefined 
+        ? 'Commissions on Referrals Given By Agent' 
+        : 'Referrals Received';
+      addSection(sectionTitle, referralData);
+    }
+  }
 
   // Return buffer
   return await workbook.xlsx.writeBuffer();
@@ -183,38 +224,79 @@ function exportToPDF(report) {
         doc.moveDown(0.6);
       };
 
-      // Performance Metrics
-      addSection('Performance Metrics', [
+      // Performance Metrics (exclude boosts if not available - for team leaders)
+      const performanceMetrics = [
         ['Listings', report.listings_count],
-        ['Viewings', report.viewings_count],
-        ['Boosts', `$${parseFloat(report.boosts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+        ['Viewings', report.viewings_count]
+      ];
+      
+      // Only add boosts if it exists (team leaders won't have this field)
+      if (report.boosts !== undefined && report.boosts !== null) {
+        performanceMetrics.push(['Boosts', `$${parseFloat(report.boosts || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      }
+      
+      performanceMetrics.push(
         ['Sales Count', report.sales_count],
         ['Sales Amount', `$${parseFloat(report.sales_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-      ]);
+      );
+      
+      addSection('Performance Metrics', performanceMetrics);
 
-      // Lead Sources
-      if (report.lead_sources && Object.keys(report.lead_sources).length > 0) {
+      // Lead Sources - only show if available (team leaders won't have this)
+      if (report.lead_sources && typeof report.lead_sources === 'object' && Object.keys(report.lead_sources).length > 0) {
         const leadSourcesData = Object.entries(report.lead_sources)
           .sort((a, b) => b[1] - a[1]) // Sort by count descending
           .map(([source, count]) => [source, count]);
         addSection('Lead Sources', leadSourcesData);
       }
 
-      // Commissions on Agent Properties - highlight TOTAL COMMISSION
-      addSection('Commissions on Agent Properties', [
-        ['Agent Commission', `$${parseFloat(report.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ['Finders Commission', `$${parseFloat(report.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ['Team Leader Commission', `$${parseFloat(report.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ['Administration Commission', `$${parseFloat(report.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-        ['Referrals On Properties', `$${parseFloat(report.referrals_on_properties_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${report.referrals_on_properties_count || 0})`],
-        ['TOTAL COMMISSION', `$${parseFloat(report.total_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-      ], '#4472C4', true); // Highlight the last row (TOTAL COMMISSION)
+      // Commissions - only show if available (team leaders won't have commission fields)
+      if (report.agent_commission !== undefined || report.total_commission !== undefined) {
+        const commissionsData = [];
+        
+        if (report.agent_commission !== undefined) {
+          commissionsData.push(['Agent Commission', `$${parseFloat(report.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        }
+        if (report.finders_commission !== undefined) {
+          commissionsData.push(['Finders Commission', `$${parseFloat(report.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        }
+        if (report.team_leader_commission !== undefined) {
+          commissionsData.push(['Team Leader Commission', `$${parseFloat(report.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        }
+        if (report.administration_commission !== undefined) {
+          commissionsData.push(['Administration Commission', `$${parseFloat(report.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        }
+        if (report.referrals_on_properties_commission !== undefined) {
+          commissionsData.push(['Referrals On Properties', `$${parseFloat(report.referrals_on_properties_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${report.referrals_on_properties_count || 0})`]);
+        }
+        if (report.total_commission !== undefined) {
+          commissionsData.push(['TOTAL COMMISSION', `$${parseFloat(report.total_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        }
+        
+        if (commissionsData.length > 0) {
+          addSection('Commissions on Agent Properties', commissionsData, '#4472C4', true); // Highlight the last row (TOTAL COMMISSION)
+        }
+      }
 
-      // Commissions on Referrals Given By Agent
-      addSection('Commissions on Referrals Given By Agent', [
-        ['Referrals Count', report.referral_received_count || 0],
-        ['Commission Received', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
-      ], '#10B981');
+      // Referrals Received - show count for everyone, commission only if available
+      if (report.referral_received_count !== undefined || report.referral_received_commission !== undefined) {
+        const referralData = [];
+        if (report.referral_received_count !== undefined) {
+          referralData.push(['Referrals Received Count', report.referral_received_count || 0]);
+        }
+        // Only show commission if available (team leaders won't have this)
+        if (report.referral_received_commission !== undefined) {
+          referralData.push(['Commission Received', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        }
+        
+        if (referralData.length > 0) {
+          // If only count is shown (for team leaders), use a simpler title
+          const sectionTitle = report.referral_received_commission !== undefined 
+            ? 'Commissions on Referrals Given By Agent' 
+            : 'Referrals Received';
+          addSection(sectionTitle, referralData, '#10B981');
+        }
+      }
 
       // Footer
       const footerY = doc.page.height - 50;

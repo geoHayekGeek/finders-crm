@@ -146,8 +146,8 @@ export default function DashboardLayout({
     // Calendar - visible to all roles
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
 
-    // Reports - visible to roles with agent performance viewing permissions
-    if (canViewAgentPerformance) {
+    // Reports - visible to roles with agent performance viewing permissions, accountant (view-only), operations, or hr (view-only)
+    if (canViewAgentPerformance || role === 'accountant' || role === 'operations' || role === 'hr') {
       baseNavigation.push({ name: 'Reports', href: '/dashboard/reports', icon: BarChart3, alwaysVisible: true })
     }
 

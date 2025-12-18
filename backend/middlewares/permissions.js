@@ -361,6 +361,31 @@ const canViewLeads = (req, res, next) => {
   }
 };
 
+// Middleware to check if user can access reports
+const canViewReports = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  // Block agents from accessing reports entirely
+  if (role === 'agent') {
+    return res.status(403).json({ 
+      message: 'Access denied. Agents cannot access reports.' 
+    });
+  }
+
+  // Allow admin, operations manager, operations, agent manager, team_leader, accountant, and hr
+  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'accountant', 'hr'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to view reports.' 
+    });
+  }
+
+  next();
+};
+
 // Middleware to filter data based on user role
 const filterDataByRole = (req, res, next) => {
   console.log('🎭 filterDataByRole middleware called');
@@ -398,6 +423,120 @@ const filterDataByRole = (req, res, next) => {
   next();
 };
 
+// Middleware to check if user can access DCSR reports
+const canViewDCSR = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  
+  // Allow admin, operations manager, operations, agent manager, and team_leader
+  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to view DCSR reports.' 
+    });
+  }
+
+  next();
+};
+
+// Middleware to check if user can create/edit/delete DCSR reports
+const canManageDCSR = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  
+  // Only admin, operations manager, and operations can create/edit/delete
+  const allowedRoles = ['admin', 'operations manager', 'operations'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to manage DCSR reports.' 
+    });
+  }
+
+  next();
+};
+
+// Middleware to check if user can access Sale & Rent Source reports
+const canViewSaleRentSource = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  
+  // Allow admin, operations manager, operations, and agent manager
+  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to view Sale & Rent Source reports.' 
+    });
+  }
+
+  next();
+};
+
+// Middleware to check if user can manage Sale & Rent Source reports (create/edit/delete)
+const canManageSaleRentSource = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  
+  // Only admin, operations manager, and operations can manage
+  const allowedRoles = ['admin', 'operations manager', 'operations'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to manage Sale & Rent Source reports.' 
+    });
+  }
+
+  next();
+};
+
+// Middleware to check if user can access Operations Commission reports
+const canViewOperationsCommission = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  
+  // Allow admin, operations manager, hr, and operations
+  const allowedRoles = ['admin', 'operations manager', 'hr', 'operations'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to view Operations Commission reports.' 
+    });
+  }
+
+  next();
+};
+
+// Middleware to check if user can manage Operations Commission reports (create/edit/delete)
+const canManageOperationsCommission = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = req.user.role;
+  
+  // Only admin, operations manager, and hr can manage
+  const allowedRoles = ['admin', 'operations manager', 'hr'];
+  if (!allowedRoles.includes(role)) {
+    return res.status(403).json({ 
+      message: 'Access denied. You do not have permission to manage Operations Commission reports.' 
+    });
+  }
+
+  next();
+};
+
 module.exports = {
   authenticateToken,
   checkPermission,
@@ -412,6 +551,13 @@ module.exports = {
   canViewAllData,
   canManageLeads,
   canViewLeads,
+  canViewReports,
+  canViewDCSR,
+  canManageDCSR,
+  canViewSaleRentSource,
+  canManageSaleRentSource,
+  canViewOperationsCommission,
+  canManageOperationsCommission,
   filterDataByRole,
   hasPermission,
   PERMISSIONS

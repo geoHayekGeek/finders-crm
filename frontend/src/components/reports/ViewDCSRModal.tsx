@@ -7,6 +7,7 @@ import { DCSRMonthlyReport } from '@/types/reports'
 import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import { User } from '@/types/user'
 import { Status } from '@/types/status'
 import { Category } from '@/types/category'
@@ -18,9 +19,12 @@ interface ViewDCSRModalProps {
 }
 
 export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRModalProps) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
   const { showError } = useToast()
+  const { role } = usePermissions()
   const router = useRouter()
+  
+  const isTeamLeader = role === 'team_leader'
 
   const [activeTab, setActiveTab] = useState<'company' | 'team'>('company')
   const [loading, setLoading] = useState(false)
@@ -62,13 +66,34 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
   const [statuses, setStatuses] = useState<Status[]>([])
   const [categories, setCategories] = useState<Category[]>([])
 
+  // Helper function to format date to YYYY-MM-DD only
+  const formatDateOnly = (dateString: string | undefined): string => {
+    if (!dateString) return ''
+    // If it's already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString
+    }
+    // If it's a full ISO timestamp, extract just the date part
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return dateString
+      return date.toISOString().split('T')[0]
+    } catch {
+      return dateString
+    }
+  }
+
   // Get date range from report
-  const startDate = report.start_date || (report.year && report.month 
-    ? new Date(Date.UTC(report.year, report.month - 1, 1)).toISOString().split('T')[0]
-    : new Date().toISOString().split('T')[0])
-  const endDate = report.end_date || (report.year && report.month
-    ? new Date(Date.UTC(report.year, report.month, 0)).toISOString().split('T')[0]
-    : new Date().toISOString().split('T')[0])
+  const startDate = report.start_date 
+    ? formatDateOnly(report.start_date)
+    : (report.year && report.month 
+      ? new Date(Date.UTC(report.year, report.month - 1, 1)).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0])
+  const endDate = report.end_date
+    ? formatDateOnly(report.end_date)
+    : (report.year && report.month
+      ? new Date(Date.UTC(report.year, report.month, 0)).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0])
 
   const loadTeamLeaders = async () => {
     try {
@@ -112,18 +137,27 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
       loadTeamLeaders()
       loadStatuses()
       loadCategories()
+      
+      // If user is a team leader, automatically set their team leader ID and switch to team tab
+      if (isTeamLeader && user?.id) {
+        setSelectedTeamLeaderId(user.id)
+        setActiveTab('team')
+      }
     }
-  }, [token])
+  }, [token, isTeamLeader, user])
 
   const loadTeamBreakdown = async () => {
-    if (!selectedTeamLeaderId || !startDate || !endDate) return
+    // For team leaders, use their user ID; otherwise use selectedTeamLeaderId
+    const teamLeaderId = isTeamLeader && user?.id ? user.id : selectedTeamLeaderId
+    
+    if (!teamLeaderId || !startDate || !endDate) return
     
     try {
       setLoadingTeamBreakdown(true)
       setError(null)
       
       const response = await dcsrApi.getTeamBreakdown(
-        selectedTeamLeaderId,
+        teamLeaderId,
         startDate,
         endDate,
         token
@@ -142,6 +176,12 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
 
   const loadAllTeamsBreakdown = async () => {
     if (!startDate || !endDate) return
+    
+    // Team leaders cannot see all teams breakdown
+    if (isTeamLeader) {
+      setError('Access denied. Team leaders can only view their own team breakdown.')
+      return
+    }
     
     try {
       setLoadingTeamBreakdown(true)
@@ -165,7 +205,10 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
   }
 
   const loadDetailedData = async () => {
-    if (!selectedTeamLeaderId || !startDate || !endDate) return
+    // For team leaders, use their user ID; otherwise use selectedTeamLeaderId
+    const teamLeaderId = isTeamLeader && user?.id ? user.id : selectedTeamLeaderId
+    
+    if (!teamLeaderId || !startDate || !endDate) return
     
     try {
       setLoadingDetailedData(true)
@@ -173,7 +216,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
       
       if (detailedViewTab === 'properties') {
         const response = await dcsrApi.getTeamProperties(
-          selectedTeamLeaderId,
+          teamLeaderId,
           startDate,
           endDate,
           propertyFilters,
@@ -184,7 +227,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         }
       } else if (detailedViewTab === 'leads') {
         const response = await dcsrApi.getTeamLeads(
-          selectedTeamLeaderId,
+          teamLeaderId,
           startDate,
           endDate,
           leadFilters,
@@ -195,7 +238,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         }
       } else if (detailedViewTab === 'viewings') {
         const response = await dcsrApi.getTeamViewings(
-          selectedTeamLeaderId,
+          teamLeaderId,
           startDate,
           endDate,
           viewingFilters,
@@ -216,9 +259,18 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
   // Load team breakdown when team leader or dates change
   useEffect(() => {
     if (activeTab === 'team' && startDate && endDate && token) {
-      if (showAllTeams) {
+      // For team leaders, automatically load their team breakdown
+      if (isTeamLeader && user?.id && !showAllTeams) {
+        if (teamViewTab === 'overview') {
+          loadTeamBreakdown()
+        } else if (teamViewTab === 'detailed') {
+          loadDetailedData()
+        }
+      } else if (showAllTeams && !isTeamLeader) {
+        // Non-team leaders can see all teams
         loadAllTeamsBreakdown()
-      } else if (selectedTeamLeaderId) {
+      } else if (selectedTeamLeaderId && !isTeamLeader) {
+        // Non-team leaders viewing a specific team
         if (teamViewTab === 'overview') {
           loadTeamBreakdown()
         } else if (teamViewTab === 'detailed') {
@@ -227,7 +279,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTeamLeaderId, startDate, endDate, token, activeTab, showAllTeams, teamViewTab, propertyFilters, leadFilters, viewingFilters, detailedViewTab])
+  }, [selectedTeamLeaderId, startDate, endDate, token, activeTab, showAllTeams, teamViewTab, propertyFilters, leadFilters, viewingFilters, detailedViewTab, isTeamLeader, user])
 
   const formatRangeDisplay = () => {
     if (report.start_date && report.end_date) {
@@ -329,59 +381,67 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
           {/* Team Leader Selection (Team Breakdown Tab) */}
           {activeTab === 'team' && (
             <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center gap-3">
-                <label className="block text-sm font-medium text-gray-700">
-                  View Options
-                </label>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAllTeams(true)
-                      setSelectedTeamLeaderId(undefined)
-                    }}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      showAllTeams
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    All Teams Summary
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAllTeams(false)
-                      setSelectedTeamLeaderId(undefined)
-                    }}
-                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                      !showAllTeams
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    Single Team
-                  </button>
+              {!isTeamLeader && (
+                <div className="flex items-center gap-3">
+                  <label className="block text-sm font-medium text-gray-700">
+                    View Options
+                  </label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAllTeams(true)
+                        setSelectedTeamLeaderId(undefined)
+                      }}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        showAllTeams
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      All Teams Summary
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAllTeams(false)
+                        setSelectedTeamLeaderId(undefined)
+                      }}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        !showAllTeams
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Single Team
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
               
               {!showAllTeams && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Team Leader
+                    {isTeamLeader ? 'Your Team' : 'Select Team Leader'}
                   </label>
-                  <select
-                    value={selectedTeamLeaderId || ''}
-                    onChange={(e) => setSelectedTeamLeaderId(e.target.value ? parseInt(e.target.value) : undefined)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                  >
-                    <option value="">Choose a team leader...</option>
-                    {teamLeaders.map((leader) => (
-                      <option key={leader.id} value={leader.id}>
-                        {leader.name} {leader.user_code ? `(${leader.user_code})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  {isTeamLeader ? (
+                    <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
+                      {user?.name} {user?.user_code ? `(${user.user_code})` : ''}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedTeamLeaderId || ''}
+                      onChange={(e) => setSelectedTeamLeaderId(e.target.value ? parseInt(e.target.value) : undefined)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                    >
+                      <option value="">Choose a team leader...</option>
+                      {teamLeaders.map((leader) => (
+                        <option key={leader.id} value={leader.id}>
+                          {leader.name} {leader.user_code ? `(${leader.user_code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               )}
             </div>

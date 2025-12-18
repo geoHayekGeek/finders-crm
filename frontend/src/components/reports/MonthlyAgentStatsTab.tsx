@@ -12,6 +12,7 @@ import ReportsFilters from './ReportsFilters'
 import CreateReportModal from './CreateReportModal'
 import EditReportModal from './EditReportModal'
 import AgentEarningsModal from './AgentEarningsModal'
+import ViewReportModal from './ViewReportModal'
 import { formatCurrency } from '@/utils/formatters'
 
 export default function MonthlyAgentStatsTab() {
@@ -31,12 +32,18 @@ export default function MonthlyAgentStatsTab() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingReport, setEditingReport] = useState<MonthlyAgentReport | null>(null)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [viewingReport, setViewingReport] = useState<MonthlyAgentReport | null>(null)
   const [showEarningsModal, setShowEarningsModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState<MonthlyAgentReport | null>(null)
 
   const canCreateReport =
     role === 'admin' || role === 'operations manager' || role === 'operations'
-  const isLimitedView = role === 'agent' || role === 'team_leader'
+  const canEditReport = canCreateReport // Same permissions for edit/delete
+  const canDeleteReport = role === 'admin' || role === 'operations manager' || role === 'operations'
+  const isTeamLeader = role === 'team_leader'
+  const isViewOnly = role === 'accountant' || role === 'agent manager' || role === 'hr'
+  const isLimitedView = role === 'agent' // Team leaders can see their team, so don't lock them
   const lockedAgentId = isLimitedView && user ? user.id : undefined
 
   // Load data
@@ -183,6 +190,11 @@ export default function MonthlyAgentStatsTab() {
   }
 
   // Handle edit report
+  const handleViewReport = (report: MonthlyAgentReport) => {
+    setViewingReport(report)
+    setShowViewModal(true)
+  }
+
   const handleEditReport = (report: MonthlyAgentReport) => {
     setEditingReport(report)
     setShowEditModal(true)
@@ -308,7 +320,8 @@ export default function MonthlyAgentStatsTab() {
     document.body.removeChild(link)
   }
 
-  if (isLimitedView) {
+  // Only show limited view for agents (not team leaders - they can filter by their team)
+  if (role === 'agent') {
     const handleViewEarnings = (report: MonthlyAgentReport) => {
       setSelectedReport(report)
       setShowEarningsModal(true)
@@ -479,7 +492,7 @@ export default function MonthlyAgentStatsTab() {
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Listings
                 </th>
-                {allLeadSources.map(source => (
+                {!isTeamLeader && allLeadSources.map(source => (
                   <th key={source} className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     {source}
                   </th>
@@ -487,31 +500,37 @@ export default function MonthlyAgentStatsTab() {
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Viewings
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Boosts
-                </th>
+                {!isTeamLeader && (
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Boosts
+                  </th>
+                )}
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Sales
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Sales Amount
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Agent Com
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Fin Com
-                </th>
-                {/* referral_commission removed - use referrals_on_properties_commission instead */}
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  TL Com
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Adm Com
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tot Com
-                </th>
+                {!isTeamLeader && (
+                  <>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Agent Com
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fin Com
+                    </th>
+                    {/* referral_commission removed - use referrals_on_properties_commission instead */}
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      TL Com
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Adm Com
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Tot Com
+                    </th>
+                  </>
+                )}
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Ref Rcvd
                 </th>
@@ -523,15 +542,15 @@ export default function MonthlyAgentStatsTab() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={15 + allLeadSources.length} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={isTeamLeader ? 8 : (15 + allLeadSources.length)} className="px-6 py-12 text-center text-gray-500">
                     <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-600" />
                     Loading reports...
                   </td>
                 </tr>
               ) : visibleReports.length === 0 ? (
                 <tr>
-                  <td colSpan={15 + allLeadSources.length} className="px-6 py-12 text-center text-gray-500">
-                    No reports found. Create your first report to get started.
+                  <td colSpan={isTeamLeader ? 8 : (15 + allLeadSources.length)} className="px-6 py-12 text-center text-gray-500">
+                    No reports found. {canCreateReport ? 'Create your first report to get started.' : 'No reports available.'}
                   </td>
                 </tr>
               ) : (
@@ -546,58 +565,75 @@ export default function MonthlyAgentStatsTab() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
                       {report.listings_count}
                     </td>
-                    {allLeadSources.map(source => (
+                    {!isTeamLeader && allLeadSources.map(source => (
                       <td key={source} className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                        {report.lead_sources[source] || 0}
+                        {report.lead_sources?.[source] || 0}
                       </td>
                     ))}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
                       {report.viewings_count}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.boosts)}
-                    </td>
+                    {!isTeamLeader && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                        {formatCurrency(report.boosts ?? 0)}
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
                       {report.sales_count}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.sales_amount)}
+                      {formatCurrency(report.sales_amount ?? 0)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.agent_commission)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.finders_commission)}
-                    </td>
-                    {/* referral_commission removed - use referrals_on_properties_commission instead */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.team_leader_commission)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                      {formatCurrency(report.administration_commission)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                      {formatCurrency(report.total_commission)}
-                    </td>
+                    {!isTeamLeader && (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(report.agent_commission ?? 0)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(report.finders_commission ?? 0)}
+                        </td>
+                        {/* referral_commission removed - use referrals_on_properties_commission instead */}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(report.team_leader_commission ?? 0)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                          {formatCurrency(report.administration_commission ?? 0)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                          {formatCurrency(report.total_commission ?? 0)}
+                        </td>
+                      </>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                      {report.referral_received_count}
+                      {report.referral_received_count ?? 0}
                     </td>
                     <td className="sticky right-0 z-10 bg-white px-6 py-4 whitespace-nowrap text-sm text-center">
                       <div className="flex items-center justify-center space-x-2">
                         <button
-                          onClick={() => handleEditReport(report)}
-                          className="text-gray-600 hover:text-gray-900"
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleRecalculate(report.id)}
+                          onClick={() => handleViewReport(report)}
                           className="text-blue-600 hover:text-blue-900"
-                          title="Recalculate"
+                          title="View Details"
                         >
-                          <RefreshCw className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </button>
+                        {canEditReport && (
+                          <button
+                            onClick={() => handleEditReport(report)}
+                            className="text-gray-600 hover:text-gray-900"
+                            title="Edit"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                        )}
+                        {canEditReport && (
+                          <button
+                            onClick={() => handleRecalculate(report.id)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Recalculate"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleExportExcel(report.id)}
                           className="text-green-600 hover:text-green-900"
@@ -612,13 +648,15 @@ export default function MonthlyAgentStatsTab() {
                         >
                           <FileText className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(report.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {canDeleteReport && (
+                          <button
+                            onClick={() => handleDelete(report.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -639,7 +677,17 @@ export default function MonthlyAgentStatsTab() {
         />
       )}
 
-      {showEditModal && editingReport && (
+      {showViewModal && viewingReport && (
+        <ViewReportModal
+          report={viewingReport}
+          onClose={() => {
+            setShowViewModal(false)
+            setViewingReport(null)
+          }}
+        />
+      )}
+
+      {showEditModal && editingReport && canEditReport && (
         <EditReportModal
           report={editingReport}
           onClose={() => {

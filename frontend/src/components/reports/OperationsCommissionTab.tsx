@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Trash2, DollarSign, Edit, ChevronDown, ChevronUp, X } from 'lucide-react'
+import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Trash2, DollarSign, Edit, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react'
 import { OperationsCommissionReport, OperationsCommissionFilters } from '@/types/reports'
 import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateOperationsCommissionModal from './CreateOperationsCommissionModal'
 import EditOperationsCommissionModal from './EditOperationsCommissionModal'
@@ -13,6 +14,9 @@ import EditOperationsCommissionModal from './EditOperationsCommissionModal'
 export default function OperationsCommissionTab() {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
+  const { role } = usePermissions()
+  
+  const canManage = role === 'admin' || role === 'operations manager' || role === 'hr'
 
   // State
   const [reports, setReports] = useState<OperationsCommissionReport[]>([])
@@ -218,15 +222,15 @@ export default function OperationsCommissionTab() {
     ]
 
     const rows = reports.map((report) => [
-      report.start_date,
-      report.end_date,
-      report.commission_percentage,
-      report.total_properties_count,
-      report.total_sales_count,
-      report.total_rent_count,
-      report.total_sales_value.toFixed(2),
-      report.total_rent_value.toFixed(2),
-      report.total_commission_amount.toFixed(2)
+      report.start_date || '',
+      report.end_date || '',
+      report.commission_percentage || 0,
+      report.total_properties_count || 0,
+      report.total_sales_count || 0,
+      report.total_rent_count || 0,
+      typeof report.total_sales_value === 'number' ? report.total_sales_value.toFixed(2) : (parseFloat(report.total_sales_value || 0)).toFixed(2),
+      typeof report.total_rent_value === 'number' ? report.total_rent_value.toFixed(2) : (parseFloat(report.total_rent_value || 0)).toFixed(2),
+      typeof report.total_commission_amount === 'number' ? report.total_commission_amount.toFixed(2) : (parseFloat(report.total_commission_amount || 0)).toFixed(2)
     ])
 
     const csvContent = [
@@ -361,13 +365,15 @@ export default function OperationsCommissionTab() {
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Create Report
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Create Report
+            </button>
+          )}
           <button
             onClick={loadReports}
             disabled={loading}
@@ -498,20 +504,24 @@ export default function OperationsCommissionTab() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                       <div className="flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => handleEdit(report.id)}
-                          className="text-indigo-600 hover:text-indigo-900"
-                          title="Edit"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleRecalculate(report.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Recalculate"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </button>
+                        {canManage && (
+                          <>
+                            <button
+                              onClick={() => handleEdit(report.id)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                              title="Edit"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleRecalculate(report.id)}
+                              className="text-blue-600 hover:text-blue-900"
+                              title="Recalculate"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => handleExportExcel(report.id)}
                           className="text-green-600 hover:text-green-900"
@@ -526,13 +536,15 @@ export default function OperationsCommissionTab() {
                         >
                           <FileText className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(report.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {canManage && (
+                          <button
+                            onClick={() => handleDelete(report.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -563,7 +575,16 @@ export default function OperationsCommissionTab() {
                                 ) : (
                                   report.properties.map((property) => (
                                     <tr key={property.id} className="hover:bg-gray-50">
-                                      <td className="px-4 py-2 text-sm text-gray-900">{property.reference_number}</td>
+                                      <td className="px-4 py-2 text-sm">
+                                        <button
+                                          onClick={() => window.open(`/dashboard/properties?view=${property.id}`, '_blank')}
+                                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium flex items-center gap-1"
+                                          title="View property details"
+                                        >
+                                          {property.reference_number}
+                                          <ExternalLink className="h-3 w-3" />
+                                        </button>
+                                      </td>
                                       <td className="px-4 py-2 text-sm text-center">
                                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                                           property.property_type === 'sale' 

@@ -7,6 +7,7 @@ import { saleRentSourceApi, usersApi } from '@/utils/api'
 import type { User } from '@/types/user'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import ReportsFilters from './ReportsFilters'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
@@ -21,6 +22,9 @@ interface GeneratedReport {
 export default function SaleRentSourceTab() {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
+  const { role } = usePermissions()
+  
+  const canManage = role === 'admin' || role === 'operations manager' || role === 'operations'
 
   const [filters, setFilters] = useState<SaleRentSourceFilters>({})
   const [loading, setLoading] = useState(false)
@@ -437,13 +441,15 @@ export default function SaleRentSourceTab() {
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Generate Report
-          </button>
+          {canManage && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Generate Report
+            </button>
+          )}
           <button
             onClick={handleRefresh}
             disabled={loading}
@@ -458,9 +464,17 @@ export default function SaleRentSourceTab() {
       {/* Info Card */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-800">
-          Use <span className="font-medium">Generate Report</span> to create a Sale &amp; Rent Source
-          report for a specific agent and date range. The list below shows all generated reports; use a
-          row&apos;s actions to view or export it as PDF or Excel.
+          {canManage ? (
+            <>
+              Use <span className="font-medium">Generate Report</span> to create a Sale &amp; Rent Source
+              report for a specific agent and date range. The list below shows all generated reports; use a
+              row&apos;s actions to view or export it as PDF or Excel.
+            </>
+          ) : (
+            <>
+              View Sale &amp; Rent Source reports below. Use a row&apos;s actions to view or export it as PDF or Excel.
+            </>
+          )}
         </p>
       </div>
 

@@ -68,9 +68,28 @@ function ReportsPageContent() {
   const { role } = usePermissions()
 
   const availableTabs = useMemo(() => {
-    if (role === 'agent' || role === 'team_leader') {
+    // Agents are blocked from accessing this page entirely (handled by ProtectedRoute)
+    // Accountant and hr can only see Monthly Agent Statistics
+    if (role === 'accountant' || role === 'hr') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats')
     }
+    // Team leaders can see Monthly Agent Statistics and DCSR Report (but limited to their team)
+    if (role === 'team_leader') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'dcsr-report')
+    }
+    // Agent manager can see Monthly Agent Statistics and Sale & Rent Source (read only)
+    if (role === 'agent manager') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source')
+    }
+    // Operations can see Monthly Agent Statistics, Sale & Rent Source, Operations Commission (read only), and Operations Daily
+    if (role === 'operations') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
+    }
+    // HR can see Monthly Agent Statistics and Operations Commission
+    if (role === 'hr') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'operations-commission')
+    }
+    // Admin and operations manager can see all tabs
     return TABS
   }, [role])
 
@@ -196,7 +215,7 @@ function ReportsPageContent() {
 
 export default function ReportsPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute allowedRoles={['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'accountant', 'hr']}>
       <ReportsPageContent />
     </ProtectedRoute>
   )

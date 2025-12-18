@@ -5,6 +5,7 @@ import { Filter, X, CalendarRange, Sparkles } from 'lucide-react'
 import { ReportFilters as ReportFiltersType } from '@/types/reports'
 import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import { User } from '@/types/user'
 
 interface ReportsFiltersProps {
@@ -22,7 +23,8 @@ export default function ReportsFilters({
   agentFilterDisabled = false,
   lockedAgentId
 }: ReportsFiltersProps) {
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const { role } = usePermissions()
   const [agents, setAgents] = useState<User[]>([])
 
   // Load agents
@@ -30,19 +32,39 @@ export default function ReportsFilters({
     if (token) {
       loadAgents()
     }
-  }, [token])
+  }, [token, role, user?.id])
 
   const loadAgents = async () => {
     if (!token) return
 
     try {
-      const response = await usersApi.getAll(token)
-      if (response.success) {
-        // Filter to only show agents and team leaders
-        const agentsList = response.users.filter(
-          (u: User) => u.role === 'agent' || u.role === 'team_leader'
-        )
-        setAgents(agentsList)
+      // If user is a team leader, load only their team agents + themselves
+      if (role === 'team_leader' && user?.id) {
+        const response = await usersApi.getTeamLeaderAgents(user.id, token)
+        if (response.success) {
+          // Include the team leader themselves in the list
+          const teamAgents = response.agents || []
+          // Add team leader to the list if not already included
+          const allAgents = [
+            { id: user.id, name: user.name, user_code: user.user_code, role: 'team_leader' } as User,
+            ...teamAgents
+          ]
+          // Remove duplicates based on ID
+          const uniqueAgents = allAgents.filter((agent, index, self) =>
+            index === self.findIndex(a => a.id === agent.id)
+          )
+          setAgents(uniqueAgents)
+        }
+      } else {
+        // For other roles, load all agents and team leaders
+        const response = await usersApi.getAll(token)
+        if (response.success) {
+          // Filter to only show agents and team leaders
+          const agentsList = response.users.filter(
+            (u: User) => u.role === 'agent' || u.role === 'team_leader'
+          )
+          setAgents(agentsList)
+        }
       }
     } catch (error) {
       console.error('Error loading agents:', error)

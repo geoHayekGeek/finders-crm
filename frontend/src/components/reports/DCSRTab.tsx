@@ -6,6 +6,7 @@ import { DCSRMonthlyReport, DCSRReportFilters } from '@/types/reports'
 import { dcsrApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { usePermissions } from '@/contexts/PermissionContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateDCSRModal from './CreateDCSRModal'
 import ViewDCSRModal from './ViewDCSRModal'
@@ -13,6 +14,10 @@ import ViewDCSRModal from './ViewDCSRModal'
 export default function DCSRTab() {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
+  const { role } = usePermissions()
+  
+  const canCreate = role === 'admin' || role === 'operations manager' || role === 'operations'
+  const canDelete = canCreate // Same permissions for delete
 
   // State
   const [reports, setReports] = useState<DCSRMonthlyReport[]>([])
@@ -175,6 +180,23 @@ export default function DCSRTab() {
     }
   }
 
+  // Helper function to format date to YYYY-MM-DD only
+  const formatDateOnly = (dateString: string | undefined): string => {
+    if (!dateString) return ''
+    // If it's already in YYYY-MM-DD format, return as is
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      return dateString
+    }
+    // If it's a full ISO timestamp, extract just the date part
+    try {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return dateString
+      return date.toISOString().split('T')[0]
+    } catch {
+      return dateString
+    }
+  }
+
   // Export to CSV
   const exportToCSV = () => {
     const headers = [
@@ -188,8 +210,8 @@ export default function DCSRTab() {
     ]
 
     const rows = reports.map((report) => [
-      report.start_date,
-      report.end_date,
+      formatDateOnly(report.start_date),
+      formatDateOnly(report.end_date),
       report.listings_count,
       report.leads_count,
       report.sales_count,
@@ -347,13 +369,15 @@ export default function DCSRTab() {
       {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Create DCSR Report
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-5 w-5 mr-2" />
+              Create DCSR Report
+            </button>
+          )}
           <button
             onClick={loadReports}
             disabled={loading}
@@ -474,13 +498,15 @@ export default function DCSRTab() {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => handleRecalculate(report.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Recalculate"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </button>
+                        {canCreate && (
+                          <button
+                            onClick={() => handleRecalculate(report.id)}
+                            className="text-blue-600 hover:text-blue-900"
+                            title="Recalculate"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           onClick={() => handleExportExcel(report.id)}
                           className="text-green-600 hover:text-green-900"
@@ -495,13 +521,15 @@ export default function DCSRTab() {
                         >
                           <FileText className="h-4 w-4" />
                         </button>
-                        <button
-                          onClick={() => handleDelete(report.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(report.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

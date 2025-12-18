@@ -2,10 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const ReportsController = require('../controllers/reportsController');
-const { authenticateToken } = require('../middlewares/permissions');
+const { authenticateToken, canViewReports, canViewSaleRentSource } = require('../middlewares/permissions');
 
-// All routes require authentication
+// All routes require authentication and block agents
 router.use(authenticateToken);
+router.use(canViewReports);
 
 /**
  * @route   GET /api/reports/monthly
@@ -63,23 +64,23 @@ router.get('/lead-sources', ReportsController.getLeadSources);
  * @route   GET /api/reports/sale-rent-source
  * @desc    Get Statistics of Sale and Rent Source report rows
  * @query   agent_id, start_date, end_date
- * @access  Private
+ * @access  Private - admin, operations manager, operations, agent manager (read), admin/operations/operations manager (write)
  */
-router.get('/sale-rent-source', ReportsController.getSaleRentSourceReport);
+router.get('/sale-rent-source', canViewSaleRentSource, ReportsController.getSaleRentSourceReport);
 
 /**
  * @route   GET /api/reports/sale-rent-source/export/excel
  * @desc    Export Sale & Rent Source report to Excel
- * @access  Private
+ * @access  Private - admin, operations manager, operations, agent manager (read only)
  */
-router.get('/sale-rent-source/export/excel', ReportsController.exportSaleRentSourceExcel);
+router.get('/sale-rent-source/export/excel', canViewSaleRentSource, ReportsController.exportSaleRentSourceExcel);
 
 /**
  * @route   GET /api/reports/sale-rent-source/export/pdf
  * @desc    Export Sale & Rent Source report to PDF
- * @access  Private
+ * @access  Private - admin, operations manager, operations, agent manager (read only)
  */
-router.get('/sale-rent-source/export/pdf', ReportsController.exportSaleRentSourcePDF);
+router.get('/sale-rent-source/export/pdf', canViewSaleRentSource, ReportsController.exportSaleRentSourcePDF);
 
 /**
  * @route   GET /api/reports/monthly/:id/export/excel

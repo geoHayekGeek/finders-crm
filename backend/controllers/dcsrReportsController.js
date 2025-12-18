@@ -345,9 +345,21 @@ async function exportDCSRReportToPDF(req, res) {
 /**
  * Get all teams breakdown for a date range
  * GET /api/dcsr-reports/teams-breakdown
+ * Team leaders cannot access this - they can only see their own team breakdown
  */
 async function getAllTeamsDCSRBreakdown(req, res) {
   try {
+    const role = req.user?.role;
+    const userId = req.user?.id;
+    
+    // Team leaders cannot see all teams breakdown - they can only see their own team
+    if (role === 'team_leader') {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Team leaders can only view their own team breakdown.'
+      });
+    }
+    
     const { start_date, end_date } = req.query;
     
     // Validation
@@ -453,9 +465,12 @@ async function getAllTeamsDCSRBreakdown(req, res) {
 /**
  * Get detailed properties for a team
  * GET /api/dcsr-reports/team/:teamLeaderId/properties
+ * Team leaders can only access their own team's data
  */
 async function getTeamProperties(req, res) {
   try {
+    const role = req.user?.role;
+    const userId = req.user?.id;
     const { teamLeaderId } = req.params;
     const { start_date, end_date, property_type, status_id, category_id, agent_id } = req.query;
     
@@ -464,6 +479,14 @@ async function getTeamProperties(req, res) {
       return res.status(400).json({
         success: false,
         message: 'Team leader ID is required'
+      });
+    }
+    
+    // Team leaders can only access their own team's data
+    if (role === 'team_leader' && parseInt(teamLeaderId) !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own team\'s data.'
       });
     }
 
@@ -522,11 +545,22 @@ async function getTeamProperties(req, res) {
 /**
  * Get detailed leads for a team
  * GET /api/dcsr-reports/team/:teamLeaderId/leads
+ * Team leaders can only access their own team's data
  */
 async function getTeamLeads(req, res) {
   try {
+    const role = req.user?.role;
+    const userId = req.user?.id;
     const { teamLeaderId } = req.params;
     const { start_date, end_date, status, agent_id } = req.query;
+    
+    // Team leaders can only access their own team's data
+    if (role === 'team_leader' && parseInt(teamLeaderId) !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own team\'s data.'
+      });
+    }
     
     // Validation
     if (!teamLeaderId) {
@@ -589,11 +623,22 @@ async function getTeamLeads(req, res) {
 /**
  * Get detailed viewings for a team
  * GET /api/dcsr-reports/team/:teamLeaderId/viewings
+ * Team leaders can only access their own team's data
  */
 async function getTeamViewings(req, res) {
   try {
+    const role = req.user?.role;
+    const userId = req.user?.id;
     const { teamLeaderId } = req.params;
     const { start_date, end_date, status, agent_id } = req.query;
+    
+    // Team leaders can only access their own team's data
+    if (role === 'team_leader' && parseInt(teamLeaderId) !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own team\'s data.'
+      });
+    }
     
     // Validation
     if (!teamLeaderId) {
@@ -656,9 +701,12 @@ async function getTeamViewings(req, res) {
 /**
  * Get team-level DCSR breakdown
  * GET /api/dcsr-reports/team-breakdown
+ * Team leaders can only access their own team's breakdown
  */
 async function getTeamDCSRBreakdown(req, res) {
   try {
+    const role = req.user?.role;
+    const userId = req.user?.id;
     const { team_leader_id, start_date, end_date } = req.query;
     
     // Validation
@@ -666,6 +714,14 @@ async function getTeamDCSRBreakdown(req, res) {
       return res.status(400).json({
         success: false,
         message: 'Team leader ID is required'
+      });
+    }
+    
+    // Team leaders can only access their own team's breakdown
+    if (role === 'team_leader' && parseInt(team_leader_id) !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. You can only view your own team\'s breakdown.'
       });
     }
 

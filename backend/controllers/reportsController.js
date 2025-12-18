@@ -23,6 +23,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       
       // Only admin, operations manager, and operations can create reports
+      // Accountant and agent_manager can only view reports (no create/edit/delete)
       if (!['admin', 'operations_manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
@@ -121,12 +122,11 @@ class ReportsController {
         // Agents can only see their own reports
         filters.agent_id = userId;
       } else if (role === 'team_leader') {
-        // Team leaders can see reports for agents under them
+        // Team leaders can see reports for agents under them (not their own reports)
         const teamAgents = await User.getTeamLeaderAgents(userId);
         const teamAgentIds = teamAgents.map(agent => agent.id);
         
         if (teamAgentIds.length === 0) {
-          // No agents under this team leader
           return res.json({
             success: true,
             data: [],
@@ -135,7 +135,7 @@ class ReportsController {
           });
         }
         
-        // Filter by team agent IDs
+        // Filter by team agent IDs only (excluding the team leader's own ID)
         filters.agent_ids = teamAgentIds;
       } else if (role === 'agent_manager') {
         // Agent manager can see all reports for agents only
@@ -145,13 +145,7 @@ class ReportsController {
       // Admin, operations_manager, operations: no filtering (see all)
       
       if (req.query.agent_id) {
-        // Additional filter from query (if user has permission)
-        if (role === 'agent' && parseInt(req.query.agent_id) !== userId) {
-          return res.status(403).json({
-            success: false,
-            message: 'You can only view your own reports'
-          });
-        }
+        // Additional filter from query
         filters.agent_id = parseInt(req.query.agent_id);
       }
       
@@ -173,22 +167,6 @@ class ReportsController {
       }
 
       let reports = await Report.getAllReports(filters);
-      
-      // Filter data for team leaders (only show boost and lead sources)
-      if (role === 'team_leader') {
-        reports = reports.map(report => ({
-          id: report.id,
-          agent_id: report.agent_id,
-          agent_name: report.agent_name,
-          agent_code: report.agent_code,
-          start_date: report.start_date,
-          end_date: report.end_date,
-          boosts: report.boosts,
-          lead_sources: report.lead_sources,
-          created_at: report.created_at,
-          updated_at: report.updated_at
-        }));
-      }
       
       console.log('✅ Retrieved reports:', reports.length);
       
@@ -229,11 +207,14 @@ class ReportsController {
       }
       
       // Check permissions
-      if (role === 'agent' && report.agent_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'You can only view your own reports'
-        });
+      if (role === 'agent') {
+        // Agents can only view their own reports
+        if (report.agent_id !== userId) {
+          return res.status(403).json({
+            success: false,
+            message: 'You can only view your own reports'
+          });
+        }
       } else if (role === 'team_leader') {
         // Check if report belongs to an agent under this team leader
         if (report.agent_id !== userId) {
@@ -250,20 +231,7 @@ class ReportsController {
             });
           }
         }
-        
-        // Filter data for team leaders (only show boost and lead sources)
-        report = {
-          id: report.id,
-          agent_id: report.agent_id,
-          agent_name: report.agent_name,
-          agent_code: report.agent_code,
-          start_date: report.start_date,
-          end_date: report.end_date,
-          boosts: report.boosts,
-          lead_sources: report.lead_sources,
-          created_at: report.created_at,
-          updated_at: report.updated_at
-        };
+        // Team leaders see full data for team agent reports (no filtering)
       } else if (role === 'agent_manager') {
         // Agent manager can only see reports for agents
         if (report.agent_role !== 'agent') {
@@ -315,6 +283,8 @@ class ReportsController {
       }
       
       // Check permissions
+      // Only admin, operations manager, and operations can update reports
+      // Accountant and agent_manager can only view reports (no create/edit/delete)
       if (!['admin', 'operations_manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
@@ -486,12 +456,9 @@ class ReportsController {
       }
       
       // Check permissions (same as getReportById)
-      if (role === 'agent' && report.agent_id !== userId) {
-        return res.status(403).json({
-          success: false,
-          message: 'You can only export your own reports'
-        });
-      } else if (role === 'team_leader') {
+      // Note: Agents are blocked from accessing reports entirely (handled by middleware)
+      if (role === 'team_leader') {
+        // Check if report belongs to the team leader themselves OR an agent under this team leader
         if (report.agent_id !== userId) {
           const teamAgentCheck = await pool.query(
             `SELECT 1 FROM team_agents 
@@ -502,11 +469,12 @@ class ReportsController {
           if (teamAgentCheck.rows.length === 0) {
             return res.status(403).json({
               success: false,
-              message: 'You can only export reports for agents under you'
+              message: 'You can only export reports for agents under you or your own reports'
             });
           }
         }
-        // Filter data for team leaders
+        // Filter data for team leaders - hide boosts, lead_sources, and all commission fields
+        // But they can see referral_received_count (the count, not the commission amount)
         report = {
           id: report.id,
           agent_id: report.agent_id,
@@ -514,11 +482,18 @@ class ReportsController {
           agent_code: report.agent_code,
           start_date: report.start_date,
           end_date: report.end_date,
-          boosts: report.boosts,
-          lead_sources: report.lead_sources,
+          listings_count: report.listings_count,
+          viewings_count: report.viewings_count,
+          sales_count: report.sales_count,
+          sales_amount: report.sales_amount,
+          referral_received_count: report.referral_received_count, // Team leaders can see the count
           created_at: report.created_at,
           updated_at: report.updated_at
+          // Excluded: boosts, lead_sources, and all commission fields
         };
+        
+        // Don't parse lead_sources for team leaders since they can't see it
+        report.lead_sources = {};
       } else if (role === 'agent_manager') {
         if (report.agent_role !== 'agent') {
           return res.status(403).json({
@@ -526,15 +501,25 @@ class ReportsController {
             message: 'You can only export reports for agents'
           });
         }
-      }
-
-      // Parse lead_sources if it's a string
-      if (report.lead_sources && typeof report.lead_sources === 'string') {
-        try {
-          report.lead_sources = JSON.parse(report.lead_sources);
-        } catch (e) {
-          console.warn('Failed to parse lead_sources:', e);
-          report.lead_sources = {};
+        
+        // Parse lead_sources if it's a string (agent_manager can see it)
+        if (report.lead_sources && typeof report.lead_sources === 'string') {
+          try {
+            report.lead_sources = JSON.parse(report.lead_sources);
+          } catch (e) {
+            console.warn('Failed to parse lead_sources:', e);
+            report.lead_sources = {};
+          }
+        }
+      } else {
+        // Parse lead_sources if it's a string (for other roles that can see it)
+        if (report.lead_sources && typeof report.lead_sources === 'string') {
+          try {
+            report.lead_sources = JSON.parse(report.lead_sources);
+          } catch (e) {
+            console.warn('Failed to parse lead_sources:', e);
+            report.lead_sources = {};
+          }
         }
       }
 
@@ -573,9 +558,12 @@ class ReportsController {
   static async exportReportToPDF(req, res) {
     try {
       const { id } = req.params;
+      const role = normalizeRole(req.user.role);
+      const userId = req.user.id;
+      
       console.log('📊 Exporting report to PDF:', id);
       
-      const report = await Report.getReportById(parseInt(id));
+      let report = await Report.getReportById(parseInt(id));
       
       if (!report) {
         return res.status(404).json({
@@ -584,13 +572,72 @@ class ReportsController {
         });
       }
 
-      // Parse lead_sources if it's a string
-      if (report.lead_sources && typeof report.lead_sources === 'string') {
-        try {
-          report.lead_sources = JSON.parse(report.lead_sources);
-        } catch (e) {
-          console.warn('Failed to parse lead_sources:', e);
-          report.lead_sources = {};
+      // Check permissions (same as getReportById)
+      // Note: Agents are blocked from accessing reports entirely (handled by middleware)
+      if (role === 'team_leader') {
+        // Check if report belongs to the team leader themselves OR an agent under this team leader
+        if (report.agent_id !== userId) {
+          const teamAgentCheck = await pool.query(
+            `SELECT 1 FROM team_agents 
+             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
+            [userId, report.agent_id]
+          );
+          
+          if (teamAgentCheck.rows.length === 0) {
+            return res.status(403).json({
+              success: false,
+              message: 'You can only export reports for agents under you or your own reports'
+            });
+          }
+        }
+        
+        // Filter data for team leaders - hide boosts, lead_sources, and all commission fields
+        // But they can see referral_received_count (the count, not the commission amount)
+        report = {
+          id: report.id,
+          agent_id: report.agent_id,
+          agent_name: report.agent_name,
+          agent_code: report.agent_code,
+          start_date: report.start_date,
+          end_date: report.end_date,
+          listings_count: report.listings_count,
+          viewings_count: report.viewings_count,
+          sales_count: report.sales_count,
+          sales_amount: report.sales_amount,
+          referral_received_count: report.referral_received_count, // Team leaders can see the count
+          created_at: report.created_at,
+          updated_at: report.updated_at
+          // Excluded: boosts, lead_sources, and all commission fields
+        };
+        
+        // Don't parse lead_sources for team leaders since they can't see it
+        report.lead_sources = {};
+      } else if (role === 'agent_manager') {
+        if (report.agent_role !== 'agent') {
+          return res.status(403).json({
+            success: false,
+            message: 'You can only export reports for agents'
+          });
+        }
+        
+        // Parse lead_sources if it's a string (agent_manager can see it)
+        if (report.lead_sources && typeof report.lead_sources === 'string') {
+          try {
+            report.lead_sources = JSON.parse(report.lead_sources);
+          } catch (e) {
+            console.warn('Failed to parse lead_sources:', e);
+            report.lead_sources = {};
+          }
+        }
+      } else {
+        // Parse lead_sources if it's a string (for other roles that can see it)
+        if (report.lead_sources && typeof report.lead_sources === 'string') {
+          try {
+            report.lead_sources = JSON.parse(report.lead_sources);
+          } catch (e) {
+            console.warn('Failed to parse lead_sources:', e);
+            report.lead_sources = {};
+          }
         }
       }
 
