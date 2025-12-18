@@ -86,7 +86,7 @@ export default function LeadStatusDeleteModal({ isOpen, onClose, onSuccess, stat
                 <p className="text-sm text-yellow-700 mt-1">
                   This action cannot be undone. This will permanently delete the lead status and may affect 
                   leads that are currently assigned to this status. Leads with this status will 
-                  show as "Unknown Status".
+                  show as &quot;Unknown Status&quot;.
                 </p>
               </div>
             </div>

@@ -183,7 +183,7 @@ function ReportsPageContent() {
               <FileText className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">Leads Report</h3>
               <p className="mt-1 text-sm text-gray-500">
-                This feature is coming soon. You'll be able to analyze lead conversion rates and sources.
+                This feature is coming soon. You&apos;ll be able to analyze lead conversion rates and sources.
               </p>
             </div>
           )}
@@ -193,7 +193,7 @@ function ReportsPageContent() {
               <DollarSign className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">Revenue Report</h3>
               <p className="mt-1 text-sm text-gray-500">
-                This feature is coming soon. You'll be able to track revenue trends and sales performance.
+                This feature is coming soon. You&apos;ll be able to track revenue trends and sales performance.
               </p>
             </div>
           )}
@@ -203,7 +203,7 @@ function ReportsPageContent() {
               <TrendingUp className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">Performance Report</h3>
               <p className="mt-1 text-sm text-gray-500">
-                This feature is coming soon. You'll be able to evaluate team and individual performance metrics.
+                This feature is coming soon. You&apos;ll be able to evaluate team and individual performance metrics.
               </p>
             </div>
           )}

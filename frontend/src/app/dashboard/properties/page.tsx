@@ -198,7 +198,7 @@ export default function PropertiesPage() {
       }
       
       // Check URL for agent_id filter (in case it wasn't set in state yet)
-      let effectiveFilters = { ...filters }
+      const effectiveFilters = { ...filters }
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search)
         const agentIdFromUrl = urlParams.get('agent_id')
@@ -314,7 +314,7 @@ export default function PropertiesPage() {
       }
       
       // Check URL for agent_id filter (in case it wasn't set in state yet)
-      let effectiveFilters = { ...filters }
+      const effectiveFilters = { ...filters }
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search)
         const agentIdFromUrl = urlParams.get('agent_id')

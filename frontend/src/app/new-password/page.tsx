@@ -127,7 +127,7 @@ export default function NewPasswordPage() {
               Set New Password
             </h1>
             <p className="text-gray-600">
-              Enter your new password below. Make sure it's secure and memorable.
+              Enter your new password below. Make sure it&apos;s secure and memorable.
             </p>
           </div>
 

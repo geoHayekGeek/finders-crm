@@ -141,7 +141,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // Security: For agents, ALWAYS ensure agent_id is set to their own ID
       // This prevents any manipulation of the form data
-      let finalFormData = { ...formData }
+      const finalFormData = { ...formData }
       if (isAgentRole(user?.role)) {
         finalFormData.agent_id = user?.id
       }
@@ -291,7 +291,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                         {propertyAgentName || `Agent ID: ${propertyAgentId}`}
                       </p>
                       <p className="text-xs text-blue-700 mt-1">
-                        The viewing will be automatically assigned to the property's agent.
+                        The viewing will be automatically assigned to the property&apos;s agent.
                       </p>
                     </div>
                   )
@@ -650,7 +650,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // Security: For agents, ALWAYS ensure agent_id cannot be changed
       // Remove agent_id from the update if agent tries to change it
-      let finalFormData = { ...formData }
+      const finalFormData = { ...formData }
       if (isAgentRole(user?.role)) {
         // Agents cannot change agent_id - remove it from the update
         delete finalFormData.agent_id
@@ -715,7 +715,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               </p>
               <p className="font-medium text-gray-900">{props.editingViewing.agent_name || `Agent ID: ${props.editingViewing.agent_id}`}</p>
               <p className="text-xs text-gray-500 mt-1">
-                Assigned based on the property's agent.
+                Assigned based on the property&apos;s agent.
               </p>
             </div>
             

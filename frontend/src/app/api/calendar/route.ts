@@ -52,7 +52,7 @@ const mockEvents = [
   }
 ]
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     // Try to connect to backend first
     const backendUrl = process.env.BACKEND_URL || 'http://localhost:10000'

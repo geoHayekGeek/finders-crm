@@ -88,7 +88,7 @@ export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }
                 <p className="text-sm text-yellow-700 mt-1">
                   This action cannot be undone. This will permanently delete the status and may affect 
                   properties that are currently assigned to this status. Properties with this status will 
-                  show as "Uncategorized Status".
+                  show as &quot;Uncategorized Status&quot;.
                 </p>
               </div>
             </div>

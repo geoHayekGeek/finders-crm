@@ -164,7 +164,7 @@ export default function ResetPasswordPage() {
               Enter Verification Code
             </h1>
             <p className="text-gray-600">
-              We've sent a 6-digit code to{' '}
+              We&apos;ve sent a 6-digit code to{' '}
               <span className="font-semibold text-gray-900">{email}</span>
             </p>
           </div>

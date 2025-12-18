@@ -245,7 +245,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
               </div>
               <div className="ml-3">
                 <p className="text-sm text-blue-700">
-                  All values are editable. Click "Recalculate" to refresh automatic calculations from the database.
+                  All values are editable. Click &quot;Recalculate&quot; to refresh automatic calculations from the database.
                 </p>
               </div>
             </div>

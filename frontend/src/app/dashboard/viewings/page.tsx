@@ -94,7 +94,7 @@ export default function ViewingsPage() {
         value !== undefined && value !== null && value !== '' && value !== 'All' && value !== 0
       )
       
-      let scopedFilters = { ...filters }
+      const scopedFilters = { ...filters }
 
       if (!canManageViewings && isAgentRole(user.role)) {
         scopedFilters.agent_id = user.id

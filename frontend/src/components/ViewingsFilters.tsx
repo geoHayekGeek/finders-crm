@@ -86,7 +86,7 @@ export function ViewingsFilters({
   }, [token, user?.id, user?.name, user?.email, user?.role])
 
   const handleFilterChange = (key: keyof ViewingFilters, value: string | number | undefined) => {
-    let newValue = value === '' ? undefined : value
+    const newValue = value === '' ? undefined : value
     
     setFilters({
       ...filters,

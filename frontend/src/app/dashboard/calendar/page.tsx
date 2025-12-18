@@ -60,6 +60,35 @@ export interface EventPermissions {
   reason: string
 }
 
+interface BackendEvent {
+  id: number | string
+  title: string
+  description?: string
+  start: string | Date
+  end: string | Date
+  allDay: boolean
+  color?: string
+  type?: string
+  location?: string
+  attendees?: (string | number)[]
+  notes?: string
+  propertyId?: number | null
+  propertyReference?: string
+  propertyLocation?: string
+  leadId?: number | null
+  leadName?: string
+  leadPhone?: string
+  createdBy?: number | string
+  createdByName?: string
+}
+
+interface BackendUser {
+  id: number | string
+  name: string
+  email?: string
+  role?: string
+}
+
 export default function CalendarPage() {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
@@ -67,14 +96,12 @@ export default function CalendarPage() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [view, setView] = useState<'month' | 'week' | 'day'>('month')
   const [isLoading, setIsLoading] = useState(true)
-  const [showSidebar, setShowSidebar] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [eventPermissions, setEventPermissions] = useState<Record<string, EventPermissions>>({})
   const [adminFilters, setAdminFilters] = useState<CalendarFilters>({})
-  const [users, setUsers] = useState<any[]>([])
-  const [attendees, setAttendees] = useState<string[]>([])
+  const [users, setUsers] = useState<BackendUser[]>([])
   const loadingRef = useRef(false)
-  const { showSuccess, showError, showWarning, showInfo } = useToast()
+  const { showSuccess, showError, showWarning } = useToast()
   const { user } = useAuth()
 
   // Check permissions for an event
@@ -160,18 +187,18 @@ export default function CalendarPage() {
         if (data.success && data.events) {
           // Convert the events to the expected format
           // Backend handles all permission filtering, so we just display what's returned
-          const formattedEvents: CalendarEvent[] = data.events.map((event: any) => ({
+          const formattedEvents: CalendarEvent[] = data.events.map((event: BackendEvent) => ({
             id: String(event.id),
             title: event.title,
             description: event.description,
             start: new Date(event.start),
             end: new Date(event.end),
             allDay: event.allDay,
-            color: event.color || 'blue',
-            type: event.type || 'other',
+            color: (event.color || 'blue') as CalendarEvent['color'],
+            type: (event.type || 'other') as CalendarEvent['type'],
             location: event.location,
             attendees: Array.isArray(event.attendees)
-              ? event.attendees.map((att: any) => String(att))
+              ? event.attendees.map((att: string | number) => String(att))
               : [],
             notes: event.notes,
             propertyId: event.propertyId,
@@ -208,6 +235,7 @@ export default function CalendarPage() {
   useEffect(() => {
     if (!user) return
     loadEvents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.role])
 
   // Load users for admin filters
@@ -235,6 +263,7 @@ export default function CalendarPage() {
 
       return () => clearTimeout(timeoutId)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminFilters, user?.role])
 
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
@@ -479,38 +508,6 @@ export default function CalendarPage() {
     }
   }
 
-  // Load attendees from existing events
-  const loadAttendees = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/calendar', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const allAttendees = new Set<string>()
-        
-        data.events?.forEach((event: any) => {
-          if (event.attendees && Array.isArray(event.attendees)) {
-            event.attendees.forEach((attendee: string) => {
-              if (attendee && typeof attendee === 'string') {
-                allAttendees.add(attendee)
-              }
-            })
-          }
-        })
-        
-        setAttendees(Array.from(allAttendees).sort())
-      }
-    } catch (error) {
-      console.error('Error loading attendees:', error)
-    }
-  }
-
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -710,7 +707,7 @@ export default function CalendarPage() {
                   <div className="flex flex-wrap gap-2">
                     {adminFilters.search && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        Search: "{adminFilters.search}"
+                        Search: &quot;{adminFilters.search}&quot;
                       </span>
                     )}
                     {adminFilters.createdBy && (

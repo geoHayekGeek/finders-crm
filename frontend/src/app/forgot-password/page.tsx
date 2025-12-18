@@ -127,11 +127,11 @@ export default function ForgotPasswordPage() {
                 Check Your Email
               </h1>
               <p className="text-gray-600 mb-6">
-                We've sent a 6-digit verification code to{' '}
+                We&apos;ve sent a 6-digit verification code to{' '}
                 <span className="font-semibold text-gray-900">{email}</span>
               </p>
               <p className="text-sm text-gray-500 mb-8">
-                The code will expire in 10 minutes. If you don't see the email, check your spam folder.
+                The code will expire in 10 minutes. If you don&apos;t see the email, check your spam folder.
               </p>
               <Link
                 href={`/reset-password?email=${encodeURIComponent(email)}`}
@@ -171,7 +171,7 @@ export default function ForgotPasswordPage() {
               Forgot Password?
             </h1>
             <p className="text-gray-600">
-              Enter your email address and we'll send you a verification code to reset your password.
+              Enter your email address and we&apos;ll send you a verification code to reset your password.
             </p>
           </div>
 

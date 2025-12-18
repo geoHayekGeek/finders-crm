@@ -301,7 +301,7 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
               <div className="flex flex-wrap gap-2">
                 {filters.search && (
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Search: "{filters.search}"
+                    Search: &quot;{filters.search}&quot;
                   </span>
                 )}
                 {filters.createdBy && (

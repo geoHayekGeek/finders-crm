@@ -147,7 +147,7 @@ useEffect(() => {
       }
       
       // Check URL for agent_id filter (in case it wasn't set in state yet)
-      let effectiveFilters = { ...filters }
+      const effectiveFilters = { ...filters }
       if (typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search)
         const agentIdFromUrl = urlParams.get('agent_id')
@@ -205,7 +205,7 @@ useEffect(() => {
         // Handle validation errors gracefully
         if (response.errors && Array.isArray(response.errors)) {
           // Show validation errors as toast messages instead of crashing
-          response.errors.forEach((error: any) => {
+          response.errors.forEach((error: { message?: string; field?: string }) => {
             console.warn('Validation error:', error.message)
             // You could show a toast notification here
             // toast.error(`${error.field}: ${error.message}`)
@@ -746,7 +746,7 @@ useEffect(() => {
           
           // Set validation errors for each field
           const newValidationErrors: Record<string, string> = {}
-          error.errors.forEach((validationError: any) => {
+          error.errors.forEach((validationError: { field: string; message: string }) => {
             // If there are multiple errors for the same field, combine them
             if (newValidationErrors[validationError.field]) {
               newValidationErrors[validationError.field] += `; ${validationError.message}`
@@ -892,8 +892,8 @@ useEffect(() => {
     // Create CSV content
     const csvContent = [
       headers.join(','),
-      ...csvData.map((row: any[]) => 
-        row.map((cell: any) => 
+      ...csvData.map((row: (string | number | null)[]) => 
+        row.map((cell: string | number | null) => 
           typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
             ? `"${cell.replace(/"/g, '""')}"` 
             : cell
@@ -953,8 +953,8 @@ useEffect(() => {
     // Create CSV content (Excel-compatible)
     const csvContent = [
       headers.join(','),
-      ...csvData.map((row: any[]) => 
-        row.map((cell: any) => 
+      ...csvData.map((row: (string | number | null)[]) => 
+        row.map((cell: string | number | null) => 
           typeof cell === 'string' && (cell.includes(',') || cell.includes('"')) 
             ? `"${cell.replace(/"/g, '""')}"` 
             : cell

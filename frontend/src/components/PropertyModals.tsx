@@ -2132,7 +2132,7 @@ export function PropertyModals({
                       type="url"
                       value={addFormData.property_url}
                       onChange={(e) => {
-                        let newValue = e.target.value
+                        const newValue = e.target.value
                         setAddFormData(prev => ({ ...prev, property_url: newValue }))
                       }}
                       onBlur={(e) => {
@@ -3984,7 +3984,7 @@ export function PropertyModals({
                   </div>
                   <h4 className="text-lg font-medium text-gray-900 mb-2">Are you sure?</h4>
                   <p className="text-sm text-gray-600 mb-4">
-                    You are about to delete <span className="font-semibold text-gray-900">"{deletingProperty.reference_number}"</span>.
+                    You are about to delete <span className="font-semibold text-gray-900">&quot;{deletingProperty.reference_number}&quot;</span>.
                   </p>
                   <p className="text-sm text-gray-500">
                     This will permanently remove the property and all associated data.
@@ -3993,7 +3993,7 @@ export function PropertyModals({
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Type <span className="font-semibold text-gray-900">"{deletingProperty.reference_number}"</span> to confirm
+                    Type <span className="font-semibold text-gray-900">&quot;{deletingProperty.reference_number}&quot;</span> to confirm
                   </label>
                   <input
                     type="text"
@@ -4044,7 +4044,7 @@ export function PropertyModals({
             
             // Security: For agents, ALWAYS ensure agent_id is set to their own ID
             // This prevents any manipulation of the viewing data
-            let secureViewingData = { ...viewingData }
+            const secureViewingData = { ...viewingData }
             if (isAgentRole(user?.role) && user?.id) {
               secureViewingData.agent_id = user.id
             }

@@ -108,7 +108,7 @@ export function DeleteUserModal({ user, onClose, onSuccess }: DeleteUserModalPro
                 This will also:
               </h4>
               <ul className="text-sm text-yellow-800 space-y-1 list-disc list-inside">
-                <li>Remove the user's access to the system</li>
+                <li>Remove the user&apos;s access to the system</li>
                 <li>Delete all associated documents</li>
                 <li>Remove user assignments (if applicable)</li>
                 <li>Clear all user activity logs</li>

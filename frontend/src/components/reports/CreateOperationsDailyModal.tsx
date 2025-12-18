@@ -178,7 +178,7 @@ export default function CreateOperationsDailyModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  This will be subtracted from the "Leads Responded To" count
+                  This will be subtracted from the &quot;Leads Responded To&quot; count
                 </p>
               </div>
             </div>

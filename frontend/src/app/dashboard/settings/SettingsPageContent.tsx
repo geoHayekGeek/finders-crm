@@ -833,7 +833,7 @@ export default function SettingsPageContent() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     placeholder="4"
                   />
-                  <p className="text-xs text-gray-500">Total operations department commission. The operations manager's fixed share is deducted first, then the remainder is shared among all operations employees (including the operations manager).</p>
+                  <p className="text-xs text-gray-500">Total operations department commission. The operations manager&apos;s fixed share is deducted first, then the remainder is shared among all operations employees (including the operations manager).</p>
                 </div>
 
                 <div className="space-y-2">
