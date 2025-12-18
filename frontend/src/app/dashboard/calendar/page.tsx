@@ -303,7 +303,7 @@ export default function CalendarPage() {
           setIsEventModalOpen(false)
           showSuccess('Event created successfully!')
         } else {
-          const errorMessage = data.message || 'Failed to create event'
+          const errorMessage = (data as { message?: string }).message || 'Failed to create event'
           setError(errorMessage)
           showError(errorMessage)
         }
@@ -364,7 +364,7 @@ export default function CalendarPage() {
           setSelectedEvent(null)
           showSuccess('Event updated successfully!')
         } else {
-          const errorMessage = data.message || 'Failed to update event'
+          const errorMessage = (data as { message?: string }).message || 'Failed to update event'
           setError(errorMessage)
           showError(errorMessage)
         }
@@ -399,7 +399,7 @@ export default function CalendarPage() {
           setSelectedEvent(null)
           showSuccess('Event deleted successfully!')
         } else {
-          const errorMessage = data.message || 'Failed to delete event'
+          const errorMessage = (data as { message?: string }).message || 'Failed to delete event'
           setError(errorMessage)
           showError(errorMessage)
         }
@@ -629,7 +629,7 @@ export default function CalendarPage() {
                     <option value="">All Users</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.name} ({formatRole(user.role)})
+                        {user.name} ({formatRole(user.role || '')})
                       </option>
                     ))}
                   </select>
@@ -648,7 +648,7 @@ export default function CalendarPage() {
                     <option value="">All Attendees</option>
                     {users.map(user => (
                       <option key={user.id} value={user.id}>
-                        {user.name} ({formatRole(user.role)})
+                        {user.name} ({formatRole(user.role || '')})
                       </option>
                     ))}
                   </select>
@@ -714,7 +714,7 @@ export default function CalendarPage() {
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         Created by: {(() => {
                           const user = users.find(u => u.id.toString() === adminFilters.createdBy)
-                          return user ? `${user.name} (${formatRole(user.role)})` : adminFilters.createdBy
+                          return user ? `${user.name} (${formatRole(user.role || '')})` : adminFilters.createdBy
                         })()}
                       </span>
                     )}
@@ -722,7 +722,7 @@ export default function CalendarPage() {
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
                         Attendee: {(() => {
                           const u = users.find(u => u.id.toString() === adminFilters.attendee)
-                          return u ? `${u.name} (${formatRole(u.role)})` : adminFilters.attendee
+                          return u ? `${u.name} (${formatRole(u.role || '')})` : adminFilters.attendee
                         })()}
                       </span>
                     )}

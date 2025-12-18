@@ -25,6 +25,7 @@ type NewPasswordForm = z.infer<typeof newPasswordSchema>;
 export default function NewPasswordPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  if (!searchParams) return null;
   const email = searchParams.get('email');
   const code = searchParams.get('code');
   

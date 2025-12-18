@@ -455,7 +455,7 @@ export default function HRPage() {
           const newUrl = window.location.pathname
           window.history.replaceState({}, '', newUrl)
         } else {
-          console.error('❌ Failed to fetch user:', response.message)
+          console.error('❌ Failed to fetch user:', (response as { message?: string }).message || 'Unknown error')
         }
       } catch (error) {
         console.error('❌ Error fetching user:', error)
