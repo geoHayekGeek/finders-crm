@@ -9,8 +9,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { User } from '@/types/user'
-import { Status } from '@/types/status'
-import { Category } from '@/types/category'
+import { Status, Category } from '@/types/property'
 
 interface ViewDCSRModalProps {
   report: DCSRMonthlyReport
@@ -426,7 +425,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
                   </label>
                   {isTeamLeader ? (
                     <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700">
-                      {user?.name} {user?.user_code ? `(${user.user_code})` : ''}
+                      {user?.name} {(user as any)?.user_code ? `(${(user as any).user_code})` : ''}
                     </div>
                   ) : (
                     <select

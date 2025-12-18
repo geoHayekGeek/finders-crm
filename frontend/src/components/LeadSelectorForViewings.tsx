@@ -6,13 +6,7 @@ import { X, ChevronDown, UserCircle2, RefreshCw, Phone } from 'lucide-react'
 import { leadsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
-
-interface Lead {
-  id: number
-  customer_name: string
-  phone_number?: string
-  status: string
-}
+import { Lead } from '@/types/leads'
 
 interface LeadSelectorProps {
   selectedLeadId?: number

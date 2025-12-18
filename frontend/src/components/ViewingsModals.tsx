@@ -113,7 +113,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           // Property has an assigned agent
           if (propertyAgentId === user?.id) {
             // Property belongs to team leader - assign to themselves
-            if (formData.agent_id !== user.id) {
+            if (user && formData.agent_id !== user.id) {
               setFormData(prev => ({ ...prev, agent_id: user.id }))
             }
           } else {
@@ -581,7 +581,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setFormData({
           property_id: props.editingViewing.property_id,
           lead_id: props.editingViewing.lead_id,
-          agent_id: agentIdForForm,
+          agent_id: agentIdForForm || 0,
           viewing_date: props.editingViewing.viewing_date ? formatDateForInput(props.editingViewing.viewing_date) : '',
           viewing_time: formatTimeForInput(props.editingViewing.viewing_time),
           status: props.editingViewing.status,
@@ -650,7 +650,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // Security: For agents, ALWAYS ensure agent_id cannot be changed
       // Remove agent_id from the update if agent tries to change it
-      const finalFormData = { ...formData }
+      const finalFormData: Partial<typeof formData> = { ...formData }
       if (isAgentRole(user?.role)) {
         // Agents cannot change agent_id - remove it from the update
         delete finalFormData.agent_id

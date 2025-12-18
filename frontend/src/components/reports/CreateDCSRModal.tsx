@@ -8,8 +8,7 @@ import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
-import { Status } from '@/types/status'
-import { Category } from '@/types/category'
+import { Status, Category } from '@/types/property'
 
 interface CreateDCSRModalProps {
   onClose: () => void

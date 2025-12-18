@@ -19,7 +19,9 @@ export const getViewingsColumns = (
         return (
           <div className="flex items-center gap-2">
             {isSubViewing && (
-              <ArrowRight className="h-4 w-4 text-gray-400" title="Follow-up viewing" />
+              <span title="Follow-up viewing">
+                <ArrowRight className="h-4 w-4 text-gray-400" />
+              </span>
             )}
             <span className="font-medium">
               {date.toLocaleDateString('en-US', { 

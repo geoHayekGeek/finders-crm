@@ -38,14 +38,23 @@ export default function CreateOperationsDailyModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.operations_id) {
+    const operationsId = formData.operations_id
+    if (!operationsId) {
       showError('Please select an operations user')
       return
     }
 
     try {
       setLoading(true)
-      const response = await operationsDailyApi.create(formData, token)
+      const response = await operationsDailyApi.create({
+        operations_id: operationsId,
+        report_date: formData.report_date,
+        preparing_contract: formData.preparing_contract,
+        tasks_efficiency_duty_time: formData.tasks_efficiency_duty_time,
+        tasks_efficiency_uniform: formData.tasks_efficiency_uniform,
+        tasks_efficiency_after_duty: formData.tasks_efficiency_after_duty,
+        leads_responded_out_of_duty_time: formData.leads_responded_out_of_duty_time
+      }, token)
       
       if (response.success) {
         showSuccess('Operations daily report created successfully')

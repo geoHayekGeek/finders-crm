@@ -1,19 +1,26 @@
 import { Property } from '@/types/property'
-import { User } from '@/types/user'
 import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
+
+/**
+ * Minimal user type that only includes the fields needed for permission checks
+ */
+type UserForPermissions = {
+  id: number
+  role: string
+}
 
 /**
  * Check if a user can view viewings for a specific property
  * 
  * @param property - The property to check permissions for
- * @param user - The current user
+ * @param user - The current user (only needs id and role)
  * @param canManageProperties - Whether the user can manage properties (admin, operations, etc.)
  * @param teamAgentIds - Array of agent IDs that belong to the team leader's team (including team leader's own ID)
  * @returns true if the user can view viewings for this property, false otherwise
  */
 export function canViewViewingsForProperty(
   property: Property | null,
-  user: User | null,
+  user: UserForPermissions | null,
   canManageProperties: boolean,
   teamAgentIds: number[] = []
 ): boolean {

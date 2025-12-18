@@ -46,7 +46,7 @@ export default function ReportsFilters({
           const teamAgents = response.agents || []
           // Add team leader to the list if not already included
           const allAgents = [
-            { id: user.id, name: user.name, user_code: user.user_code, role: 'team_leader' } as User,
+            { id: user.id, name: user.name, user_code: (user as any).user_code || '', role: 'team_leader' } as User,
             ...teamAgents
           ]
           // Remove duplicates based on ID

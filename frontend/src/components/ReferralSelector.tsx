@@ -2,21 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import { Plus, X, Calendar, User, Users } from 'lucide-react'
+import { Referral } from '@/types/property'
 
 interface Employee {
   id: number
   name: string
   email: string
   role: string
-}
-
-interface Referral {
-  id?: number
-  name: string
-  type: 'employee' | 'custom'
-  employee_id?: number
-  date: string
-  external?: boolean
 }
 
 interface ReferralSelectorProps {

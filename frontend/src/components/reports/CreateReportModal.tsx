@@ -75,6 +75,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
   }, [formData.agent_id, formData.start_date, formData.end_date, token])
 
   const loadAgents = async () => {
+    if (!token) return
     try {
       const response = await usersApi.getAll(token)
       if (response.success) {
@@ -89,6 +90,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
   }
 
   const loadLeadSources = async () => {
+    if (!token) return
     try {
       const response = await reportsApi.getLeadSources(token)
       if (response.success) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -22,11 +22,11 @@ const newPasswordSchema = z.object({
 
 type NewPasswordForm = z.infer<typeof newPasswordSchema>;
 
-export default function NewPasswordPage() {
+function NewPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const email = searchParams?.get('email') || null;
-  const code = searchParams?.get('code') || null;
+  const email = searchParams ? searchParams.get('email') : null;
+  const code = searchParams ? searchParams.get('code') : null;
   
   const [isLoading, setIsLoading] = useState(false);
   const [isPasswordReset, setIsPasswordReset] = useState(false);
@@ -269,5 +269,13 @@ export default function NewPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function NewPasswordPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <NewPasswordContent />
+    </Suspense>
   );
 }

@@ -33,7 +33,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const canAccessHR = !!role // All authenticated users can access HR page
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   // Accountant and HR (if it exists as a role) should not have access to properties
-  const canViewProperties = (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent') && role !== 'accountant' && role !== 'hr'
+  const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
   // Agent Manager can view leads but cannot manage (add/edit) them
   const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations'
   // HR and Accountant do not have access to leads

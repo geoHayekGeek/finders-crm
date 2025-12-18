@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,10 +17,10 @@ const resetCodeSchema = z.object({
 
 type ResetCodeForm = z.infer<typeof resetCodeSchema>;
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const email = searchParams.get('email');
+  const email = searchParams?.get('email') || null;
   
   const [isLoading, setIsLoading] = useState(false);
   const [isCodeVerified, setIsCodeVerified] = useState(false);
@@ -275,5 +277,13 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ResetPasswordContent />
+    </Suspense>
   );
 }
