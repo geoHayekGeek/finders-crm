@@ -19,35 +19,14 @@ app.use(securityHeaders);
 // Apply error logging middleware
 app.use(errorLoggingMiddleware);
 
-// CORS configuration - allow frontend origin from environment or all origins in development
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,
-      'http://localhost:3000',
-      'http://localhost:3001',
-      // Add Railway frontend URL if different from FRONTEND_URL
-      'https://vibrant-energy-production-5483.up.railway.app'
-    ].filter(Boolean); // Remove undefined values
-    
-    // Allow all origins if FRONTEND_URL is not set (development)
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+// CORS configuration - allow all origins (you can restrict this later for security)
+app.use(cors({
+  origin: true, // Allow all origins - change to specific origins in production
   credentials: true,
   exposedHeaders: ['X-CSRF-Token'], // Expose CSRF token header to frontend
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
-};
-
-app.use(cors(corsOptions));
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
