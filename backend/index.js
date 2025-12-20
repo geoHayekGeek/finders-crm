@@ -12,6 +12,13 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const HOST = process.env.HOST || '0.0.0.0';
 
+// Log port configuration for debugging
+console.log('🔧 Server Configuration:');
+console.log(`  - PORT from env: ${process.env.PORT || 'NOT SET (using default 10000)'}`);
+console.log(`  - Final PORT: ${PORT}`);
+console.log(`  - HOST: ${HOST}`);
+console.log(`  - NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+
 app.set('trust proxy', 1);
 
 // CORS MUST be first - before any other middleware that might interfere
@@ -105,8 +112,11 @@ app.use('*', (req, res) => {
 
 // Listen on all interfaces (0.0.0.0) for Railway deployment
 app.listen(PORT, HOST, () => {
-  console.log(`Server is running on ${HOST}:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('✅ Server started successfully!');
+  console.log(`🌐 Server is running on ${HOST}:${PORT}`);
+  console.log(`📡 Accessible at: http://${HOST}:${PORT}`);
+  console.log(`🔗 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🗄️  Database: ${process.env.DATABASE_URL ? 'Connected (DATABASE_URL set)' : 'Using individual DB config'}`);
   
   // Start the reminder scheduler
   try {
@@ -115,4 +125,18 @@ app.listen(PORT, HOST, () => {
   } catch (error) {
     console.error('❌ Failed to start reminder scheduler:', error);
   }
+});
+
+// Handle server errors
+app.on('error', (error) => {
+  console.error('❌ Server error:', error);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
 });
