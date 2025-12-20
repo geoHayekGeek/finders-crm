@@ -152,9 +152,11 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault()
+      e.stopPropagation()
       
       // Prevent double submission using ref for immediate check
       if (isSubmittingRef.current || saving) {
+        console.log('🚫 Double submission prevented', { isSubmitting: isSubmittingRef.current, saving })
         return
       }
       
@@ -206,13 +208,18 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       if (Object.keys(newErrors).length > 0) {
         setErrors(newErrors)
+        isSubmittingRef.current = false
         return
       }
       
+      console.log('📝 Starting viewing creation...', finalFormData)
+      
       setSaving(true)
       try {
+        console.log('📤 Creating viewing with data:', finalFormData)
         // Create the main viewing
         const result = await props.onSaveAdd(finalFormData)
+        console.log('✅ Viewing creation result:', result)
         
         // If sub-viewing is included, create it with parent_viewing_id
         if (includeSubViewing && subViewingData.viewing_date && subViewingData.viewing_time) {
@@ -570,10 +577,10 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               </button>
               <button
                 type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
+                disabled={saving || isSubmittingRef.current}
+                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {saving ? 'Creating...' : 'Create Viewing'}
+                {saving || isSubmittingRef.current ? 'Creating...' : 'Create Viewing'}
               </button>
             </div>
           </form>
