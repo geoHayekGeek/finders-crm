@@ -146,6 +146,29 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         finalFormData.agent_id = user?.id
       }
       
+      // If agent_id is not set but property is selected, try to get it from the property
+      if (!finalFormData.agent_id && finalFormData.property_id) {
+        const selectedProperty = properties.find(p => p.id === finalFormData.property_id)
+        if (selectedProperty?.agent_id) {
+          if (isAgentRole(user?.role)) {
+            // Agents can only be assigned to themselves
+            finalFormData.agent_id = user?.id
+          } else if (isTeamLeaderRole(user?.role)) {
+            // Team leaders can be assigned to themselves or their team's agents
+            const propertyAgentId = selectedProperty.agent_id
+            if (propertyAgentId === user?.id) {
+              finalFormData.agent_id = user.id
+            } else {
+              // Check if the agent is under this team leader (backend will validate)
+              finalFormData.agent_id = propertyAgentId
+            }
+          } else {
+            // Other roles: use the property's agent
+            finalFormData.agent_id = selectedProperty.agent_id
+          }
+        }
+      }
+      
       // Validation
       const newErrors: Record<string, string> = {}
       if (!finalFormData.property_id) newErrors.property_id = 'Property is required'
@@ -242,14 +265,22 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               onSelect={(id, agentId) => {
                 const updates: Partial<CreateViewingFormData> = { property_id: id }
                 
-                // For team leaders: automatically set agent_id to the property's assigned agent
-                if (isTeamLeaderRole(user?.role) && agentId) {
-                  // Check if the agent is under this team leader or is the team leader themselves
-                  if (agentId === user?.id) {
-                    // Property belongs to team leader - assign to themselves
-                    updates.agent_id = user.id
+                // When a property with an assigned agent is selected, set agent_id
+                // For team leaders: check if the agent is under this team leader or is the team leader themselves
+                if (agentId) {
+                  if (isTeamLeaderRole(user?.role)) {
+                    if (agentId === user?.id) {
+                      // Property belongs to team leader - assign to themselves
+                      updates.agent_id = user.id
+                    } else {
+                      // Property belongs to an agent under the team leader - assign to that agent
+                      updates.agent_id = agentId
+                    }
+                  } else if (isAgentRole(user?.role)) {
+                    // For agents: always use their own ID (security)
+                    updates.agent_id = user?.id
                   } else {
-                    // Property belongs to an agent under the team leader - assign to that agent
+                    // For other roles (admin, operations, etc.): use the property's agent
                     updates.agent_id = agentId
                   }
                 }
