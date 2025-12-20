@@ -42,9 +42,13 @@ app.use('/assets', express.static('public/assets'));
 app.use('/images', express.static('public/images'));
 app.use('/uploads', express.static('public/uploads'));
 
-// Health check endpoint for Playwright and monitoring
+// Health check endpoints for Railway and monitoring
 app.get('/', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'Server is running' });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', message: 'Server is healthy' });
 });
 
 app.use('/api', indexRoutes);
@@ -58,8 +62,12 @@ app.use('*', (req, res) => {
   res.status(404).json({ message: 'Route not found' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Listen on all interfaces (0.0.0.0) for Railway deployment
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server is running on ${HOST}:${PORT}`);
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   
   // Start the reminder scheduler
   try {
