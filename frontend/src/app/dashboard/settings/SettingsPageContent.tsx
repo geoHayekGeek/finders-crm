@@ -142,7 +142,7 @@ export default function SettingsPageContent() {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/api/settings`, {
+      const response = await fetch(`${API_BASE_URL}/settings`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -261,7 +261,7 @@ export default function SettingsPageContent() {
       ]
       
       // Update settings via API
-      const response = await fetch(`${API_BASE_URL}/api/settings/bulk/update`, {
+      const response = await fetch(`${API_BASE_URL}/settings/bulk/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -327,7 +327,7 @@ export default function SettingsPageContent() {
     const formData = new FormData()
     formData.append('logo', file)
     
-    const response = await fetch(`${API_BASE_URL}/api/settings/logo/upload`, {
+    const response = await fetch(`${API_BASE_URL}/settings/logo/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -359,7 +359,7 @@ export default function SettingsPageContent() {
     const formData = new FormData()
     formData.append('favicon', file)
     
-    const response = await fetch(`${API_BASE_URL}/api/settings/favicon/upload`, {
+    const response = await fetch(`${API_BASE_URL}/settings/favicon/upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -428,7 +428,7 @@ export default function SettingsPageContent() {
 
   const handleDeleteLogo = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/settings/logo`, {
+      const response = await fetch(`${API_BASE_URL}/settings/logo`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -451,7 +451,7 @@ export default function SettingsPageContent() {
 
   const handleDeleteFavicon = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/settings/favicon`, {
+      const response = await fetch(`${API_BASE_URL}/settings/favicon`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -481,7 +481,7 @@ export default function SettingsPageContent() {
     try {
       setTestingEmail(true)
       
-      const response = await fetch(`${API_BASE_URL}/api/settings/email/test`, {
+      const response = await fetch(`${API_BASE_URL}/settings/email/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

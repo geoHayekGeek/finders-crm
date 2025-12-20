@@ -70,7 +70,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/api/settings`, {
+      const response = await fetch(`${API_BASE_URL}/settings`, {
         headers: token ? {
           'Authorization': `Bearer ${token}`
         } : {}
