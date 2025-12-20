@@ -19,7 +19,7 @@ export function PendingReferralsBadge() {
     const fetchPendingCount = async () => {
       try {
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/properties/referrals/pending/count`,
+          `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/pending/count`,
           {
             method: 'GET',
             headers: {
@@ -70,7 +70,7 @@ export function PendingReferralsBadge() {
           const fetchPendingCount = async () => {
             try {
               const response = await fetch(
-                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/properties/referrals/pending/count`,
+                `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/pending/count`,
                 {
                   method: 'GET',
                   headers: {

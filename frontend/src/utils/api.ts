@@ -4,7 +4,16 @@ import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, 
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
+
+// Warn if using default localhost URL in production (check if we're using the default and not on localhost)
+if (typeof window !== 'undefined' && BACKEND_URL === 'http://localhost:10000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+  console.error('❌ NEXT_PUBLIC_BACKEND_URL is not set! Using default localhost URL. This will not work in production!')
+  console.error('❌ Please set NEXT_PUBLIC_BACKEND_URL environment variable before building/deploying.')
+  console.error('❌ Current API URL being used:', API_BASE_URL)
+  console.error('❌ Production hostname:', window.location.hostname)
+}
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public errors?: any[]) {

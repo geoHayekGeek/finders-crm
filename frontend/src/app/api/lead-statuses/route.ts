@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const token = request.headers.get('Authorization');
-  const backendUrl = `${process.env.NEXT_PUBLIC_API_URL}/lead-statuses`;
+  const backendUrl = `${process.env.BACKEND_URL || 'http://localhost:10000'}/api/lead-statuses`;
 
   try {
     const response = await fetch(backendUrl, {

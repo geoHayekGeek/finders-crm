@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Flag, RefreshCw } from 'lucide-react'
 import { Status } from '@/types/property'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 
 interface PropertyStatusSelectorProps {
   selectedStatusId?: number

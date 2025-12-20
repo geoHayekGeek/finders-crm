@@ -50,7 +50,8 @@ interface Toast {
   message: string
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 const DEFAULT_PRIMARY_COLOR = '#3B82F6'
 
 // Commission state

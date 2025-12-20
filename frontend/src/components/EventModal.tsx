@@ -8,7 +8,8 @@ import { UserSelector } from './UserSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 
 interface EventUser {
   id: number

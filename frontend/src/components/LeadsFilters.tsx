@@ -6,7 +6,8 @@ import { Search, Filter, X, ChevronDown, Calendar, Users, Tag } from 'lucide-rea
 import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
 import { usersApi } from '@/utils/api'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 
 interface User {
   id: number

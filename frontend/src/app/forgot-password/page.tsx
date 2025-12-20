@@ -8,7 +8,8 @@ import { ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { apiClient } from '@/utils/api';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000';
+const API_BASE_URL = `${BACKEND_URL}/api`;
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),

@@ -25,7 +25,8 @@ import { CreateViewingFormData, Viewing } from '@/types/viewing'
 import { viewingsApi } from '@/utils/api'
 import { canViewViewingsForProperty as canViewViewingsForPropertyUtil } from '@/utils/propertyViewingsPermissions'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 
 // Reusable Input Field Component with Validation
 const InputField = ({ 

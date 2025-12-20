@@ -1,9 +1,10 @@
 // File-based image upload utilities
 // This replaces the Base64 approach with proper file uploads
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 // Backend base URL (without /api) for serving static files like images
-const BACKEND_BASE_URL = API_BASE_URL.replace('/api', '')
+const BACKEND_BASE_URL = BACKEND_URL
 
 /**
  * Upload main property image using FormData

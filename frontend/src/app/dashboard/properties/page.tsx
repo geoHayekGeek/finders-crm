@@ -29,7 +29,8 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
 import { getDefaultPage } from '@/utils/getDefaultPage'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()

@@ -69,7 +69,7 @@ export function ReferPropertyModal({
     try {
       setLoading(true)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/properties/${property.id}/refer`,
+        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/${property.id}/refer`,
         {
           method: 'POST',
           headers: {

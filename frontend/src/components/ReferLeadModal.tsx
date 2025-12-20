@@ -69,7 +69,7 @@ export function ReferLeadModal({
     try {
       setLoading(true)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/leads/${lead.id}/refer`,
+        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/leads/${lead.id}/refer`,
         {
           method: 'POST',
           headers: {

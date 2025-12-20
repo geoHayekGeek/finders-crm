@@ -53,7 +53,7 @@ export function PendingReferralsModal({
     try {
       setLoading(true)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/properties/referrals/pending`,
+        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/pending`,
         {
           method: 'GET',
           headers: {
@@ -79,7 +79,7 @@ export function PendingReferralsModal({
     try {
       setProcessing(referralId)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/properties/referrals/${referralId}/confirm`,
+        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/${referralId}/confirm`,
         {
           method: 'PUT',
           headers: {
@@ -112,7 +112,7 @@ export function PendingReferralsModal({
     try {
       setProcessing(referralId)
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/properties/referrals/${referralId}/reject`,
+        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/${referralId}/reject`,
         {
           method: 'PUT',
           headers: {

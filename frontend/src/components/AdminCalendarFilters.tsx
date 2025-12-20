@@ -12,7 +12,8 @@ import {
   TagIcon
 } from '@heroicons/react/24/outline'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+const API_BASE_URL = `${BACKEND_URL}/api`
 
 interface AdminCalendarFiltersProps {
   onFiltersChange: (filters: CalendarFilters) => void

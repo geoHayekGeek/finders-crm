@@ -33,7 +33,7 @@ const NotificationsPage = () => {
       setLoading(true)
       console.log('🔔 Fetching all notifications with token:', token ? 'present' : 'missing')
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/notifications?limit=100`, {
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications?limit=100`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ const NotificationsPage = () => {
     try {
       console.log('🔔 Marking notification as read:', id)
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/notifications/${id}/read`, {
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/${id}/read`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -93,7 +93,7 @@ const NotificationsPage = () => {
     try {
       console.log('🔔 Marking all notifications as read')
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/notifications/mark-all-read`, {
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/mark-all-read`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -119,7 +119,7 @@ const NotificationsPage = () => {
     try {
       console.log('🗑️ Deleting notification:', id)
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/notifications/${id}`, {
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/${id}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',

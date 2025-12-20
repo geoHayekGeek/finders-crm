@@ -72,7 +72,7 @@ const NotificationBell = () => {
       console.log('🔔 Marking notification as read:', id, 'with token:', token ? 'present' : 'missing')
       
       // Use direct API call with explicit token
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/notifications/${id}/read`, {
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/${id}/read`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -106,7 +106,7 @@ const NotificationBell = () => {
       console.log('🔔 Marking all notifications as read with token:', token ? 'present' : 'missing')
       
       // Use direct API call with explicit token
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'}/notifications/mark-all-read`, {
+      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/mark-all-read`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

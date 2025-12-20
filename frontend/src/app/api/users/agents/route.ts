@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request: Request) {
   const token = request.headers.get('Authorization');
-  const backendUrl = `${process.env.NEXT_PUBLIC_API_URL}/users/agents`;
+  const backendUrl = `${process.env.BACKEND_URL || 'http://localhost:10000'}/api/users/agents`;
 
   try {
     const response = await fetch(backendUrl, {
