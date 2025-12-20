@@ -8,6 +8,8 @@ import { UserSelector } from './UserSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface EventUser {
   id: number
   name: string
@@ -210,13 +212,13 @@ export function EventModal({
         try {
           const token = localStorage.getItem('token')
           const [propertiesResponse, leadsResponse] = await Promise.all([
-            fetch('http://localhost:10000/api/calendar/properties', {
+            fetch(`${API_BASE_URL}/calendar/properties`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
               }
             }),
-            fetch('http://localhost:10000/api/calendar/leads', {
+            fetch(`${API_BASE_URL}/calendar/leads`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'

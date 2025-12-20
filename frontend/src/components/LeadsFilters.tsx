@@ -6,6 +6,8 @@ import { Search, Filter, X, ChevronDown, Calendar, Users, Tag } from 'lucide-rea
 import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
 import { usersApi } from '@/utils/api'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface User {
   id: number
   name: string
@@ -67,7 +69,7 @@ export function LeadsFilters({
       setLoadingRefSources(true)
       try {
         const token = localStorage.getItem('token')
-        const response = await fetch('http://localhost:10000/api/leads/reference-sources', {
+        const response = await fetch(`${API_BASE_URL}/leads/reference-sources`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'

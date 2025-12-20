@@ -8,6 +8,8 @@ import { ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { apiClient } from '@/utils/api';
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api';
+
 const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
 });
@@ -54,7 +56,7 @@ export default function ForgotPasswordPage() {
     setIsCheckingUser(true);
     setHasCheckedUser(true);
     try {
-      const response = await fetch('http://localhost:10000/api/users/check-exists', {
+      const response = await fetch(`${API_BASE_URL}/users/check-exists`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

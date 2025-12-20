@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Flag, RefreshCw } from 'lucide-react'
 import { Status } from '@/types/property'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface PropertyStatusSelectorProps {
   selectedStatusId?: number
   onStatusChange: (statusId: number | undefined) => void
@@ -32,7 +34,7 @@ export function PropertyStatusSelector({
     try {
       console.log('🔍 Fetching statuses...')
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/statuses', {
+      const response = await fetch(`${API_BASE_URL}/statuses`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

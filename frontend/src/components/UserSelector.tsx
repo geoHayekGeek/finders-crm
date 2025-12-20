@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { formatRole } from '@/utils/roleFormatter'
 import { MagnifyingGlassIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface User {
   id: number
   name: string
@@ -40,7 +42,12 @@ export function UserSelector({
       setIsLoading(true)
       setError('')
       try {
-        const response = await fetch('http://localhost:10000/api/users/all')
+        const response = await fetch(`${API_BASE_URL}/users/all`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        })
         if (response.ok) {
           const data = await response.json()
           if (data.success) {

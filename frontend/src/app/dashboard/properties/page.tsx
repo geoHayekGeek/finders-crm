@@ -29,6 +29,8 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
 import { getDefaultPage } from '@/utils/getDefaultPage'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
   const { canManageProperties, canViewProperties, canViewLeads, canAccessHR } = usePermissions()
@@ -234,8 +236,8 @@ export default function PropertiesPage() {
       const queryString = queryParams.toString()
       console.log('🔍 Query params for properties:', queryString, 'Effective Filters:', effectiveFilters)
       const endpoint = hasFilters 
-        ? `http://localhost:10000/api/properties/filtered${queryString ? `?${queryString}` : ''}`
-        : 'http://localhost:10000/api/properties'
+        ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
+        : `${API_BASE_URL}/properties`
       
       console.log('🔍 Loading properties with endpoint:', endpoint)
       
@@ -349,8 +351,8 @@ export default function PropertiesPage() {
       
       const queryString = queryParams.toString()
       const endpoint = hasFilters 
-        ? `http://localhost:10000/api/properties/filtered${queryString ? `?${queryString}` : ''}`
-        : 'http://localhost:10000/api/properties'
+        ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
+        : `${API_BASE_URL}/properties`
       
       console.log('🔍 Loading properties with endpoint:', endpoint)
       
@@ -376,7 +378,7 @@ export default function PropertiesPage() {
       console.log('✅ Loaded properties from production API:', propertiesData.length)
       
       // Load categories from production API with authentication
-      const categoriesResponse = await fetch('http://localhost:10000/api/categories', {
+      const categoriesResponse = await fetch(`${API_BASE_URL}/categories`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -393,7 +395,7 @@ export default function PropertiesPage() {
       console.log('✅ Loaded categories from production API:', categoriesData.length)
       
       // Load statuses from production API with authentication
-      const statusesResponse = await fetch('http://localhost:10000/api/statuses', {
+      const statusesResponse = await fetch(`${API_BASE_URL}/statuses`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -411,7 +413,7 @@ export default function PropertiesPage() {
       
       // Load agents from production API with authentication
       try {
-        const agentsResponse = await fetch('http://localhost:10000/api/users/agents', {
+        const agentsResponse = await fetch(`${API_BASE_URL}/users/agents`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -438,7 +440,7 @@ export default function PropertiesPage() {
       
       // Load statistics from production API with authentication
       try {
-        const statsResponse = await fetch('http://localhost:10000/api/properties/stats/overview', {
+        const statsResponse = await fetch(`${API_BASE_URL}/properties/stats/overview`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -654,7 +656,7 @@ export default function PropertiesPage() {
         console.log('📤 JSON payload being sent:', JSON.stringify(formattedData, null, 2))
         
         // Call the production API with authentication
-      const response = await fetch('http://localhost:10000/api/properties', {
+      const response = await fetch(`${API_BASE_URL}/properties`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -799,7 +801,7 @@ export default function PropertiesPage() {
         })
         
         // Call the production API to delete the property
-        const response = await fetch(`http://localhost:10000/api/properties/${deletingProperty.id}`, {
+        const response = await fetch(`${API_BASE_URL}/properties/${deletingProperty.id}`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -972,7 +974,7 @@ export default function PropertiesPage() {
         return
       }
 
-      const categoriesResponse = await fetch('http://localhost:10000/api/categories', {
+      const categoriesResponse = await fetch(`${API_BASE_URL}/categories`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1004,7 +1006,7 @@ export default function PropertiesPage() {
         return
       }
 
-      const statusesResponse = await fetch('http://localhost:10000/api/statuses', {
+      const statusesResponse = await fetch(`${API_BASE_URL}/statuses`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -12,6 +12,8 @@ import {
   TagIcon
 } from '@heroicons/react/24/outline'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface AdminCalendarFiltersProps {
   onFiltersChange: (filters: CalendarFilters) => void
   onClearFilters: () => void
@@ -82,7 +84,7 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
     console.log('👥 Loading users...')
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/users/all', {
+      const response = await fetch(`${API_BASE_URL}/users/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -105,7 +107,7 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
     console.log('👥 Loading attendees...')
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/calendar', {
+      const response = await fetch(`${API_BASE_URL}/calendar`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

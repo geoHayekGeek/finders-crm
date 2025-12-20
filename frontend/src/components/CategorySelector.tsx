@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Tag, RefreshCw } from 'lucide-react'
 import { Category } from '@/types/property'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface CategorySelectorProps {
   selectedCategoryId?: number
   onCategoryChange: (categoryId: number | undefined) => void
@@ -32,7 +34,7 @@ export function CategorySelector({
     try {
       console.log('🔍 Fetching categories...')
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/categories', {
+      const response = await fetch(`${API_BASE_URL}/categories`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

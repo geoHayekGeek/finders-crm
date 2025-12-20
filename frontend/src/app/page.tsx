@@ -9,13 +9,7 @@ import { useRouter } from 'next/navigation'
 import { getDefaultPage } from '@/utils/getDefaultPage'
 import { 
   Building2, 
-  Users, 
-  Home, 
-  BarChart3, 
   ArrowRight, 
-  Shield, 
-  Zap, 
-  Target,
   Eye,
   EyeOff
 } from 'lucide-react'
@@ -228,68 +222,6 @@ export default function HomePage() {
                 Contact your administrator for access credentials
               </p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-            Everything You Need to Succeed
-          </h2>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Our comprehensive platform provides all the tools real estate professionals need to manage properties, clients, and transactions efficiently.
-          </p>
-        </div>
-        
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
-              <Home className="h-6 w-6 text-blue-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Property Management</h3>
-            <p className="text-gray-600">Easily manage your property portfolio with detailed listings, photos, and market analysis.</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
-              <Users className="h-6 w-6 text-green-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Client CRM</h3>
-            <p className="text-gray-600">Build lasting relationships with comprehensive client profiles and communication tracking.</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
-              <BarChart3 className="h-6 w-6 text-purple-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Analytics & Reports</h3>
-            <p className="text-gray-600">Get insights into your performance with detailed analytics and customizable reports.</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4">
-              <Target className="h-6 w-6 text-orange-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Lead Management</h3>
-            <p className="text-gray-600">Track and nurture leads through the entire sales pipeline with automated workflows.</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center mb-4">
-              <Shield className="h-6 w-6 text-red-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Secure & Compliant</h3>
-            <p className="text-gray-600">Bank-level security with full compliance for real estate regulations and data protection.</p>
-          </div>
-          
-          <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
-            <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center mb-4">
-              <Zap className="h-6 w-6 text-indigo-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Fast & Reliable</h3>
-            <p className="text-gray-600">Built with modern technology for lightning-fast performance and 99.9% uptime.</p>
           </div>
         </div>
       </div>

@@ -25,6 +25,8 @@ import { CreateViewingFormData, Viewing } from '@/types/viewing'
 import { viewingsApi } from '@/utils/api'
 import { canViewViewingsForProperty as canViewViewingsForPropertyUtil } from '@/utils/propertyViewingsPermissions'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 // Reusable Input Field Component with Validation
 const InputField = ({ 
   label, 
@@ -416,7 +418,12 @@ export function PropertyModals({
     const fetchEmployees = async () => {
       try {
         console.log('🔍 Fetching employees for referrals...')
-        const response = await fetch('http://localhost:10000/api/users/all')
+        const response = await fetch(`${API_BASE_URL}/users/all`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        })
         console.log('📡 Response status:', response.status)
 
         if (response.ok) {
@@ -706,7 +713,7 @@ export function PropertyModals({
           console.log('🔧 Fetching complete property details for ID:', editingProperty.id)
 
           // Make API call to get complete property details
-          const response = await fetch(`http://localhost:10000/api/properties/${editingProperty.id}`, {
+          const response = await fetch(`${API_BASE_URL}/properties/${editingProperty.id}`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'Content-Type': 'application/json'
@@ -996,7 +1003,7 @@ export function PropertyModals({
           console.log('👁️ Fetching complete property details for viewing ID:', viewingProperty.id)
 
           // Make API call to get complete property details
-          const response = await fetch(`http://localhost:10000/api/properties/${viewingProperty.id}`, {
+          const response = await fetch(`${API_BASE_URL}/properties/${viewingProperty.id}`, {
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
               'Content-Type': 'application/json'

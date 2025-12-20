@@ -11,6 +11,8 @@ import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRole } from '@/utils/roleFormatter'
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+
 interface CalendarFilters {
   createdBy?: string
   attendee?: string
@@ -108,7 +110,7 @@ export default function CalendarPage() {
   const checkEventPermissions = async (eventId: string): Promise<EventPermissions> => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:10000/api/calendar/${eventId}/permissions`, {
+      const response = await fetch(`${API_BASE_URL}/calendar/${eventId}/permissions`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -172,8 +174,8 @@ export default function CalendarPage() {
       }
 
       const url = queryParams.toString() 
-        ? `http://localhost:10000/api/calendar?${queryParams.toString()}`
-        : 'http://localhost:10000/api/calendar'
+        ? `${API_BASE_URL}/calendar?${queryParams.toString()}`
+        : `${API_BASE_URL}/calendar`
 
       const response = await fetch(url, {
         headers: {
@@ -269,7 +271,7 @@ export default function CalendarPage() {
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/calendar', {
+      const response = await fetch(`${API_BASE_URL}/calendar`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -322,7 +324,7 @@ export default function CalendarPage() {
   const handleUpdateEvent = async (event: CalendarEvent) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:10000/api/calendar/${event.id}`, {
+      const response = await fetch(`${API_BASE_URL}/calendar/${event.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -383,7 +385,7 @@ export default function CalendarPage() {
   const handleDeleteEvent = async (eventId: string) => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`http://localhost:10000/api/calendar/${eventId}`, {
+      const response = await fetch(`${API_BASE_URL}/calendar/${eventId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -492,7 +494,7 @@ export default function CalendarPage() {
   const loadUsers = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('http://localhost:10000/api/users/all', {
+      const response = await fetch(`${API_BASE_URL}/users/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

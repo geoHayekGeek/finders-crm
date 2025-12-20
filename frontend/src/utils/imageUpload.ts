@@ -1,6 +1,10 @@
 // File-based image upload utilities
 // This replaces the Base64 approach with proper file uploads
 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:10000/api'
+// Backend base URL (without /api) for serving static files like images
+const BACKEND_BASE_URL = API_BASE_URL.replace('/api', '')
+
 /**
  * Upload main property image using FormData
  * @param propertyId - The property ID to associate the image with
@@ -18,7 +22,7 @@ export async function uploadMainPropertyImage(propertyId: number, imageFile: Fil
     }
 
     // Get CSRF token first from the specific property endpoint (same as property update)
-    const csrfResponse = await fetch(`http://localhost:10000/api/properties/${propertyId}`, {
+    const csrfResponse = await fetch(`${API_BASE_URL}/properties/${propertyId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -41,7 +45,7 @@ export async function uploadMainPropertyImage(propertyId: number, imageFile: Fil
       throw new Error('CSRF token not received')
     }
 
-    const response = await fetch(`http://localhost:10000/api/properties/${propertyId}/upload-main-image`, {
+    const response = await fetch(`${API_BASE_URL}/properties/${propertyId}/upload-main-image`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -96,7 +100,7 @@ export async function uploadGalleryImages(propertyId: number, imageFiles: File[]
     }
 
     // Get CSRF token first from the specific property endpoint
-    const csrfResponse = await fetch(`http://localhost:10000/api/properties/${propertyId}`, {
+    const csrfResponse = await fetch(`${API_BASE_URL}/properties/${propertyId}`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -119,7 +123,7 @@ export async function uploadGalleryImages(propertyId: number, imageFiles: File[]
       throw new Error('CSRF token not received')
     }
 
-    const response = await fetch(`http://localhost:10000/api/properties/${propertyId}/upload-gallery`, {
+    const response = await fetch(`${API_BASE_URL}/properties/${propertyId}/upload-gallery`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -237,5 +241,5 @@ export function getFullImageUrl(imageUrl: string): string {
   }
   
   // Convert relative URL to full URL
-  return `http://localhost:10000${imageUrl}`
+  return `${BACKEND_BASE_URL}${imageUrl}`
 }
