@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X, Calendar, Clock, User, Building2, Phone, Plus, ChevronDown, ChevronUp, MessageSquare, Edit3, Star, ArrowRight } from 'lucide-react'
 import { Viewing, CreateViewingFormData, EditViewingFormData, VIEWING_STATUSES } from '@/types/viewing'
 import PropertySelectorForViewings from './PropertySelectorForViewings'
@@ -103,21 +103,34 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       }
     }, [formData.agent_id, user])
     
-    // For team leaders: auto-select agent when property is selected
+    // Auto-select agent when property is selected
     useEffect(() => {
-      if (isTeamLeaderRole(user?.role) && formData.property_id && properties.length > 0) {
+      if (formData.property_id && properties.length > 0) {
         const selectedProperty = properties.find(p => p.id === formData.property_id)
         const propertyAgentId = selectedProperty?.agent_id
         
         if (propertyAgentId) {
           // Property has an assigned agent
-          if (propertyAgentId === user?.id) {
-            // Property belongs to team leader - assign to themselves
-            if (user && formData.agent_id !== user.id) {
+          if (isAgentRole(user?.role)) {
+            // Agents can only be assigned to themselves
+            if (user?.id && formData.agent_id !== user.id) {
               setFormData(prev => ({ ...prev, agent_id: user.id }))
             }
+          } else if (isTeamLeaderRole(user?.role)) {
+            // Team leaders: assign to themselves if property is theirs, otherwise to the property's agent
+            if (propertyAgentId === user?.id) {
+              // Property belongs to team leader - assign to themselves
+              if (user && formData.agent_id !== user.id) {
+                setFormData(prev => ({ ...prev, agent_id: user.id }))
+              }
+            } else {
+              // Property belongs to an agent under the team leader - assign to that agent
+              if (formData.agent_id !== propertyAgentId) {
+                setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
+              }
+            }
           } else {
-            // Property belongs to an agent under the team leader - assign to that agent
+            // Other roles (admin, operations, etc.): use the property's agent
             if (formData.agent_id !== propertyAgentId) {
               setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
             }
@@ -129,6 +142,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [saving, setSaving] = useState(false)
+    const isSubmittingRef = useRef(false)
     const [includeSubViewing, setIncludeSubViewing] = useState(false)
     const [subViewingData, setSubViewingData] = useState({
       viewing_date: '',
@@ -138,6 +152,13 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     
     const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault()
+      
+      // Prevent double submission using ref for immediate check
+      if (isSubmittingRef.current || saving) {
+        return
+      }
+      
+      isSubmittingRef.current = true
       
       // Security: For agents, ALWAYS ensure agent_id is set to their own ID
       // This prevents any manipulation of the form data
@@ -237,8 +258,12 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setErrors({})
       } catch (error) {
         console.error('Error creating viewing:', error)
+        // Error is already shown by handleAddViewing, so we don't need to show it again
+        // Just re-throw so the caller knows it failed
+        throw error
       } finally {
         setSaving(false)
+        isSubmittingRef.current = false
       }
     }
     
