@@ -10,6 +10,7 @@ const reminderScheduler = require('./scheduler/reminderScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.set('trust proxy', 1);
 
@@ -66,11 +67,29 @@ app.use('/uploads', express.static('public/uploads'));
 
 // Health check endpoints for Railway and monitoring
 app.get('/', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is running' });
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'Server is running',
+    port: PORT,
+    host: HOST,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok', message: 'Server is healthy' });
+  res.status(200).json({ 
+    status: 'ok', 
+    message: 'Server is healthy',
+    port: PORT,
+    host: HOST,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Explicitly handle OPTIONS requests for all routes
+app.options('*', (req, res) => {
+  console.log(`🔍 OPTIONS preflight: ${req.url} - Origin: ${req.headers.origin || 'none'}`);
+  res.status(204).end();
 });
 
 app.use('/api', indexRoutes);
@@ -85,8 +104,6 @@ app.use('*', (req, res) => {
 });
 
 // Listen on all interfaces (0.0.0.0) for Railway deployment
-const HOST = process.env.HOST || '0.0.0.0';
-
 app.listen(PORT, HOST, () => {
   console.log(`Server is running on ${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
