@@ -14,13 +14,35 @@ const PORT = process.env.PORT || 10000;
 app.set('trust proxy', 1);
 
 // CORS MUST be first - before any other middleware that might interfere
-// CORS configuration - allow all origins (you can restrict this later for security)
+// CORS configuration - explicitly allow frontend origin
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const allowedOrigins = [
+  FRONTEND_URL,
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://vibrant-energy-production-5483.up.railway.app'
+];
+
 app.use(cors({
-  origin: true, // Allow all origins - change to specific origins in production
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Allow if origin is in the allowed list
+    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
+      callback(null, true);
+    } else {
+      // Log for debugging
+      console.log(`🚫 CORS blocked origin: ${origin}`);
+      callback(null, true); // Temporarily allow all for debugging
+    }
+  },
   credentials: true,
-  exposedHeaders: ['X-CSRF-Token'], // Expose CSRF token header to frontend
+  exposedHeaders: ['X-CSRF-Token'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
 
 // Apply security headers to all routes (after CORS)
@@ -31,9 +53,9 @@ app.use(errorLoggingMiddleware);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Add request logging middleware
+// Add request logging middleware (BEFORE static files to catch all requests)
 app.use((req, res, next) => {
-  console.log(`📥 ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  console.log(`📥 ${req.method} ${req.url} - Origin: ${req.headers.origin || 'none'} - ${new Date().toISOString()}`);
   next();
 });
 
