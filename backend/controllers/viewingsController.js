@@ -401,20 +401,23 @@ class ViewingsController {
       
       // Check for duplicate viewing - prevent multiple viewings for the same lead
       // Allow follow-up viewings (sub-viewings) but prevent duplicate parent viewings for same lead
-      const duplicateCheck = await pool.query(
-        `SELECT id FROM viewings 
-         WHERE lead_id = $1 
-         AND property_id = $2 
-         AND parent_viewing_id IS NULL
-         AND id != COALESCE($3, -1)`,
-        [finalLeadId, finalPropertyId, null]
-      );
-      
-      if (duplicateCheck.rows.length > 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'A viewing already exists for this lead and property. You can add follow-up viewings to the existing viewing instead.'
-        });
+      // Skip duplicate check for sub-viewings (they are always allowed)
+      if (!req.body.parent_viewing_id) {
+        const duplicateCheck = await pool.query(
+          `SELECT id FROM viewings 
+           WHERE lead_id = $1 
+           AND property_id = $2 
+           AND parent_viewing_id IS NULL
+           AND id != COALESCE($3, -1)`,
+          [finalLeadId, finalPropertyId, null]
+        );
+        
+        if (duplicateCheck.rows.length > 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'A viewing already exists for this lead and property. You can add follow-up viewings to the existing viewing instead.'
+          });
+        }
       }
       
       // Create the viewing with potentially modified values for sub-viewings
