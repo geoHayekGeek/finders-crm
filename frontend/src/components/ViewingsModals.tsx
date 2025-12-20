@@ -179,7 +179,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           } else if (isTeamLeaderRole(user?.role)) {
             // Team leaders can be assigned to themselves or their team's agents
             const propertyAgentId = selectedProperty.agent_id
-            if (propertyAgentId === user?.id) {
+            if (propertyAgentId === user?.id && user?.id) {
               finalFormData.agent_id = user.id
             } else {
               // Check if the agent is under this team leader (backend will validate)
