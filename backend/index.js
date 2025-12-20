@@ -13,12 +13,7 @@ const PORT = process.env.PORT || 10000;
 
 app.set('trust proxy', 1);
 
-// Apply security headers to all routes
-app.use(securityHeaders);
-
-// Apply error logging middleware
-app.use(errorLoggingMiddleware);
-
+// CORS MUST be first - before any other middleware that might interfere
 // CORS configuration - allow all origins (you can restrict this later for security)
 app.use(cors({
   origin: true, // Allow all origins - change to specific origins in production
@@ -27,6 +22,12 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
+
+// Apply security headers to all routes (after CORS)
+app.use(securityHeaders);
+
+// Apply error logging middleware
+app.use(errorLoggingMiddleware);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
