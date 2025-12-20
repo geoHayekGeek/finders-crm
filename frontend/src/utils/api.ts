@@ -4,15 +4,30 @@ import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, 
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
+// NEXT_PUBLIC_* variables are embedded at build time
+// For client-side code, only NEXT_PUBLIC_* variables are available
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
+
+// Debug: Log the actual values being used
+if (typeof window !== 'undefined') {
+  console.log('🔍 Environment Debug:', {
+    'process.env.NEXT_PUBLIC_BACKEND_URL': process.env.NEXT_PUBLIC_BACKEND_URL,
+    'BACKEND_URL (final)': BACKEND_URL,
+    'API_BASE_URL': API_BASE_URL,
+    'window.location.hostname': window.location.hostname,
+    'isLocalhost': window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  })
+}
 
 // Warn if using default localhost URL in production (check if we're using the default and not on localhost)
 if (typeof window !== 'undefined' && BACKEND_URL === 'http://localhost:10000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-  console.error('❌ NEXT_PUBLIC_BACKEND_URL is not set! Using default localhost URL. This will not work in production!')
-  console.error('❌ Please set NEXT_PUBLIC_BACKEND_URL environment variable before building/deploying.')
+  console.error('❌ NEXT_PUBLIC_BACKEND_URL is not set or was not set at build time!')
+  console.error('❌ Using default localhost URL. This will not work in production!')
+  console.error('❌ Please set NEXT_PUBLIC_BACKEND_URL in Railway and REDEPLOY the frontend service')
   console.error('❌ Current API URL being used:', API_BASE_URL)
   console.error('❌ Production hostname:', window.location.hostname)
+  console.error('❌ Expected NEXT_PUBLIC_BACKEND_URL value:', 'https://finders-crm-backend.up.railway.app')
 }
 
 export class ApiError extends Error {
