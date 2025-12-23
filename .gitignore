@@ -10,3 +10,4 @@ playwright/.cache/
 tests/.auth/
 .env.test
 *.log
+credentials.json

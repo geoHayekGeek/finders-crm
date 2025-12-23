@@ -166,8 +166,9 @@ export default function SettingsPageContent() {
       setPrimaryColor(settingsObj.primary_color || DEFAULT_PRIMARY_COLOR)
       
       // Set logo and favicon with full URL
-      const logoUrl = settingsObj.company_logo ? `${API_BASE_URL}${settingsObj.company_logo}` : null
-      const faviconUrl = settingsObj.company_favicon ? `${API_BASE_URL}${settingsObj.company_favicon}` : null
+      // Note: Static files are served at /uploads/... (not /api/uploads/...)
+      const logoUrl = settingsObj.company_logo ? `${BACKEND_URL}${settingsObj.company_logo}` : null
+      const faviconUrl = settingsObj.company_favicon ? `${BACKEND_URL}${settingsObj.company_favicon}` : null
       setCompanyLogo(logoUrl)
       setCompanyFavicon(faviconUrl)
       setLogoPreview(logoUrl)

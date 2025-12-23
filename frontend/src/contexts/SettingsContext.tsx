@@ -94,10 +94,11 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       })
       
       // Parse settings with proper types
+      // Note: Static files are served at /uploads/... (not /api/uploads/...)
       const parsedSettings: SystemSettings = {
         company_name: settingsObj.company_name || defaultSettings.company_name,
-        company_logo: settingsObj.company_logo ? `${API_BASE_URL}${settingsObj.company_logo}` : null,
-        company_favicon: settingsObj.company_favicon ? `${API_BASE_URL}${settingsObj.company_favicon}` : null,
+        company_logo: settingsObj.company_logo ? `${BACKEND_URL}${settingsObj.company_logo}` : null,
+        company_favicon: settingsObj.company_favicon ? `${BACKEND_URL}${settingsObj.company_favicon}` : null,
         primary_color: settingsObj.primary_color || defaultSettings.primary_color,
         email_notifications_enabled: settingsObj.email_notifications_enabled === 'true',
         email_notifications_calendar_events: settingsObj.email_notifications_calendar_events === 'true',
