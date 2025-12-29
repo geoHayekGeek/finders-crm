@@ -45,6 +45,39 @@ let csrfToken: string | null = null
 let csrfTokenTimestamp: number = 0
 const CSRF_TOKEN_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
+// Handle automatic logout when token expires
+function handleTokenExpiration() {
+  if (typeof window !== 'undefined') {
+    console.log('🔐 JWT token expired, logging out user...')
+    console.log('🔐 Current URL:', window.location.href)
+    console.log('🔐 Clearing token from localStorage...')
+    
+    // Clear all auth data
+    const hadToken = !!localStorage.getItem('token')
+    const hadUser = !!localStorage.getItem('user')
+    
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    
+    console.log('🔐 Token cleared. Had token:', hadToken, 'Now:', localStorage.getItem('token'))
+    console.log('🔐 User cleared. Had user:', hadUser, 'Now:', localStorage.getItem('user'))
+    
+    // Clear CSRF token cache
+    clearCSRFToken()
+    
+    console.log('🔐 Redirecting to login page...')
+    console.log('🔐 Current pathname:', window.location.pathname)
+    
+    // Redirect to login page - use replace to prevent back button issues
+    if (window.location.pathname !== '/') {
+      window.location.replace('/')
+    } else {
+      // If already on login page, just reload to clear any state
+      window.location.reload()
+    }
+  }
+}
+
 // Get CSRF token from server
 async function getCSRFToken(forceRefresh = false): Promise<string | null> {
   const now = Date.now()
@@ -189,9 +222,16 @@ async function apiRequest<T>(
       // Try to extract error message from response body
       let errorMessage = `HTTP error! status: ${response.status}`
       let validationErrors: any[] = []
+      let errorData: any = null
+      
+      // Check for token expiration - if we have a token and get a 403, it's likely an auth issue
+      const hasToken = authToken || (typeof window !== 'undefined' && localStorage.getItem('token'))
+      
+      console.log('🔍 [API Error] Status:', response.status, 'Has Token:', !!hasToken, 'Endpoint:', endpoint)
       
       try {
-        const errorData = await response.json()
+        errorData = await response.json()
+        console.log('🔍 [API Error] Response data:', errorData)
         
         if (errorData.message) {
           errorMessage = errorData.message
@@ -200,6 +240,36 @@ async function apiRequest<T>(
         // Extract validation errors if they exist
         if (errorData.errors && Array.isArray(errorData.errors)) {
           validationErrors = errorData.errors
+        }
+        
+        // Check if JWT token has expired (403 with token-related message)
+        // If we get a 403 with a token, it's almost certainly an auth issue (unless it's CSRF)
+        if (response.status === 403 && hasToken) {
+          console.log('🔍 [API Error] 403 with token present, checking message...')
+          const message = errorData?.message || ''
+          const messageLower = message.toLowerCase()
+          
+          // Check if it's a CSRF error (don't log out for CSRF, just retry)
+          const isCSRFError = messageLower.includes('csrf') || message === 'Invalid CSRF token'
+          
+          if (!isCSRFError) {
+            // Any other 403 with a token is likely a token expiration/invalid token
+            console.log('🔐 JWT token expired/invalid detected (403 with token, not CSRF), logging out...')
+            console.log('🔐 Error message:', message || 'No message')
+            console.log('🔐 Full error data:', errorData)
+            handleTokenExpiration()
+            // Use setTimeout to ensure redirect happens even if error is caught
+            setTimeout(() => {
+              if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+                console.log('🔐 Forcing redirect via setTimeout...')
+                window.location.replace('/')
+              }
+            }, 100)
+            // Throw a specific error so callers know the user was logged out
+            throw new ApiError(403, 'Your session has expired. Please log in again.')
+          } else {
+            console.log('🔍 [API Error] CSRF error detected, will retry with new token')
+          }
         }
         
         // Add debugging for lead update errors
@@ -227,6 +297,20 @@ async function apiRequest<T>(
           }
         }
       } catch (parseError) {
+        // If we can't parse the response, check if it's a 403 with a token
+        if (response.status === 403 && hasToken) {
+          console.log('🔐 403 error with token present, but could not parse response. Logging out for safety...')
+          console.log('🔐 Parse error:', parseError)
+          handleTokenExpiration()
+          // Use setTimeout to ensure redirect happens even if error is caught
+          setTimeout(() => {
+            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+              window.location.href = '/'
+            }
+          }, 100)
+          throw new ApiError(403, 'Your session has expired. Please log in again.')
+        }
+        
         // If we can't parse the response, use the default message
         console.warn('Could not parse error response:', parseError)
         console.warn('Response status:', response.status)
