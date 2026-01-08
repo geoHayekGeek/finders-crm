@@ -15,29 +15,71 @@ async function runUsersTableMigration() {
     console.log('   - Adding address column (if not exists)');
     console.log('   - Removing location column (if exists)');
     console.log('');
+    console.log(`📁 Current directory: ${process.cwd()}`);
+    console.log(`📁 Script directory: ${__dirname}`);
+    console.log(`🗄️  Database: ${process.env.DB_NAME || process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
+    console.log('');
+    
+    // Check current state before migration
+    console.log('🔍 Checking current table state...');
+    const beforeAddress = await client.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'address' AND table_schema = 'public'
+    `);
+    const beforeLocation = await client.query(`
+      SELECT column_name FROM information_schema.columns 
+      WHERE table_name = 'users' AND column_name = 'location' AND table_schema = 'public'
+    `);
+    console.log(`   Address column: ${beforeAddress.rows.length > 0 ? 'EXISTS' : 'NOT FOUND'}`);
+    console.log(`   Location column: ${beforeLocation.rows.length > 0 ? 'EXISTS' : 'NOT FOUND'}`);
+    console.log('');
     
     // Read the SQL migration file
     const sqlPath = path.join(__dirname, 'database', 'migrate_users_table_address_location.sql');
+    console.log(`📄 Looking for migration file at: ${sqlPath}`);
     
     if (!fs.existsSync(sqlPath)) {
-      throw new Error(`Migration file not found: ${sqlPath}`);
-    }
-    
-    const sqlContent = fs.readFileSync(sqlPath, 'utf8');
-    
-    // Execute the migration within a transaction
-    await client.query('BEGIN');
-    
-    try {
-      await client.query(sqlContent);
-      await client.query('COMMIT');
+      // Try alternative path in case we're running from root
+      const altPath = path.join(process.cwd(), 'backend', 'database', 'migrate_users_table_address_location.sql');
+      console.log(`📄 Trying alternative path: ${altPath}`);
+      if (fs.existsSync(altPath)) {
+        console.log(`✅ Found migration file at alternative path`);
+        const sqlContent = fs.readFileSync(altPath, 'utf8');
+        await client.query('BEGIN');
+        try {
+          await client.query(sqlContent);
+          await client.query('COMMIT');
+          console.log('✅ Migration transaction committed successfully!');
+          console.log('');
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        }
+      } else {
+        throw new Error(`Migration file not found at ${sqlPath} or ${altPath}`);
+      }
+    } else {
+      console.log(`✅ Found migration file`);
+      const sqlContent = fs.readFileSync(sqlPath, 'utf8');
+      console.log(`📝 Migration SQL loaded (${sqlContent.length} characters)`);
       
-      console.log('✅ Migration transaction committed successfully!');
-      console.log('');
+      // Execute the migration within a transaction
+      await client.query('BEGIN');
       
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
+      try {
+        await client.query(sqlContent);
+        await client.query('COMMIT');
+        
+        console.log('✅ Migration transaction committed successfully!');
+        console.log('');
+        
+      } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('❌ Error during migration:', error.message);
+        console.error('   Code:', error.code);
+        console.error('   Detail:', error.detail);
+        throw error;
+      }
     }
     
     // Verify the migration results
