@@ -38,11 +38,17 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
-    if (!authLoading && isAuthenticated && user) {
+    // Only redirect if we're authenticated and not currently submitting login
+    // This prevents double redirects when login() is called
+    if (!authLoading && isAuthenticated && user && !isSubmitting) {
       const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
-      router.replace(defaultPage)
+      // Use a small delay to ensure state is fully updated
+      const timer = setTimeout(() => {
+        router.replace(defaultPage)
+      }, 50)
+      return () => clearTimeout(timer)
     }
-  }, [authLoading, isAuthenticated, user, router, canViewProperties, canViewLeads, canAccessHR])
+  }, [authLoading, isAuthenticated, user, router, canViewProperties, canViewLeads, canAccessHR, isSubmitting])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -61,14 +67,10 @@ export default function HomePage() {
         
         // Use the login function from auth context
         login(loginData.token, loginData.user)
-        console.log('User logged in, redirecting to default page...')
+        console.log('User logged in, state will be updated and useEffect will handle redirect...')
         
-        // Add a small delay to ensure state is updated, then redirect
-        setTimeout(() => {
-          const defaultPage = getDefaultPage(loginData.user, { canViewProperties, canViewLeads, canAccessHR })
-          router.replace(defaultPage)
-          console.log('Router.replace called with:', defaultPage)
-        }, 100)
+        // Don't manually redirect here - let the useEffect handle it
+        // This prevents double redirects and ensures state is properly synchronized
       } else {
         console.log('Login failed:', response.message)
         setError(response.message || 'Login failed')

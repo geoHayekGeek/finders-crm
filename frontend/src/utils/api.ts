@@ -88,11 +88,18 @@ async function getCSRFToken(forceRefresh = false): Promise<string | null> {
   }
   
   try {
+    const authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    // If we're not logged in yet (e.g. calling /users/login), don't attempt CSRF fetch.
+    // CSRF is only needed for authenticated, state-changing requests.
+    if (!authToken) {
+      return null
+    }
+
     console.log('🔐 Fetching fresh CSRF token...')
     const response = await fetch(`${API_BASE_URL}/properties`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Authorization': `Bearer ${authToken}`,
       },
     })
     
@@ -167,13 +174,11 @@ async function apiRequest<T>(
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`
     console.log('✅ Authorization header set')
-  } else {
-    console.error('❌ No authentication token found!')
-    console.error('❌ Available localStorage keys:', typeof window !== 'undefined' ? Object.keys(localStorage) : 'N/A')
   }
   
   // Add CSRF token for non-GET requests
-  if (options.method && options.method !== 'GET') {
+  // Only attempt CSRF when authenticated; otherwise login/public endpoints would spam 403s.
+  if (options.method && options.method !== 'GET' && authToken) {
     const csrf = await getCSRFToken()
     if (csrf) {
       headers['X-CSRF-Token'] = csrf
@@ -242,21 +247,33 @@ async function apiRequest<T>(
           validationErrors = errorData.errors
         }
         
-        // Check if JWT token has expired (403 with token-related message)
-        // If we get a 403 with a token, it's almost certainly an auth issue (unless it's CSRF)
-        if (response.status === 403 && hasToken) {
-          console.log('🔍 [API Error] 403 with token present, checking message...')
+        // Handle auth failures vs authorization failures:
+        // - 401 means unauthenticated (missing/invalid token) -> logout if we had a token
+        // - 403 can mean either "invalid/expired token" OR "forbidden" (no permission)
+        //   We should ONLY logout for the token-invalid case, not for normal forbidden responses.
+        if ((response.status === 401 || response.status === 403) && hasToken) {
           const message = errorData?.message || ''
           const messageLower = message.toLowerCase()
-          
-          // Check if it's a CSRF error (don't log out for CSRF, just retry)
+
+          // CSRF errors are 403s but should not trigger logout
           const isCSRFError = messageLower.includes('csrf') || message === 'Invalid CSRF token'
-          
-          if (!isCSRFError) {
-            // Any other 403 with a token is likely a token expiration/invalid token
-            console.log('🔐 JWT token expired/invalid detected (403 with token, not CSRF), logging out...')
-            console.log('🔐 Error message:', message || 'No message')
-            console.log('🔐 Full error data:', errorData)
+
+          // Back-end auth middleware uses this exact message for JWT verification failure:
+          // "Invalid or expired token"
+          const isInvalidOrExpiredToken =
+            messageLower.includes('invalid or expired token') ||
+            messageLower.includes('jwt expired') ||
+            messageLower.includes('token expired') ||
+            messageLower.includes('token invalid')
+
+          const shouldLogout =
+            response.status === 401 || (response.status === 403 && !isCSRFError && isInvalidOrExpiredToken)
+
+          if (shouldLogout) {
+            console.log('🔐 Auth failure detected, logging out...', {
+              status: response.status,
+              message
+            })
             handleTokenExpiration()
             // Use setTimeout to ensure redirect happens even if error is caught
             setTimeout(() => {
@@ -265,10 +282,12 @@ async function apiRequest<T>(
                 window.location.replace('/')
               }
             }, 100)
-            // Throw a specific error so callers know the user was logged out
-            throw new ApiError(403, 'Your session has expired. Please log in again.')
-          } else {
-            console.log('🔍 [API Error] CSRF error detected, will retry with new token')
+            throw new ApiError(response.status, 'Your session has expired. Please log in again.')
+          }
+
+          // Otherwise it's a normal forbidden/authorization error; do NOT logout.
+          if (response.status === 403 && !isCSRFError) {
+            console.log('⛔ 403 Forbidden (permission), NOT logging out:', { message, endpoint })
           }
         }
         
@@ -297,20 +316,9 @@ async function apiRequest<T>(
           }
         }
       } catch (parseError) {
-        // If we can't parse the response, check if it's a 403 with a token
-        if (response.status === 403 && hasToken) {
-          console.log('🔐 403 error with token present, but could not parse response. Logging out for safety...')
-          console.log('🔐 Parse error:', parseError)
-          handleTokenExpiration()
-          // Use setTimeout to ensure redirect happens even if error is caught
-          setTimeout(() => {
-            if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-              window.location.href = '/'
-            }
-          }, 100)
-          throw new ApiError(403, 'Your session has expired. Please log in again.')
-        }
-        
+        // If we can't parse the response body, do NOT assume the token is invalid.
+        // Many 403s are legitimate authorization errors (agents hitting admin-only endpoints).
+        // We'll only logout when we have a definitive auth signal (401 or explicit token-invalid message).
         // If we can't parse the response, use the default message
         console.warn('Could not parse error response:', parseError)
         console.warn('Response status:', response.status)
