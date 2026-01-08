@@ -148,6 +148,17 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                 </p>
               </div>
 
+              {/* Address */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 text-gray-600 mb-1">
+                  <MapPin className="h-4 w-4" />
+                  <span className="text-sm font-medium">Address</span>
+                </div>
+                <p className="text-lg font-semibold text-gray-900">
+                  {user.address || <span className="text-gray-400 italic">Not set</span>}
+                </p>
+              </div>
+
               {/* Phone */}
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <div className="flex items-center space-x-2 text-gray-600 mb-1">

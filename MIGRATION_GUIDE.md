@@ -38,21 +38,6 @@ railway link
 railway run npm run migrate-remove-location
 ```
 
-**Option 2: Using Railway Dashboard**
-1. Go to your Railway project dashboard
-2. Click on your backend service
-3. Go to the "Deployments" tab
-4. Click on the latest deployment
-5. Open the "Shell" tab
-6. Run: `npm run migrate-remove-location`
-
-**Option 3: One-off Service (Recommended for Production)**
-1. In Railway dashboard, create a new service
-2. Use the same codebase
-3. Set the start command to: `npm run migrate-remove-location`
-4. Deploy it once
-5. Delete the service after migration completes
-
 ### Migration Safety
 
 The migration is **idempotent** - it safely checks if the column exists before attempting to drop it:
