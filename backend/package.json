@@ -14,7 +14,8 @@
     "add-demo-properties": "node add-demo-properties.js",
     "show-demo-data": "node show-demo-data.js",
     "test-properties": "node test-properties-db.js",
-    "migrate-lead-statuses": "node run-lead-statuses-migration.js"
+    "migrate-lead-statuses": "node run-lead-statuses-migration.js",
+    "migrate-users-table": "node run-users-table-migration.js"
   },
   "keywords": [],
   "author": "",

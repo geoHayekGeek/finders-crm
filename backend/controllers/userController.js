@@ -23,7 +23,7 @@ const registerUser = async (req, res) => {
       });
     }
 
-    const { name, email, password, role, location, phone, dob, work_location } = req.body;
+    const { name, email, password, role, phone, dob, work_location, address } = req.body;
 
     // Basic validation
     if (!name || !email || !password || !role) {
@@ -48,11 +48,11 @@ const registerUser = async (req, res) => {
       email,
       password: hashedPassword,
       role,
-      location,
       phone,
       dob,
       work_location,
       user_code: userCode,
+      address,
     });
 
     res.status(201).json({
@@ -189,11 +189,11 @@ const getAllUsers = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        location: user.location,
         phone: user.phone,
         dob: user.dob,
         work_location: user.work_location,
         user_code: user.user_code,
+        address: user.address,
         is_assigned: user.is_assigned || false,
         assigned_to: user.assigned_to || null,
         agent_count: user.agent_count || null,
@@ -226,7 +226,7 @@ const updateUser = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, email, role, location, phone, dob, work_location, user_code, is_active, password } = req.body;
+    const { name, email, role, phone, dob, work_location, user_code, is_active, password, address } = req.body;
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
 
@@ -281,12 +281,12 @@ const updateUser = async (req, res) => {
       name,
       email,
       role,
-      location,
       phone,
       dob,
       work_location,
       user_code,
-      is_active
+      is_active,
+      address
     };
 
     // If password is provided, hash it and include in update
@@ -408,9 +408,9 @@ const getAgents = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        location: user.location,
         phone: user.phone,
-        user_code: user.user_code
+        user_code: user.user_code,
+        address: user.address
       }))
     });
   } catch (error) {
@@ -447,9 +447,9 @@ const getUsersByRole = async (req, res) => {
           name: user.name,
           email: user.email,
           role: user.role,
-          location: user.location,
           phone: user.phone,
           user_code: user.user_code,
+          address: user.address,
           is_assigned: user.is_assigned || false,
           assigned_to: user.assigned_to || null,
           created_at: user.created_at,
@@ -468,12 +468,12 @@ const getUsersByRole = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        location: user.location,
-        phone: user.phone,
-        user_code: user.user_code,
-        is_assigned: user.is_assigned || false,
-        created_at: user.created_at,
-        updated_at: user.updated_at
+          phone: user.phone,
+          user_code: user.user_code,
+          address: user.address,
+          is_assigned: user.is_assigned || false,
+          created_at: user.created_at,
+          updated_at: user.updated_at
       }))
     });
   } catch (error) {
@@ -496,7 +496,6 @@ const getTeamLeaders = async (req, res) => {
         name: teamLeader.name,
         email: teamLeader.email,
         role: teamLeader.role,
-        location: teamLeader.location,
         phone: teamLeader.phone,
         user_code: teamLeader.user_code,
         created_at: teamLeader.created_at,
@@ -531,9 +530,9 @@ const getTeamLeaderAgents = async (req, res) => {
         name: agent.name,
         email: agent.email,
         role: agent.role,
-        location: agent.location,
         phone: agent.phone,
         user_code: agent.user_code,
+        address: agent.address,
         assigned_at: agent.assigned_at
       }))
     });
@@ -574,9 +573,9 @@ const getAgentTeamLeader = async (req, res) => {
         name: teamLeader.name,
         email: teamLeader.email,
         role: teamLeader.role,
-        location: teamLeader.location,
         phone: teamLeader.phone,
         user_code: teamLeader.user_code,
+        address: teamLeader.address,
         assigned_at: teamLeader.assigned_at
       }
     });
@@ -601,9 +600,9 @@ const getAvailableAgents = async (req, res) => {
         name: agent.name,
         email: agent.email,
         role: agent.role,
-        location: agent.location,
         phone: agent.phone,
-        user_code: agent.user_code
+        user_code: agent.user_code,
+        address: agent.address
       }))
     });
   } catch (error) {

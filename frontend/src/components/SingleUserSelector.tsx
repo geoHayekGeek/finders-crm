@@ -9,7 +9,6 @@ interface User {
   name: string
   email: string
   role: string
-  location?: string
   phone?: string
 }
 
@@ -53,8 +52,7 @@ export function SingleUserSelector({
     return (
       user.name.toLowerCase().includes(searchLower) ||
       user.email.toLowerCase().includes(searchLower) ||
-      user.role.toLowerCase().includes(searchLower) ||
-      (user.location && user.location.toLowerCase().includes(searchLower))
+      user.role.toLowerCase().includes(searchLower)
     )
   })
 
@@ -176,11 +174,6 @@ export function SingleUserSelector({
                         <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
                           {formatRole(user.role)}
                         </span>
-                        {user.location && (
-                          <span className="text-xs text-gray-500">
-                            📍 {user.location}
-                          </span>
-                        )}
                       </div>
                     </div>
                     <div className="ml-3">

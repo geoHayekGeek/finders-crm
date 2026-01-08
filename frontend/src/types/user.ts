@@ -22,10 +22,10 @@ export interface User {
   name: string
   email: string
   role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
-  location?: string
   phone?: string
   dob?: string
   work_location?: string
+  address?: string
   user_code: string
   is_assigned?: boolean
   assigned_to?: number
@@ -52,20 +52,20 @@ export interface CreateUserFormData {
   email: string
   password: string
   role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
-  location?: string
   phone?: string
   dob?: string
   work_location?: string
+  address?: string
 }
 
 export interface EditUserFormData {
   name: string
   email: string
   role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
-  location?: string
   phone?: string
   dob?: string
   work_location?: string
+  address?: string
   user_code?: string
   is_active: boolean
   password?: string // Optional: only if changing password

@@ -170,16 +170,6 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                 </p>
               </div>
 
-              {/* Home Address */}
-              {user.location && (
-                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 md:col-span-2">
-                  <div className="flex items-center space-x-2 text-gray-600 mb-1">
-                    <MapPin className="h-4 w-4" />
-                    <span className="text-sm font-medium">Home Address</span>
-                  </div>
-                  <p className="text-lg font-semibold text-gray-900">{user.location}</p>
-                </div>
-              )}
             </div>
 
             {/* Agent Assignment Info & Properties/Leads */}

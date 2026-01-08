@@ -1,6 +1,9 @@
 // middlewares/validators.js
 const { body } = require('express-validator');
 
+// Phone number validation regex (international format, accepts spaces, dashes, parentheses)
+const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{6,19}$/;
+
 const registerValidator = [
   body('email').isEmail().withMessage('Invalid email address'),
   body('password')
@@ -9,11 +12,11 @@ const registerValidator = [
     .isIn(['agent', 'agent manager', 'operations', 'operations manager', 'admin', 'accountant', 'team_leader'])
     .withMessage('Invalid role. Must be one of: agent, agent manager, operations, operations manager, admin, accountant, team_leader'),
   body('phone')
-    .optional()
-    .isMobilePhone().withMessage('Invalid phone number'),
-  body('location')
-    .optional()
-    .isString().withMessage('Location must be a string'),
+    .optional({ nullable: true, checkFalsy: true })
+    .isLength({ min: 7, max: 20 })
+    .withMessage('Phone number must be between 7 and 20 characters')
+    .matches(phoneRegex)
+    .withMessage('Invalid phone number format. Use international format (e.g., +961 03 985 423)'),
 ];
 
 const loginValidator = [

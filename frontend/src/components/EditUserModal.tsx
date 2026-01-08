@@ -39,10 +39,10 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
     name: user.name,
     email: user.email,
     role: user.role,
-    location: user.location || '',
     phone: user.phone || '',
     dob: formatDateForInput(user.dob),
     work_location: user.work_location || '',
+    address: user.address || '',
     user_code: user.user_code,
     is_active: user.is_active,
     password: ''
@@ -53,10 +53,10 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
       name: user.name,
       email: user.email,
       role: user.role,
-      location: user.location || '',
       phone: user.phone || '',
       dob: formatDateForInput(user.dob),
       work_location: user.work_location || '',
+      address: user.address || '',
       user_code: user.user_code,
       is_active: user.is_active,
       password: ''
@@ -116,10 +116,10 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
         name: formData.name.trim(),
         email: formData.email.trim(),
         role: formData.role,
-        location: formData.location?.trim() || null,
         phone: formData.phone?.trim() || null,
         dob: formData.dob || null,
         work_location: formData.work_location?.trim() || null,
+        address: formData.address?.trim() || null,
         user_code: formData.user_code,
         is_active: formData.is_active
       }
@@ -314,6 +314,20 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
                 value={formData.dob}
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Address */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Address
+              </label>
+              <textarea
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Full physical address"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
               />
             </div>
 

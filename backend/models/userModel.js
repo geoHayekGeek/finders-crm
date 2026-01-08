@@ -2,12 +2,12 @@
 const pool = require('../config/db');
 
 class User {
-  static async createUser({ name, email, password, role, location, phone, dob, work_location, user_code, is_assigned = false, assigned_to = null }) {
+  static async createUser({ name, email, password, role, phone, dob, work_location, user_code, is_assigned = false, assigned_to = null, address = null }) {
     const result = await pool.query(
-      `INSERT INTO users (name, email, password, role, location, phone, dob, work_location, user_code, is_assigned, assigned_to)
+      `INSERT INTO users (name, email, password, role, phone, dob, work_location, user_code, is_assigned, assigned_to, address)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
-      [name, email, password, role, location, phone, dob, work_location, user_code, is_assigned, assigned_to]
+      [name, email, password, role, phone, dob, work_location, user_code, is_assigned, assigned_to, address]
     );
     return result.rows[0];
   }
@@ -49,9 +49,9 @@ class User {
   static async getAllUsers() {
     const result = await pool.query(
       `SELECT 
-        u.id, u.name, u.email, u.role, u.location, u.phone, u.dob, 
+        u.id, u.name, u.email, u.role, u.phone, u.dob, 
         u.work_location, u.user_code, u.is_assigned, u.assigned_to, 
-        u.is_active, u.created_at, u.updated_at,
+        u.is_active, u.address, u.created_at, u.updated_at,
         CASE 
           WHEN u.role = 'team_leader' THEN (
             SELECT COUNT(*)::integer 
@@ -90,7 +90,7 @@ class User {
 
   static async getUsersByRole(role) {
     const result = await pool.query(
-      `SELECT id, name, email, role, location, phone, dob, user_code, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
+      `SELECT id, name, email, role, phone, dob, user_code, address, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
       [role]
     );
     return result.rows;
@@ -105,7 +105,7 @@ class User {
       UPDATE users 
       SET ${setClause}, updated_at = NOW()
       WHERE id = $1
-      RETURNING id, name, email, role, location, phone, dob, work_location, user_code, is_active, created_at, updated_at
+      RETURNING id, name, email, role, phone, dob, work_location, user_code, is_active, address, created_at, updated_at
     `;
     
     const result = await pool.query(query, [id, ...values]);
@@ -268,7 +268,7 @@ class User {
 
   static async getTeamLeaderAgents(teamLeaderId) {
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.location, u.phone, u.user_code, ta.assigned_at
+      `SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.address, ta.assigned_at
        FROM users u
        INNER JOIN team_agents ta ON u.id = ta.agent_id
        WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
@@ -281,7 +281,7 @@ class User {
   static async getAgentTeamLeader(agentId) {
     // Use users.assigned_to as the source of truth for consistency
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.role, u.location, u.phone, u.user_code, ta.assigned_at
+      `SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.address, ta.assigned_at
        FROM users u
        INNER JOIN users agent ON agent.id = $1 AND agent.role = 'agent'
        LEFT JOIN team_agents ta ON ta.team_leader_id = u.id AND ta.agent_id = $1 AND ta.is_active = TRUE
@@ -294,7 +294,7 @@ class User {
 
   static async getTeamLeaders() {
     const result = await pool.query(
-      `SELECT id, name, email, role, location, phone, user_code, created_at, updated_at 
+      `SELECT id, name, email, role, phone, user_code, address, created_at, updated_at 
        FROM users 
        WHERE role = 'team_leader' 
        ORDER BY name`
@@ -311,7 +311,7 @@ class User {
       // 2. Already assigned to THIS team leader (assigned_to = teamLeaderId)
       // This excludes agents assigned to OTHER team leaders
       query = `
-        SELECT u.id, u.name, u.email, u.role, u.location, u.phone, u.user_code, u.is_assigned, u.assigned_to
+        SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.is_assigned, u.assigned_to, u.address
         FROM users u
         WHERE u.role = 'agent' 
           AND (u.is_assigned = FALSE OR u.assigned_to = $1)
@@ -321,7 +321,7 @@ class User {
     } else {
       // Get all agents with assignment status
       query = `
-        SELECT u.id, u.name, u.email, u.role, u.location, u.phone, u.user_code, u.is_assigned, u.assigned_to
+        SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.is_assigned, u.assigned_to, u.address
         FROM users u
         WHERE u.role = 'agent'
         ORDER BY u.name

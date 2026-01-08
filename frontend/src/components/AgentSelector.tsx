@@ -10,7 +10,6 @@ interface Agent {
   name: string
   email: string
   role: string
-  location?: string
   phone?: string
 }
 
@@ -266,9 +265,6 @@ export function AgentSelector({
                         <div className="flex-1">
                           <div className="font-medium text-gray-900 text-sm">{agent.name}</div>
                           <div className="text-xs text-gray-600">{agent.email}</div>
-                          {agent.location && (
-                            <div className="text-xs text-gray-500">{agent.location}</div>
-                          )}
                         </div>
                         <div className="ml-3 flex items-center gap-2">
                           <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getRoleColor(agent.role)}`}>

@@ -194,9 +194,9 @@ async function main() {
       const opsUserCode = await generateUniqueCodeInTransaction(opsName, usedUserCodes, client);
       
       const opsResult = await client.query(
-        `INSERT INTO users (name, email, password, role, location, phone, user_code, is_assigned, assigned_to)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-        [opsName, opsEmail, opsPassword, 'operations', randomElement(LEBANESE_LOCATIONS), generateLebanesePhone(), opsUserCode, false, null]
+        `INSERT INTO users (name, email, password, role, phone, user_code, is_assigned, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [opsName, opsEmail, opsPassword, 'operations', generateLebanesePhone(), opsUserCode, false, null]
       );
       operationsId = opsResult.rows[0].id;
       console.log(`  ✅ Created operations user (ID: ${operationsId})`);
@@ -238,9 +238,9 @@ async function main() {
       const userCode = await generateUniqueCodeInTransaction(name, usedUserCodes, client);
       
       const result = await client.query(
-        `INSERT INTO users (name, email, password, role, location, phone, user_code, is_assigned, assigned_to)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name`,
-        [name, email, hashedPassword, 'agent_manager', randomElement(LEBANESE_LOCATIONS), generateLebanesePhone(), userCode, false, null]
+        `INSERT INTO users (name, email, password, role, phone, user_code, is_assigned, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name`,
+        [name, email, hashedPassword, 'agent_manager', generateLebanesePhone(), userCode, false, null]
       );
       
       agentManagers.push(result.rows[0]);
@@ -258,9 +258,9 @@ async function main() {
       const userCode = await generateUniqueCodeInTransaction(name, usedUserCodes, client);
       
       const result = await client.query(
-        `INSERT INTO users (name, email, password, role, location, phone, user_code, is_assigned, assigned_to)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name`,
-        [name, email, hashedPassword, 'operations_manager', randomElement(LEBANESE_LOCATIONS), generateLebanesePhone(), userCode, false, null]
+        `INSERT INTO users (name, email, password, role, phone, user_code, is_assigned, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name`,
+        [name, email, hashedPassword, 'operations_manager', generateLebanesePhone(), userCode, false, null]
       );
       
       operationsManagers.push(result.rows[0]);
@@ -278,9 +278,9 @@ async function main() {
       const userCode = await generateUniqueCodeInTransaction(name, usedUserCodes, client);
       
       const result = await client.query(
-        `INSERT INTO users (name, email, password, role, location, phone, user_code, is_assigned, assigned_to)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name`,
-        [name, email, hashedPassword, 'operations', randomElement(LEBANESE_LOCATIONS), generateLebanesePhone(), userCode, false, null]
+        `INSERT INTO users (name, email, password, role, phone, user_code, is_assigned, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name`,
+        [name, email, hashedPassword, 'operations', generateLebanesePhone(), userCode, false, null]
       );
       
       operationsUsers.push(result.rows[0]);
@@ -299,9 +299,9 @@ async function main() {
       const userCode = await generateUniqueCodeInTransaction(name, usedUserCodes, client);
       
       const result = await client.query(
-        `INSERT INTO users (name, email, password, role, location, phone, user_code, is_assigned, assigned_to)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name`,
-        [name, email, hashedPassword, 'team_leader', randomElement(LEBANESE_LOCATIONS), generateLebanesePhone(), userCode, false, null]
+        `INSERT INTO users (name, email, password, role, phone, user_code, is_assigned, assigned_to)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name`,
+        [name, email, hashedPassword, 'team_leader', generateLebanesePhone(), userCode, false, null]
       );
       
       teamLeaders.push(result.rows[0]);
@@ -325,9 +325,9 @@ async function main() {
         const userCode = await generateUniqueCodeInTransaction(name, usedUserCodes, client);
         
         const result = await client.query(
-          `INSERT INTO users (name, email, password, role, location, phone, user_code, is_assigned, assigned_to)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, name`,
-          [name, email, hashedPassword, 'agent', randomElement(LEBANESE_LOCATIONS), generateLebanesePhone(), userCode, true, teamLeader.id]
+          `INSERT INTO users (name, email, password, role, phone, user_code, is_assigned, assigned_to)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id, name`,
+          [name, email, hashedPassword, 'agent', generateLebanesePhone(), userCode, true, teamLeader.id]
         );
         
         const agent = result.rows[0];

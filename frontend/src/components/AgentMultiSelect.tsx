@@ -11,7 +11,6 @@ interface Agent {
   email: string
   user_code: string
   role: string
-  location?: string
   is_assigned: boolean
 }
 
@@ -257,9 +256,6 @@ export function AgentMultiSelect({
                           <div className="flex-1">
                             <div className="font-medium text-gray-900 text-sm">{agent.name}</div>
                             <div className="text-xs text-gray-600">{agent.email}</div>
-                            {agent.location && (
-                              <div className="text-xs text-gray-500">{agent.location}</div>
-                            )}
                             {agent.is_assigned && !isSelected && (
                               <div className="text-xs text-red-600 mt-1">Already assigned to another team</div>
                             )}

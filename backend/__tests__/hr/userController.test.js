@@ -37,9 +37,9 @@ describe('User Controller', () => {
         email: 'john@example.com',
         password: 'password123',
         role: 'agent',
-        location: 'Beirut',
         phone: '123456789',
-        work_location: 'Office'
+        work_location: 'Office',
+        address: '123 Main Street, Beirut'
       };
 
       userModel.findByEmail.mockResolvedValue(null);
@@ -78,9 +78,9 @@ describe('User Controller', () => {
         email: 'jane@example.com',
         password: 'password123',
         role: 'agent',
-        location: 'Beirut',
         phone: '123456789',
-        work_location: 'Office'
+        work_location: 'Office',
+        address: '456 Oak Avenue, Beirut'
       };
 
       userModel.findByEmail.mockResolvedValue(null);
