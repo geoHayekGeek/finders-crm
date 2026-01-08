@@ -190,16 +190,17 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 relative z-[101]"
+        className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col relative z-[101] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <form onSubmit={handleSubmit}>
-          <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-            <div className="flex items-center justify-between mb-4">
+        <form onSubmit={handleSubmit} className="flex flex-col h-full min-h-0">
+          {/* Header - Fixed */}
+          <div className="flex-shrink-0 px-4 pt-5 pb-4 sm:p-6 sm:pb-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-10 h-10 rounded-lg flex items-center justify-center"
@@ -221,8 +222,10 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
                 <X className="h-6 w-6" />
               </button>
             </div>
+          </div>
 
-
+          {/* Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto min-h-0 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
             <div className="space-y-4">
               <div>
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -405,7 +408,8 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
             </div>
           </div>
 
-          <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+          {/* Footer - Fixed */}
+          <div className="flex-shrink-0 bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
             <button
               type="submit"
               disabled={loading}
