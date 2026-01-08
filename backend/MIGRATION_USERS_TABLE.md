@@ -25,7 +25,7 @@ This migration updates the `users` table by:
 
 ```bash
 cd backend
-npm run migrate-users-table
+npm run migrate:users-table
 ```
 
 Or directly:
@@ -45,24 +45,30 @@ npm i -g @railway/cli
 railway login
 railway link
 
-# Run the migration
-railway run npm run migrate-users-table
+# Run the migration (from backend directory)
+cd backend
+railway run npm run migrate:users-table
 ```
 
-**Option 2: Using Railway Dashboard**
+**Note:** If you get connection errors with `railway run`, use Option 2 (Railway Dashboard) instead, as it runs directly in Railway's environment.
+
+**Option 2: Using Railway Dashboard Shell** (May not be available in all Railway plans)
 1. Go to Railway dashboard → Your project → Backend service
 2. Click on the latest deployment
-3. Open the "Shell" tab
-4. Run: `npm run migrate-users-table`
+3. If available, open the "Shell" tab
+4. Run: `npm run migrate:users-table`
 5. Verify output shows success messages
 
-**Option 3: One-off Service (Safest for Production)**
-1. In Railway dashboard, create a new temporary service
-2. Link it to the same codebase
-3. Set start command: `npm run migrate-users-table`
-4. Deploy once
-5. Check logs to verify migration succeeded
-6. Delete the temporary service after verification
+**Note:** If the Shell tab is not available, use Option 3 instead.
+
+**Option 3: One-off Service (Recommended - Safest for Production)**
+1. In Railway dashboard, click "+ New" → "Empty Service"
+2. Name it "migration-users-table" (temporary)
+3. Go to "Settings" → "Source" and connect to the same repository/branch
+4. Go to "Settings" → "Deploy" and set "Start Command" to: `cd backend && npm run migrate:users-table`
+5. The service will auto-deploy - watch "Deploy Logs" for output
+6. Verify you see: `✅ Migration completed successfully!`
+7. After verification, delete the temporary service
 
 ## Expected Output
 
