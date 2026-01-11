@@ -505,9 +505,9 @@ export function PropertyModals({
       case 'notes':
         return true // Optional field
       case 'property_url':
-        // If empty, it's valid (optional field)
-        if (!value || (typeof value === 'string' && value.trim() === '')) return true
-        // If not empty, validate URL format - must start with http:// or https://
+        // Required field - must not be empty
+        if (!value || (typeof value === 'string' && value.trim() === '')) return false
+        // Validate URL format - must start with http:// or https://
         const trimmedValue = typeof value === 'string' ? value.trim() : String(value)
         if (!trimmedValue.startsWith('http://') && !trimmedValue.startsWith('https://')) {
           return false
@@ -568,7 +568,7 @@ export function PropertyModals({
       errors.push('Built year must be between 1800 and current year');
     }
     if (!isFieldValid('property_url', addFormData.property_url)) {
-      errors.push('Property URL must be a valid URL starting with http:// or https://');
+      errors.push('Property URL is required and must be a valid URL starting with http:// or https://');
     }
     
     return errors;
@@ -647,7 +647,10 @@ export function PropertyModals({
         }
         return 'Built year must be between 1800 and current year'
       case 'property_url':
-        return 'Please enter a valid URL starting with http:// or https:// (e.g., https://example.com)'
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          return 'Property URL is required'
+        }
+        return 'Property URL must be a valid URL starting with http:// or https://'
       default:
         return ''
     }
@@ -2135,7 +2138,7 @@ export function PropertyModals({
 
                   <div>
                     <InputField
-                      label="Property URL (Optional)"
+                      label="Property URL"
                       id="add-property-url"
                       type="url"
                       value={addFormData.property_url}
@@ -2148,7 +2151,7 @@ export function PropertyModals({
                         console.log('🔍 Add Property URL onBlur triggered with value:', value)
                         validateField('property_url', value)
                       }}
-                      required={false}
+                      required={true}
                       placeholder="https://example.com/property-listing"
                       errorMessage={validationErrors.property_url}
                     />
@@ -3130,7 +3133,7 @@ export function PropertyModals({
                   </div>
 
                   <InputField
-                    label="Property URL (Optional)"
+                    label="Property URL"
                     id="edit-property-url"
                       type="url"
                       value={editFormData.property_url || ''}
@@ -3148,7 +3151,7 @@ export function PropertyModals({
                       console.log('🔍 Property URL onBlur triggered with value:', value)
                       validateField('property_url', value, true)
                     }}
-                    required={false}
+                    required={true}
                     placeholder="https://example.com/property-listing"
                     errorMessage={backendValidationErrors.property_url || editValidationErrors.property_url}
                   />

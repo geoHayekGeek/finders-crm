@@ -180,14 +180,15 @@ const validateProperty = [
     .customSanitizer(sanitizeInput),
     
   body('property_url')
-    .optional({ nullable: true, checkFalsy: true })
+    .notEmpty()
+    .withMessage('Property URL is required')
+    .isString()
+    .withMessage('Property URL must be a string')
+    .isLength({ min: 1, max: 500 })
+    .withMessage('Property URL must not exceed 500 characters')
     .custom((value) => {
-      if (!value) return true; // Optional field
-      if (typeof value !== 'string') {
-        throw new Error('Property URL must be a string');
-      }
-      if (value.length > 500) {
-        throw new Error('Property URL must not exceed 500 characters');
+      if (typeof value !== 'string' || !value.trim()) {
+        throw new Error('Property URL is required');
       }
       // Check if it's a valid URL starting with http:// or https://
       try {
@@ -199,7 +200,8 @@ const validateProperty = [
         throw new Error('Property URL must be a valid URL starting with http:// or https://');
       }
       return true;
-    }),
+    })
+    .customSanitizer(sanitizeInput),
     
   body('main_image')
     .optional()
