@@ -229,8 +229,295 @@ const getPropertiesWithFilters = async (req, res) => {
           matches = false;
         }
         
+        // Helper function to extract number from string
+        const extractNumber = (str) => {
+          if (!str) return null;
+          const numMatch = str.toString().match(/\d+/);
+          return numMatch ? parseInt(numMatch[0], 10) : null;
+        };
+        
+        // Helper function to check yes/no values
+        const checkYesNo = (value, filterValue) => {
+          if (!value) return false;
+          const valueStr = value.toString().toLowerCase().trim();
+          const filterStr = filterValue.toString().toLowerCase().trim();
+          // Check for yes/no variations
+          if (filterStr === 'true' || filterStr === 'yes' || filterStr === '1') {
+            return valueStr === 'yes' || valueStr === 'true' || valueStr === '1' || 
+                   valueStr.includes('yes') || valueStr.includes('true');
+          }
+          if (filterStr === 'false' || filterStr === 'no' || filterStr === '0') {
+            return valueStr === 'no' || valueStr === 'false' || valueStr === '0' || 
+                   valueStr.includes('no') || valueStr.includes('false');
+          }
+          // Fallback to string includes
+          return valueStr.includes(filterStr);
+        };
+        
+        // Property Details filters
+        // Floor Number - handle both numeric and text matching
+        if (matches && filters.floor_number && filters.floor_number.trim() !== '') {
+          try {
+            const details = typeof property.details === 'string' ? JSON.parse(property.details) : property.details;
+            if (!details || !details.floor_number) {
+              matches = false;
+            } else {
+              const filterValue = filters.floor_number.trim().toLowerCase();
+              const floorValue = details.floor_number.toString().toLowerCase();
+              
+              // Try numeric matching first
+              const filterNum = extractNumber(filterValue);
+              const valueNum = extractNumber(floorValue);
+              
+              if (filterNum !== null && valueNum !== null) {
+                // Numeric match
+                if (filterNum !== valueNum) {
+                  matches = false;
+                }
+              } else {
+                // String match fallback (case-insensitive)
+                if (!floorValue.includes(filterValue)) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        // Balcony - checkbox (yes/no)
+        if (matches && filters.balcony !== undefined && filters.balcony !== null && filters.balcony !== '') {
+          try {
+            const details = typeof property.details === 'string' ? JSON.parse(property.details) : property.details;
+            if (!details || !details.balcony) {
+              matches = false;
+            } else {
+              const balconyValue = details.balcony.toString().toLowerCase().trim();
+              const filterValue = filters.balcony.toString().toLowerCase().trim();
+              // Check if it's a yes/no filter
+              if (filterValue === 'true' || filterValue === 'yes' || filterValue === '1') {
+                if (balconyValue !== 'yes' && balconyValue !== 'true' && balconyValue !== '1' && 
+                    !balconyValue.includes('yes') && !balconyValue.includes('true')) {
+                  matches = false;
+                }
+              } else if (filterValue === 'false' || filterValue === 'no' || filterValue === '0') {
+                if (balconyValue !== 'no' && balconyValue !== 'false' && balconyValue !== '0' && 
+                    !balconyValue.includes('no') && !balconyValue.includes('false')) {
+                  matches = false;
+                }
+              } else {
+                // String match
+                if (!balconyValue.includes(filterValue)) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        if (matches && filters.covered_parking && filters.covered_parking.trim() !== '') {
+          try {
+            const details = typeof property.details === 'string' ? JSON.parse(property.details) : property.details;
+            if (!details || !details.covered_parking || 
+                !details.covered_parking.toLowerCase().includes(filters.covered_parking.toLowerCase().trim())) {
+              matches = false;
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        if (matches && filters.outdoor_parking && filters.outdoor_parking.trim() !== '') {
+          try {
+            const details = typeof property.details === 'string' ? JSON.parse(property.details) : property.details;
+            if (!details || !details.outdoor_parking || 
+                !details.outdoor_parking.toLowerCase().includes(filters.outdoor_parking.toLowerCase().trim())) {
+              matches = false;
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        // Cave - checkbox (yes/no)
+        if (matches && filters.cave !== undefined && filters.cave !== null && filters.cave !== '') {
+          try {
+            const details = typeof property.details === 'string' ? JSON.parse(property.details) : property.details;
+            if (!details || !details.cave) {
+              matches = false;
+            } else {
+              const caveValue = details.cave.toString().toLowerCase().trim();
+              const filterValue = filters.cave.toString().toLowerCase().trim();
+              // Check if it's a yes/no filter
+              if (filterValue === 'true' || filterValue === 'yes' || filterValue === '1') {
+                if (caveValue !== 'yes' && caveValue !== 'true' && caveValue !== '1' && 
+                    !caveValue.includes('yes') && !caveValue.includes('true')) {
+                  matches = false;
+                }
+              } else if (filterValue === 'false' || filterValue === 'no' || filterValue === '0') {
+                if (caveValue !== 'no' && caveValue !== 'false' && caveValue !== '0' && 
+                    !caveValue.includes('no') && !caveValue.includes('false')) {
+                  matches = false;
+                }
+              } else {
+                // String match
+                if (!caveValue.includes(filterValue)) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        // Interior Details filters - numeric matching
+        if (matches && filters.living_rooms && filters.living_rooms.trim() !== '') {
+          try {
+            const interiorDetails = typeof property.interior_details === 'string' ? JSON.parse(property.interior_details) : property.interior_details;
+            if (!interiorDetails || !interiorDetails.living_rooms) {
+              matches = false;
+            } else {
+              const filterNum = extractNumber(filters.living_rooms);
+              const valueNum = extractNumber(interiorDetails.living_rooms);
+              if (filterNum !== null && valueNum !== null) {
+                // Numeric match
+                if (filterNum !== valueNum) {
+                  matches = false;
+                }
+              } else {
+                // String match fallback
+                if (!interiorDetails.living_rooms.toLowerCase().includes(filters.living_rooms.toLowerCase().trim())) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        if (matches && filters.bedrooms && filters.bedrooms.trim() !== '') {
+          try {
+            const interiorDetails = typeof property.interior_details === 'string' ? JSON.parse(property.interior_details) : property.interior_details;
+            if (!interiorDetails || !interiorDetails.bedrooms) {
+              matches = false;
+            } else {
+              const filterNum = extractNumber(filters.bedrooms);
+              const valueNum = extractNumber(interiorDetails.bedrooms);
+              if (filterNum !== null && valueNum !== null) {
+                // Numeric match
+                if (filterNum !== valueNum) {
+                  matches = false;
+                }
+              } else {
+                // String match fallback
+                if (!interiorDetails.bedrooms.toLowerCase().includes(filters.bedrooms.toLowerCase().trim())) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        if (matches && filters.bathrooms && filters.bathrooms.trim() !== '') {
+          try {
+            const interiorDetails = typeof property.interior_details === 'string' ? JSON.parse(property.interior_details) : property.interior_details;
+            if (!interiorDetails || !interiorDetails.bathrooms) {
+              matches = false;
+            } else {
+              const filterNum = extractNumber(filters.bathrooms);
+              const valueNum = extractNumber(interiorDetails.bathrooms);
+              if (filterNum !== null && valueNum !== null) {
+                // Numeric match
+                if (filterNum !== valueNum) {
+                  matches = false;
+                }
+              } else {
+                // String match fallback
+                if (!interiorDetails.bathrooms.toLowerCase().includes(filters.bathrooms.toLowerCase().trim())) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
+        // Maid Room - checkbox (yes/no)
+        if (matches && filters.maid_room !== undefined && filters.maid_room !== null && filters.maid_room !== '') {
+          try {
+            const interiorDetails = typeof property.interior_details === 'string' ? JSON.parse(property.interior_details) : property.interior_details;
+            if (!interiorDetails || !interiorDetails.maid_room) {
+              matches = false;
+            } else {
+              const maidRoomValue = interiorDetails.maid_room.toString().toLowerCase().trim();
+              const filterValue = filters.maid_room.toString().toLowerCase().trim();
+              // Check if it's a yes/no filter
+              if (filterValue === 'true' || filterValue === 'yes' || filterValue === '1') {
+                if (maidRoomValue !== 'yes' && maidRoomValue !== 'true' && maidRoomValue !== '1' && 
+                    !maidRoomValue.includes('yes') && !maidRoomValue.includes('true')) {
+                  matches = false;
+                }
+              } else if (filterValue === 'false' || filterValue === 'no' || filterValue === '0') {
+                if (maidRoomValue !== 'no' && maidRoomValue !== 'false' && maidRoomValue !== '0' && 
+                    !maidRoomValue.includes('no') && !maidRoomValue.includes('false')) {
+                  matches = false;
+                }
+              } else {
+                // String match
+                if (!maidRoomValue.includes(filterValue)) {
+                  matches = false;
+                }
+              }
+            }
+          } catch (e) {
+            matches = false;
+          }
+        }
+        
         return matches;
       });
+      
+      // Filter by serious viewings if requested
+      if (filters.has_serious_viewings === true || filters.has_serious_viewings === 'true') {
+        try {
+          const pool = require('../config/db');
+          const propertyIds = properties.map(p => p.id);
+          
+          if (propertyIds.length > 0) {
+            // Query to find properties with serious viewings
+            const seriousViewingsResult = await pool.query(
+              `SELECT DISTINCT property_id 
+               FROM viewings 
+               WHERE property_id = ANY($1::int[]) 
+               AND is_serious = true`,
+              [propertyIds]
+            );
+            
+            const propertiesWithSeriousViewings = new Set(
+              seriousViewingsResult.rows.map(row => row.property_id)
+            );
+            
+            // Filter to only properties with serious viewings
+            properties = properties.filter(property => 
+              propertiesWithSeriousViewings.has(property.id)
+            );
+          } else {
+            properties = [];
+          }
+        } catch (viewingsError) {
+          console.error('Error filtering by serious viewings:', viewingsError);
+          // If there's an error, don't filter by serious viewings
+        }
+      }
+      
       console.log('📊 After filtering properties:', properties.length);
     }
 

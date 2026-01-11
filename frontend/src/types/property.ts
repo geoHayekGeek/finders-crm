@@ -146,4 +146,17 @@ export interface PropertyFilters {
   surface_max?: number
   built_year_min?: number
   built_year_max?: number
+  // Property Details filters
+  floor_number?: string
+  balcony?: string
+  covered_parking?: string
+  outdoor_parking?: string
+  cave?: string
+  // Interior Details filters
+  living_rooms?: string
+  bedrooms?: string
+  bathrooms?: string
+  maid_room?: string
+  // Serious viewings filter
+  has_serious_viewings?: boolean
 }

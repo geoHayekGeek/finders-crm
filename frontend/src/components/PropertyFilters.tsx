@@ -1,6 +1,6 @@
 'use client'
 
-import { Search, Filter, X } from 'lucide-react'
+import { Search, Filter, X, Home, Layers, Star } from 'lucide-react'
 import { PropertyFilters as PropertyFiltersType, Category, Status } from '@/types/property'
 
 interface Agent {
@@ -35,8 +35,8 @@ export function PropertyFilters({
     setFilters({ ...filters, [key]: value })
   }
 
-  const hasActiveFilters = Object.values(filters).some(value => 
-    value !== undefined && value !== null && value !== ''
+  const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
+    value !== undefined && value !== null && value !== '' && value !== false
   )
 
   return (
@@ -129,7 +129,8 @@ export function PropertyFilters({
 
       {/* Advanced Filters */}
       {showAdvancedFilters && (
-        <div className="bg-white p-6 rounded-lg shadow">
+        <div className="bg-white p-6 rounded-lg shadow space-y-6">
+          {/* Basic Filters Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Price Range */}
             <div>
@@ -208,6 +209,156 @@ export function PropertyFilters({
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Property Details Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Home className="h-5 w-5 text-blue-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Property Details</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Floor Number</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 3, Ground"
+                  value={filters.floor_number || ''}
+                  onChange={(e) => handleFilterChange('floor_number', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Covered Parking</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 2, Yes"
+                  value={filters.covered_parking || ''}
+                  onChange={(e) => handleFilterChange('covered_parking', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Outdoor Parking</label>
+                <input
+                  type="text"
+                  placeholder="e.g., 1, No"
+                  value={filters.outdoor_parking || ''}
+                  onChange={(e) => handleFilterChange('outdoor_parking', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Balcony</label>
+                <div className="flex items-center h-10">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.balcony === 'true' || filters.balcony === 'yes' || filters.balcony === true}
+                      onChange={(e) => handleFilterChange('balcony', e.target.checked ? 'true' : undefined)}
+                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">Has Balcony</span>
+                  </label>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Cave</label>
+                <div className="flex items-center h-10">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.cave === 'true' || filters.cave === 'yes' || filters.cave === true}
+                      onChange={(e) => handleFilterChange('cave', e.target.checked ? 'true' : undefined)}
+                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">Has Cave</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Interior Details Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Layers className="h-5 w-5 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-900">Interior Details</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Living Rooms</label>
+                <input
+                  type="number"
+                  placeholder="e.g., 2"
+                  value={filters.living_rooms || ''}
+                  onChange={(e) => handleFilterChange('living_rooms', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Bedrooms</label>
+                <input
+                  type="number"
+                  placeholder="e.g., 3"
+                  value={filters.bedrooms || ''}
+                  onChange={(e) => handleFilterChange('bedrooms', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  min="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Bathrooms</label>
+                <input
+                  type="number"
+                  placeholder="e.g., 2"
+                  value={filters.bathrooms || ''}
+                  onChange={(e) => handleFilterChange('bathrooms', e.target.value || undefined)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+                  min="0"
+                  step="0.5"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Maid Room</label>
+                <div className="flex items-center h-10">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={filters.maid_room === 'true' || filters.maid_room === 'yes' || filters.maid_room === true}
+                      onChange={(e) => handleFilterChange('maid_room', e.target.checked ? 'true' : undefined)}
+                      className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <span className="ml-3 text-sm text-gray-700">Has Maid Room</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Serious Viewings Section */}
+          <div className="border-t border-gray-200 pt-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Star className="h-5 w-5 text-yellow-500" />
+              <h3 className="text-lg font-semibold text-gray-900">Viewings</h3>
+            </div>
+            <div className="flex items-center">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={filters.has_serious_viewings === true}
+                  onChange={(e) => handleFilterChange('has_serious_viewings', e.target.checked || undefined)}
+                  className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                />
+                <span className="ml-3 text-sm font-medium text-gray-700">
+                  Has Serious Viewings
+                </span>
+                <span className="ml-2 text-xs text-gray-500">
+                  (Show only properties with serious viewings)
+                </span>
+              </label>
             </div>
           </div>
 
@@ -331,6 +482,120 @@ export function PropertyFilters({
                     <button
                       onClick={() => handleFilterChange('built_year_max', undefined)}
                       className="ml-2 text-orange-600 hover:text-orange-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {/* Property Details Filters */}
+                {filters.floor_number && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                    Floor: {filters.floor_number}
+                    <button
+                      onClick={() => handleFilterChange('floor_number', undefined)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {(filters.balcony === 'true' || filters.balcony === 'yes' || filters.balcony === true) && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                    Has Balcony
+                    <button
+                      onClick={() => handleFilterChange('balcony', undefined)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.covered_parking && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                    Covered Parking: {filters.covered_parking}
+                    <button
+                      onClick={() => handleFilterChange('covered_parking', undefined)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.outdoor_parking && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                    Outdoor Parking: {filters.outdoor_parking}
+                    <button
+                      onClick={() => handleFilterChange('outdoor_parking', undefined)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {(filters.cave === 'true' || filters.cave === 'yes' || filters.cave === true) && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                    Has Cave
+                    <button
+                      onClick={() => handleFilterChange('cave', undefined)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {/* Interior Details Filters */}
+                {filters.living_rooms && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
+                    Living Rooms: {filters.living_rooms}
+                    <button
+                      onClick={() => handleFilterChange('living_rooms', undefined)}
+                      className="ml-2 text-purple-600 hover:text-purple-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.bedrooms && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
+                    Bedrooms: {filters.bedrooms}
+                    <button
+                      onClick={() => handleFilterChange('bedrooms', undefined)}
+                      className="ml-2 text-purple-600 hover:text-purple-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.bathrooms && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
+                    Bathrooms: {filters.bathrooms}
+                    <button
+                      onClick={() => handleFilterChange('bathrooms', undefined)}
+                      className="ml-2 text-purple-600 hover:text-purple-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {(filters.maid_room === 'true' || filters.maid_room === 'yes' || filters.maid_room === true) && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
+                    Has Maid Room
+                    <button
+                      onClick={() => handleFilterChange('maid_room', undefined)}
+                      className="ml-2 text-purple-600 hover:text-purple-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {/* Serious Viewings Filter */}
+                {filters.has_serious_viewings && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-yellow-100 text-yellow-800">
+                    <Star className="h-3 w-3 mr-1 fill-yellow-600" />
+                    Has Serious Viewings
+                    <button
+                      onClick={() => handleFilterChange('has_serious_viewings', undefined)}
+                      className="ml-2 text-yellow-600 hover:text-yellow-800"
                     >
                       <X className="h-4 w-4" />
                     </button>

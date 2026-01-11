@@ -227,6 +227,10 @@ export default function PropertiesPage() {
           if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && typeof value === 'number' && value > 0) {
             queryParams.append(key, value.toString())
           } 
+          // Include boolean values (e.g., has_serious_viewings)
+          else if (typeof value === 'boolean' && value === true) {
+            queryParams.append(key, value.toString())
+          }
           // For other filters, exclude empty/zero values
           else if (key !== 'agent_id' && value !== undefined && value !== null && value !== '' && value !== 0) {
             queryParams.append(key, value.toString())
@@ -343,6 +347,10 @@ export default function PropertiesPage() {
           if (key === 'agent_id' && value !== undefined && value !== null && value !== '' && typeof value === 'number' && value > 0) {
             queryParams.append(key, value.toString())
           } 
+          // Include boolean values (e.g., has_serious_viewings)
+          else if (typeof value === 'boolean' && value === true) {
+            queryParams.append(key, value.toString())
+          }
           // For other filters, exclude empty/zero values
           else if (key !== 'agent_id' && value !== undefined && value !== null && value !== '' && value !== 0) {
             queryParams.append(key, value.toString())
