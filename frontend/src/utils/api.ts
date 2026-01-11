@@ -647,7 +647,18 @@ export const leadsApi = {
   getByAgent: (agentId: number, token?: AuthToken) => apiRequest<LeadsResponse>(`/leads/agent/${agentId}`, {}, token),
   
   // Get lead statistics
-  getStats: (token?: AuthToken) => apiRequest<LeadStatsApiResponse>('/leads/stats', {}, token),
+  getStats: (filters?: LeadFilters, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, String(value))
+        }
+      })
+    }
+    const queryString = params.toString()
+    return apiRequest<LeadStatsApiResponse>(`/leads/stats${queryString ? `?${queryString}` : ''}`, {}, token)
+  },
   
   // Get referrals for a specific lead
   getReferrals: (leadId: number, token?: AuthToken) => apiRequest<LeadReferralsResponse>(`/leads/${leadId}/referrals`, {}, token),

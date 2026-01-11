@@ -1148,7 +1148,27 @@ class Property {
       FROM properties p
       LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
     `);
-    return result.rows[0];
+    
+    // Get count of properties with serious viewings
+    const seriousViewingsResult = await pool.query(`
+      SELECT COUNT(DISTINCT p.id) as properties_with_serious_viewings
+      FROM properties p
+      INNER JOIN viewings v ON p.id = v.property_id
+      WHERE v.is_serious = true
+    `);
+    
+    const stats = result.rows[0];
+    const totalProperties = parseInt(stats.total_properties) || 0;
+    const propertiesWithSeriousViewings = parseInt(seriousViewingsResult.rows[0]?.properties_with_serious_viewings || 0);
+    const seriousViewingsPercentage = totalProperties > 0 
+      ? ((propertiesWithSeriousViewings / totalProperties) * 100).toFixed(1)
+      : '0.0';
+    
+    return {
+      ...stats,
+      properties_with_serious_viewings: propertiesWithSeriousViewings,
+      serious_viewings_percentage: parseFloat(seriousViewingsPercentage)
+    };
   }
 
   static async getPropertiesByLocation() {

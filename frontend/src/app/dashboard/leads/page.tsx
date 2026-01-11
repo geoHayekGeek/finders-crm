@@ -14,7 +14,7 @@ import {
   FileText,
   FileSpreadsheet,
   Calendar,
-  TrendingUp
+  Star
 } from 'lucide-react'
 import { DataTable } from '@/components/DataTable'
 import { LeadsCard } from '@/components/LeadsCard'
@@ -235,14 +235,14 @@ useEffect(() => {
     try {
       if (!isAuthenticated || !token) return
       
-      const statsResponse = await leadsApi.getStats(token)
+      const statsResponse = await leadsApi.getStats(filters, token)
       if (statsResponse.success) {
         setStats(statsResponse.data)
       }
     } catch (error) {
       console.error('Error loading stats:', error)
     }
-  }, [isAuthenticated, token])
+  }, [isAuthenticated, token, filters])
 
   // Initialize filters from URL parameters (must run before loadLeads)
   useEffect(() => {
@@ -336,7 +336,7 @@ useEffect(() => {
     // If filters changed OR this is the first time we're setting filters from URL
     if (prevFiltersRef.current !== currentFiltersStr || (hasUrlFilter && prevFiltersRef.current === '')) {
       // Filters actually changed or being set from URL
-      console.log('🔍 [DEBUG] Filters changed or set from URL, loading leads:', { 
+      console.log('🔍 [DEBUG] Filters changed or set from URL, loading leads and stats:', { 
         oldFilters: prevFiltersRef.current, 
         newFilters: currentFiltersStr,
         filters,
@@ -345,13 +345,14 @@ useEffect(() => {
       if (loadLeadsRef.current) {
         loadLeadsRef.current()
       }
+      loadStats() // Reload stats with new filters
       setCurrentPage(1) // Reset to first page when filters change
       prevFiltersRef.current = currentFiltersStr
       isInitialLoad.current = false
     } else {
       console.log('🔄 [DEBUG] No filter change detected, skipping reload')
     }
-  }, [isAuthenticated, token, filters])
+  }, [isAuthenticated, token, filters, loadStats])
 
   // Format currency with K, M, B suffixes
   const formatCurrency = (amount: number): string => {
@@ -1093,17 +1094,19 @@ useEffect(() => {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-orange-600" />
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Star className="h-6 w-6 text-yellow-600 fill-yellow-600" />
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
                   {user?.role === 'agent' || user?.role === 'team_leader' 
-                    ? 'My Total Value' 
-                    : 'Total Value'}
+                    ? 'My Serious Viewings' 
+                    : 'Serious Viewings'}
                 </p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(stats.pricing.totalValue)}
+                  {stats.seriousViewingsPercentage !== undefined 
+                    ? `${stats.seriousViewingsPercentage}%`
+                    : '0%'}
                 </p>
               </div>
             </div>

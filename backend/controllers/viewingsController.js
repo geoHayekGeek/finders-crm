@@ -1288,6 +1288,53 @@ class ViewingsController {
       });
     }
   }
+
+  // Get count of properties with serious viewings for a list of property IDs
+  static async getSeriousViewingsCount(req, res) {
+    try {
+      const { property_ids } = req.query;
+      
+      if (!property_ids) {
+        return res.status(400).json({
+          success: false,
+          message: 'property_ids query parameter is required'
+        });
+      }
+      
+      // Parse property IDs from comma-separated string
+      const propertyIds = property_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      
+      if (propertyIds.length === 0) {
+        return res.json({
+          success: true,
+          count: 0
+        });
+      }
+      
+      // Query to count distinct properties with serious viewings
+      const result = await pool.query(
+        `SELECT COUNT(DISTINCT property_id) as count
+         FROM viewings 
+         WHERE property_id = ANY($1::int[]) 
+         AND is_serious = true`,
+        [propertyIds]
+      );
+      
+      const count = parseInt(result.rows[0]?.count || 0);
+      
+      res.json({
+        success: true,
+        count
+      });
+    } catch (error) {
+      console.error('Error getting serious viewings count:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get serious viewings count',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
 }
 
 module.exports = ViewingsController;

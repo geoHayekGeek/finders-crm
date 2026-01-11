@@ -184,6 +184,7 @@ export interface LeadStatsData {
   }
   topAgents: { name: string; count: number }[]
   monthlyTrends: { month: string; count: number }[]
+  seriousViewingsPercentage: number
 }
 
 export interface LeadNote {

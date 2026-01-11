@@ -12,8 +12,67 @@ class LeadsStatsController {
       
       // Determine if we need to filter by agent
       const isAgentOrTeamLeader = ['agent', 'team_leader'].includes(userRole);
-      const whereClause = isAgentOrTeamLeader ? 'WHERE l.agent_id = $1' : '';
-      const params = isAgentOrTeamLeader ? [userId] : [];
+      
+      // Build WHERE clause and params from filters
+      let whereConditions = [];
+      let params = [];
+      let paramIndex = 1;
+
+      // Role-based filtering
+      if (isAgentOrTeamLeader) {
+        whereConditions.push(`l.agent_id = $${paramIndex}`);
+        params.push(userId);
+        paramIndex++;
+      }
+
+      // Apply additional filters from query parameters
+      const filters = req.query;
+      
+      if (filters.status && filters.status !== 'All') {
+        whereConditions.push(`l.status = $${paramIndex}`);
+        params.push(filters.status);
+        paramIndex++;
+      }
+
+      if (filters.agent_id) {
+        const agentId = parseInt(filters.agent_id);
+        if (!isNaN(agentId)) {
+          // Override role-based filter if agent_id is specified
+          whereConditions = whereConditions.filter(cond => !cond.includes('agent_id'));
+          whereConditions.push(`l.agent_id = $${paramIndex}`);
+          params.push(agentId);
+          paramIndex++;
+        }
+      }
+
+      if (filters.date_from && filters.date_from.trim() !== '') {
+        whereConditions.push(`l.date >= $${paramIndex}::date`);
+        params.push(filters.date_from.trim());
+        paramIndex++;
+      }
+
+      if (filters.date_to && filters.date_to.trim() !== '') {
+        whereConditions.push(`l.date < ($${paramIndex}::date + interval '1 day')`);
+        params.push(filters.date_to.trim());
+        paramIndex++;
+      }
+
+      if (filters.reference_source_id) {
+        const refSourceId = parseInt(filters.reference_source_id);
+        if (!isNaN(refSourceId)) {
+          whereConditions.push(`l.reference_source_id = $${paramIndex}`);
+          params.push(refSourceId);
+          paramIndex++;
+        }
+      }
+
+      if (filters.search) {
+        whereConditions.push(`(l.customer_name ILIKE $${paramIndex} OR l.phone_number ILIKE $${paramIndex} OR l.agent_name ILIKE $${paramIndex})`);
+        params.push(`%${filters.search}%`);
+        paramIndex++;
+      }
+
+      const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
       // Execute all queries in parallel for better performance
       const [
@@ -23,68 +82,73 @@ class LeadsStatsController {
         sourceResult,
         recentResult,
         agentResult,
-        monthlyResult
+        monthlyResult,
+        seriousViewingsResult
       ] = await Promise.all([
         // Total leads
         pool.query(
-          isAgentOrTeamLeader 
-            ? 'SELECT COUNT(*) as total FROM leads WHERE agent_id = $1' 
-            : 'SELECT COUNT(*) as total FROM leads',
+          `SELECT COUNT(*) as total FROM leads l ${whereClause}`,
           params
         ),
         
         // By status
         pool.query(
-          isAgentOrTeamLeader
-            ? `SELECT status, COUNT(*) as count FROM leads WHERE agent_id = $1 GROUP BY status ORDER BY count DESC`
-            : `SELECT status, COUNT(*) as count FROM leads GROUP BY status ORDER BY count DESC`,
+          `SELECT status, COUNT(*) as count FROM leads l ${whereClause} GROUP BY status ORDER BY count DESC`,
           params
         ),
         
         // Price statistics
         pool.query(
-          isAgentOrTeamLeader
-            ? `SELECT COUNT(*) as with_price, AVG(price) as avg_price, SUM(price) as total_value, MIN(price) as min_price, MAX(price) as max_price FROM leads WHERE price IS NOT NULL AND agent_id = $1`
-            : `SELECT COUNT(*) as with_price, AVG(price) as avg_price, SUM(price) as total_value, MIN(price) as min_price, MAX(price) as max_price FROM leads WHERE price IS NOT NULL`,
+          `SELECT COUNT(*) as with_price, AVG(price) as avg_price, SUM(price) as total_value, MIN(price) as min_price, MAX(price) as max_price FROM leads l ${whereClause} ${whereClause ? 'AND' : 'WHERE'} price IS NOT NULL`,
           params
         ),
         
         // Top reference sources
         pool.query(
-          isAgentOrTeamLeader
-            ? `SELECT rs.source_name, COUNT(*) as count FROM leads l LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id WHERE l.agent_id = $1 GROUP BY rs.source_name, rs.id ORDER BY count DESC LIMIT 5`
-            : `SELECT rs.source_name, COUNT(*) as count FROM leads l LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id GROUP BY rs.source_name, rs.id ORDER BY count DESC LIMIT 5`,
+          `SELECT rs.source_name, COUNT(*) as count FROM leads l LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id ${whereClause} GROUP BY rs.source_name, rs.id ORDER BY count DESC LIMIT 5`,
           params
         ),
         
         // Recent activity (last 7 days)
         pool.query(
-          isAgentOrTeamLeader
-            ? `SELECT COUNT(*) as recent FROM leads WHERE created_at >= NOW() - INTERVAL '7 days' AND agent_id = $1`
-            : `SELECT COUNT(*) as recent FROM leads WHERE created_at >= NOW() - INTERVAL '7 days'`,
+          `SELECT COUNT(*) as recent FROM leads l ${whereClause} ${whereClause ? 'AND' : 'WHERE'} created_at >= NOW() - INTERVAL '7 days'`,
           params
         ),
         
         // Top agents (skip for agents/team leaders, or show just themselves)
         pool.query(
           isAgentOrTeamLeader
-            ? `SELECT u.name, COUNT(*) as count FROM leads l LEFT JOIN users u ON l.agent_id = u.id WHERE u.name IS NOT NULL AND l.agent_id = $1 GROUP BY u.name, u.id ORDER BY count DESC LIMIT 1`
-            : `SELECT u.name, COUNT(*) as count FROM leads l LEFT JOIN users u ON l.agent_id = u.id WHERE u.name IS NOT NULL GROUP BY u.name, u.id ORDER BY count DESC LIMIT 5`,
+            ? `SELECT u.name, COUNT(*) as count FROM leads l LEFT JOIN users u ON l.agent_id = u.id ${whereClause} ${whereClause ? 'AND' : 'WHERE'} u.name IS NOT NULL GROUP BY u.name, u.id ORDER BY count DESC LIMIT 1`
+            : `SELECT u.name, COUNT(*) as count FROM leads l LEFT JOIN users u ON l.agent_id = u.id ${whereClause} ${whereClause ? 'AND' : 'WHERE'} u.name IS NOT NULL GROUP BY u.name, u.id ORDER BY count DESC LIMIT 5`,
           params
         ),
 
         // Monthly trends (last 6 months)
         pool.query(
-          isAgentOrTeamLeader
-            ? `SELECT DATE_TRUNC('month', created_at) as month, COUNT(*) as count FROM leads WHERE created_at >= NOW() - INTERVAL '6 months' AND agent_id = $1 GROUP BY DATE_TRUNC('month', created_at) ORDER BY month DESC LIMIT 6`
-            : `SELECT DATE_TRUNC('month', created_at) as month, COUNT(*) as count FROM leads WHERE created_at >= NOW() - INTERVAL '6 months' GROUP BY DATE_TRUNC('month', created_at) ORDER BY month DESC LIMIT 6`,
+          `SELECT DATE_TRUNC('month', created_at) as month, COUNT(*) as count FROM leads l ${whereClause} ${whereClause ? 'AND' : 'WHERE'} created_at >= NOW() - INTERVAL '6 months' GROUP BY DATE_TRUNC('month', created_at) ORDER BY month DESC LIMIT 6`,
+          params
+        ),
+
+        // Count of leads with serious viewings
+        pool.query(
+          `SELECT COUNT(DISTINCT l.id) as leads_with_serious_viewings
+           FROM leads l
+           INNER JOIN viewings v ON l.id = v.lead_id
+           ${whereClause} ${whereClause ? 'AND' : 'WHERE'} v.is_serious = true`,
           params
         )
       ]);
 
+      // Calculate percentage of leads with serious viewings
+      const totalLeads = parseInt(totalResult.rows[0].total) || 0;
+      const leadsWithSeriousViewings = parseInt(seriousViewingsResult.rows[0]?.leads_with_serious_viewings || 0);
+      const seriousViewingsPercentage = totalLeads > 0 
+        ? ((leadsWithSeriousViewings / totalLeads) * 100).toFixed(1)
+        : '0.0';
+
       // Format the statistics data
       const stats = {
-        total: parseInt(totalResult.rows[0].total),
+        total: totalLeads,
         
         byStatus: statusResult.rows.map(row => ({
           status: row.status,
@@ -116,7 +180,9 @@ class LeadsStatsController {
         monthlyTrends: monthlyResult.rows.map(row => ({
           month: row.month,
           count: parseInt(row.count)
-        }))
+        })),
+        
+        seriousViewingsPercentage: parseFloat(seriousViewingsPercentage)
       };
 
       console.log('✅ Statistics fetched successfully');

@@ -20,6 +20,9 @@ router.get('/filtered', ViewingsController.getViewingsWithFilters);
 // GET /api/viewings/stats - Get viewing statistics
 router.get('/stats', ViewingsController.getViewingStats);
 
+// GET /api/viewings/serious-count - Get count of properties with serious viewings
+router.get('/serious-count', ViewingsController.getSeriousViewingsCount);
+
 // GET /api/viewings/agent/:agentId - Get viewings by agent
 router.get('/agent/:agentId', ViewingsController.getViewingsByAgent);
 

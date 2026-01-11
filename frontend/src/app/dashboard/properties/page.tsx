@@ -13,7 +13,8 @@ import {
   BarChart3,
   ChevronDown,
   FileText,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Star
 } from 'lucide-react'
 import { DataTable } from '@/components/DataTable'
 import { PropertyCard } from '@/components/PropertyCard'
@@ -489,6 +490,54 @@ export default function PropertiesPage() {
 
   // Since we're now filtering on the backend, filteredProperties is just properties
   const filteredProperties = properties
+
+  // State for serious viewings percentage (calculated from filtered properties)
+  const [seriousViewingsPct, setSeriousViewingsPct] = useState<string>('0.0')
+
+  // Fetch serious viewings count for filtered properties
+  useEffect(() => {
+    const fetchSeriousViewingsCount = async () => {
+      if (!isAuthenticated || !token || filteredProperties.length === 0) {
+        setSeriousViewingsPct('0.0')
+        return
+      }
+      
+      try {
+        const propertyIds = filteredProperties.map(p => p.id)
+        if (propertyIds.length === 0) {
+          setSeriousViewingsPct('0.0')
+          return
+        }
+        
+        const response = await fetch(
+          `${API_BASE_URL}/viewings/serious-count?property_ids=${propertyIds.join(',')}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+        
+        if (response.ok) {
+          const data = await response.json()
+          const propertiesWithSeriousViewings = data.count || 0
+          const percentage = filteredProperties.length > 0 
+            ? ((propertiesWithSeriousViewings / filteredProperties.length) * 100).toFixed(1)
+            : '0.0'
+          setSeriousViewingsPct(percentage)
+        } else {
+          setSeriousViewingsPct('0.0')
+        }
+      } catch (error) {
+        console.error('Error fetching serious viewings count:', error)
+        setSeriousViewingsPct('0.0')
+      }
+    }
+    
+    fetchSeriousViewingsCount()
+  }, [filteredProperties, isAuthenticated, token])
 
   // Paginate properties
   const paginatedProperties = useMemo(() => {
@@ -1262,12 +1311,14 @@ export default function PropertiesPage() {
           
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Building2 className="h-6 w-6 text-purple-600" />
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Star className="h-6 w-6 text-yellow-600 fill-yellow-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Categories</p>
-                <p className="text-2xl font-bold text-gray-900">{categories.length}</p>
+                <p className="text-sm font-medium text-gray-600">Serious Viewings</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {seriousViewingsPct}%
+                </p>
               </div>
             </div>
           </div>
