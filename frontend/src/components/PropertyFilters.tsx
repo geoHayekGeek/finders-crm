@@ -255,7 +255,7 @@ export function PropertyFilters({
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={filters.balcony === 'true' || filters.balcony === 'yes' || filters.balcony === true}
+                      checked={filters.balcony === 'true' || filters.balcony === 'yes'}
                       onChange={(e) => handleFilterChange('balcony', e.target.checked ? 'true' : undefined)}
                       className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                     />
@@ -269,7 +269,7 @@ export function PropertyFilters({
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={filters.cave === 'true' || filters.cave === 'yes' || filters.cave === true}
+                      checked={filters.cave === 'true' || filters.cave === 'yes'}
                       onChange={(e) => handleFilterChange('cave', e.target.checked ? 'true' : undefined)}
                       className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                     />
@@ -327,7 +327,7 @@ export function PropertyFilters({
                   <label className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={filters.maid_room === 'true' || filters.maid_room === 'yes' || filters.maid_room === true}
+                      checked={filters.maid_room === 'true' || filters.maid_room === 'yes'}
                       onChange={(e) => handleFilterChange('maid_room', e.target.checked ? 'true' : undefined)}
                       className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                     />
@@ -499,7 +499,7 @@ export function PropertyFilters({
                     </button>
                   </span>
                 )}
-                {(filters.balcony === 'true' || filters.balcony === 'yes' || filters.balcony === true) && (
+                {(filters.balcony === 'true' || filters.balcony === 'yes') && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
                     Has Balcony
                     <button
@@ -532,7 +532,7 @@ export function PropertyFilters({
                     </button>
                   </span>
                 )}
-                {(filters.cave === 'true' || filters.cave === 'yes' || filters.cave === true) && (
+                {(filters.cave === 'true' || filters.cave === 'yes') && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
                     Has Cave
                     <button
@@ -577,7 +577,7 @@ export function PropertyFilters({
                     </button>
                   </span>
                 )}
-                {(filters.maid_room === 'true' || filters.maid_room === 'yes' || filters.maid_room === true) && (
+                {(filters.maid_room === 'true' || filters.maid_room === 'yes') && (
                   <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-purple-100 text-purple-800">
                     Has Maid Room
                     <button
