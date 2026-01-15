@@ -7,11 +7,13 @@ class LeadsStatsController {
     try {
       console.log('📊 Fetching leads statistics...');
 
-      const userRole = req.user.role;
+      // Normalize role for comparison
+      const normalizeRole = (role) => role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
       // Determine if we need to filter by agent
-      const isAgentOrTeamLeader = ['agent', 'team_leader'].includes(userRole);
+      const isAgentOrTeamLeader = ['agent', 'team leader'].includes(userRole);
       
       // Build WHERE clause and params from filters
       let whereConditions = [];

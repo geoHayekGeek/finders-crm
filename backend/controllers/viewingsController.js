@@ -6,6 +6,11 @@ const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const ReminderService = require('../services/reminderService');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 class ViewingsController {
   // Helper function to find calendar event by viewing ID
   static async findCalendarEventByViewingId(viewingId) {
@@ -45,7 +50,7 @@ class ViewingsController {
     try {
       console.log('📋 Getting all viewings for user:', req.user?.name, 'Role:', req.user?.role);
       
-      const viewings = await Viewing.getViewingsForAgent(req.user.id, req.user.role);
+      const viewings = await Viewing.getViewingsForAgent(req.user.id, normalizeRole(req.user.role));
       
       res.json({
         success: true,
@@ -82,7 +87,7 @@ class ViewingsController {
       // #endregion
       
       let viewings;
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
       if (userRole === 'agent') {
@@ -116,7 +121,7 @@ class ViewingsController {
         } else {
           viewings = agentViewings;
         }
-      } else if (userRole === 'team_leader') {
+      } else if (userRole === 'team leader') {
         // Team leaders see their own and their team's viewings, with filters
         // First get all their team's viewings
         let teamViewings = await Viewing.getViewingsForTeamLeader(userId);
@@ -194,7 +199,7 @@ class ViewingsController {
       }
 
       // Check if user has permission to view this viewing
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
       if (userRole === 'agent' && viewing.agent_id !== userId) {
@@ -204,7 +209,7 @@ class ViewingsController {
         });
       }
       
-      if (userRole === 'team_leader') {
+      if (userRole === 'team leader') {
         // Check if viewing is assigned to team leader or their team agents
         const teamViewings = await Viewing.getViewingsForTeamLeader(userId);
         const hasAccess = teamViewings.some(v => v.id === viewing.id);
@@ -247,7 +252,7 @@ class ViewingsController {
         });
       }
 
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
       // Validate required fields first (property_id, lead_id, date, time)
@@ -302,7 +307,7 @@ class ViewingsController {
         }
         // ALWAYS set agent_id to the current user, ignoring any value they might have sent
         req.body.agent_id = userId;
-      } else if (userRole === 'team_leader') {
+      } else if (userRole === 'team leader') {
         // Team leaders can add viewings on:
         // 1. Their own properties (for themselves)
         // 2. Properties of agents under them (only for that specific agent)
@@ -626,7 +631,7 @@ class ViewingsController {
         });
       }
 
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
       // Check permissions
@@ -637,7 +642,7 @@ class ViewingsController {
         });
       }
       
-      if (userRole === 'team_leader') {
+      if (userRole === 'team leader') {
         const teamViewings = await Viewing.getViewingsForTeamLeader(userId);
         const hasAccess = teamViewings.some(v => v.id === existingViewing.id);
         
@@ -660,7 +665,7 @@ class ViewingsController {
         }
         // ALWAYS set agent_id to the current user, preventing any reassignment
         req.body.agent_id = userId;
-      } else if (userRole === 'team_leader') {
+      } else if (userRole === 'team leader') {
         // Team leaders can reassign to themselves or agents under them
         if (req.body.agent_id && req.body.agent_id !== userId) {
           // Check if the agent is under this team leader
@@ -842,7 +847,8 @@ class ViewingsController {
       console.log('🗑️ Deleting viewing:', id);
       
       // Only admins, operations managers, and operations can delete viewings
-      if (!['admin', 'operations manager', 'operations'].includes(req.user.role)) {
+      const role = normalizeRole(req.user.role);
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'Only admins, operations managers, and operations can delete viewings'
@@ -915,7 +921,7 @@ class ViewingsController {
   static async getViewingsByAgent(req, res) {
     try {
       const { agentId } = req.params;
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       console.log('🔍 Getting viewings for agent:', agentId, 'Requested by:', userId, 'Role:', userRole);
       
@@ -928,7 +934,7 @@ class ViewingsController {
             message: 'You can only view your own viewings'
           });
         }
-      } else if (userRole === 'team_leader') {
+      } else if (userRole === 'team leader') {
         // Team leaders can only view their own viewings or their team's agents' viewings
         if (parseInt(agentId) !== userId) {
           // Check if the agent is under this team leader
@@ -991,7 +997,7 @@ class ViewingsController {
         });
       }
       
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
       // Check permissions
@@ -1002,7 +1008,7 @@ class ViewingsController {
         });
       }
       
-      if (userRole === 'team_leader') {
+      if (userRole === 'team leader') {
         const teamViewings = await Viewing.getViewingsForTeamLeader(userId);
         const hasAccess = teamViewings.some(v => v.id === parentViewing.id);
         
@@ -1119,7 +1125,7 @@ class ViewingsController {
         });
       }
 
-      const userRole = req.user.role;
+      const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
 
       // Check permissions (same as updating a regular viewing)
@@ -1130,7 +1136,7 @@ class ViewingsController {
         });
       }
 
-      if (userRole === 'team_leader') {
+      if (userRole === 'team leader') {
         const teamViewings = await Viewing.getViewingsForTeamLeader(userId);
         const hasAccess = teamViewings.some(v => v.id === followUpViewing.agent_id || followUpViewing.agent_id === userId);
         if (!hasAccess) {
@@ -1263,7 +1269,8 @@ class ViewingsController {
       }
 
       // Only admins, operations managers, and operations can delete
-      if (!['admin', 'operations manager', 'operations'].includes(req.user.role)) {
+      const role = normalizeRole(req.user.role);
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'Only admins, operations managers, and operations can delete follow-up viewings'

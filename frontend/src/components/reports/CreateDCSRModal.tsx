@@ -8,6 +8,7 @@ import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
+import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
 
 interface CreateDCSRModalProps {
@@ -147,7 +148,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       const response = await usersApi.getAll(token!)
       if (response.success) {
         const teamLeadersList = response.users.filter(
-          (u: User) => u.role === 'team_leader'
+          (u: User) => normalizeRole(u.role) === 'team leader'
         )
         setTeamLeaders(teamLeadersList)
       }
@@ -825,7 +826,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
                       >
                         {member.name} {member.user_code ? `(${member.user_code})` : ''}
-                        {member.role === 'team_leader' && ' [TL]'}
+                        {normalizeRole(member.role) === 'team leader' && ' [TL]'}
                       </span>
                     ))}
                   </div>

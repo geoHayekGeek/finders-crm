@@ -20,7 +20,7 @@ import { ReferPropertyModal } from './ReferPropertyModal'
 import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
-import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole } from '@/utils/roleUtils'
+import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole, normalizeRole } from '@/utils/roleUtils'
 import { CreateViewingFormData, Viewing } from '@/types/viewing'
 import { viewingsApi } from '@/utils/api'
 import { canViewViewingsForProperty as canViewViewingsForPropertyUtil } from '@/utils/propertyViewingsPermissions'
@@ -3497,7 +3497,8 @@ export function PropertyModals({
               <div className="flex items-center gap-3">
                 {(() => {
                   // Check if user can refer this property
-                  const canReferProperty = (user?.role === 'agent' || user?.role === 'team_leader') && 
+                  const normalizedUserRole = normalizeRole(user?.role);
+                  const canReferProperty = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
                                            viewPropertyData.agent_id === user?.id &&
                                            (viewPropertyData.status_can_be_referred !== false) // Default to true if not set
                   
@@ -3781,6 +3782,25 @@ export function PropertyModals({
                       </div>
                     </div>
                   </div>
+
+                  {/* Added By - Only visible to admin, operations manager, agent manager, and operations */}
+                  {(isAdminRole(user?.role) || isOperationsRole(user?.role) || isAgentManagerRole(user?.role)) && (
+                    viewPropertyData.created_by_name && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Added By</label>
+                          <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                            {viewPropertyData.created_by_name}
+                            {viewPropertyData.created_by_role && (
+                              <span className="ml-2 text-sm text-gray-500">
+                                ({viewPropertyData.created_by_role.replace('_', ' ')})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>

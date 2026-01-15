@@ -18,6 +18,7 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { PropertyShareMenu } from './PropertyShareMenu'
 import { ReferPropertyModal } from './ReferPropertyModal'
 import { useAuth } from '@/contexts/AuthContext'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface PropertyCardProps {
   property: Property
@@ -29,11 +30,12 @@ interface PropertyCardProps {
 export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCardProps) {
   const [imageError, setImageError] = useState(false)
   const [showReferModal, setShowReferModal] = useState(false)
-  const { canManageProperties } = usePermissions()
+  const { canManageProperties, canDeleteProperties } = usePermissions()
   const { user } = useAuth()
   
   // Agents and team leaders can only refer properties that are assigned to them and can be referred
-  const canReferProperty = (user?.role === 'agent' || user?.role === 'team_leader') && 
+  const normalizedUserRole = normalizeRole(user?.role);
+  const canReferProperty = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
                            property.agent_id === user?.id &&
                            (property.status_can_be_referred !== false) // Default to true if not set
   const formatPrice = (price?: number) => {
@@ -179,20 +181,20 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
             </button>
           )}
           {canManageProperties && (
-            <>
-              <button 
-                onClick={() => onEdit(property)}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600 hover:text-gray-900"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button 
-                onClick={() => onDelete(property)}
-                className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-red-600 hover:text-red-900"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </>
+            <button 
+              onClick={() => onEdit(property)}
+              className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600 hover:text-gray-900"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {canDeleteProperties && (
+            <button 
+              onClick={() => onDelete(property)}
+              className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-red-600 hover:text-red-900"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           )}
         </div>
       </div>

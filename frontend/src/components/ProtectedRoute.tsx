@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { getDefaultPage } from '@/utils/getDefaultPage'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -41,12 +42,16 @@ export default function ProtectedRoute({
       return
     }
 
-    // Check role-based access
-    if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-      console.log('ProtectedRoute - Role not allowed, redirecting to default page')
-      const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
-      router.push(defaultPage)
-      return
+    // Check role-based access (normalize roles for comparison)
+    if (allowedRoles.length > 0) {
+      const normalizedUserRole = normalizeRole(user.role);
+      const normalizedAllowedRoles = allowedRoles.map(role => normalizeRole(role));
+      if (!normalizedAllowedRoles.includes(normalizedUserRole)) {
+        console.log('ProtectedRoute - Role not allowed, redirecting to default page')
+        const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
+        router.push(defaultPage)
+        return
+      }
     }
 
     // Check permission-based access

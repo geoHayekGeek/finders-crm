@@ -31,7 +31,8 @@ class Property {
       platform_id,
       referrals,
       main_image,
-      image_gallery
+      image_gallery,
+      created_by
     } = propertyData;
     
     // Convert details and interior_details to JSONB if they're objects
@@ -137,15 +138,15 @@ class Property {
           owner_id, owner_name, phone_number, surface, details, interior_details, 
           payment_facilities, payment_facilities_specification,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, sold_amount, buyer_id, commission, platform_id, main_image, image_gallery
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
+          closed_date, sold_amount, buyer_id, commission, platform_id, main_image, image_gallery, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
         RETURNING *`,
         [
           refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
           finalOwnerId, finalOwnerName, finalPhoneNumber, surface, detailsJsonb, interiorDetailsJsonb,
           payment_facilities || false, payment_facilities_specification || null,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, sold_amount || null, buyer_id || null, commission || null, platform_id || null, main_image, image_gallery
+          closed_date, sold_amount || null, buyer_id || null, commission || null, platform_id || null, main_image, image_gallery, created_by || null
         ]
       );
       
@@ -334,6 +335,9 @@ class Property {
           p.commission,
           p.platform_id,
           rs.source_name as platform_name,
+          p.created_by,
+          creator.name as created_by_name,
+          creator.role as created_by_role,
           p.created_at,
           p.updated_at
       FROM properties p
@@ -343,6 +347,7 @@ class Property {
       LEFT JOIN leads l ON p.owner_id = l.id
       LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
       LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
@@ -389,6 +394,9 @@ class Property {
           p.commission,
           p.platform_id,
           rs.source_name as platform_name,
+          p.created_by,
+          creator.name as created_by_name,
+          creator.role as created_by_role,
           p.created_at,
           p.updated_at,
         CASE 
@@ -402,6 +410,7 @@ class Property {
       LEFT JOIN leads l ON p.owner_id = l.id
       LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
       LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
       WHERE p.agent_id = $1
       ORDER BY p.created_at DESC
     `, [agentId]);
@@ -522,13 +531,17 @@ class Property {
 
   // Helper method to check if user can see owner details for a specific property
   static async canUserSeeOwnerDetails(userRole, userId, propertyId) {
+    // Normalize role for comparison (handles both 'operations_manager' and 'operations manager' formats)
+    const normalizeRole = (role) => role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+    const normalizedRole = normalizeRole(userRole);
+    
     // Admin, operations manager, operations, agent manager can always see owner details
-    if (['admin', 'operations manager', 'operations', 'agent manager'].includes(userRole)) {
+    if (['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizedRole)) {
       return true;
     }
 
     // For agents and team leaders, check specific permissions
-    if (userRole === 'agent') {
+    if (normalizedRole === 'agent') {
       // Agents can see owner details only for properties assigned to them
       const result = await pool.query(
         'SELECT agent_id FROM properties WHERE id = $1',
@@ -537,7 +550,7 @@ class Property {
       return result.rows.length > 0 && result.rows[0].agent_id === userId;
     }
 
-    if (userRole === 'team_leader') {
+    if (normalizedRole === 'team leader') {
       // Team leaders can see owner details for:
       // 1. Properties assigned to them
       // 2. Properties assigned to agents under them
@@ -598,6 +611,9 @@ class Property {
         p.commission,
         p.platform_id,
         rs.source_name as platform_name,
+        p.created_by,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
         p.created_at,
         p.updated_at,
         'team_agent' as agent_relationship
@@ -608,6 +624,7 @@ class Property {
       LEFT JOIN leads l ON p.owner_id = l.id
       LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
       LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
       INNER JOIN team_agents ta ON p.agent_id = ta.agent_id
       WHERE ta.team_leader_id = $1 AND ta.is_active = true
       ORDER BY p.created_at DESC
@@ -655,6 +672,9 @@ class Property {
         p.commission,
         p.platform_id,
         rs.source_name as platform_name,
+        p.created_by,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
         p.created_at,
         p.updated_at,
         CASE 
@@ -668,6 +688,7 @@ class Property {
       LEFT JOIN leads l ON p.owner_id = l.id
       LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
       LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
       WHERE p.agent_id = $1 
          OR p.agent_id IN (
            SELECT ta.agent_id 
@@ -728,6 +749,9 @@ class Property {
         p.commission,
         p.platform_id,
         rs.source_name as platform_name,
+        p.created_by,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -737,6 +761,7 @@ class Property {
       LEFT JOIN leads l ON p.owner_id = l.id
       LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
       LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
       WHERE p.id = $1
     `, [propertyId]);
     
@@ -1033,6 +1058,9 @@ class Property {
         p.commission,
         p.platform_id,
         rs.source_name as platform_name,
+        p.created_by,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -1042,6 +1070,7 @@ class Property {
       LEFT JOIN leads l ON p.owner_id = l.id
       LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
       LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
       WHERE 1=1
     `;
     

@@ -29,13 +29,14 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
 import { getDefaultPage } from '@/utils/getDefaultPage'
+import { normalizeRole } from '@/utils/roleUtils'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
 
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageProperties, canViewProperties, canViewLeads, canAccessHR } = usePermissions()
+  const { canManageProperties, canDeleteProperties, canViewProperties, canViewLeads, canAccessHR } = usePermissions()
   const { showSuccess, showError, showWarning } = useToast()
   const router = useRouter()
   
@@ -851,7 +852,7 @@ export default function PropertiesPage() {
         }
         
         // Check permissions
-        if (!canManageProperties) {
+        if (!canDeleteProperties) {
           showError('You do not have permission to delete properties')
           return
         }
@@ -1461,9 +1462,11 @@ export default function PropertiesPage() {
         <DataTable
           columns={getPropertyColumns(
             canManageProperties,
+            canDeleteProperties,
             (property: Property) => {
               // Agents and team leaders can only refer properties that are assigned to them and can be referred
-              return (user?.role === 'agent' || user?.role === 'team_leader') && 
+              const normalizedUserRole = normalizeRole(user?.role);
+              return (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
                      property.agent_id === user?.id &&
                      (property.status_can_be_referred !== false) // Default to true if not set
             }

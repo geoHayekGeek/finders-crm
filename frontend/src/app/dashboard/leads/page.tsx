@@ -28,12 +28,13 @@ import { leadsApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { formatDateForInput } from '@/utils/dateUtils'
-import { isAgentRole, isTeamLeaderRole } from '@/utils/roleUtils'
+import { isAgentRole, isTeamLeaderRole, normalizeRole } from '@/utils/roleUtils'
 
 export default function LeadsPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageLeads, canViewLeads } = usePermissions()
+  const { canManageLeads, canDeleteLeads, canViewLeads } = usePermissions()
   const limitedLeadAccess = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
+  const normalizedUserRole = normalizeRole(user?.role)
   
   // State management
   const [leads, setLeads] = useState<Lead[]>([])
@@ -559,7 +560,7 @@ useEffect(() => {
     }
     
     // Check user role and assignment
-    const canRefer = (user.role === 'agent' || user.role === 'team_leader') && 
+    const canRefer = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
                      lead.agent_id === user.id
     
     if (!canRefer) {
@@ -818,8 +819,8 @@ useEffect(() => {
           return
         }
         
-        // Check permissions
-        if (!canManageLeads) {
+        // Check permissions - only admin and operations manager can delete leads
+        if (!canDeleteLeads) {
           return
         }
         
@@ -1049,7 +1050,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
                     ? 'My Leads' 
                     : 'Total Leads'}
                 </p>
@@ -1065,7 +1066,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
                     ? 'New Assigned (7d)' 
                     : 'New (7 Days)'}
                 </p>
@@ -1081,7 +1082,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
                     ? 'My Avg. Value' 
                     : 'Avg. Value'}
                 </p>
@@ -1099,7 +1100,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {user?.role === 'agent' || user?.role === 'team_leader' 
+                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
                     ? 'My Serious Viewings' 
                     : 'Serious Viewings'}
                 </p>
@@ -1221,6 +1222,7 @@ useEffect(() => {
               onEdit={handleEditLead}
               onDelete={handleDeleteLead}
               canManageLeads={canManageLeads}
+              canDeleteLeads={canDeleteLeads}
               limitedAccess={limitedLeadAccess}
             />
           ))}
@@ -1228,7 +1230,7 @@ useEffect(() => {
       ) : (
         // Table View
         <DataTable
-          columns={getLeadsColumns(canManageLeads, { limitedAccess: limitedLeadAccess, canReferLead, userRole: user?.role })}
+          columns={getLeadsColumns(canManageLeads, canDeleteLeads, { limitedAccess: limitedLeadAccess, canReferLead, userRole: user?.role })}
           data={paginatedLeads}
         />
       )}

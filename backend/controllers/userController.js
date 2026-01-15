@@ -3,6 +3,11 @@ const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
 const jwtUtil = require('../utils/jwt');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 const registerUser = async (req, res) => {
   try {
     // Check if user is authenticated (for creating new users, only admin and HR can do this)
@@ -173,11 +178,21 @@ const getAllUsers = async (req, res) => {
     const allUsers = await userModel.getAllUsers();
     console.log('📊 Fetched users from database:', allUsers.length);
 
+    // Normalize role for comparison
+    const normalizeRole = (role) => {
+      if (!role) return '';
+      return role.toLowerCase().replace(/_/g, ' ').trim();
+    };
+    const normalizedRole = normalizeRole(currentUserRole);
+
     // Filter users based on role
     let filteredUsers = allUsers;
     
-    // Only admin and HR can see all users
-    if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Admin, HR, operations manager, operations, and agent manager can see all users
+    // (needed for referrals and other management functions)
+    const canViewAllUsers = ['admin', 'hr', 'operations manager', 'operations', 'agent manager'].includes(normalizedRole);
+    
+    if (!canViewAllUsers) {
       // Other users can only see themselves
       filteredUsers = allUsers.filter(user => user.id === currentUserId);
     }
@@ -628,7 +643,7 @@ const assignAgentToTeamLeader = async (req, res) => {
 
     // Verify team leader exists and has correct role
     const teamLeader = await userModel.findById(teamLeaderId);
-    if (!teamLeader || teamLeader.role !== 'team_leader') {
+    if (!teamLeader || normalizeRole(teamLeader.role) !== 'team leader') {
       return res.status(400).json({
         success: false,
         message: 'Invalid team leader'
@@ -713,7 +728,7 @@ const transferAgent = async (req, res) => {
 
     // Verify new team leader exists and has correct role
     const newTeamLeader = await userModel.findById(newTeamLeaderId);
-    if (!newTeamLeader || newTeamLeader.role !== 'team_leader') {
+    if (!newTeamLeader || normalizeRole(newTeamLeader.role) !== 'team leader') {
       return res.status(400).json({
         success: false,
         message: 'Invalid new team leader'

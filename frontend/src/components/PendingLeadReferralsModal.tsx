@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { X, Check, XCircle, UserCircle, Phone, User, Calendar } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface PendingLeadReferral {
   id: number
@@ -234,7 +235,7 @@ export function PendingLeadReferralsModal({
                             <User className="h-4 w-4 mr-1" />
                             <span>
                               Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
-                              {' '}({referral.referred_by_role === 'team_leader' ? 'Team Leader' : 'Agent'})
+                              {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
                             </span>
                           </div>
                           <div className="flex items-center text-xs text-gray-500 mt-1">

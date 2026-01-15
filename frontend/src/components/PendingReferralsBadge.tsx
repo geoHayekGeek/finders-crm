@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { UserPlus, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { PendingReferralsModal } from './PendingReferralsModal'
+import { normalizeRole } from '@/utils/roleUtils'
 
 export function PendingReferralsBadge() {
   const [pendingCount, setPendingCount] = useState(0)
@@ -11,7 +12,8 @@ export function PendingReferralsBadge() {
   const { token, user } = useAuth()
 
   // Only show for agents and team leaders
-  const shouldShow = user?.role === 'agent' || user?.role === 'team_leader'
+  const normalizedUserRole = normalizeRole(user?.role);
+  const shouldShow = normalizedUserRole === 'agent' || normalizedUserRole === 'team leader'
 
   useEffect(() => {
     if (!shouldShow) return

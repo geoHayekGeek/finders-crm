@@ -1,6 +1,11 @@
 // models/calendarEventModel.js
 const pool = require('../config/db');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 class CalendarEvent {
   static async createEvent(eventData) {
     const {
@@ -353,8 +358,11 @@ class CalendarEvent {
 
     const params = [];
 
+    // Normalize role for comparison
+    const normalizedRole = normalizeRole(userRole);
+    
     // Admin can see all events - no WHERE clause needed
-    if (userRole === 'admin') {
+    if (normalizedRole === 'admin') {
       // No restrictions for admin
     } else {
       // All other roles can only see their own events
@@ -457,8 +465,11 @@ class CalendarEvent {
 
     const params = [`%${searchQuery}%`];
 
+    // Normalize role for comparison
+    const normalizedRole = normalizeRole(userRole);
+    
     // Admin can see all events matching search, others only their own
-    if (userRole !== 'admin') {
+    if (normalizedRole !== 'admin') {
       params.push(userId);
       query += ` AND (
         ce.assigned_to = $2 

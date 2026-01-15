@@ -7,6 +7,24 @@ const Notification = require('../models/notificationModel');
 const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 
+// Helper function to filter created_by info based on user role
+// Only admin, operations manager, agent manager, and operations can see who created the property
+const filterCreatedByInfo = (properties, userRole) => {
+  // Normalize role for comparison
+  const normalizedRole = userRole ? userRole.toLowerCase().replace(/_/g, ' ').trim() : '';
+  const canSeeCreatedBy = ['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizedRole);
+  
+  if (canSeeCreatedBy) {
+    return properties; // Return as-is for authorized roles
+  }
+  
+  // Remove created_by info for unauthorized roles
+  return properties.map(property => {
+    const { created_by, created_by_name, created_by_role, ...rest } = property;
+    return rest;
+  });
+};
+
 // Get all properties for demo (no authentication required)
 const getDemoProperties = async (req, res) => {
   try {
@@ -54,7 +72,7 @@ const getAllProperties = async (req, res) => {
         }
         return property;
       });
-    } else if (roleFilters.role === 'team_leader') {
+    } else if (roleFilters.role === 'team leader') {
       // Team leaders can see all properties but owner details are filtered
       properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
       
@@ -86,6 +104,9 @@ const getAllProperties = async (req, res) => {
     } else {
       return res.status(403).json({ message: 'Access denied' });
     }
+
+    // Filter created_by info based on role
+    properties = filterCreatedByInfo(properties, roleFilters.role);
 
     res.json({
       success: true,
@@ -138,7 +159,7 @@ const getPropertiesWithFilters = async (req, res) => {
         }
         return property;
       });
-    } else if (roleFilters.role === 'team_leader') {
+    } else if (roleFilters.role === 'team leader') {
       // Team leaders can see all properties but owner details are filtered
       properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
       
@@ -165,6 +186,9 @@ const getPropertiesWithFilters = async (req, res) => {
     } else {
       return res.status(403).json({ message: 'Access denied' });
     }
+
+    // Filter created_by info based on role
+    properties = filterCreatedByInfo(properties, roleFilters.role);
 
     // Apply additional filters manually if provided
     if (Object.keys(filters).length > 0) {
@@ -521,6 +545,9 @@ const getPropertiesWithFilters = async (req, res) => {
       console.log('📊 After filtering properties:', properties.length);
     }
 
+    // Filter created_by info based on role (already done earlier, but ensure it's still applied)
+    properties = filterCreatedByInfo(properties, roleFilters.role);
+
     res.json({
       success: true,
       data: properties,
@@ -554,7 +581,7 @@ const getPropertyById = async (req, res) => {
         property.owner_name = 'Hidden';
         property.phone_number = 'Hidden';
       }
-    } else if (roleFilters.role === 'team_leader') {
+    } else if (roleFilters.role === 'team leader') {
       // Team leaders can see owner details for their own properties and team agent properties
       const canSeeOwnerDetails = await Property.canUserSeeOwnerDetails(
         roleFilters.role, 
@@ -570,9 +597,12 @@ const getPropertyById = async (req, res) => {
       return res.status(403).json({ message: 'Access denied' });
     }
 
+    // Filter created_by info based on role
+    const filteredProperty = filterCreatedByInfo([property], roleFilters.role)[0];
+
     res.json({
       success: true,
-      data: property,
+      data: filteredProperty,
       role: roleFilters.role
     });
   } catch (error) {
@@ -662,9 +692,9 @@ const createProperty = async (req, res) => {
       notes,
       property_url: property_url || null, // Optional
       referrals: referrals || [], // Required - validation happens in middleware and model
-
       main_image: main_image || null, // Optional
-      image_gallery: image_gallery || [] // Optional
+      image_gallery: image_gallery || [], // Optional
+      created_by: req.user.id // Track who created the property
     });
 
     // Apply the 30-day external rule to all referrals for this property
@@ -973,34 +1003,14 @@ const deleteProperty = async (req, res) => {
       user: req.user
     });
     
-    if (!roleFilters.canManageProperties) {
-      return res.status(403).json({ 
-        message: 'Access denied. You do not have permission to delete properties.' 
-      });
-    }
+    // Permission is already checked by canDeleteProperties middleware
+    // Only admin and operations manager can reach this point
 
     const property = await Property.getPropertyById(propertyId);
     console.log('🔍 Property lookup result:', property ? 'Found' : 'Not found', { propertyId: propertyId });
     
     if (!property) {
       return res.status(404).json({ message: 'Property not found' });
-    }
-
-    // Check if agent can delete this property
-    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
-      return res.status(403).json({ 
-        message: 'Access denied. You can only delete properties assigned to you.' 
-      });
-    }
-
-    // Agent managers can only delete properties assigned to their agents
-    if (roleFilters.role === 'agent manager') {
-      const assignedUser = await User.findById(property.agent_id);
-      if (!assignedUser || assignedUser.role !== 'agent') {
-        return res.status(403).json({ 
-          message: 'Access denied. You can only delete properties assigned to agents.' 
-        });
-      }
     }
 
     // Create notifications for relevant users before deleting
@@ -1381,7 +1391,7 @@ const referPropertyToAgent = async (req, res) => {
     }
 
     // For agents and team leaders, they can only refer properties assigned to them
-    if (roleFilters.role === 'agent' || roleFilters.role === 'team_leader') {
+    if (roleFilters.role === 'agent' || roleFilters.role === 'team leader') {
       if (property.agent_id !== userId) {
         return res.status(403).json({ 
           message: 'Access denied. You can only refer properties that are assigned to you.' 
@@ -1438,7 +1448,7 @@ const getPendingReferrals = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can have pending referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
       return res.status(403).json({ 
         message: 'Access denied. Only agents and team leaders can have pending referrals.' 
       });
@@ -1464,7 +1474,7 @@ const getPendingReferralsCount = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can have pending referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
       return res.json({
         success: true,
         count: 0
@@ -1491,7 +1501,7 @@ const confirmReferral = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can confirm referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
       return res.status(403).json({ 
         message: 'Access denied. Only agents and team leaders can confirm referrals.' 
       });
@@ -1537,7 +1547,7 @@ const rejectReferral = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can reject referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team_leader') {
+    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
       return res.status(403).json({ 
         message: 'Access denied. Only agents and team leaders can reject referrals.' 
       });

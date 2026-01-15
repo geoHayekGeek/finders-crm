@@ -1,6 +1,11 @@
 // models/leadReferralModel.js
 const pool = require('../config/db');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 class LeadReferral {
   /**
    * Create a new lead referral record
@@ -412,10 +417,10 @@ class LeadReferral {
       }
 
       const agentName = agentResult.rows[0].name;
-      const agentRole = agentResult.rows[0].role;
+      const agentRole = normalizeRole(agentResult.rows[0].role);
 
       // Check if agent/team leader role
-      if (agentRole !== 'agent' && agentRole !== 'team_leader') {
+      if (agentRole !== 'agent' && agentRole !== 'team leader') {
         throw new Error('Can only refer leads to agents or team leaders');
       }
 

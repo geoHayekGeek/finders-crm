@@ -489,13 +489,17 @@ class Viewing {
 
   // Get viewings for a specific agent based on role permissions
   static async getViewingsForAgent(agentId, userRole) {
+    // Normalize role for comparison (handles both 'team_leader' and 'team leader' formats)
+    const normalizeRole = (role) => role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+    const normalizedRole = normalizeRole(userRole);
+    
     // Agents and team leaders see viewings assigned to them
-    if (userRole === 'agent') {
+    if (normalizedRole === 'agent') {
       return this.getViewingsByAgent(agentId);
     }
     
     // Team leaders see their own and their team's viewings
-    if (userRole === 'team_leader') {
+    if (normalizedRole === 'team leader') {
       return this.getViewingsForTeamLeader(agentId);
     }
     

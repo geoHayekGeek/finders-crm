@@ -7,6 +7,7 @@ import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
+import { normalizeRole } from '@/utils/roleUtils'
 import { formatCurrency } from '@/utils/formatters'
 
 interface CreateReportModalProps {
@@ -80,7 +81,10 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       const response = await usersApi.getAll(token)
       if (response.success) {
         const agentsList = response.users.filter(
-          (u: User) => u.role === 'agent' || u.role === 'team_leader'
+          (u: User) => {
+            const normalizedAgentRole = normalizeRole(u.role);
+            return normalizedAgentRole === 'agent' || normalizedAgentRole === 'team leader';
+          }
         )
         setAgents(agentsList)
       }

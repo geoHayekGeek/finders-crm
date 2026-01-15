@@ -4,13 +4,18 @@ const Notification = require('../models/notificationModel');
 const pool = require('../config/db');
 const ReminderService = require('../services/reminderService');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 // Role hierarchy levels (higher number = higher authority)
 const ROLE_HIERARCHY = {
   'admin': 6,
   'operations manager': 5,
   'operations': 4,
   'agent manager': 3,
-  'team_leader': 2,
+  'team leader': 2,
   'agent': 1,
   'accountant': 1
 };
@@ -79,7 +84,7 @@ const getAllEvents = async (req, res) => {
   try {
     const { roleFilters } = req;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     const query = req.query;
     
     let events;
@@ -138,7 +143,7 @@ const getEventsByDateRange = async (req, res) => {
     const { start, end } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     
     if (!start || !end) {
       return res.status(400).json({
@@ -201,7 +206,7 @@ const getEventsByMonth = async (req, res) => {
     const { year, month } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     
     if (!year || !month) {
       return res.status(400).json({
@@ -268,7 +273,7 @@ const getEventsByWeek = async (req, res) => {
     const { startOfWeek } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     
     if (!startOfWeek) {
       return res.status(400).json({
@@ -333,7 +338,7 @@ const getEventsByDay = async (req, res) => {
     const { date } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     
     if (!date) {
       return res.status(400).json({
@@ -399,7 +404,7 @@ const getEventById = async (req, res) => {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     
     if (!id) {
       return res.status(400).json({
@@ -918,7 +923,7 @@ const searchEvents = async (req, res) => {
     const { q } = req.query;
     const { roleFilters } = req;
     const userId = req.user.id;
-    const userRole = req.user.role;
+    const userRole = normalizeRole(req.user.role);
     
     if (!q) {
       return res.status(400).json({
@@ -980,7 +985,7 @@ const getPropertiesForDropdown = async (req, res) => {
     } else if (roleFilters.role === 'agent') {
       // Agents can only see their own properties and referrals
       properties = await Property.getPropertiesAssignedOrReferredByAgent(userId);
-    } else if (roleFilters.role === 'team_leader') {
+    } else if (roleFilters.role === 'team leader') {
       // Team leaders can see their own properties and their team's properties
       properties = await Property.getPropertiesForTeamLeader(userId);
     } else {
@@ -1048,7 +1053,8 @@ const getLeadsForDropdown = async (req, res) => {
 // Admin-only: delete all events and seed new demo events
 const resetAndSeedEvents = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
+    const role = normalizeRole(req.user?.role);
+    if (role !== 'admin') {
       return res.status(403).json({ success: false, message: 'Only admins can reset and seed events' });
     }
 

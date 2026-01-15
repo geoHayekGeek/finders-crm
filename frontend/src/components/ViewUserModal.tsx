@@ -5,6 +5,7 @@ import { X, UserCircle, Mail, Phone, MapPin, Calendar, Briefcase, Shield, CheckC
 import { User } from '@/types/user'
 import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface ViewUserModalProps {
   user: User
@@ -19,7 +20,7 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
   const [loadingAgents, setLoadingAgents] = useState(false)
 
   useEffect(() => {
-    if (user.role === 'team_leader' && token) {
+    if (normalizeRole(user.role) === 'team leader' && token) {
       loadTeamAgents()
     }
   }, [user.id, user.role, token])
@@ -251,7 +252,7 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
             )}
 
             {/* Team Leader Properties/Leads */}
-            {user.role === 'team_leader' && (
+            {normalizeRole(user.role) === 'team leader' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="text-sm font-medium text-blue-900 mb-3">Properties & Leads</h4>
                 <div className="flex flex-wrap gap-2">
@@ -282,7 +283,7 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
             )}
 
             {/* Team Leader Agents */}
-            {user.role === 'team_leader' && (
+            {normalizeRole(user.role) === 'team leader' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <div className="flex items-center justify-between mb-3">
                   <h4 className="text-sm font-medium text-blue-900 flex items-center space-x-2">

@@ -170,17 +170,35 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockProperty = { id: 1, ...propertyData, reference_number: 'REF-001' };
-      
-      mockPool.connect.mockResolvedValue(mockClient);
+      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockCategory = { rows: [{ code: 'CAT' }] };
+      const mockRefNumber = { rows: [{ generate_reference_number: 'REF-001' }] };
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          reference_number: 'REF-001',
+          ...propertyData
+        }]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(mockCategory)
+        .mockResolvedValueOnce(mockRefNumber);
+
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ code: 'CAT' }] }) // category query
-        .mockResolvedValueOnce({ rows: [{ generate_reference_number: 'REF-001' }] }) // reference number
-        .mockResolvedValueOnce({ rows: [mockProperty] }); // insert property
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}) // INSERT referral
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Property.createProperty(propertyData);
 
-      expect(result).toEqual(mockProperty);
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(result.id).toBe(1);
+      expect(result.reference_number).toBe('REF-001');
       expect(result.main_image).toBeNull();
     });
 

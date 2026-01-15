@@ -5,6 +5,7 @@ import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, C
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { normalizeRole } from '@/utils/roleUtils'
 import MonthlyAgentStatsTab from '@/components/reports/MonthlyAgentStatsTab'
 import DCSRTab from '@/components/reports/DCSRTab'
 import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
@@ -68,25 +69,26 @@ function ReportsPageContent() {
   const { role } = usePermissions()
 
   const availableTabs = useMemo(() => {
+    const normalizedRole = normalizeRole(role);
     // Agents are blocked from accessing this page entirely (handled by ProtectedRoute)
     // Accountant and hr can only see Monthly Agent Statistics
-    if (role === 'accountant' || role === 'hr') {
+    if (normalizedRole === 'accountant' || normalizedRole === 'hr') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats')
     }
     // Team leaders can see Monthly Agent Statistics and DCSR Report (but limited to their team)
-    if (role === 'team_leader') {
+    if (normalizedRole === 'team leader') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'dcsr-report')
     }
     // Agent manager can see Monthly Agent Statistics and Sale & Rent Source (read only)
-    if (role === 'agent manager') {
+    if (normalizedRole === 'agent manager') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source')
     }
     // Operations can see Monthly Agent Statistics, Sale & Rent Source, Operations Commission (read only), and Operations Daily
-    if (role === 'operations') {
+    if (normalizedRole === 'operations') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
     }
     // HR can see Monthly Agent Statistics and Operations Commission
-    if (role === 'hr') {
+    if (normalizedRole === 'hr') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'operations-commission')
     }
     // Admin and operations manager can see all tabs

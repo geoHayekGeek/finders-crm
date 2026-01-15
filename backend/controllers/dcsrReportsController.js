@@ -5,6 +5,11 @@ const dcsrReportsModel = require('../models/dcsrReportsModel');
 const { exportDCSRToExcel, exportDCSRToPDF } = require('../utils/dcsrReportExporter');
 const pool = require('../config/db');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
+const normalizeRole = (role) =>
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
 /**
  * Get all DCSR reports with optional filters
  * GET /api/dcsr-reports/monthly
@@ -349,11 +354,11 @@ async function exportDCSRReportToPDF(req, res) {
  */
 async function getAllTeamsDCSRBreakdown(req, res) {
   try {
-    const role = req.user?.role;
+    const role = normalizeRole(req.user?.role);
     const userId = req.user?.id;
     
     // Team leaders cannot see all teams breakdown - they can only see their own team
-    if (role === 'team_leader') {
+    if (role === 'team leader') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. Team leaders can only view their own team breakdown.'
@@ -469,7 +474,7 @@ async function getAllTeamsDCSRBreakdown(req, res) {
  */
 async function getTeamProperties(req, res) {
   try {
-    const role = req.user?.role;
+    const role = normalizeRole(req.user?.role);
     const userId = req.user?.id;
     const { teamLeaderId } = req.params;
     const { start_date, end_date, property_type, status_id, category_id, agent_id } = req.query;
@@ -483,7 +488,7 @@ async function getTeamProperties(req, res) {
     }
     
     // Team leaders can only access their own team's data
-    if (role === 'team_leader' && parseInt(teamLeaderId) !== userId) {
+    if (role === 'team leader' && parseInt(teamLeaderId) !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view your own team\'s data.'
@@ -555,7 +560,7 @@ async function getTeamLeads(req, res) {
     const { start_date, end_date, status, agent_id } = req.query;
     
     // Team leaders can only access their own team's data
-    if (role === 'team_leader' && parseInt(teamLeaderId) !== userId) {
+    if (role === 'team leader' && parseInt(teamLeaderId) !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view your own team\'s data.'
@@ -633,7 +638,7 @@ async function getTeamViewings(req, res) {
     const { start_date, end_date, status, agent_id } = req.query;
     
     // Team leaders can only access their own team's data
-    if (role === 'team_leader' && parseInt(teamLeaderId) !== userId) {
+    if (role === 'team leader' && parseInt(teamLeaderId) !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view your own team\'s data.'
@@ -705,7 +710,7 @@ async function getTeamViewings(req, res) {
  */
 async function getTeamDCSRBreakdown(req, res) {
   try {
-    const role = req.user?.role;
+    const role = normalizeRole(req.user?.role);
     const userId = req.user?.id;
     const { team_leader_id, start_date, end_date } = req.query;
     
@@ -718,7 +723,7 @@ async function getTeamDCSRBreakdown(req, res) {
     }
     
     // Team leaders can only access their own team's breakdown
-    if (role === 'team_leader' && parseInt(team_leader_id) !== userId) {
+    if (role === 'team leader' && parseInt(team_leader_id) !== userId) {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view your own team\'s breakdown.'

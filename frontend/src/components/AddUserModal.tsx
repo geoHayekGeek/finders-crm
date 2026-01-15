@@ -7,6 +7,7 @@ import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { AgentMultiSelect } from './AgentMultiSelect'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface AddUserModalProps {
   allowedRoles: CreateUserFormData['role'][]
@@ -93,7 +94,8 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
       
       if (response.success) {
         // If team leader, assign agents
-        if (formData.role === 'team_leader' && assignedAgentIds.length > 0 && response.user) {
+        const normalizedRole = normalizeRole(formData.role);
+        if (normalizedRole === 'team leader' && assignedAgentIds.length > 0 && response.user) {
           try {
             for (const agentId of assignedAgentIds) {
               await usersApi.assignAgentToTeamLeader(response.user.id, agentId, token)
@@ -239,14 +241,14 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
                 {formData.role === 'operations manager' && 'Can manage operations team and workflows'}
                 {formData.role === 'operations' && 'Can manage system operations'}
                 {formData.role === 'agent manager' && 'Can manage agents and sales team'}
-                {formData.role === 'team_leader' && 'Can manage agents and properties'}
+                {normalizeRole(formData.role) === 'team leader' && 'Can manage agents and properties'}
                 {formData.role === 'agent' && 'Can manage assigned properties'}
                 {formData.role === 'accountant' && 'Can manage financial records and transactions'}
               </p>
             </div>
 
             {/* Agent Assignment (only for team leaders) */}
-            {formData.role === 'team_leader' && (
+            {normalizeRole(formData.role) === 'team leader' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <AgentMultiSelect
                   selectedAgentIds={assignedAgentIds}

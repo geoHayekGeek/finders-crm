@@ -6,7 +6,7 @@ import { Eye, Edit3, Trash2, Phone, Calendar, User, Users, Share2, UserPlus } fr
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { ReferLeadModal } from './ReferLeadModal'
 import { useAuth } from '@/contexts/AuthContext'
-import { isTeamLeaderRole } from '@/utils/roleUtils'
+import { isTeamLeaderRole, normalizeRole } from '@/utils/roleUtils'
 
 interface LeadsCardProps {
   lead: Lead
@@ -14,10 +14,11 @@ interface LeadsCardProps {
   onEdit: (lead: Lead) => void
   onDelete: (lead: Lead) => void
   canManageLeads?: boolean
+  canDeleteLeads?: boolean
   limitedAccess?: boolean
 }
 
-export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true, limitedAccess = false }: LeadsCardProps) {
+export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true, canDeleteLeads = false, limitedAccess = false }: LeadsCardProps) {
   const [showReferModal, setShowReferModal] = useState(false)
   const { user } = useAuth()
   const statusConfig = LEAD_STATUSES.find(s => s.value === lead.status)
@@ -48,7 +49,8 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
   }
   
   // Agents and team leaders can only refer leads that are assigned to them
-  const canReferLead = (user?.role === 'agent' || user?.role === 'team_leader') && 
+  const normalizedUserRole = normalizeRole(user?.role);
+  const canReferLead = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
                       lead.agent_id === user?.id &&
                       canBeReferred
   
@@ -201,7 +203,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
             <span>Edit</span>
           </button>
         )}
-        {canManageLeads && (
+        {canDeleteLeads && (
           <button
             onClick={() => onDelete(lead)}
             className="flex items-center gap-1 px-3 py-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors text-sm"

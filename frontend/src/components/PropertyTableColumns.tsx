@@ -6,7 +6,7 @@ import { Eye, Edit, Trash2, Building2, MapPin, User, Calendar, Share2, UserPlus 
 import { PropertyShareMenu } from './PropertyShareMenu'
 import { useAuth } from '@/contexts/AuthContext'
 
-export const getPropertyColumns = (canManageProperties: boolean, canReferProperty?: (property: Property) => boolean): ColumnDef<Property>[] => [
+export const getPropertyColumns = (canManageProperties: boolean, canDeleteProperties: boolean, canReferProperty?: (property: Property) => boolean): ColumnDef<Property>[] => [
   {
     accessorKey: 'reference_number',
     header: 'Reference',
@@ -216,22 +216,22 @@ export const getPropertyColumns = (canManageProperties: boolean, canReferPropert
             </button>
           )}
           {canManageProperties && (
-            <>
-              <button
-                onClick={() => row.original.onEdit?.(property)}
-                className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                title="Edit Property"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => row.original.onDelete?.(property)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete Property"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </>
+            <button
+              onClick={() => row.original.onEdit?.(property)}
+              className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              title="Edit Property"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {canDeleteProperties && (
+            <button
+              onClick={() => row.original.onDelete?.(property)}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete Property"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           )}
         </div>
       )
@@ -240,8 +240,8 @@ export const getPropertyColumns = (canManageProperties: boolean, canReferPropert
 ]
 
 // Extended columns for detailed view
-export const getPropertyDetailedColumns = (canManageProperties: boolean, canReferProperty?: (property: Property) => boolean): ColumnDef<Property>[] => [
-  ...getPropertyColumns(canManageProperties).slice(0, -1), // All columns except actions
+export const getPropertyDetailedColumns = (canManageProperties: boolean, canDeleteProperties: boolean, canReferProperty?: (property: Property) => boolean): ColumnDef<Property>[] => [
+  ...getPropertyColumns(canManageProperties, canDeleteProperties).slice(0, -1), // All columns except actions
   {
     accessorKey: 'building_name',
     header: 'Building',
@@ -344,22 +344,22 @@ export const getPropertyDetailedColumns = (canManageProperties: boolean, canRefe
             </button>
           )}
           {canManageProperties && (
-            <>
-              <button
-                onClick={() => property.onEdit?.(property)}
-                className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
-                title="Edit Property"
-              >
-                <Edit className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => property.onDelete?.(property)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Delete Property"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </>
+            <button
+              onClick={() => property.onEdit?.(property)}
+              className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+              title="Edit Property"
+            >
+              <Edit className="h-4 w-4" />
+            </button>
+          )}
+          {canDeleteProperties && (
+            <button
+              onClick={() => property.onDelete?.(property)}
+              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete Property"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
           )}
         </div>
       )

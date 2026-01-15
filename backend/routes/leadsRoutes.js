@@ -7,6 +7,7 @@ const {
   authenticateToken, 
   filterDataByRole,
   canManageLeads,
+  canDeleteLeads,
   canViewLeads,
   canViewAllData,
   canViewAgentPerformance
@@ -113,6 +114,6 @@ router.put('/:id',
 );
 
 // DELETE /api/leads/:id - Delete lead (admin, operations manager only)
-router.delete('/:id', validateLeadId, handleValidationErrors, LeadsController.deleteLead); // Permission check handled in controller
+router.delete('/:id', canDeleteLeads, validateLeadId, handleValidationErrors, LeadsController.deleteLead);
 
 module.exports = router;

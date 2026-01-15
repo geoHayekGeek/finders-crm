@@ -92,7 +92,7 @@ describe('Property Controller', () => {
     it('should filter owner details for team leaders', async () => {
       req.user = { id: 1, role: 'team_leader' };
       req.roleFilters = {
-        role: 'team_leader',
+        role: 'team leader',
         canViewAll: false,
         canManageProperties: false
       };
@@ -108,7 +108,7 @@ describe('Property Controller', () => {
 
       await propertyController.getAllProperties(req, res);
 
-      expect(Property.getAllPropertiesWithFilteredOwnerDetails).toHaveBeenCalledWith('team_leader', 1);
+      expect(Property.getAllPropertiesWithFilteredOwnerDetails).toHaveBeenCalledWith('team leader', 1);
       expect(User.getTeamLeaderAgents).toHaveBeenCalledWith(1);
       expect(res.json).toHaveBeenCalled();
     });

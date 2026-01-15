@@ -7,6 +7,7 @@ import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { AgentMultiSelect } from './AgentMultiSelect'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface EditUserModalProps {
   user: User
@@ -65,7 +66,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
 
   // Load assigned agents if user is a team leader
   useEffect(() => {
-    if (user.role === 'team_leader' && token) {
+    if (normalizeRole(user.role) === 'team leader' && token) {
       loadAssignedAgents()
     }
   }, [user.id, user.role, token])
@@ -133,7 +134,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
       
       if (response.success) {
         // If team leader, update agent assignments
-        if (formData.role === 'team_leader') {
+        if (normalizeRole(formData.role) === 'team leader') {
           try {
             // Find agents to add (in assignedAgentIds but not in initialAgentIds)
             const agentsToAdd = assignedAgentIds.filter(id => !initialAgentIds.includes(id))
@@ -260,7 +261,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
             </div>
 
             {/* Agent Assignment (only for team leaders) */}
-            {formData.role === 'team_leader' && (
+            {normalizeRole(formData.role) === 'team leader' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 {loadingAgents ? (
                   <div className="text-center py-4 text-gray-600">

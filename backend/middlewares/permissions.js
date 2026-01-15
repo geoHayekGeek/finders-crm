@@ -1,6 +1,13 @@
 // middlewares/permissions.js
 const jwt = require('jsonwebtoken');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+const normalizeRole = (role) => {
+  if (!role) return '';
+  // Convert to lowercase and replace underscores with spaces, then trim
+  return role.toLowerCase().replace(/_/g, ' ').trim();
+};
+
 // Permission levels for different roles
 const PERMISSIONS = {
   // Admin: Full access to everything
@@ -33,7 +40,7 @@ const PERMISSIONS = {
   
   // Operations: Everything except financial data and agent performance
   operations: {
-    properties: ['create', 'read', 'update', 'delete', 'view_all'],
+    properties: ['create', 'read', 'update', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
     leads: ['create', 'read', 'update', 'delete', 'view_all'],
     viewings: ['create', 'read', 'update', 'delete', 'view_all'],
@@ -47,7 +54,7 @@ const PERMISSIONS = {
   
   // Agent Manager: Can manage properties and view agent data, read-only access to leads (cannot add or edit)
   'agent manager': {
-    properties: ['create', 'read', 'update', 'delete', 'view_all'],
+    properties: ['create', 'read', 'update', 'view_all'],
     clients: ['create', 'read', 'update', 'delete', 'view_all'],
     leads: ['read', 'view_all'], // Read-only access to leads - cannot create or edit
     viewings: ['create', 'read', 'update', 'delete', 'view_all'],
@@ -60,7 +67,7 @@ const PERMISSIONS = {
   },
   
   // Team Leader: Can view all properties but owner details only for their own and team agent properties
-  'team_leader': {
+  'team leader': {
     properties: ['read', 'view_all_filtered'], // Can view all properties but owner details are filtered
     clients: ['read', 'view_assigned'], // Can view their own clients and assigned agents' clients
     leads: [], // No access to leads
@@ -118,9 +125,11 @@ const PERMISSIONS = {
 
 // Helper function to check if user has permission
 const hasPermission = (userRole, resource, action) => {
-  if (!PERMISSIONS[userRole]) return false;
+  // Normalize role to match PERMISSIONS object keys (which use space format)
+  const normalizedRole = normalizeRole(userRole);
+  if (!PERMISSIONS[normalizedRole]) return false;
   
-  const rolePermissions = PERMISSIONS[userRole];
+  const rolePermissions = PERMISSIONS[normalizedRole];
   if (!rolePermissions[resource]) return false;
   
   return rolePermissions[resource].includes(action);
@@ -160,6 +169,7 @@ const checkPermission = (resource, action) => {
       return res.status(403).json({ message: 'User role not found' });
     }
 
+    // hasPermission already normalizes the role internally
     if (hasPermission(req.user.role, resource, action)) {
       next();
     } else {
@@ -176,7 +186,7 @@ const canViewFinancialData = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   if (role === 'admin' || role === 'operations manager') {
     next();
   } else {
@@ -192,8 +202,8 @@ const canViewAgentPerformance = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager' || role === 'agent manager' || role === 'team_leader') {
+  const role = normalizeRole(req.user.role);
+  if (role === 'admin' || role === 'operations manager' || role === 'agent manager' || role === 'team leader') {
     next();
   } else {
     return res.status(403).json({ 
@@ -208,7 +218,7 @@ const canManageProperties = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
     next();
   } else {
@@ -224,7 +234,7 @@ const canViewProperties = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   // Accountant and HR roles should not have access to properties
   if (role === 'accountant' || role === 'hr') {
     return res.status(403).json({ 
@@ -232,7 +242,7 @@ const canViewProperties = (req, res, next) => {
     });
   }
   
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent') {
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team leader' || role === 'agent') {
     next();
   } else {
     return res.status(403).json({ 
@@ -279,7 +289,7 @@ const canManageCategoriesAndStatuses = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
     next();
   } else {
@@ -295,8 +305,8 @@ const canViewCategoriesAndStatuses = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader') {
+  const role = normalizeRole(req.user.role);
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team leader') {
     next();
   } else {
     return res.status(403).json({ 
@@ -311,7 +321,7 @@ const canViewAllData = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
     next();
   } else {
@@ -327,13 +337,47 @@ const canManageLeads = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   // Allow admin, operations manager, operations, agents, and team leaders to add leads
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent' || role === 'team_leader') {
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent' || role === 'team leader') {
     next();
   } else {
     return res.status(403).json({ 
       message: 'Access denied. Lead management restricted to admin, operations manager, operations, agents, and team leaders only.' 
+    });
+  }
+};
+
+// Middleware to check if user can delete leads
+const canDeleteLeads = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = normalizeRole(req.user.role);
+  // Only admin and operations manager can delete leads
+  if (role === 'admin' || role === 'operations manager') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Only admin and operations manager can delete leads.' 
+    });
+  }
+};
+
+// Middleware to check if user can delete properties
+const canDeleteProperties = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = normalizeRole(req.user.role);
+  // Only admin and operations manager can delete properties
+  if (role === 'admin' || role === 'operations manager') {
+    next();
+  } else {
+    return res.status(403).json({ 
+      message: 'Access denied. Only admin and operations manager can delete properties.' 
     });
   }
 };
@@ -344,7 +388,7 @@ const canViewLeads = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   // HR and Accountant do not have access to leads
   if (role === 'hr' || role === 'accountant') {
     return res.status(403).json({ 
@@ -353,7 +397,7 @@ const canViewLeads = (req, res, next) => {
   }
   
   // Agents and team leaders can view their own leads, others can view all leads
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader') {
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team leader') {
     next();
   } else {
     return res.status(403).json({ 
@@ -368,7 +412,7 @@ const canViewReports = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   // Block agents from accessing reports entirely
   if (role === 'agent') {
     return res.status(403).json({ 
@@ -376,8 +420,8 @@ const canViewReports = (req, res, next) => {
     });
   }
 
-  // Allow admin, operations manager, operations, agent manager, team_leader, accountant, and hr
-  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'accountant', 'hr'];
+  // Allow admin, operations manager, operations, agent manager, team leader, accountant, and hr
+  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'team leader', 'accountant', 'hr'];
   if (!allowedRoles.includes(role)) {
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to view reports.' 
@@ -397,7 +441,7 @@ const filterDataByRole = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   console.log('🔑 User role:', role);
   
   // Add role-based filters to request
@@ -405,18 +449,19 @@ const filterDataByRole = (req, res, next) => {
     role: role,
     canViewAll: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewFinancial: ['admin', 'operations manager'].includes(role),
-    canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team_leader'].includes(role),
+    canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team leader'].includes(role),
     canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader', 'agent'].includes(role) && !['accountant', 'hr'].includes(role),
+    canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team leader', 'agent'].includes(role) && !['accountant', 'hr'].includes(role),
     canManageUsers: ['admin', 'hr'].includes(role),
     canViewAllUsers: ['admin', 'hr'].includes(role),
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
+    canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role),
     canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),
-    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role) && !['hr', 'accountant'].includes(role),
-    canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'].includes(role),
+    canDeleteLeads: ['admin', 'operations manager'].includes(role),
+    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role) && !['hr', 'accountant'].includes(role),
+    canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team leader'].includes(role),
     canManageViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewViewings: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team_leader'].includes(role),
+    canViewViewings: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role),
     canManageAllViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role)
   };
 
@@ -545,12 +590,14 @@ module.exports = {
   canViewAgentPerformance,
   canManageProperties,
   canViewProperties,
+  canDeleteProperties,
   canManageUsers,
   canViewAllUsers,
   canManageCategoriesAndStatuses,
   canViewCategoriesAndStatuses,
   canViewAllData,
   canManageLeads,
+  canDeleteLeads,
   canViewLeads,
   canViewReports,
   canViewDCSR,

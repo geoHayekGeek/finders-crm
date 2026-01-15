@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ReportsFilters from './ReportsFilters'
+import { normalizeRole } from '@/utils/roleUtils'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
 interface GeneratedReport {
@@ -24,7 +25,8 @@ export default function SaleRentSourceTab() {
   const { showSuccess, showError } = useToast()
   const { role } = usePermissions()
   
-  const canManage = role === 'admin' || role === 'operations manager' || role === 'operations'
+  const normalizedRole = normalizeRole(role);
+  const canManage = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations'
 
   const [filters, setFilters] = useState<SaleRentSourceFilters>({})
   const [loading, setLoading] = useState(false)
@@ -106,7 +108,10 @@ export default function SaleRentSourceTab() {
         const response = await usersApi.getAll(token as string)
         if (response.success) {
           const agentsList = response.users.filter(
-            (u: User) => u.role === 'agent' || u.role === 'team_leader'
+            (u: User) => {
+              const normalizedAgentRole = normalizeRole(u.role);
+              return normalizedAgentRole === 'agent' || normalizedAgentRole === 'team leader';
+            }
           )
           setAgents(agentsList)
         }

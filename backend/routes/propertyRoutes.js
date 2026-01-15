@@ -6,6 +6,7 @@ const {
   authenticateToken, 
   filterDataByRole,
   canManageProperties,
+  canDeleteProperties,
   canViewProperties,
   canViewAllData,
   canViewFinancialData,
@@ -97,8 +98,8 @@ router.put('/:id',
   propertyController.updateProperty
 );
 
-// DELETE /api/properties/:id - Delete property (admin, operations manager, operations, agent manager)
-router.delete('/:id', canManageProperties, propertyController.deleteProperty);
+// DELETE /api/properties/:id - Delete property (admin, operations manager only)
+router.delete('/:id', canDeleteProperties, propertyController.deleteProperty);
 
 // Error handling for file uploads
 router.use(handleUploadError);

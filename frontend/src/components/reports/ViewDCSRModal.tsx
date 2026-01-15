@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { User } from '@/types/user'
+import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
 
 interface ViewDCSRModalProps {
@@ -23,7 +24,8 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
   const { role } = usePermissions()
   const router = useRouter()
   
-  const isTeamLeader = role === 'team_leader'
+  const normalizedRole = normalizeRole(role);
+  const isTeamLeader = normalizedRole === 'team leader'
 
   const [activeTab, setActiveTab] = useState<'company' | 'team'>('company')
   const [loading, setLoading] = useState(false)
@@ -99,7 +101,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
       const response = await usersApi.getAll(token!)
       if (response.success) {
         const teamLeadersList = response.users.filter(
-          (u: User) => u.role === 'team_leader'
+          (u: User) => normalizeRole(u.role) === 'team leader'
         )
         setTeamLeaders(teamLeadersList)
       }
@@ -669,7 +671,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
                         className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
                       >
                         {member.name} {member.user_code ? `(${member.user_code})` : ''}
-                        {member.role === 'team_leader' && ' [TL]'}
+                        {normalizeRole(member.role) === 'team leader' && ' [TL]'}
                       </span>
                     ))}
                   </div>

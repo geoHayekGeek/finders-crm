@@ -675,6 +675,38 @@ describe('Leads Controller', () => {
       });
     });
 
+    it('should return 403 if operations role tries to delete leads', async () => {
+      req.user = { id: 1, role: 'operations' };
+      req.params.id = '1';
+      Lead.getLeadById.mockResolvedValue(mockLead);
+
+      await LeadsController.deleteLead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You do not have permission to delete leads'
+      });
+    });
+
+    it('should allow operations manager to delete leads', async () => {
+      req.user = { id: 1, role: 'operations manager' };
+      req.params.id = '1';
+      Lead.getLeadById.mockResolvedValue(mockLead);
+      Lead.deleteLead.mockResolvedValue(mockLead);
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.deleteLead(req, res);
+
+      expect(Lead.getLeadById).toHaveBeenCalledWith('1');
+      expect(Lead.deleteLead).toHaveBeenCalledWith('1');
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockLead,
+        message: 'Lead deleted successfully'
+      });
+    });
+
     it('should handle errors', async () => {
       req.params.id = '1';
       Lead.getLeadById.mockResolvedValue(mockLead);

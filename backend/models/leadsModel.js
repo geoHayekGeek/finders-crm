@@ -554,13 +554,17 @@ class Lead {
 
   // Get leads for a specific agent based on role permissions
   static async getLeadsForAgent(agentId, userRole) {
+    // Normalize role for comparison (handles both 'team_leader' and 'team leader' formats)
+    const normalizeRole = (role) => role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+    const normalizedRole = normalizeRole(userRole);
+    
     // Agents see only their own leads
-    if (userRole === 'agent') {
+    if (normalizedRole === 'agent') {
       return this.getLeadsAssignedOrReferredByAgent(agentId);
     }
     
     // Team leaders see their own leads and their team's leads
-    if (userRole === 'team_leader') {
+    if (normalizedRole === 'team leader') {
       // Get team leader's own leads
       const teamLeaderLeads = await this.getLeadsAssignedOrReferredByAgent(agentId);
       

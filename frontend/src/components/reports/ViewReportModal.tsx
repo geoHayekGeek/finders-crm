@@ -5,6 +5,7 @@ import { MonthlyAgentReport } from '@/types/reports'
 import { formatCurrency } from '@/utils/formatters'
 import { useMemo } from 'react'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface ViewReportModalProps {
   report: MonthlyAgentReport
@@ -13,7 +14,8 @@ interface ViewReportModalProps {
 
 export default function ViewReportModal({ report, onClose }: ViewReportModalProps) {
   const { role } = usePermissions()
-  const isTeamLeader = role === 'team_leader'
+  const normalizedRole = normalizeRole(role);
+  const isTeamLeader = normalizedRole === 'team leader'
 
   const formatter = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),

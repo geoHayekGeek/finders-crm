@@ -7,6 +7,7 @@ import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { User } from '@/types/user'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface ReportsFiltersProps {
   filters: ReportFiltersType
@@ -39,7 +40,8 @@ export default function ReportsFilters({
 
     try {
       // If user is a team leader, load only their team agents + themselves
-      if (role === 'team_leader' && user?.id) {
+      const normalizedRole = normalizeRole(role);
+      if (normalizedRole === 'team leader' && user?.id) {
         const response = await usersApi.getTeamLeaderAgents(user.id, token)
         if (response.success) {
           // Include the team leader themselves in the list
@@ -61,7 +63,10 @@ export default function ReportsFilters({
         if (response.success) {
           // Filter to only show agents and team leaders
           const agentsList = response.users.filter(
-            (u: User) => u.role === 'agent' || u.role === 'team_leader'
+            (u: User) => {
+              const normalizedAgentRole = normalizeRole(u.role);
+              return normalizedAgentRole === 'agent' || normalizedAgentRole === 'team leader';
+            }
           )
           setAgents(agentsList)
         }

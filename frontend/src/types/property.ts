@@ -68,6 +68,9 @@ export interface Property {
   commission?: number // Commission amount in dollars
   platform_id?: number // Foreign key to reference_sources table - platform where property was sold
   platform_name?: string // Name of the platform/reference source
+  created_by?: number // User who added/created this property
+  created_by_name?: string // Name of the user who created this property
+  created_by_role?: string // Role of the user who created this property
   created_at: string
   updated_at: string
   referrals?: Referral[]

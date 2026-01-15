@@ -5,6 +5,7 @@ import { X, Check, XCircle, Building2, MapPin, User, Calendar } from 'lucide-rea
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { getFullImageUrl } from '@/utils/imageUpload'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface PendingReferral {
   id: number
@@ -259,7 +260,7 @@ export function PendingReferralsModal({
                             <User className="h-4 w-4 mr-1" />
                             <span>
                               Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
-                              {' '}({referral.referred_by_role === 'team_leader' ? 'Team Leader' : 'Agent'})
+                              {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
                             </span>
                           </div>
                           <div className="flex items-center text-xs text-gray-500 mt-1">

@@ -5,6 +5,7 @@ import { Share2, MessageCircle, Link as LinkIcon, Instagram, Mail, Send } from '
 import { createPortal } from 'react-dom'
 import { Property } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface PropertyShareMenuProps {
   property: Property
@@ -33,13 +34,14 @@ export function PropertyShareMenu({
   
   // Check if user can share this property (agents/team leaders can only share assigned properties)
   const canShare = () => {
+    const normalizedRole = normalizeRole(user?.role);
     // Admin, operations manager, operations, agent manager can always share
-    if (['admin', 'operations manager', 'operations', 'agent manager'].includes(user?.role || '')) {
+    if (['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizedRole)) {
       return true
     }
     
     // Agents and team leaders can only share properties assigned to them
-    if (user?.role === 'agent' || user?.role === 'team_leader') {
+    if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
       return property.agent_id === user?.id
     }
     

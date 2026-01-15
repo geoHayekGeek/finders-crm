@@ -9,6 +9,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ReportsFilters from './ReportsFilters'
+import { normalizeRole } from '@/utils/roleUtils'
 import CreateReportModal from './CreateReportModal'
 import EditReportModal from './EditReportModal'
 import AgentEarningsModal from './AgentEarningsModal'
@@ -37,13 +38,14 @@ export default function MonthlyAgentStatsTab() {
   const [showEarningsModal, setShowEarningsModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState<MonthlyAgentReport | null>(null)
 
+  const normalizedRole = normalizeRole(role);
   const canCreateReport =
-    role === 'admin' || role === 'operations manager' || role === 'operations'
+    normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations'
   const canEditReport = canCreateReport // Same permissions for edit/delete
-  const canDeleteReport = role === 'admin' || role === 'operations manager' || role === 'operations'
-  const isTeamLeader = role === 'team_leader'
-  const isViewOnly = role === 'accountant' || role === 'agent manager' || role === 'hr'
-  const isLimitedView = role === 'agent' // Team leaders can see their team, so don't lock them
+  const canDeleteReport = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations'
+  const isTeamLeader = normalizedRole === 'team leader'
+  const isViewOnly = normalizedRole === 'accountant' || normalizedRole === 'agent manager' || normalizedRole === 'hr'
+  const isLimitedView = normalizedRole === 'agent' // Team leaders can see their team, so don't lock them
   const lockedAgentId = isLimitedView && user ? user.id : undefined
 
   // Load data

@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
+import { normalizeRole } from '@/utils/roleUtils'
 import { 
   Building2, 
   FileText, 
@@ -75,9 +76,10 @@ export default function DashboardLayout({
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
     const baseNavigation: NavigationItem[] = []
+    const normalizedRole = normalizeRole(role)
 
     // For agents: show properties, leads, viewings, calendar, and HR
-    if (role === 'agent') {
+    if (normalizedRole === 'agent') {
       baseNavigation.push({ 
         name: 'Properties', 
         href: '/properties', 
@@ -147,7 +149,7 @@ export default function DashboardLayout({
     baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
 
     // Reports - visible to roles with agent performance viewing permissions, accountant (view-only), operations, or hr (view-only)
-    if (canViewAgentPerformance || role === 'accountant' || role === 'operations' || role === 'hr') {
+    if (canViewAgentPerformance || normalizedRole === 'accountant' || normalizedRole === 'operations' || normalizedRole === 'hr') {
       baseNavigation.push({ name: 'Reports', href: '/dashboard/reports', icon: BarChart3, alwaysVisible: true })
     }
 
@@ -155,7 +157,7 @@ export default function DashboardLayout({
     baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
 
     // Settings - only visible to admin
-    if (role === 'admin') {
+    if (normalizedRole === 'admin') {
       baseNavigation.push({ name: 'Settings', href: '/dashboard/settings', icon: Settings, alwaysVisible: false })
     }
 

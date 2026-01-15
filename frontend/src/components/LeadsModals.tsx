@@ -13,7 +13,7 @@ import { formatDateForDisplay } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
 import { leadStatusesApi, leadsApi, leadNotesApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { isAgentRole, isTeamLeaderRole, isAdminRole, isOperationsRole, isAgentManagerRole } from '@/utils/roleUtils'
+import { isAgentRole, isTeamLeaderRole, isAdminRole, isOperationsRole, isAgentManagerRole, normalizeRole } from '@/utils/roleUtils'
 
 interface User {
   id: number
@@ -108,16 +108,28 @@ export function LeadsModals({
   const [loadingViewings, setLoadingViewings] = useState(false)
   const [loadingOwnedProperties, setLoadingOwnedProperties] = useState(false)
   
-  // Fetch agents for referrals
+  // Fetch agents/users for referrals
+  // Operations managers, operations, agent managers, and admins can see all users for referrals
+  // Others (agents, team leaders) can only see agents and team leaders
   useEffect(() => {
     const fetchAgents = async () => {
       if (!token) return
       
       setLoadingAgents(true)
       try {
-        const data = await (await import('@/utils/api')).usersApi.getAgents(token)
-        if (data.success) {
-          setAgents(data.agents.map((agent: any) => ({ id: agent.id, name: agent.name })))
+        const normalizedUserRole = normalizeRole(user?.role)
+        // Management roles can see all users for referrals
+        if (['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizedUserRole)) {
+          const data = await (await import('@/utils/api')).usersApi.getAll(token)
+          if (data.success) {
+            setAgents(data.users.map((user: any) => ({ id: user.id, name: user.name })))
+          }
+        } else {
+          // Agents and team leaders can only see agents and team leaders
+          const data = await (await import('@/utils/api')).usersApi.getAgents(token)
+          if (data.success) {
+            setAgents(data.agents.map((agent: any) => ({ id: agent.id, name: agent.name })))
+          }
         }
       } catch (error) {
         console.error('Error fetching agents:', error)
@@ -127,7 +139,7 @@ export function LeadsModals({
     }
 
     fetchAgents()
-  }, [token])
+  }, [token, user?.role])
   
   // Handler for adding referrals
   const handleAddReferral = async (leadId: number, agentId: number, referralDate: string) => {
@@ -218,15 +230,15 @@ export function LeadsModals({
 
   const canAddNote = (() => {
     if (!user || !viewingLead) return false
-    const normalizedRole = user.role?.toLowerCase().replace(/\s+/g, '_')
+    const normalizedRole = normalizeRole(user.role)
     const isAssignedAgent = viewingLead.agent_id === user.id
     if (normalizedRole === 'agent') return !!isAssignedAgent
     // Team leaders can add notes (backend will validate if they can view the lead)
-    if (normalizedRole === 'team_leader') return true
+    if (normalizedRole === 'team leader') return true
     // Operations can add on any lead
     if (normalizedRole === 'operations') return true
     // Operations manager / agent manager / admin can add on any lead
-    if (['operations_manager', 'agent_manager', 'admin'].includes(normalizedRole || '')) return true
+    if (['operations manager', 'agent manager', 'admin'].includes(normalizedRole || '')) return true
     return false
   })()
 
@@ -1253,7 +1265,8 @@ export function LeadsModals({
                     }
                     
                     // Check user role and assignment
-                    const canRefer = (user.role === 'agent' || user.role === 'team_leader') &&
+                    const normalizedUserRole = normalizeRole(user.role);
+                    const canRefer = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') &&
                                      viewingLead.agent_id === user.id
                     
                     if (!canRefer) {

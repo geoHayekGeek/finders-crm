@@ -6,6 +6,7 @@ import { Property } from '@/types/property'
 import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface Agent {
   id: number
@@ -166,7 +167,7 @@ export function ReferPropertyModal({
                   <option value="">Choose an agent or team leader...</option>
                   {agents.map((agent) => (
                     <option key={agent.id} value={agent.id}>
-                      {agent.name} ({agent.role === 'team_leader' ? 'Team Leader' : 'Agent'})
+                      {agent.name} ({normalizeRole(agent.role) === 'team leader' ? 'Team Leader' : 'Agent'})
                     </option>
                   ))}
                 </select>

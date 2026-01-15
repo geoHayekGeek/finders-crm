@@ -15,6 +15,7 @@ interface LeadsColumnOptions {
 // Function to generate columns with permission-based actions
 export const getLeadsColumns = (
   canManageLeads: boolean = true,
+  canDeleteLeads: boolean = false,
   options: LeadsColumnOptions = {}
 ): ColumnDef<Lead>[] => {
   const columns: ColumnDef<Lead>[] = [
@@ -229,7 +230,7 @@ export const getLeadsColumns = (
               <Edit3 className="h-4 w-4" />
             </button>
           )}
-          {canManageLeads && (
+          {canDeleteLeads && (
             <button
               onClick={() => lead.onDelete?.(lead)}
               className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"

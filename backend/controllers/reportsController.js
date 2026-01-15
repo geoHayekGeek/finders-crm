@@ -9,8 +9,10 @@ const {
 } = require('../utils/saleRentSourceReportExporter');
 const pool = require('../config/db');
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+// Converts to space format for consistent comparisons
 const normalizeRole = (role) =>
-  role ? role.toLowerCase().replace(/\s+/g, '_') : '';
+  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
 class ReportsController {
   /**
@@ -23,8 +25,8 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       
       // Only admin, operations manager, and operations can create reports
-      // Accountant and agent_manager can only view reports (no create/edit/delete)
-      if (!['admin', 'operations_manager', 'operations'].includes(role)) {
+      // Accountant and agent manager can only view reports (no create/edit/delete)
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to create reports'
@@ -121,7 +123,7 @@ class ReportsController {
       if (role === 'agent') {
         // Agents can only see their own reports
         filters.agent_id = userId;
-      } else if (role === 'team_leader') {
+      } else if (role === 'team leader') {
         // Team leaders can see reports for agents under them (not their own reports)
         const teamAgents = await User.getTeamLeaderAgents(userId);
         const teamAgentIds = teamAgents.map(agent => agent.id);
@@ -137,12 +139,12 @@ class ReportsController {
         
         // Filter by team agent IDs only (excluding the team leader's own ID)
         filters.agent_ids = teamAgentIds;
-      } else if (role === 'agent_manager') {
+      } else if (role === 'agent manager') {
         // Agent manager can see all reports for agents only
         // Filter will be applied in the model to only show agent reports
         filters.agent_role_only = true;
       }
-      // Admin, operations_manager, operations: no filtering (see all)
+      // Admin, operations manager, operations: no filtering (see all)
       
       if (req.query.agent_id) {
         // Additional filter from query
@@ -215,7 +217,7 @@ class ReportsController {
             message: 'You can only view your own reports'
           });
         }
-      } else if (role === 'team_leader') {
+      } else if (role === 'team leader') {
         // Check if report belongs to an agent under this team leader
         if (report.agent_id !== userId) {
           const teamAgentCheck = await pool.query(
@@ -232,7 +234,7 @@ class ReportsController {
           }
         }
         // Team leaders see full data for team agent reports (no filtering)
-      } else if (role === 'agent_manager') {
+      } else if (role === 'agent manager') {
         // Agent manager can only see reports for agents
         if (report.agent_role !== 'agent') {
           return res.status(403).json({
@@ -241,7 +243,7 @@ class ReportsController {
           });
         }
       }
-      // Admin, operations_manager, operations: full access
+      // Admin, operations manager, operations: full access
       
       console.log('✅ Retrieved report:', report.id);
       
@@ -284,8 +286,8 @@ class ReportsController {
       
       // Check permissions
       // Only admin, operations manager, and operations can update reports
-      // Accountant and agent_manager can only view reports (no create/edit/delete)
-      if (!['admin', 'operations_manager', 'operations'].includes(role)) {
+      // Accountant and agent manager can only view reports (no create/edit/delete)
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to update reports'
@@ -328,7 +330,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       
       // Only admin, operations manager, and operations can recalculate reports
-      if (!['admin', 'operations_manager', 'operations'].includes(role)) {
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to recalculate reports'
@@ -373,7 +375,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       
       // Only admin and operations manager can delete reports
-      if (!['admin', 'operations_manager'].includes(role)) {
+      if (!['admin', 'operations manager'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete reports'
@@ -457,7 +459,7 @@ class ReportsController {
       
       // Check permissions (same as getReportById)
       // Note: Agents are blocked from accessing reports entirely (handled by middleware)
-      if (role === 'team_leader') {
+      if (role === 'team leader') {
         // Check if report belongs to the team leader themselves OR an agent under this team leader
         if (report.agent_id !== userId) {
           const teamAgentCheck = await pool.query(
@@ -494,7 +496,7 @@ class ReportsController {
         
         // Don't parse lead_sources for team leaders since they can't see it
         report.lead_sources = {};
-      } else if (role === 'agent_manager') {
+      } else if (role === 'agent manager') {
         if (report.agent_role !== 'agent') {
           return res.status(403).json({
             success: false,
@@ -502,7 +504,7 @@ class ReportsController {
           });
         }
         
-        // Parse lead_sources if it's a string (agent_manager can see it)
+        // Parse lead_sources if it's a string (agent manager can see it)
         if (report.lead_sources && typeof report.lead_sources === 'string') {
           try {
             report.lead_sources = JSON.parse(report.lead_sources);
@@ -574,7 +576,7 @@ class ReportsController {
 
       // Check permissions (same as getReportById)
       // Note: Agents are blocked from accessing reports entirely (handled by middleware)
-      if (role === 'team_leader') {
+      if (role === 'team leader') {
         // Check if report belongs to the team leader themselves OR an agent under this team leader
         if (report.agent_id !== userId) {
           const teamAgentCheck = await pool.query(
@@ -612,7 +614,7 @@ class ReportsController {
         
         // Don't parse lead_sources for team leaders since they can't see it
         report.lead_sources = {};
-      } else if (role === 'agent_manager') {
+      } else if (role === 'agent manager') {
         if (report.agent_role !== 'agent') {
           return res.status(403).json({
             success: false,
@@ -620,7 +622,7 @@ class ReportsController {
           });
         }
         
-        // Parse lead_sources if it's a string (agent_manager can see it)
+        // Parse lead_sources if it's a string (agent manager can see it)
         if (report.lead_sources && typeof report.lead_sources === 'string') {
           try {
             report.lead_sources = JSON.parse(report.lead_sources);
