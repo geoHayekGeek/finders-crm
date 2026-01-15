@@ -204,9 +204,19 @@ const validateProperty = [
     .customSanitizer(sanitizeInput),
     
   body('main_image')
-    .optional()
-    .isString()
-    .withMessage('Main image must be a string'),
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === null || value === undefined) {
+        return true; // Optional field - will be uploaded separately
+      }
+      if (typeof value !== 'string') {
+        throw new Error('Main image must be a string');
+      }
+      if (value.trim() === '') {
+        throw new Error('Main image cannot be empty string (use null if not provided)');
+      }
+      return true;
+    }),
     
   body('image_gallery')
     .optional()
@@ -221,17 +231,19 @@ const validateProperty = [
     }),
     
   body('referrals')
-    .optional({ nullable: true, checkFalsy: true })
+    .notEmpty()
+    .withMessage('At least one referral is required')
+    .isArray({ min: 1 })
+    .withMessage('At least one referral is required')
     .custom((value) => {
-      if (value === null || value === undefined) {
-        return true; // Allow null/undefined
+      if (!Array.isArray(value)) {
+        throw new Error('Referrals must be an array');
       }
-      if (Array.isArray(value)) {
-        return true; // Allow array
+      if (value.length === 0) {
+        throw new Error('At least one referral is required');
       }
-      return false; // Reject other types
-    })
-    .withMessage('Referrals must be an array or null'),
+      return true;
+    }),
     
   // Custom validation for referrals if provided
   body('referrals.*.name')

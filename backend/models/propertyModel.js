@@ -72,6 +72,11 @@ class Property {
       }
     }
 
+    // VALIDATION: referrals are required
+    if (!referrals || !Array.isArray(referrals) || referrals.length === 0) {
+      throw new Error('At least one referral is required. Please provide at least one referral for the property.');
+    }
+
     // VALIDATION: If creating property with closed status, ensure closed_date is set
     const statusCheck = await pool.query(
       `SELECT code, name FROM statuses WHERE id = $1`,
@@ -146,28 +151,26 @@ class Property {
       
       const newProperty = result.rows[0];
       
-      // Insert referrals if provided
-      if (referrals && referrals.length > 0) {
-        for (const referral of referrals) {
-          await client.query(
-            `INSERT INTO referrals (property_id, name, type, employee_id, date) 
-             VALUES ($1, $2, $3, $4, $5)`,
-            [
-              newProperty.id,
-              referral.name,
-              referral.type,
-              referral.employee_id || null,
-              referral.date
-            ]
-          );
-        }
-        
-        // Update referrals count
+      // Insert referrals (required, already validated above)
+      for (const referral of referrals) {
         await client.query(
-          `UPDATE properties SET referrals_count = $1 WHERE id = $2`,
-          [referrals.length, newProperty.id]
+          `INSERT INTO referrals (property_id, name, type, employee_id, date) 
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            newProperty.id,
+            referral.name,
+            referral.type,
+            referral.employee_id || null,
+            referral.date
+          ]
         );
       }
+      
+      // Update referrals count
+      await client.query(
+        `UPDATE properties SET referrals_count = $1 WHERE id = $2`,
+        [referrals.length, newProperty.id]
+      );
       
       await client.query('COMMIT');
       return newProperty;
@@ -803,6 +806,13 @@ class Property {
         propertyUpdates.closed_date = null;
       }
       
+      // VALIDATION: If main_image is being updated, it must not be empty
+      if (propertyUpdates.main_image !== undefined) {
+        if (!propertyUpdates.main_image || (typeof propertyUpdates.main_image === 'string' && propertyUpdates.main_image.trim() === '')) {
+          throw new Error('Main image is required. Please provide a main image for the property.');
+        }
+      }
+      
       // VALIDATION: If setting property to closed status, ensure closed_date is set
       if (propertyUpdates.status_id) {
         const statusCheck = await client.query(
@@ -896,8 +906,13 @@ class Property {
         }
       }
       
-      // Handle referrals if provided
+      // Handle referrals (required on update)
       if (referrals !== undefined) {
+        // VALIDATION: If referrals are being updated, they must not be empty
+        if (!referrals || !Array.isArray(referrals) || referrals.length === 0) {
+          throw new Error('At least one referral is required. Please provide at least one referral for the property.');
+        }
+        
         console.log('🔍 Handling referrals for property ID:', id);
         console.log('🔍 Referrals to insert:', referrals);
         
@@ -905,28 +920,39 @@ class Property {
         await client.query('DELETE FROM referrals WHERE property_id = $1', [id]);
         console.log('🔍 Deleted existing referrals');
         
-        // Insert new referrals if any
-        if (referrals && referrals.length > 0) {
-          console.log('🔍 Inserting', referrals.length, 'referrals');
-          for (const referral of referrals) {
-            console.log('🔍 Inserting referral:', referral);
-            console.log('🔍 Referral date value:', referral.date);
-            console.log('🔍 Referral date type:', typeof referral.date);
-            const result = await client.query(`
-              INSERT INTO referrals (property_id, name, type, employee_id, date)
-              VALUES ($1, $2, $3, $4, $5)
-              RETURNING id
-            `, [id, referral.name, referral.type, referral.employee_id, referral.date]);
-            console.log('🔍 Referral inserted with ID:', result.rows[0].id);
-          }
+        // Insert new referrals (required, already validated above)
+        console.log('🔍 Inserting', referrals.length, 'referrals');
+        for (const referral of referrals) {
+          console.log('🔍 Inserting referral:', referral);
+          console.log('🔍 Referral date value:', referral.date);
+          console.log('🔍 Referral date type:', typeof referral.date);
+          const result = await client.query(`
+            INSERT INTO referrals (property_id, name, type, employee_id, date)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING id
+          `, [id, referral.name, referral.type, referral.employee_id, referral.date]);
+          console.log('🔍 Referral inserted with ID:', result.rows[0].id);
         }
         
         // Update referrals_count in properties table
-        const referralsCount = referrals ? referrals.length : 0;
         await client.query(
           'UPDATE properties SET referrals_count = $1 WHERE id = $2',
-          [referralsCount, id]
+          [referrals.length, id]
         );
+      } else {
+        // If referrals are not provided in update, check if property already has referrals
+        const existingReferralsResult = await client.query(
+          'SELECT COUNT(*) as count FROM referrals WHERE property_id = $1',
+          [id]
+        );
+        if (existingReferralsResult.rows && existingReferralsResult.rows.length > 0) {
+          const referralsCount = parseInt(existingReferralsResult.rows[0].count);
+          if (referralsCount === 0) {
+            throw new Error('At least one referral is required. Please provide at least one referral for the property.');
+          }
+        } else {
+          throw new Error('At least one referral is required. Please provide at least one referral for the property.');
+        }
       }
       
       await client.query('COMMIT');

@@ -34,8 +34,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
   const canManageProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'
   // Accountant and HR (if it exists as a role) should not have access to properties
   const canViewProperties = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team_leader' || role === 'agent'
-  // Agent Manager can view leads but cannot manage (add/edit) them
-  const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations'
+  // Agents and team leaders can add leads, but only admin/operations can edit/delete
+  const canManageLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent' || role === 'team_leader'
   // HR and Accountant do not have access to leads
   const canViewLeads = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team_leader'
   const canManageViewings = role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager'

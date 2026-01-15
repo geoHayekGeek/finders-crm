@@ -125,12 +125,11 @@ const validateCreateLead = [
     .isInt({ min: 1 })
     .withMessage('Reference source ID must be a positive integer'),
     
-  // Required operations
-  body('operations_id')
-    .notEmpty()
-    .withMessage('Operations staff assignment is required')
+  // Optional added_by_id (will be auto-set to current user if not provided)
+  body('added_by_id')
+    .optional({ nullable: true, checkFalsy: true })
     .isInt({ min: 1 })
-    .withMessage('Operations ID must be a positive integer'),
+    .withMessage('Added by ID must be a positive integer'),
     
   body('status')
     .optional({ nullable: true, checkFalsy: true })
@@ -148,6 +147,29 @@ const validateCreateLead = [
         const defaultStatuses = ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
         if (!defaultStatuses.includes(value)) {
           throw new Error(`Status must be one of: ${defaultStatuses.join(', ')}`);
+        }
+      }
+      return true;
+    }),
+    
+  // Required referrals validation - at least one referral is mandatory
+  body('referrals')
+    .notEmpty()
+    .withMessage('At least one referral is required')
+    .custom((referrals) => {
+      if (!Array.isArray(referrals) || referrals.length === 0) {
+        throw new Error('Referrals must be an array with at least one item');
+      }
+      // Validate each referral has required fields
+      for (const referral of referrals) {
+        if (!referral.name || !referral.type || !referral.date) {
+          throw new Error('Each referral must have name, type, and date');
+        }
+        if (!['employee', 'custom'].includes(referral.type)) {
+          throw new Error('Referral type must be either "employee" or "custom"');
+        }
+        if (referral.type === 'employee' && !referral.employee_id) {
+          throw new Error('Employee referrals must include employee_id');
         }
       }
       return true;
@@ -223,10 +245,10 @@ const validateUpdateLead = [
     .isInt({ min: 1 })
     .withMessage('Reference source ID must be a positive integer'),
     
-  body('operations_id')
+  body('added_by_id')
     .optional({ nullable: true, checkFalsy: true })
     .isInt({ min: 1 })
-    .withMessage('Operations ID must be a positive integer'),
+    .withMessage('Added by ID must be a positive integer'),
     
   body('status')
     .optional({ nullable: false, checkFalsy: false })
@@ -240,9 +262,32 @@ const validateUpdateLead = [
       return true;
     }),
     
+  // Required referrals validation for updates - at least one referral is mandatory
+  body('referrals')
+    .notEmpty()
+    .withMessage('At least one referral is required')
+    .custom((referrals) => {
+      if (!Array.isArray(referrals) || referrals.length === 0) {
+        throw new Error('Referrals must be an array with at least one item');
+      }
+      // Validate each referral has required fields
+      for (const referral of referrals) {
+        if (!referral.name || !referral.type || !referral.date) {
+          throw new Error('Each referral must have name, type, and date');
+        }
+        if (!['employee', 'custom'].includes(referral.type)) {
+          throw new Error('Referral type must be either "employee" or "custom"');
+        }
+        if (referral.type === 'employee' && !referral.employee_id) {
+          throw new Error('Employee referrals must include employee_id');
+        }
+      }
+      return true;
+    }),
+  
   // Ensure at least one field is being updated
   body().custom((body) => {
-    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'operations_id', 'status'];
+    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'added_by_id', 'status', 'referrals'];
     const hasUpdate = updatableFields.some(field => body.hasOwnProperty(field));
     
     if (!hasUpdate) {
@@ -430,7 +475,7 @@ const leadsRateLimit = (req, res, next) => {
 // Business logic validation for lead creation
 const validateLeadBusinessRules = async (req, res, next) => {
   try {
-    const { agent_id, reference_source_id, operations_id } = req.body;
+    const { agent_id, reference_source_id, added_by_id } = req.body;
     
     // If agent_id is provided, verify it exists (this would require a database check)
     // For now, we'll add a placeholder for this validation
@@ -457,14 +502,15 @@ const validateLeadBusinessRules = async (req, res, next) => {
       // }
     }
     
-    // If operations_id is provided, verify it exists and user has operations role
-    if (operations_id) {
-      // TODO: Add database check to verify operations user exists
-      // const operationsUser = await User.findById(operations_id);
-      // if (!operationsUser || operationsUser.role !== 'operations') {
+    // If added_by_id is provided, verify it exists and user can add leads
+    if (added_by_id) {
+      // TODO: Add database check to verify user exists and has permission to add leads
+      // const addedByUser = await User.findById(added_by_id);
+      // const allowedRoles = ['admin', 'operations_manager', 'operations', 'agent', 'team_leader'];
+      // if (!addedByUser || !allowedRoles.includes(addedByUser.role)) {
       //   return res.status(400).json({
       //     success: false,
-      //     message: 'Invalid operations user ID'
+      //     message: 'Invalid added by user ID or user does not have permission to add leads'
       //   });
       // }
     }

@@ -673,8 +673,8 @@ export default function PropertiesPage() {
       
       // Note: Required field validation is now handled by HTML required attributes
 
-      // Ensure numeric fields are properly formatted and exclude image data
-              const formattedData = {
+      // Ensure numeric fields are properly formatted
+              const formattedData: any = {
           status_id: parseInt(propertyData.status_id),
           property_type: propertyData.property_type || 'sale',
           location: propertyData.location,
@@ -693,8 +693,14 @@ export default function PropertiesPage() {
           notes: propertyData.notes || null,
           property_url: propertyData.property_url || null,
           referrals: propertyData.referrals || null
-          // Note: main_image and image_gallery are excluded - they will be handled separately via file uploads
         }
+        
+        // Add main_image if provided (now required for property creation)
+        if (propertyData.main_image) {
+          formattedData.main_image = propertyData.main_image
+        }
+        
+        // Note: image_gallery will be handled separately via file uploads after property creation
       
               console.log('Formatted data to send:', formattedData)
         console.log('📤 Referrals in formattedData:', formattedData.referrals)

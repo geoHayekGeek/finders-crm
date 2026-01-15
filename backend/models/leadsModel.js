@@ -11,19 +11,19 @@ class Lead {
       agent_name,
       price,
       reference_source_id,
-      operations_id,
+      added_by_id,
       status
     } = leadData;
 
     // Validate required fields
-    if (!operations_id) {
-      throw new Error('operations_id is required and cannot be null');
+    if (!added_by_id) {
+      throw new Error('added_by_id is required and cannot be null');
     }
 
     const result = await pool.query(
       `INSERT INTO leads (
         date, customer_name, phone_number, agent_id, agent_name,
-        price, reference_source_id, operations_id, status
+        price, reference_source_id, added_by_id, status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *`,
       [
@@ -34,7 +34,7 @@ class Lead {
         agent_name,
         price,
         reference_source_id,
-        operations_id, // This is now required and validated
+        added_by_id, // Person who added the lead
         status || 'Active'
       ]
     );
@@ -57,9 +57,9 @@ class Lead {
           l.price,
           l.reference_source_id,
           rs.source_name as reference_source_name,
-          l.operations_id,
-          op.name as operations_name,
-          op.role as operations_role,
+          l.added_by_id,
+          added_by.name as added_by_name,
+          added_by.role as added_by_role,
           l.status,
           ls.can_be_referred as status_can_be_referred,
           l.created_at,
@@ -67,7 +67,7 @@ class Lead {
         FROM leads l
         LEFT JOIN users u ON l.agent_id = u.id
         LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-        LEFT JOIN users op ON l.operations_id = op.id
+        LEFT JOIN users added_by ON l.added_by_id = added_by.id
         LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
         ORDER BY l.created_at DESC
       `);
@@ -99,9 +99,9 @@ class Lead {
         l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
-        l.operations_id,
-        op.name as operations_name,
-        op.role as operations_role,
+        l.added_by_id,
+        added_by.name as added_by_name,
+        added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
         l.created_at,
@@ -109,7 +109,7 @@ class Lead {
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-      LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN users added_by ON l.added_by_id = added_by.id
       LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       WHERE l.agent_id = $1
       ORDER BY l.created_at DESC
@@ -132,9 +132,9 @@ class Lead {
         l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
-        l.operations_id,
-        op.name as operations_name,
-        op.role as operations_role,
+        l.added_by_id,
+        added_by.name as added_by_name,
+        added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
         l.created_at,
@@ -143,7 +143,7 @@ class Lead {
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-      LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN users added_by ON l.added_by_id = added_by.id
       LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       WHERE l.agent_id = $1
       ORDER BY l.created_at DESC
@@ -165,9 +165,9 @@ class Lead {
         l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
-        l.operations_id,
-        op.name as operations_name,
-        op.role as operations_role,
+        l.added_by_id,
+        added_by.name as added_by_name,
+        added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
         l.created_at,
@@ -200,7 +200,7 @@ class Lead {
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-      LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN users added_by ON l.added_by_id = added_by.id
       LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
       LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
@@ -208,8 +208,8 @@ class Lead {
       LEFT JOIN users referred_to ON lr.referred_to_agent_id = referred_to.id
       WHERE l.id = $1
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
-               u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.status, ls.can_be_referred, l.created_at, l.updated_at
+               u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.added_by_id,
+               added_by.name, added_by.role, l.status, ls.can_be_referred, l.created_at, l.updated_at
     `, [id]);
     return result.rows[0];
   }
@@ -218,9 +218,9 @@ class Lead {
     console.log('🔧 [Backend] Updating lead:', id);
     console.log('🔧 [Backend] Raw updates:', updates);
     
-    // Validate operations_id if it's being updated - it cannot be null
-    if (updates.hasOwnProperty('operations_id') && (!updates.operations_id || updates.operations_id === null)) {
-      throw new Error('operations_id is required and cannot be null');
+    // Validate added_by_id if it's being updated - it cannot be null
+    if (updates.hasOwnProperty('added_by_id') && (!updates.added_by_id || updates.added_by_id === null)) {
+      throw new Error('added_by_id is required and cannot be null');
     }
     
     // Filter out undefined values and fields that don't belong in the leads table
@@ -306,9 +306,9 @@ class Lead {
         l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
-        l.operations_id,
-        op.name as operations_name,
-        op.role as operations_role,
+        l.added_by_id,
+        added_by.name as added_by_name,
+        added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
         l.created_at,
@@ -330,7 +330,7 @@ class Lead {
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-      LEFT JOIN users op ON l.operations_id = op.id
+      LEFT JOIN users added_by ON l.added_by_id = added_by.id
       LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
       LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
       LEFT JOIN users ref_agent ON lr.agent_id = ref_agent.id
@@ -382,8 +382,8 @@ class Lead {
 
     query += ` 
       GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
-               u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.operations_id,
-               op.name, op.role, l.status, ls.can_be_referred, l.created_at, l.updated_at
+               u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.added_by_id,
+               added_by.name, added_by.role, l.status, ls.can_be_referred, l.created_at, l.updated_at
       ORDER BY l.created_at DESC
     `;
 
@@ -521,8 +521,8 @@ class Lead {
     return result.rows;
   }
 
-  // Get leads assigned to a specific operations user
-  static async getLeadsByOperations(operationsId) {
+  // Get leads added by a specific user
+  static async getLeadsByAddedBy(addedById) {
     const result = await pool.query(`
       SELECT 
         l.id,
@@ -536,19 +536,19 @@ class Lead {
         l.price,
         l.reference_source_id,
         rs.source_name as reference_source_name,
-        l.operations_id,
-        op.name as operations_name,
-        op.role as operations_role,
+        l.added_by_id,
+        added_by.name as added_by_name,
+        added_by.role as added_by_role,
         l.status,
         l.created_at,
         l.updated_at
       FROM leads l
       LEFT JOIN users u ON l.agent_id = u.id
       LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-      LEFT JOIN users op ON l.operations_id = op.id
-      WHERE l.operations_id = $1
+      LEFT JOIN users added_by ON l.added_by_id = added_by.id
+      WHERE l.added_by_id = $1
       ORDER BY l.created_at DESC
-    `, [operationsId]);
+    `, [addedById]);
     return result.rows;
   }
 
@@ -587,9 +587,9 @@ class Lead {
             l.price,
             l.reference_source_id,
             rs.source_name as reference_source_name,
-            l.operations_id,
-            op.name as operations_name,
-            op.role as operations_role,
+            l.added_by_id,
+            added_by.name as added_by_name,
+            added_by.role as added_by_role,
             l.status,
             ls.can_be_referred as status_can_be_referred,
             l.created_at,
@@ -597,7 +597,7 @@ class Lead {
           FROM leads l
           LEFT JOIN users u ON l.agent_id = u.id
           LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
-          LEFT JOIN users op ON l.operations_id = op.id
+          LEFT JOIN users added_by ON l.added_by_id = added_by.id
           LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
           WHERE l.agent_id = ANY($1::int[])
           ORDER BY l.created_at DESC
@@ -626,12 +626,12 @@ class Lead {
     return result.rows;
   }
 
-  // Get operations users (operations employees and operations managers)
-  static async getOperationsUsers() {
+  // Get all users who can add leads (for selector - now includes agents and team leaders)
+  static async getUsersWhoCanAddLeads() {
     const result = await pool.query(`
       SELECT id, name, email, role
       FROM users
-      WHERE role IN ('operations', 'operations_manager')
+      WHERE role IN ('admin', 'operations_manager', 'operations', 'agent', 'team_leader')
       ORDER BY name
     `);
     return result.rows;

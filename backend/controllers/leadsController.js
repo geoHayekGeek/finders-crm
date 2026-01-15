@@ -28,9 +28,9 @@ class LeadsController {
           phone_number: lead.phone_number,
           agent_id: lead.agent_id,
           assigned_agent_name: lead.assigned_agent_name,
-          operations_id: lead.operations_id,
-          operations_name: lead.operations_name,
-          operations_role: lead.operations_role,
+          added_by_id: lead.added_by_id,
+          added_by_name: lead.added_by_name,
+          added_by_role: lead.added_by_role,
           reference_source_id: lead.reference_source_id,
           reference_source_name: lead.reference_source_name,
           price: lead.price,
@@ -106,9 +106,9 @@ class LeadsController {
           phone_number: lead.phone_number,
           agent_id: lead.agent_id,
           assigned_agent_name: lead.assigned_agent_name,
-          operations_id: lead.operations_id,
-          operations_name: lead.operations_name,
-          operations_role: lead.operations_role,
+          added_by_id: lead.added_by_id,
+          added_by_name: lead.added_by_name,
+          added_by_role: lead.added_by_role,
           reference_source_id: lead.reference_source_id,
           reference_source_name: lead.reference_source_name,
           price: lead.price,
@@ -216,10 +216,15 @@ class LeadsController {
       console.log('➕ Creating new lead:', req.body);
       
       // All validation is now handled by middleware
-      // If user is operations role, set them as the default operations_id
+      // Set added_by_id to the current user (person who added the lead)
       let leadData = { ...req.body };
-      if (req.user.role === 'operations' && !leadData.operations_id) {
-        leadData.operations_id = req.user.id;
+      // For agents and team leaders, always set added_by_id to themselves
+      // For admin/operations, use provided added_by_id or default to current user
+      if (['agent', 'team_leader'].includes(req.user.role)) {
+        leadData.added_by_id = req.user.id;
+      } else if (!leadData.added_by_id) {
+        // For other roles, default to current user if not provided
+        leadData.added_by_id = req.user.id;
       }
 
       const newLead = await Lead.createLead(leadData);
@@ -654,23 +659,23 @@ class LeadsController {
     }
   }
 
-  // Get operations users
+  // Get users who can add leads (for backward compatibility, keeping endpoint name)
   static async getOperationsUsers(req, res) {
     try {
-      console.log('👥 Getting operations users');
+      console.log('👥 Getting users who can add leads');
       
-      const users = await Lead.getOperationsUsers();
+      const users = await Lead.getUsersWhoCanAddLeads();
       
       res.json({
         success: true,
         data: users,
-        message: 'Operations users retrieved successfully'
+        message: 'Users who can add leads retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting operations users:', error);
+      console.error('❌ Error getting users who can add leads:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve operations users',
+        message: 'Failed to retrieve users who can add leads',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }

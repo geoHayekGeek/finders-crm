@@ -203,7 +203,7 @@ export function LeadsModals({
     agent_name: '',
     price: undefined,
     reference_source_id: undefined,
-    operations_id: undefined,
+    added_by_id: undefined,
     status: '',
     referrals: []
   })
@@ -416,14 +416,18 @@ export function LeadsModals({
           errorMessage = 'Reference source is required'
         }
         break
-      case 'operations_id':
-        if (!value || value === undefined || value === null) {
-          errorMessage = 'Operations staff assignment is required'
-        }
+      case 'added_by_id':
+        // For agents and team leaders, this is auto-set, so no validation needed
+        // For others, it's optional (will default to current user)
         break
       case 'status':
         if (!value || value.trim() === '') {
           errorMessage = 'Status is required'
+        }
+        break
+      case 'referrals':
+        if (!value || !Array.isArray(value) || value.length === 0) {
+          errorMessage = 'At least one referral is required'
         }
         break
     }
@@ -460,7 +464,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'operations_id', 'status']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'status', 'referrals']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -492,6 +496,11 @@ export function LeadsModals({
         case 'status':
           if (!value || (typeof value === 'string' && value.trim() === '')) {
             errorMessage = 'Status is required'
+          }
+          break
+        case 'referrals':
+          if (!value || !Array.isArray(value) || value.length === 0) {
+            errorMessage = 'At least one referral is required'
           }
           break
       }
@@ -526,7 +535,7 @@ export function LeadsModals({
         agent_name: '',
         price: undefined,
         reference_source_id: undefined,
-        operations_id: undefined,
+        added_by_id: undefined,
         status: '',
         referrals: []
       })
@@ -545,7 +554,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'operations_id', 'status']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'status', 'referrals']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -577,6 +586,11 @@ export function LeadsModals({
         case 'status':
           if (!value || (typeof value === 'string' && value.trim() === '')) {
             errorMessage = 'Status is required'
+          }
+          break
+        case 'referrals':
+          if (!value || !Array.isArray(value) || value.length === 0) {
+            errorMessage = 'At least one referral is required'
           }
           break
       }
@@ -793,31 +807,33 @@ export function LeadsModals({
                   )}
                 </div>
 
-                {/* Operations */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Settings className="inline h-4 w-4 mr-1" />
-                    Operations *
-                  </label>
-                  <OperationsSelector
-                    selectedOperationsId={addFormData.operations_id}
-                    onOperationsChange={(userId) => {
-                      setAddFormData({ 
-                        ...addFormData, 
-                        operations_id: userId 
-                      })
-                      clearFieldError('operations_id')
-                      validateField('operations_id', userId)
-                    }}
-                    placeholder="Select operations staff..."
-                  />
-                  {addValidationErrors.operations_id && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
-                      {addValidationErrors.operations_id}
-                    </p>
-                  )}
-                </div>
+                {/* Added By - Only show for admin/operations, hidden for agents/team leaders (auto-set) */}
+                {!limitedAccess && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <Settings className="inline h-4 w-4 mr-1" />
+                      Added By <span className="text-gray-400 text-xs">(optional - defaults to you)</span>
+                    </label>
+                    <OperationsSelector
+                      selectedOperationsId={addFormData.added_by_id}
+                      onOperationsChange={(userId) => {
+                        setAddFormData({ 
+                          ...addFormData, 
+                          added_by_id: userId 
+                        })
+                        clearFieldError('added_by_id')
+                        validateField('added_by_id', userId)
+                      }}
+                      placeholder="Select user who added this lead..."
+                    />
+                    {addValidationErrors.added_by_id && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {addValidationErrors.added_by_id}
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Status */}
                 <div>
@@ -849,15 +865,25 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Users className="inline h-4 w-4 mr-1" />
-                    Referrals <span className="text-gray-400 text-xs">(optional)</span>
+                    Referrals *
                   </label>
                   <LeadReferralSelector
                     referrals={addFormData.referrals || []}
-                    onReferralsChange={(referrals) => setAddFormData({ ...addFormData, referrals })}
+                    onReferralsChange={(referrals) => {
+                      setAddFormData({ ...addFormData, referrals })
+                      clearFieldError('referrals')
+                      validateField('referrals', referrals)
+                    }}
                     agents={agents}
                     placeholder="Add lead referrals..."
                   />
-                  <p className="mt-1 text-xs text-gray-500">Add agents who referred this lead</p>
+                  {addValidationErrors.referrals && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {addValidationErrors.referrals}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-gray-500">At least one referral is required</p>
                 </div>
 
                 {/* Action Buttons */}
@@ -1070,31 +1096,33 @@ export function LeadsModals({
                       )}
                     </div>
 
-                    {/* Operations */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <Settings className="inline h-4 w-4 mr-1" />
-                        Operations *
-                      </label>
-                      <OperationsSelector
-                        selectedOperationsId={editFormData.operations_id}
-                        onOperationsChange={(userId) => {
-                          setEditFormData({ 
-                            ...editFormData, 
-                            operations_id: userId 
-                          })
-                          clearFieldError('operations_id', true)
-                          validateField('operations_id', userId, true)
-                        }}
-                        placeholder="Select operations staff..."
-                      />
-                      {editValidationErrors.operations_id && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
-                          {editValidationErrors.operations_id}
-                        </p>
-                      )}
-                    </div>
+                    {/* Added By - Only show for admin/operations */}
+                    {!limitedAccess && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <Settings className="inline h-4 w-4 mr-1" />
+                          Added By <span className="text-gray-400 text-xs">(optional)</span>
+                        </label>
+                        <OperationsSelector
+                          selectedOperationsId={editFormData.added_by_id}
+                          onOperationsChange={(userId) => {
+                            setEditFormData({ 
+                              ...editFormData, 
+                              added_by_id: userId 
+                            })
+                            clearFieldError('added_by_id', true)
+                            validateField('added_by_id', userId, true)
+                          }}
+                          placeholder="Select user who added this lead..."
+                        />
+                        {editValidationErrors.added_by_id && (
+                          <p className="mt-1 text-sm text-red-600 flex items-center">
+                            <span className="mr-1">⚠️</span>
+                            {editValidationErrors.added_by_id}
+                          </p>
+                        )}
+                      </div>
+                    )}
 
                     {/* Status */}
                     <div>
@@ -1133,21 +1161,29 @@ export function LeadsModals({
                     </div>
 
                     {/* Referrals */}
-                    {!['agent', 'team_leader'].includes(user?.role || '') && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          <Users className="inline h-4 w-4 mr-1" />
-                          Referrals <span className="text-gray-400 text-xs">(optional)</span>
-                        </label>
-                        <LeadReferralSelector
-                          referrals={editFormData.referrals || []}
-                          onReferralsChange={(referrals) => setEditFormData({ ...editFormData, referrals })}
-                          agents={agents}
-                          placeholder="Add lead referrals..."
-                        />
-                        <p className="mt-1 text-xs text-gray-500">Add agents who referred this lead</p>
-                      </div>
-                    )}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <Users className="inline h-4 w-4 mr-1" />
+                        Referrals *
+                      </label>
+                      <LeadReferralSelector
+                        referrals={editFormData.referrals || []}
+                        onReferralsChange={(referrals) => {
+                          setEditFormData({ ...editFormData, referrals })
+                          clearFieldError('referrals', true)
+                          validateField('referrals', referrals, true)
+                        }}
+                        agents={agents}
+                        placeholder="Add lead referrals..."
+                      />
+                      {editValidationErrors.referrals && (
+                        <p className="mt-1 text-sm text-red-600 flex items-center">
+                          <span className="mr-1">⚠️</span>
+                          {editValidationErrors.referrals}
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-gray-500">At least one referral is required</p>
+                    </div>
                   </>
                 )}
 
@@ -1282,12 +1318,11 @@ export function LeadsModals({
                   <>
                 {/* Basic Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {!limitedAccess && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                      <p className="text-gray-900">{formatDateForDisplay(viewingLead.date)}</p>
-                    </div>
-                  )}
+                  {/* Show date to all users including agents and team leaders */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                    <p className="text-gray-900">{formatDateForDisplay(viewingLead.date)}</p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     <span 
@@ -1341,12 +1376,12 @@ export function LeadsModals({
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Operations</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Added By</label>
                       <p className="text-gray-900">
-                        {viewingLead.operations_name || 'Not assigned'}
-                        {viewingLead.operations_role && (
+                        {viewingLead.added_by_name || 'Not assigned'}
+                        {viewingLead.added_by_role && (
                           <span className="text-gray-500 ml-1 capitalize">
-                            ({viewingLead.operations_role.replace('_', ' ')})
+                            ({viewingLead.added_by_role.replace('_', ' ')})
                           </span>
                         )}
                       </p>

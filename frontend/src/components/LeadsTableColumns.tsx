@@ -126,23 +126,23 @@ export const getLeadsColumns = (
     }
   },
   {
-    accessorKey: 'operations_name',
-    header: 'Operations',
+    accessorKey: 'added_by_name',
+    header: 'Added By',
     cell: ({ row }) => {
       const lead = row.original
       return (
         <div className="text-sm">
-          {lead.operations_name ? (
+          {lead.added_by_name ? (
             <div>
-              <div className="font-medium text-gray-900 text-xs">{lead.operations_name}</div>
-              {lead.operations_role && (
+              <div className="font-medium text-gray-900 text-xs">{lead.added_by_name}</div>
+              {lead.added_by_role && (
                 <div className="text-xs text-gray-500 capitalize">
-                  {lead.operations_role.replace('_', ' ')}
+                  {lead.added_by_role.replace('_', ' ')}
                 </div>
               )}
             </div>
-          ) : lead.operations_id ? (
-            <span className="text-gray-400">ID: {lead.operations_id}</span>
+          ) : lead.added_by_id ? (
+            <span className="text-gray-400">ID: {lead.added_by_id}</span>
           ) : (
             <span className="text-gray-400">-</span>
           )}
@@ -252,7 +252,7 @@ export const getLeadsColumns = (
     // Hide: Date, Operations, Reference Source, Created
     const hiddenKeys = new Set([
       'date',
-      'operations_name',
+      'added_by_name',
       'reference_source_name',
       'created_at',
       // Hide agent column only for agents, not for team leaders

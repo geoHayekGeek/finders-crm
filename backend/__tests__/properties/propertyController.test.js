@@ -211,7 +211,11 @@ describe('Property Controller', () => {
       view_type: 'sea view',
       concierge: false,
       price: 100000,
-      agent_id: 1
+      agent_id: 1,
+      main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      referrals: [
+        { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+      ]
     };
 
     it('should create property successfully', async () => {

@@ -66,22 +66,38 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-      {/* Header with status and date */}
+      {/* Header with status, date, and refer button */}
       <div className="flex items-center justify-between mb-4">
-        {!limitedAccess && (
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-600">
-              {formatDateForDisplay(lead.date)}
-            </span>
-          </div>
+        <div className="flex items-center gap-2">
+          {!limitedAccess && (
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <span className="text-sm font-medium text-gray-600">
+                {formatDateForDisplay(lead.date)}
+              </span>
+            </div>
+          )}
+          <span 
+            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
+            style={{ backgroundColor: statusColor }}
+          >
+            {statusLabel}
+          </span>
+        </div>
+        {/* Refer button in top right */}
+        {canReferLead && (
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setShowReferModal(true)
+            }}
+            className="p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors border border-blue-300"
+            title="Refer lead to another agent"
+          >
+            <UserPlus className="h-4 w-4" />
+          </button>
         )}
-        <span 
-          className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
-          style={{ backgroundColor: statusColor }}
-        >
-          {statusLabel}
-        </span>
       </div>
 
       {/* Customer Name */}
@@ -103,10 +119,10 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
       )}
 
       {/* Price - shown for all users including agents and team leaders */}
-      {lead.price !== null && lead.price !== undefined && (
+      {lead.price !== null && lead.price !== undefined && lead.price > 0 && (
         <div className="mb-3">
           <div className="text-xs font-medium text-gray-500 mb-1">Price</div>
-          <div className="text-sm font-medium text-gray-900">${lead.price.toLocaleString()}</div>
+          <div className="text-sm font-medium text-gray-900">${Number(lead.price).toLocaleString()}</div>
         </div>
       )}
 
@@ -135,22 +151,16 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Operations */}
-      {!limitedAccess && (lead.operations_id || lead.operations_name) && (
+      {/* Added By - Only show for admin/operations, not for agents/team leaders */}
+      {!limitedAccess && lead.added_by_name && (
         <div className="mb-4">
-          <div className="text-xs font-medium text-gray-500 mb-1">Operations</div>
+          <div className="text-xs font-medium text-gray-500 mb-1">Added By</div>
           <div className="text-sm">
-            {lead.operations_name ? (
-              <>
-                <span className="text-gray-900 font-medium">{lead.operations_name}</span>
-                {lead.operations_role && (
-                  <span className="text-gray-500 ml-1 capitalize">
-                    ({lead.operations_role.replace('_', ' ')})
-                  </span>
-                )}
-              </>
-            ) : (
-              <span className="text-gray-400">ID: {lead.operations_id}</span>
+            <span className="text-gray-900 font-medium">{lead.added_by_name}</span>
+            {lead.added_by_role && (
+              <span className="text-gray-500 ml-1 capitalize">
+                ({lead.added_by_role.replace('_', ' ')})
+              </span>
             )}
           </div>
         </div>
@@ -181,20 +191,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
           <Eye className="h-4 w-4" />
           <span>View</span>
         </button>
-        {canReferLead && (
-          <button
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setShowReferModal(true)
-            }}
-            className="flex items-center gap-1 px-3 py-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors text-sm border border-blue-300"
-            title="Refer lead to another agent"
-          >
-            <UserPlus className="h-4 w-4" />
-            <span>Refer</span>
-          </button>
-        )}
         {canManageLeads && (
           <button
             onClick={() => onEdit(lead)}

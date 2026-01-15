@@ -13,6 +13,7 @@ jest.mock('express-validator', () => ({
     isEmail: jest.fn().mockReturnThis(),
     isMobilePhone: jest.fn().mockReturnThis(),
     isString: jest.fn().mockReturnThis(),
+    isArray: jest.fn().mockReturnThis(),
     optional: jest.fn().mockReturnThis(),
     custom: jest.fn().mockReturnThis(),
     customSanitizer: jest.fn().mockReturnThis(),
@@ -87,6 +88,28 @@ describe('Property Validation', () => {
       
       expect(typeof validPaymentFacilities.payment_facilities).toBe('boolean');
       expect(typeof validPaymentFacilities.payment_facilities_specification).toBe('string');
+    });
+
+    it('should require main_image field', () => {
+      const validProperty = {
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+      };
+      
+      expect(validProperty.main_image).toBeDefined();
+      expect(typeof validProperty.main_image).toBe('string');
+      expect(validProperty.main_image.length).toBeGreaterThan(0);
+    });
+
+    it('should require referrals field', () => {
+      const validProperty = {
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
+      };
+      
+      expect(validProperty.referrals).toBeDefined();
+      expect(Array.isArray(validProperty.referrals)).toBe(true);
+      expect(validProperty.referrals.length).toBeGreaterThan(0);
     });
   });
 

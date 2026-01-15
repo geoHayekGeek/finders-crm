@@ -661,7 +661,7 @@ const createProperty = async (req, res) => {
       price,
       notes,
       property_url: property_url || null, // Optional
-      referrals: referrals || [],
+      referrals: referrals || [], // Required - validation happens in middleware and model
 
       main_image: main_image || null, // Optional
       image_gallery: image_gallery || [] // Optional

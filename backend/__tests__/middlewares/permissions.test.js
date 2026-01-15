@@ -377,14 +377,32 @@ describe('Permissions Middleware', () => {
       expect(next).toHaveBeenCalled();
     });
 
+    it('should allow operations manager to manage leads', () => {
+      req.user = { role: 'operations manager' };
+      permissions.canManageLeads(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
     it('should allow operations to manage leads', () => {
       req.user = { role: 'operations' };
       permissions.canManageLeads(req, res, next);
       expect(next).toHaveBeenCalled();
     });
 
-    it('should deny agent access to manage leads', () => {
+    it('should allow agent to manage leads (add leads)', () => {
       req.user = { role: 'agent' };
+      permissions.canManageLeads(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should allow team_leader to manage leads (add leads)', () => {
+      req.user = { role: 'team_leader' };
+      permissions.canManageLeads(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should deny accountant access to manage leads', () => {
+      req.user = { role: 'accountant' };
       permissions.canManageLeads(req, res, next);
       expect(res.status).toHaveBeenCalledWith(403);
     });

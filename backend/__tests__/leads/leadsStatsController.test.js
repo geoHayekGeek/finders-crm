@@ -32,6 +32,7 @@ describe('Leads Stats Controller', () => {
       const mockRecent = { rows: [{ recent: '10' }] };
       const mockAgent = { rows: [{ name: 'John Doe', count: '25' }] };
       const mockMonthly = { rows: [{ month: '2024-01-01', count: '20' }, { month: '2024-02-01', count: '15' }] };
+      const mockSeriousViewings = { rows: [{ leads_with_serious_viewings: '5' }] };
 
       pool.query
         .mockResolvedValueOnce(mockTotal)
@@ -40,7 +41,8 @@ describe('Leads Stats Controller', () => {
         .mockResolvedValueOnce(mockSource)
         .mockResolvedValueOnce(mockRecent)
         .mockResolvedValueOnce(mockAgent)
-        .mockResolvedValueOnce(mockMonthly);
+        .mockResolvedValueOnce(mockMonthly)
+        .mockResolvedValueOnce(mockSeriousViewings);
 
       await LeadsStatsController.getLeadsStats(req, res);
 
@@ -70,6 +72,7 @@ describe('Leads Stats Controller', () => {
       const mockRecent = { rows: [{ recent: '3' }] };
       const mockAgent = { rows: [{ name: 'Agent User', count: '25' }] };
       const mockMonthly = { rows: [{ month: '2024-01-01', count: '5' }] };
+      const mockSeriousViewings = { rows: [{ leads_with_serious_viewings: '2' }] };
 
       pool.query
         .mockResolvedValueOnce(mockTotal)
@@ -78,15 +81,17 @@ describe('Leads Stats Controller', () => {
         .mockResolvedValueOnce(mockSource)
         .mockResolvedValueOnce(mockRecent)
         .mockResolvedValueOnce(mockAgent)
-        .mockResolvedValueOnce(mockMonthly);
+        .mockResolvedValueOnce(mockMonthly)
+        .mockResolvedValueOnce(mockSeriousViewings);
 
       await LeadsStatsController.getLeadsStats(req, res);
 
-      // Verify that queries use agent_id filter
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE agent_id = $1'),
-        [2]
+      // Verify that queries use agent_id filter (check at least one call has the filter)
+      const queryCalls = pool.query.mock.calls;
+      const hasAgentFilter = queryCalls.some(call => 
+        call[0] && call[0].includes('agent_id = $1') && call[1] && call[1][0] === 2
       );
+      expect(hasAgentFilter).toBe(true);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -107,6 +112,7 @@ describe('Leads Stats Controller', () => {
       const mockRecent = { rows: [{ recent: '5' }] };
       const mockAgent = { rows: [{ name: 'Team Leader', count: '50' }] };
       const mockMonthly = { rows: [{ month: '2024-01-01', count: '10' }] };
+      const mockSeriousViewings = { rows: [{ leads_with_serious_viewings: '3' }] };
 
       pool.query
         .mockResolvedValueOnce(mockTotal)
@@ -115,7 +121,8 @@ describe('Leads Stats Controller', () => {
         .mockResolvedValueOnce(mockSource)
         .mockResolvedValueOnce(mockRecent)
         .mockResolvedValueOnce(mockAgent)
-        .mockResolvedValueOnce(mockMonthly);
+        .mockResolvedValueOnce(mockMonthly)
+        .mockResolvedValueOnce(mockSeriousViewings);
 
       await LeadsStatsController.getLeadsStats(req, res);
 
@@ -137,6 +144,7 @@ describe('Leads Stats Controller', () => {
       const mockRecent = { rows: [{ recent: '0' }] };
       const mockAgent = { rows: [] };
       const mockMonthly = { rows: [] };
+      const mockSeriousViewings = { rows: [{ leads_with_serious_viewings: '0' }] };
 
       pool.query
         .mockResolvedValueOnce(mockTotal)
@@ -145,7 +153,8 @@ describe('Leads Stats Controller', () => {
         .mockResolvedValueOnce(mockSource)
         .mockResolvedValueOnce(mockRecent)
         .mockResolvedValueOnce(mockAgent)
-        .mockResolvedValueOnce(mockMonthly);
+        .mockResolvedValueOnce(mockMonthly)
+        .mockResolvedValueOnce(mockSeriousViewings);
 
       await LeadsStatsController.getLeadsStats(req, res);
 

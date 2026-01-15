@@ -405,6 +405,20 @@ export function PropertyModals({
     console.log('addFormData.main_image changed:', addFormData.main_image ? 'has image' : 'no image')
   }, [addFormData.main_image])
 
+  // Debug: Log when main_image preview changes in add form
+  useEffect(() => {
+    if (showAddPropertyModal && (addFormData.main_image_preview || addFormData.main_image)) {
+      console.log('🖼️ Add form image state changed:', {
+        hasPreview: !!addFormData.main_image_preview,
+        previewLength: addFormData.main_image_preview?.length || 0,
+        hasMainImage: !!addFormData.main_image,
+        mainImageLength: addFormData.main_image?.length || 0,
+        previewStart: addFormData.main_image_preview?.substring(0, 30) || 'none',
+        mainImageStart: addFormData.main_image?.substring(0, 30) || 'none'
+      })
+    }
+  }, [addFormData.main_image_preview, addFormData.main_image, showAddPropertyModal])
+
   // Reset image modal state when modal is closed
   useEffect(() => {
     if (!showImageModal) {
@@ -518,6 +532,14 @@ export function PropertyModals({
         } catch {
           return false
         }
+      case 'main_image':
+        // Required field - must have either main_image_file or main_image
+        // For add form: check addFormData.main_image_file
+        // For edit form: check editFormData.main_image_file (handled separately in edit form validation)
+        return !!(value || addFormData.main_image_file)
+      case 'referrals':
+        // Required field - must have at least one referral
+        return value && Array.isArray(value) && value.length > 0
       default:
         return true
     }
@@ -569,6 +591,12 @@ export function PropertyModals({
     }
     if (!isFieldValid('property_url', addFormData.property_url)) {
       errors.push('Property URL is required and must be a valid URL starting with http:// or https://');
+    }
+    if (!isFieldValid('main_image', addFormData.main_image)) {
+      errors.push('Main image is required');
+    }
+    if (!isFieldValid('referrals', addFormData.referrals)) {
+      errors.push('At least one referral is required');
     }
     
     return errors;
@@ -651,6 +679,10 @@ export function PropertyModals({
           return 'Property URL is required'
         }
         return 'Property URL must be a valid URL starting with http:// or https://'
+      case 'main_image':
+        return 'Main image is required'
+      case 'referrals':
+        return 'At least one referral is required'
       default:
         return ''
     }
@@ -1051,39 +1083,59 @@ export function PropertyModals({
 
   // Handle main image upload for add property modal (NEW FILE-BASED APPROACH)
   const handleMainImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('handleMainImageUpload called', event.target.files)
+    console.log('🖼️ handleMainImageUpload called', event.target.files)
     const file = event.target.files?.[0]
     if (file) {
-      console.log('File selected:', file.name, file.size, file.type)
+      console.log('🖼️ File selected:', { name: file.name, size: file.size, type: file.type })
 
       try {
         // Validate the file
         const validation = validateImageFile(file)
         if (!validation.valid) {
+          console.error('🖼️ File validation failed:', validation.error)
           showError(validation.error || 'Invalid image file')
           return
         }
+        console.log('🖼️ File validation passed')
 
-        // Create preview URL
+        // Create preview URL (data URL for immediate display) - same as edit form
+        console.log('🖼️ Creating preview URL...')
         const previewUrl = await createImagePreview(file)
+        console.log('🖼️ Image preview created successfully')
+        console.log('🖼️ Preview URL length:', previewUrl.length)
+        console.log('🖼️ Preview URL starts with:', previewUrl.substring(0, 50))
 
-        console.log('Image preview created successfully')
-
-        setAddFormData((prev) => ({
-          ...prev,
-          main_image_file: file,
-          main_image_preview: previewUrl,
-          main_image: '' // Clear old Base64 data
-        }))
+        // Store the file and preview (base64 conversion will happen on form submit)
+        // This matches the edit form approach which works correctly
+        console.log('🖼️ Setting form data with preview...')
+        setAddFormData((prev) => {
+          const newData = {
+            ...prev,
+            main_image_file: file,
+            main_image_preview: previewUrl,
+            main_image: previewUrl // Use preview URL as base64 for now (will be compressed on submit)
+          }
+          console.log('🖼️ New form data set:', {
+            hasFile: !!newData.main_image_file,
+            hasPreview: !!newData.main_image_preview,
+            previewLength: newData.main_image_preview?.length || 0,
+            hasMainImage: !!newData.main_image,
+            mainImageLength: newData.main_image?.length || 0
+          })
+          return newData
+        })
 
         // Clear the file input
         if (event.target) {
           event.target.value = ''
         }
+        console.log('🖼️ Image upload handler completed successfully')
       } catch (error) {
-        console.error('Error processing image:', error)
+        console.error('🖼️ Error processing image:', error)
         showError('Something went wrong processing the image. Please try again.')
       }
+    } else {
+      console.warn('🖼️ No file selected')
     }
   }
 
@@ -1423,7 +1475,7 @@ export function PropertyModals({
                 e.preventDefault()
 
                 // Validate all required fields and optional fields with format requirements
-                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
+                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image', 'referrals']
                 
                 console.log('🔍 Form data before validation:', addFormData)
                 console.log('🔍 Validation errors before validation:', validationErrors)
@@ -1480,7 +1532,7 @@ export function PropertyModals({
                   console.log('  - details:', addFormData.details, typeof addFormData.details)
                   console.log('  - interior_details:', addFormData.interior_details, typeof addFormData.interior_details)
 
-                  // Create property data object (WITHOUT IMAGES)
+                  // Create property data object
                   const propertyData = {
                     status_id: addFormData.status_id,
                     property_type: addFormData.property_type,
@@ -1502,10 +1554,9 @@ export function PropertyModals({
                     price: parseFloat(addFormData.price),
                     notes: addFormData.notes || undefined,
                     property_url: addFormData.property_url || undefined,
-                    referrals: addFormData.referrals || [],
-
-                    // Note: Images will be uploaded separately after property creation
-                    hasImages: addFormData.main_image_file || addFormData.gallery_files.length > 0 // Flag to indicate if we need to upload images
+                    referrals: addFormData.referrals || []
+                    // Note: main_image will be added below after converting from file if needed
+                    // Gallery images will be uploaded separately after property creation
                   }
 
                   // Debug: Log the exact data being sent
@@ -1524,45 +1575,65 @@ export function PropertyModals({
                     interior_details: typeof propertyData.interior_details
                   })
 
+                  // Validate that we have a main image file
+                  if (!addFormData.main_image_file) {
+                    showError('Main image is required. Please select an image.')
+                    return
+                  }
+
+                  // Main image will be uploaded separately after property creation (not included in propertyData)
+                  // This matches the edit flow which works correctly
+                  propertyData.main_image = null
+
                   console.log('🚀 Final property data being sent to backend:', propertyData)
 
-                  // Step 1: Create the property without images
-                  console.log('Step 1: Creating property without images...')
+                  // Step 1: Create the property without main_image (will be uploaded separately)
+                  console.log('Step 1: Creating property...')
                   const newProperty = await onSaveAdd(propertyData)
 
-                  // Step 2: Upload images if any (only if property creation was successful)
-                  if (newProperty && newProperty.id && (addFormData.main_image_file || addFormData.gallery_files.length > 0)) {
-                    console.log('Step 2: Uploading images to property ID:', newProperty.id)
+                  // Step 2: Upload main image (required - property creation successful)
+                  if (newProperty && newProperty.id) {
+                    console.log('Step 2: Uploading main image to property ID:', newProperty.id)
+                    try {
+                      const mainImageResult = await uploadMainPropertyImage(newProperty.id, addFormData.main_image_file)
+                      if (!mainImageResult.success) {
+                        console.error('Main image upload failed:', mainImageResult.message)
+                        
+                        // If it's a CSRF error, suggest refreshing the page
+                        if (mainImageResult.message?.includes('Security token expired')) {
+                          showError('Security token expired. Please refresh the page and try uploading images again.')
+                        } else {
+                          showWarning('Property created but main image upload failed: ' + mainImageResult.message)
+                        }
+                      } else {
+                        console.log('Main image uploaded successfully')
+                      }
+                    } catch (imageError) {
+                      console.error('Error uploading main image:', imageError)
+                      showWarning('Property created successfully, but there was an error uploading the main image. You can add it later by editing the property.')
+                    }
+                  }
+
+                  // Step 3: Upload gallery images if any (only if property creation was successful)
+                  if (newProperty && newProperty.id && addFormData.gallery_files.length > 0) {
+                    console.log('Step 3: Uploading gallery images to property ID:', newProperty.id)
 
                     try {
-                      // Upload main image if present
-                      if (addFormData.main_image_file) {
-                        console.log('Uploading main image...')
-                        const mainImageResult = await uploadMainPropertyImage(newProperty.id, addFormData.main_image_file)
-                        if (!mainImageResult.success) {
-                          console.error('Main image upload failed:', mainImageResult.message)
-                          showWarning('Property created but main image upload failed: ' + mainImageResult.message)
-                        } else {
-                          console.log('Main image uploaded successfully')
-                        }
-                      }
 
-                      // Upload gallery images if present
-                      if (addFormData.gallery_files.length > 0) {
-                        console.log('Uploading', addFormData.gallery_files.length, 'gallery images...')
-                        const galleryResult = await uploadGalleryImages(newProperty.id, addFormData.gallery_files)
-                        if (!galleryResult.success) {
-                          console.error('Gallery upload failed:', galleryResult.message)
-                          
-                          // If it's a CSRF error, suggest refreshing the page
-                          if (galleryResult.message?.includes('Security token expired')) {
-                            showError('Security token expired. Please refresh the page and try uploading images again.')
-                          } else {
-                            showWarning('Property created but gallery upload failed: ' + galleryResult.message)
-                          }
+                      // Upload gallery images
+                      console.log('Uploading', addFormData.gallery_files.length, 'gallery images...')
+                      const galleryResult = await uploadGalleryImages(newProperty.id, addFormData.gallery_files)
+                      if (!galleryResult.success) {
+                        console.error('Gallery upload failed:', galleryResult.message)
+                        
+                        // If it's a CSRF error, suggest refreshing the page
+                        if (galleryResult.message?.includes('Security token expired')) {
+                          showError('Security token expired. Please refresh the page and try uploading images again.')
                         } else {
-                          console.log('Gallery images uploaded successfully')
+                          showWarning('Property created but gallery upload failed: ' + galleryResult.message)
                         }
+                      } else {
+                        console.log('Gallery images uploaded successfully')
                       }
 
                       console.log('✅ Property creation and image upload completed successfully!')
@@ -1574,8 +1645,8 @@ export function PropertyModals({
                       }
 
                     } catch (imageError) {
-                      console.error('Error uploading images:', imageError)
-                      showWarning('Property created successfully, but there was an error uploading images. You can add images later by editing the property.')
+                      console.error('Error uploading gallery images:', imageError)
+                      showWarning('Property created successfully, but there was an error uploading gallery images. You can add gallery images later by editing the property.')
                     }
                   }
 
@@ -1591,28 +1662,37 @@ export function PropertyModals({
 
                 {/* Main Image Section - Top of Modal */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Main Image <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative group">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
-                      {addFormData.main_image_preview || addFormData.main_image ? (
-                        <div className="relative w-full h-full flex items-center justify-center z-300">
+                      {(addFormData.main_image_preview || addFormData.main_image) ? (
+                        <div className="relative w-full h-full">
                           <img
-                            key={(addFormData.main_image_preview || addFormData.main_image).substring(0, 100)} // Force re-render when image changes
-                            src={addFormData.main_image_preview || addFormData.main_image}
+                            src={(() => {
+                              const src = addFormData.main_image_preview || addFormData.main_image || ''
+                              console.log('🖼️ IMG TAG RENDERING - src length:', src.length, 'is valid data URL:', src.startsWith('data:'), 'starts with:', src.substring(0, 50))
+                              return src
+                            })()}
                             alt="Main property image"
-                            className="w-full h-full object-contain relative z-20"
-                            onLoad={(event) => {
-                              console.log('✅ Image loaded successfully')
-                              console.log('Image dimensions:', (event.target as HTMLImageElement).naturalWidth, 'x', (event.target as HTMLImageElement).naturalHeight)
+                            className="w-full h-full object-cover"
+                            onLoad={(e) => {
+                              console.log('🖼️ ✅✅✅ Add form image LOADED successfully!')
+                              const img = e.target as HTMLImageElement
+                              console.log('🖼️ Image dimensions:', img.naturalWidth, 'x', img.naturalHeight)
                             }}
                             onError={(e) => {
-                              console.error('❌ Image failed to load:', e)
-                              // If image fails to load, clear the preview
-                              setAddFormData((prev) => ({
-                                ...prev,
-                                main_image_preview: '',
-                                main_image: ''
-                              }))
+                              const img = e.target as HTMLImageElement
+                              console.error('🖼️ ❌❌❌ Add form image FAILED to load')
+                              console.error('🖼️ Failed src length:', img.src?.length || 0)
+                              console.error('🖼️ Failed src preview:', img.src?.substring(0, 150))
+                              console.error('🖼️ Form state:', {
+                                hasPreview: !!addFormData.main_image_preview,
+                                previewLength: addFormData.main_image_preview?.length || 0,
+                                hasMainImage: !!addFormData.main_image,
+                                mainImageLength: addFormData.main_image?.length || 0
+                              })
                             }}
                           />
                           {/* Remove Image Button */}
@@ -2159,12 +2239,30 @@ export function PropertyModals({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Referrals (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Referrals <span className="text-red-500">*</span>
+                    </label>
+                    {validationErrors.referrals && (
+                      <p className="mb-2 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {validationErrors.referrals}
+                      </p>
+                    )}
                     <ReferralSelector
                       referrals={addFormData.referrals}
-                      onReferralsChange={(referrals) => setAddFormData(prev => ({ ...prev, referrals }))}
+                      onReferralsChange={(referrals) => {
+                        setAddFormData(prev => ({ ...prev, referrals }))
+                        // Clear error when referrals are added
+                        if (referrals && referrals.length > 0) {
+                          setValidationErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors.referrals
+                            return newErrors
+                          })
+                        }
+                      }}
                       employees={employees}
-                      placeholder="Add property referrals (optional)..."
+                      placeholder="Add property referrals (required)..."
                     />
                   </div>
 
@@ -2302,7 +2400,7 @@ export function PropertyModals({
                 e.preventDefault()
                 
                 // Validate required fields and optional fields with format requirements for edit form
-                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
+                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image', 'referrals']
                 let hasErrors = false
                 
                 console.log('🔍 Edit form data before validation:', editFormData)
@@ -2310,7 +2408,15 @@ export function PropertyModals({
 
                 fieldsToValidate.forEach(field => {
                   const value = editFormData[field as keyof EditFormData]
-                  const isValid = isFieldValid(field, value)
+                  // Special handling for main_image in edit form
+                  let isValid = isFieldValid(field, value)
+                  if (field === 'main_image') {
+                    // For edit form, check if there's either existing main_image or new main_image_file
+                    isValid = !!(value || editFormData.main_image_file)
+                  } else if (field === 'referrals') {
+                    // For edit form, check if there's at least one referral
+                    isValid = !!(value && Array.isArray(value) && value.length > 0)
+                  }
                   console.log(`🔍 Validating edit field "${field}": value="${value}", isValid=${isValid}`)
                   if (!isValid) {
                     console.log(`🔍 Edit field "${field}" is invalid, calling validateField`)
@@ -2380,7 +2486,9 @@ export function PropertyModals({
               }}>
                 {/* Main Image Section - Top of Modal */}
                 <div className="mb-6">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Main Image <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative group">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
                       {editFormData.main_image_preview || editFormData.main_image ? (
@@ -3168,12 +3276,30 @@ export function PropertyModals({
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Referrals (Optional)</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Referrals <span className="text-red-500">*</span>
+                    </label>
+                    {editValidationErrors.referrals && (
+                      <p className="mb-2 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">⚠️</span>
+                        {editValidationErrors.referrals}
+                      </p>
+                    )}
                     <ReferralSelector
                       referrals={editFormData.referrals || []}
-                      onReferralsChange={(referrals) => setEditFormData((prev: EditFormData) => ({ ...prev, referrals }))}
+                      onReferralsChange={(referrals) => {
+                        setEditFormData((prev: EditFormData) => ({ ...prev, referrals }))
+                        // Clear error when referrals are added
+                        if (referrals && referrals.length > 0) {
+                          setEditValidationErrors(prev => {
+                            const newErrors = { ...prev }
+                            delete newErrors.referrals
+                            return newErrors
+                          })
+                        }
+                      }}
                       employees={employees}
-                      placeholder="Add property referrals (optional)..."
+                      placeholder="Add property referrals (required)..."
                     />
                   </div>
 
@@ -3405,7 +3531,9 @@ export function PropertyModals({
               <div className="space-y-6">
                 {/* Main Image Section - Top of Modal */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Main Image (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Main Image <span className="text-red-500">*</span>
+                  </label>
                   <div className="relative">
                     <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden border-2 border-gray-200">
                       {viewPropertyData.main_image ? (

@@ -25,7 +25,7 @@ describe('Lead Model', () => {
         agent_id: 1,
         price: 200000,
         reference_source_id: 1,
-        operations_id: 2,
+        added_by_id: 2,
         status: 'Active'
       };
 
@@ -62,7 +62,7 @@ describe('Lead Model', () => {
       const leadData = {
         customer_name: 'John Doe',
         phone_number: '1234567890',
-        operations_id: 2
+        added_by_id: 2
       };
 
       const mockLead = { rows: [{ id: 1, ...leadData }] };
@@ -78,7 +78,7 @@ describe('Lead Model', () => {
       const leadData = {
         customer_name: 'John Doe',
         phone_number: '1234567890',
-        operations_id: 2
+        added_by_id: 2
       };
 
       const mockLead = { rows: [{ id: 1 }] };
@@ -90,14 +90,14 @@ describe('Lead Model', () => {
       expect(callArgs[8]).toBe('Active'); // Default status (9th parameter, index 8)
     });
 
-    it('should throw error when operations_id is missing', async () => {
+    it('should throw error when added_by_id is missing', async () => {
       const leadData = {
         customer_name: 'John Doe',
         phone_number: '1234567890'
       };
 
       await expect(Lead.createLead(leadData)).rejects.toThrow(
-        'operations_id is required and cannot be null'
+        'added_by_id is required and cannot be null'
       );
     });
   });
@@ -112,7 +112,7 @@ describe('Lead Model', () => {
             agent_id: 1,
             assigned_agent_name: 'Agent 1',
             reference_source_name: 'Website',
-            operations_name: 'Ops 1'
+            added_by_name: 'Ops 1'
           }
         ]
       };
@@ -286,13 +286,13 @@ describe('Lead Model', () => {
       );
     });
 
-    it('should throw error when operations_id is set to null', async () => {
+    it('should throw error when added_by_id is set to null', async () => {
       const updates = {
-        operations_id: null
+        added_by_id: null
       };
 
       await expect(Lead.updateLead(1, updates)).rejects.toThrow(
-        'operations_id is required and cannot be null'
+        'added_by_id is required and cannot be null'
       );
     });
 
@@ -448,21 +448,21 @@ describe('Lead Model', () => {
     });
   });
 
-  describe('getLeadsByOperations', () => {
-    it('should get leads for a specific operations user', async () => {
+  describe('getLeadsByAddedBy', () => {
+    it('should get leads added by a specific user', async () => {
       const mockLeads = {
         rows: [
-          { id: 1, operations_id: 2, customer_name: 'John Doe' }
+          { id: 1, added_by_id: 2, customer_name: 'John Doe' }
         ]
       };
 
       mockQuery.mockResolvedValueOnce(mockLeads);
 
-      const result = await Lead.getLeadsByOperations(2);
+      const result = await Lead.getLeadsByAddedBy(2);
 
       expect(result).toHaveLength(1);
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('WHERE l.operations_id = $1'),
+        expect.stringContaining('WHERE l.added_by_id = $1'),
         [2]
       );
     });
@@ -488,23 +488,30 @@ describe('Lead Model', () => {
     });
   });
 
-  describe('getOperationsUsers', () => {
-    it('should get operations users', async () => {
+  describe('getUsersWhoCanAddLeads', () => {
+    it('should get all users who can add leads', async () => {
       const mockUsers = {
         rows: [
-          { id: 1, name: 'Ops User 1', role: 'operations' },
-          { id: 2, name: 'Ops Manager 1', role: 'operations_manager' }
+          { id: 1, name: 'Admin', role: 'admin' },
+          { id: 2, name: 'Ops Manager', role: 'operations_manager' },
+          { id: 3, name: 'Ops User', role: 'operations' },
+          { id: 4, name: 'Agent', role: 'agent' },
+          { id: 5, name: 'Team Leader', role: 'team_leader' }
         ]
       };
 
       mockQuery.mockResolvedValueOnce(mockUsers);
 
-      const result = await Lead.getOperationsUsers();
+      const result = await Lead.getUsersWhoCanAddLeads();
 
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(5);
       expect(mockQuery).toHaveBeenCalled();
       const queryCall = mockQuery.mock.calls[0][0];
+      expect(queryCall).toContain('admin');
+      expect(queryCall).toContain('operations_manager');
       expect(queryCall).toContain('operations');
+      expect(queryCall).toContain('agent');
+      expect(queryCall).toContain('team_leader');
     });
   });
 

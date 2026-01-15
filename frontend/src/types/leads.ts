@@ -28,9 +28,9 @@ export interface Lead {
   price?: number  // New optional field
   reference_source_id: number  // Now required
   reference_source_name?: string
-  operations_id: number  // Now required
-  operations_name?: string
-  operations_role?: string
+  added_by_id: number  // Person who added the lead
+  added_by_name?: string
+  added_by_role?: string
   referrals?: LeadReferral[] // Lead referral tracking
   status: string
   status_can_be_referred?: boolean // Whether the lead's status allows referrals
@@ -56,12 +56,15 @@ export interface ReferenceSource {
   modified_at: string
 }
 
-export interface OperationsUser {
+export interface UserWhoCanAddLeads {
   id: number
   name: string
   email: string
   role: string
 }
+
+// Backward compatibility alias
+export interface OperationsUser extends UserWhoCanAddLeads {}
 
 export interface LeadStatusOption {
   id: number
@@ -95,7 +98,7 @@ export interface EditLeadFormData {
   agent_name?: string
   price?: number  // New optional field
   reference_source_id?: number  // Required before submit
-  operations_id?: number  // Required before submit
+  added_by_id?: number  // Will be auto-set to current user if not provided
   status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
 }
@@ -108,7 +111,7 @@ export interface CreateLeadFormData {
   agent_name?: string
   price?: number  // New optional field
   reference_source_id?: number  // Required before submit
-  operations_id?: number  // Required before submit
+  added_by_id?: number  // Will be auto-set to current user if not provided
   status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
 }

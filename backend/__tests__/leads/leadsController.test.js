@@ -67,9 +67,9 @@ describe('Leads Controller', () => {
           phone_number: '123',
           agent_id: 1,
           assigned_agent_name: 'Agent',
-          operations_id: 1,
-          operations_name: 'Ops',
-          operations_role: 'operations',
+          added_by_id: 1,
+          added_by_name: 'Ops',
+          added_by_role: 'operations',
           reference_source_id: 1,
           reference_source_name: 'Source',
           contact_source: 'phone',
@@ -94,9 +94,9 @@ describe('Leads Controller', () => {
           phone_number: '123',
           agent_id: 1,
           assigned_agent_name: 'Agent',
-          operations_id: 1,
-          operations_name: 'Ops',
-          operations_role: 'operations',
+          added_by_id: 1,
+          added_by_name: 'Ops',
+          added_by_role: 'operations',
           reference_source_id: 1,
           reference_source_name: 'Source',
           price: 100000,
@@ -287,7 +287,11 @@ describe('Leads Controller', () => {
       phone_number: '123',
       agent_id: 1,
       price: 100000,
-      status: 'active'
+      status: 'active',
+      reference_source_id: 1,
+      referrals: [
+        { type: 'employee', employee_id: 2, name: 'Agent 2', date: '2024-01-01' }
+      ]
     };
 
     it('should create lead successfully', async () => {
@@ -295,8 +299,14 @@ describe('Leads Controller', () => {
       const mockCreatedLead = { id: 1, ...mockLeadData };
       const mockCompleteLead = { id: 1, ...mockLeadData, referrals: [] };
 
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
       Lead.createLead.mockResolvedValue(mockCreatedLead);
       Lead.getLeadById.mockResolvedValue(mockCompleteLead);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
       Notification.createLeadNotification.mockResolvedValue({});
 
       await LeadsController.createLead(req, res);
@@ -310,20 +320,72 @@ describe('Leads Controller', () => {
       });
     });
 
-    it('should set operations_id for operations role', async () => {
+    it('should set added_by_id for operations role', async () => {
       req.user = { id: 2, role: 'operations' };
-      req.body = { ...mockLeadData, operations_id: undefined };
-      const mockCreatedLead = { id: 1, ...mockLeadData, operations_id: 2 };
+      req.body = { ...mockLeadData, added_by_id: undefined };
+      const mockCreatedLead = { id: 1, ...mockLeadData, added_by_id: 2 };
       const mockCompleteLead = { id: 1, ...mockCreatedLead, referrals: [] };
 
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
       Lead.createLead.mockResolvedValue(mockCreatedLead);
       Lead.getLeadById.mockResolvedValue(mockCompleteLead);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
       Notification.createLeadNotification.mockResolvedValue({});
 
       await LeadsController.createLead(req, res);
 
       expect(Lead.createLead).toHaveBeenCalledWith(
-        expect.objectContaining({ operations_id: 2 })
+        expect.objectContaining({ added_by_id: 2 })
+      );
+    });
+
+    it('should auto-set added_by_id for agent role', async () => {
+      req.user = { id: 3, role: 'agent' };
+      req.body = { ...mockLeadData, added_by_id: undefined };
+      const mockCreatedLead = { id: 1, ...mockLeadData, added_by_id: 3 };
+      const mockCompleteLead = { id: 1, ...mockCreatedLead, referrals: [] };
+
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
+      Lead.createLead.mockResolvedValue(mockCreatedLead);
+      Lead.getLeadById.mockResolvedValue(mockCompleteLead);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.createLead(req, res);
+
+      expect(Lead.createLead).toHaveBeenCalledWith(
+        expect.objectContaining({ added_by_id: 3 })
+      );
+    });
+
+    it('should auto-set added_by_id for team_leader role', async () => {
+      req.user = { id: 4, role: 'team_leader' };
+      req.body = { ...mockLeadData, added_by_id: undefined };
+      const mockCreatedLead = { id: 1, ...mockLeadData, added_by_id: 4 };
+      const mockCompleteLead = { id: 1, ...mockCreatedLead, referrals: [] };
+
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
+      Lead.createLead.mockResolvedValue(mockCreatedLead);
+      Lead.getLeadById.mockResolvedValue(mockCompleteLead);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.createLead(req, res);
+
+      expect(Lead.createLead).toHaveBeenCalledWith(
+        expect.objectContaining({ added_by_id: 4 })
       );
     });
 
@@ -381,6 +443,54 @@ describe('Leads Controller', () => {
         error: 'Internal server error'
       });
     });
+
+    it('should allow agent to create lead with auto-set added_by_id', async () => {
+      req.user = { id: 5, role: 'agent' };
+      req.body = { ...mockLeadData, added_by_id: undefined };
+      const mockCreatedLead = { id: 1, ...mockLeadData, added_by_id: 5 };
+      const mockCompleteLead = { id: 1, ...mockCreatedLead, referrals: [] };
+
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
+      Lead.createLead.mockResolvedValue(mockCreatedLead);
+      Lead.getLeadById.mockResolvedValue(mockCompleteLead);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.createLead(req, res);
+
+      expect(Lead.createLead).toHaveBeenCalledWith(
+        expect.objectContaining({ added_by_id: 5 })
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should allow team_leader to create lead with auto-set added_by_id', async () => {
+      req.user = { id: 6, role: 'team_leader' };
+      req.body = { ...mockLeadData, added_by_id: undefined };
+      const mockCreatedLead = { id: 1, ...mockLeadData, added_by_id: 6 };
+      const mockCompleteLead = { id: 1, ...mockCreatedLead, referrals: [] };
+
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
+      Lead.createLead.mockResolvedValue(mockCreatedLead);
+      Lead.getLeadById.mockResolvedValue(mockCompleteLead);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
+      Notification.createLeadNotification.mockResolvedValue({});
+
+      await LeadsController.createLead(req, res);
+
+      expect(Lead.createLead).toHaveBeenCalledWith(
+        expect.objectContaining({ added_by_id: 6 })
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
   });
 
   describe('updateLead', () => {
@@ -394,19 +504,31 @@ describe('Leads Controller', () => {
 
     it('should update lead successfully', async () => {
       req.params.id = '1';
-      req.body = { customer_name: 'Updated Customer' };
+      req.body = { 
+        customer_name: 'Updated Customer',
+        referrals: [
+          { type: 'employee', employee_id: 2, name: 'Agent 2', date: '2024-01-01' }
+        ]
+      };
       const mockUpdatedLead = { ...mockLead, customer_name: 'Updated Customer' };
       const mockCompleteLead = { ...mockUpdatedLead, referrals: [] };
 
       Lead.getLeadById.mockResolvedValueOnce(mockLead);
       Lead.updateLead.mockResolvedValue(mockUpdatedLead);
       Lead.getLeadById.mockResolvedValueOnce(mockCompleteLead);
+      pool.query.mockResolvedValue({ rows: [{ name: 'Agent 2' }] });
+      LeadReferral.getReferralsByLeadId.mockResolvedValue([]);
+      LeadReferral.createReferral.mockResolvedValue({ id: 1 });
+      LeadReferral.applyExternalRuleToLeadReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
       Notification.createLeadNotification.mockResolvedValue({});
 
       await LeadsController.updateLead(req, res);
 
       expect(Lead.getLeadById).toHaveBeenCalledWith('1');
-      expect(Lead.updateLead).toHaveBeenCalledWith('1', req.body);
+      expect(Lead.updateLead).toHaveBeenCalledWith('1', expect.objectContaining({ customer_name: 'Updated Customer' }));
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockCompleteLead,
@@ -684,27 +806,27 @@ describe('Leads Controller', () => {
         { id: 2, name: 'Ops User 2', role: 'operations' }
       ];
 
-      Lead.getOperationsUsers.mockResolvedValue(mockUsers);
+      Lead.getUsersWhoCanAddLeads.mockResolvedValue(mockUsers);
 
       await LeadsController.getOperationsUsers(req, res);
 
-      expect(Lead.getOperationsUsers).toHaveBeenCalled();
+      expect(Lead.getUsersWhoCanAddLeads).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockUsers,
-        message: 'Operations users retrieved successfully'
+        message: 'Users who can add leads retrieved successfully'
       });
     });
 
     it('should handle errors', async () => {
-      Lead.getOperationsUsers.mockRejectedValue(new Error('Database error'));
+      Lead.getUsersWhoCanAddLeads.mockRejectedValue(new Error('Database error'));
 
       await LeadsController.getOperationsUsers(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Failed to retrieve operations users',
+        message: 'Failed to retrieve users who can add leads',
         error: 'Internal server error'
       });
     });

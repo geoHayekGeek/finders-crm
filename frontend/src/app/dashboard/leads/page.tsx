@@ -90,7 +90,7 @@ useEffect(() => {
     agent_name: '',
     price: undefined,
     reference_source_id: undefined,
-    operations_id: undefined,
+    added_by_id: undefined,
     status: 'Active'
   })
   const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
@@ -494,7 +494,7 @@ useEffect(() => {
           ? parseFloat(refreshedLead.price.toString()) 
           : undefined,
         reference_source_id: safeNumber(refreshedLead.reference_source_id),
-        operations_id: safeNumber(refreshedLead.operations_id),
+        added_by_id: safeNumber(refreshedLead.added_by_id),
         status: refreshedLead.status || 'Active',
         referrals: convertedReferrals
       }
@@ -502,7 +502,7 @@ useEffect(() => {
       console.log('📝 Full refreshed lead data:', refreshedLead)
       console.log('📝 Setting edit form data:', formData)
       console.log('📝 Referrals in form data:', convertedReferrals.length)
-      console.log('📝 operations_id from backend:', refreshedLead.operations_id, '-> form:', formData.operations_id)
+      console.log('📝 added_by_id from backend:', refreshedLead.added_by_id, '-> form:', formData.added_by_id)
       console.log('📝 reference_source_id from backend:', refreshedLead.reference_source_id, '-> form:', formData.reference_source_id)
       console.log('📝 price from backend:', refreshedLead.price, '-> form:', formData.price)
       setEditFormData(formData)
@@ -872,7 +872,7 @@ useEffect(() => {
       'Agent Name',
       'Status',
       'Reference Source',
-      'Operations',
+      'Added By',
       'Referral Sources',
       'Created Date'
     ]
@@ -885,7 +885,7 @@ useEffect(() => {
       lead.assigned_agent_name || lead.agent_name || '',
       lead.status || '',
       lead.reference_source_name || '',
-      lead.operations_name || '',
+      lead.added_by_name || '',
       lead.reference_source_name || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''
     ])
@@ -928,8 +928,8 @@ useEffect(() => {
       'Agent Role',
       'Status',
       'Reference Source',
-      'Operations',
-      'Operations Role',
+      'Added By',
+      'Added By Role',
       'Referral Sources',
       'Created Date',
       'Updated Date'
@@ -944,8 +944,8 @@ useEffect(() => {
       lead.agent_role || '',
       lead.status || '',
       lead.reference_source_name || '',
-      lead.operations_name || '',
-      lead.operations_role || '',
+      lead.added_by_name || '',
+      lead.added_by_role || '',
       lead.reference_source_name || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
       lead.updated_at ? new Date(lead.updated_at).toLocaleDateString() : ''

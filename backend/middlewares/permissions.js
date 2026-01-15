@@ -328,11 +328,12 @@ const canManageLeads = (req, res, next) => {
   }
 
   const role = req.user.role;
-  if (role === 'admin' || role === 'operations manager' || role === 'operations') {
+  // Allow admin, operations manager, operations, agents, and team leaders to add leads
+  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent' || role === 'team_leader') {
     next();
   } else {
     return res.status(403).json({ 
-      message: 'Access denied. Lead management restricted to admin, operations manager, and operations only.' 
+      message: 'Access denied. Lead management restricted to admin, operations manager, operations, agents, and team leaders only.' 
     });
   }
 };

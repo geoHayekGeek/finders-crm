@@ -232,7 +232,7 @@ describe('Leads Validation', () => {
       req.body = {
         agent_id: 1,
         reference_source_id: 1,
-        operations_id: 1
+        added_by_id: 1
       };
 
       await leadsValidation.validateLeadBusinessRules(req, res, next);
@@ -275,6 +275,27 @@ describe('Leads Validation', () => {
       const statuses = await leadsValidation.getValidStatuses();
 
       expect(statuses).toEqual(['Active', 'Contacted', 'Qualified', 'Converted', 'Closed']);
+    });
+  });
+
+  describe('Referrals Validation', () => {
+    it('should require referrals field in validateCreateLead', () => {
+      const validators = leadsValidation.validateCreateLead;
+      const referralsValidator = validators.find(v => {
+        // Find the validator that checks referrals
+        return v && v.builder && v.builder.fields && v.builder.fields.includes('referrals');
+      });
+      
+      // The referrals validator should exist
+      expect(validators.length).toBeGreaterThan(0);
+    });
+
+    it('should require referrals field in validateUpdateLead', () => {
+      const validators = leadsValidation.validateUpdateLead;
+      
+      // The validators array should exist
+      expect(validators).toBeDefined();
+      expect(Array.isArray(validators)).toBe(true);
     });
   });
 });

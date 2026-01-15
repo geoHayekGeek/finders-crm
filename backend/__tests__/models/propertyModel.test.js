@@ -55,7 +55,11 @@ describe('Property Model', () => {
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
-        price: 200000
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
       };
 
       const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
@@ -77,7 +81,8 @@ describe('Property Model', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockProperty) // INSERT
-        .mockResolvedValueOnce({}) // COMMIT
+        .mockResolvedValueOnce({}) // INSERT referral
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
         .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Property.createProperty(propertyData);
@@ -115,7 +120,11 @@ describe('Property Model', () => {
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
-        price: 200000
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
       };
 
       const mockStatus = { rows: [{ code: 'sold', name: 'Sold' }] };
@@ -124,6 +133,128 @@ describe('Property Model', () => {
 
       await expect(Property.createProperty(propertyData)).rejects.toThrow(
         'Properties with closed status (Sold/Rented/Closed) must have a closed_date set'
+      );
+    });
+
+    it('should allow creating property without main_image (to be uploaded separately)', async () => {
+      const propertyData = {
+        status_id: 1,
+        property_type: 'sale',
+        location: 'Test Location',
+        category_id: 1,
+        owner_name: 'John Doe',
+        phone_number: '1234567890',
+        surface: 100,
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available',
+        view_type: 'sea view',
+        concierge: false,
+        agent_id: 1,
+        price: 200000,
+        main_image: null, // Null is allowed - will be uploaded separately
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
+      };
+
+      const mockProperty = { id: 1, ...propertyData, reference_number: 'REF-001' };
+      
+      mockPool.connect.mockResolvedValue(mockClient);
+      mockClient.query
+        .mockResolvedValueOnce({ rows: [{ code: 'CAT' }] }) // category query
+        .mockResolvedValueOnce({ rows: [{ generate_reference_number: 'REF-001' }] }) // reference number
+        .mockResolvedValueOnce({ rows: [mockProperty] }); // insert property
+
+      const result = await Property.createProperty(propertyData);
+
+      expect(result).toEqual(mockProperty);
+      expect(result.main_image).toBeNull();
+    });
+
+    it('should throw error when referrals are missing', async () => {
+      const propertyData = {
+        status_id: 1,
+        property_type: 'sale',
+        location: 'Test Location',
+        category_id: 1,
+        owner_name: 'John Doe',
+        phone_number: '1234567890',
+        surface: 100,
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available',
+        view_type: 'sea view',
+        concierge: false,
+        agent_id: 1,
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+        // referrals is missing
+      };
+
+      await expect(Property.createProperty(propertyData)).rejects.toThrow(
+        'At least one referral is required'
+      );
+    });
+
+    it('should throw error when referrals is empty array', async () => {
+      const propertyData = {
+        status_id: 1,
+        property_type: 'sale',
+        location: 'Test Location',
+        category_id: 1,
+        owner_name: 'John Doe',
+        phone_number: '1234567890',
+        surface: 100,
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available',
+        view_type: 'sea view',
+        concierge: false,
+        agent_id: 1,
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [] // Empty array
+      };
+
+      await expect(Property.createProperty(propertyData)).rejects.toThrow(
+        'At least one referral is required'
       );
     });
 
@@ -154,7 +285,11 @@ describe('Property Model', () => {
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
-        price: 200000
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
       };
 
       const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
@@ -172,6 +307,8 @@ describe('Property Model', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockProperty) // INSERT (should use synced owner data)
+        .mockResolvedValueOnce({}) // INSERT referral
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
         .mockResolvedValueOnce({}); // COMMIT
 
       await Property.createProperty(propertyData);
@@ -209,6 +346,7 @@ describe('Property Model', () => {
         concierge: false,
         agent_id: 1,
         price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
         referrals: [
           { name: 'Referral 1', type: 'employee', employee_id: 2, date: '2024-01-01' }
         ]
@@ -265,7 +403,11 @@ describe('Property Model', () => {
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
-        price: 200000
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
       };
 
       const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
@@ -305,7 +447,11 @@ describe('Property Model', () => {
         view_type: 'sea view',
         concierge: true,
         agent_id: 1,
-        price: 500000
+        price: 500000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
       };
 
       const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
@@ -327,6 +473,8 @@ describe('Property Model', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}) // INSERT referral
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
         .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Property.createProperty(propertyData);
@@ -352,7 +500,11 @@ describe('Property Model', () => {
         view_type: 'sea view',
         concierge: false,
         agent_id: 1,
-        price: 200000
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        referrals: [
+          { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
+        ]
       };
 
       const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
@@ -374,6 +526,8 @@ describe('Property Model', () => {
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}) // INSERT referral
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
         .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Property.createProperty(propertyData);
@@ -577,10 +731,12 @@ describe('Property Model', () => {
       };
       const mockProperty = { rows: [{ id: 1 }] };
       const mockReferrals = { rows: [] };
+      const mockExistingReferrals = { rows: [{ count: '1' }] }; // Property already has 1 referral
 
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce(mockExistingReferrals) // Check existing referrals count
         .mockResolvedValueOnce({}) // COMMIT
         .mockResolvedValueOnce(mockProperty) // SELECT property
         .mockResolvedValueOnce(mockReferrals); // SELECT referrals
@@ -598,6 +754,7 @@ describe('Property Model', () => {
 
       const mockStatus = { rows: [{ code: 'sold', name: 'Sold' }] };
       const mockProperty = { rows: [{ closed_date: null }] };
+      const mockExistingReferrals = { rows: [{ count: '1' }] }; // Property already has 1 referral
 
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
@@ -618,11 +775,13 @@ describe('Property Model', () => {
       const mockUpdated = { rows: [{ id: 1 }] };
       const mockProperty = { rows: [{ id: 1 }] };
       const mockReferrals = { rows: [] };
+      const mockExistingReferrals = { rows: [{ count: '1' }] }; // Property already has 1 referral
 
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockOwner) // Get owner data
         .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce(mockExistingReferrals) // Check existing referrals count
         .mockResolvedValueOnce({}) // COMMIT
         .mockResolvedValueOnce(mockProperty)
         .mockResolvedValueOnce(mockReferrals);
@@ -753,12 +912,21 @@ describe('Property Model', () => {
         }]
       };
 
+      const mockSeriousViewings = {
+        rows: [{
+          properties_with_serious_viewings: 15
+        }]
+      };
+
       mockQuery.mockResolvedValueOnce(mockStats);
+      mockQuery.mockResolvedValueOnce(mockSeriousViewings);
 
       const result = await Property.getPropertyStats();
 
       expect(result.total_properties).toBe(100);
       expect(result.active).toBe(50);
+      expect(result.properties_with_serious_viewings).toBe(15);
+      expect(result.serious_viewings_percentage).toBe(15.0);
     });
   });
 
