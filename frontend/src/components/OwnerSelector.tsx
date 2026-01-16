@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, ChevronDown, User, RefreshCw, UserCircle } from 'lucide-react'
+import { X, ChevronDown, User, RefreshCw, UserCircle, Plus, Phone, Globe, Tag, Users } from 'lucide-react'
 import { leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
+import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 
 interface Owner {
   id: number
@@ -27,13 +29,30 @@ export function OwnerSelector({
   placeholder = "Select an owner (lead)..."
 }: OwnerSelectorProps) {
   const { token } = useAuth()
+  const { showSuccess, showError } = useToast()
   const [owners, setOwners] = useState<Owner[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [showQuickAddModal, setShowQuickAddModal] = useState(false)
+  const [isCreatingLead, setIsCreatingLead] = useState(false)
   
   const dropdownRef = useRef<HTMLDivElement>(null)
+  
+  // Quick add form state
+  const [quickAddForm, setQuickAddForm] = useState({
+    customer_name: '',
+    phone_number: '',
+    reference_source_id: undefined as number | undefined
+  })
+  
+  // Validation errors for quick add form
+  const [quickAddErrors, setQuickAddErrors] = useState({
+    customer_name: '',
+    phone_number: '',
+    reference_source_id: ''
+  })
 
   // Fetch owners (leads) from database
   const fetchOwners = async () => {
@@ -129,6 +148,142 @@ export function OwnerSelector({
 
   const handleClearOwner = () => {
     onOwnerChange(undefined)
+  }
+  
+  // Quick add modal handlers
+  const handleOpenQuickAdd = () => {
+    setQuickAddForm({
+      customer_name: '',
+      phone_number: '',
+      reference_source_id: undefined
+    })
+    setQuickAddErrors({
+      customer_name: '',
+      phone_number: '',
+      reference_source_id: ''
+    })
+    setShowQuickAddModal(true)
+  }
+  
+  const handleCloseQuickAdd = () => {
+    setShowQuickAddModal(false)
+    setQuickAddForm({
+      customer_name: '',
+      phone_number: '',
+      reference_source_id: undefined
+    })
+    setQuickAddErrors({
+      customer_name: '',
+      phone_number: '',
+      reference_source_id: ''
+    })
+  }
+  
+  const validateQuickAddForm = () => {
+    const errors = {
+      customer_name: '',
+      phone_number: '',
+      reference_source_id: ''
+    }
+    
+    let isValid = true
+    
+    if (!quickAddForm.customer_name.trim()) {
+      errors.customer_name = 'Customer name is required'
+      isValid = false
+    }
+    
+    if (!quickAddForm.phone_number.trim()) {
+      errors.phone_number = 'Phone number is required'
+      isValid = false
+    }
+    
+    if (!quickAddForm.reference_source_id) {
+      errors.reference_source_id = 'Reference source is required'
+      isValid = false
+    }
+    
+    setQuickAddErrors(errors)
+    return isValid
+  }
+  
+  const handleQuickAddSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
+    // Prevent default and stop propagation if event exists (for form submission)
+    if (e) {
+      e.preventDefault()
+      e.stopPropagation()
+      
+      // Also stop immediate propagation
+      if (e.nativeEvent && e.nativeEvent.stopImmediatePropagation) {
+        e.nativeEvent.stopImmediatePropagation()
+      }
+    }
+    
+    console.log('🔍 Quick Add form submitted, preventing default and stopping propagation')
+    
+    if (!validateQuickAddForm()) {
+      console.log('❌ Validation failed, not submitting')
+      return
+    }
+    
+    if (!token) {
+      showError('Authentication required')
+      return
+    }
+    
+    setIsCreatingLead(true)
+    
+    try {
+      // Prepare lead data with smart defaults
+      const today = new Date().toISOString().split('T')[0]
+      const leadData = {
+        customer_name: quickAddForm.customer_name.trim(),
+        phone_number: quickAddForm.phone_number.trim(),
+        reference_source_id: quickAddForm.reference_source_id,
+        date: today,
+        status: 'Active', // Default status
+        referrals: [
+          {
+            name: 'Property Owner',
+            type: 'custom' as const,
+            date: today
+          }
+        ]
+      }
+      
+      console.log('🚀 Creating quick lead:', leadData)
+      
+      // Create the lead
+      const response = await leadsApi.create(leadData, token)
+      
+      if (response.success && response.data) {
+        console.log('✅ Lead created successfully:', response.data)
+        showSuccess('Owner added successfully!')
+        
+        // Refresh the owners list
+        await fetchOwners()
+        
+        // Auto-select the newly created lead
+        const newLead = {
+          id: response.data.id,
+          customer_name: response.data.customer_name,
+          phone_number: response.data.phone_number,
+          date: response.data.date,
+          status: response.data.status
+        }
+        onOwnerChange(newLead)
+        
+        // Close the modal
+        handleCloseQuickAdd()
+      } else {
+        showError(response.message || 'Failed to create owner')
+      }
+    } catch (error) {
+      console.error('❌ Error creating lead:', error)
+      showError(error instanceof Error ? error.message : 'Failed to create owner')
+    } finally {
+      setIsCreatingLead(false)
+    }
   }
 
   // Find selected owner with robust type matching
@@ -257,6 +412,15 @@ export function OwnerSelector({
           
           <button
             type="button"
+            onClick={handleOpenQuickAdd}
+            className="p-3 text-green-600 hover:text-green-700 hover:bg-green-50 border border-green-300 rounded-lg transition-colors"
+            title="Add new owner"
+          >
+            <Plus className="h-4 w-4" />
+          </button>
+          
+          <button
+            type="button"
             onClick={fetchOwners}
             disabled={isLoading}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -335,6 +499,200 @@ export function OwnerSelector({
           </div>
         )}
       </div>
+      
+      {/* Quick Add Lead Modal */}
+      {showQuickAddModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[9999]"
+          onClick={(e) => {
+            // Only close if clicking the overlay, not the modal content
+            if (e.target === e.currentTarget && !isCreatingLead) {
+              handleCloseQuickAdd()
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => {
+              e.stopPropagation()
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Add New Owner</h2>
+                  <p className="text-sm text-gray-600 mt-1">Quickly add a property owner (lead)</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCloseQuickAdd}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={isCreatingLead}
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Quick Add Form - Using div instead of form to avoid nested form issue */}
+              <div 
+                className="space-y-4"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Customer Name */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <User className="inline h-4 w-4 mr-1" />
+                    Customer Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={quickAddForm.customer_name}
+                    onChange={(e) => {
+                      setQuickAddForm({ ...quickAddForm, customer_name: e.target.value })
+                      if (quickAddErrors.customer_name) {
+                        setQuickAddErrors({ ...quickAddErrors, customer_name: '' })
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleQuickAddSubmit()
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      quickAddErrors.customer_name ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter customer name"
+                    disabled={isCreatingLead}
+                  />
+                  {quickAddErrors.customer_name && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {quickAddErrors.customer_name}
+                    </p>
+                  )}
+                </div>
+
+                {/* Phone Number */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Phone className="inline h-4 w-4 mr-1" />
+                    Phone Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={quickAddForm.phone_number}
+                    onChange={(e) => {
+                      setQuickAddForm({ ...quickAddForm, phone_number: e.target.value })
+                      if (quickAddErrors.phone_number) {
+                        setQuickAddErrors({ ...quickAddErrors, phone_number: '' })
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleQuickAddSubmit()
+                      }
+                    }}
+                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      quickAddErrors.phone_number ? 'border-red-300' : 'border-gray-300'
+                    }`}
+                    placeholder="Enter phone number"
+                    disabled={isCreatingLead}
+                  />
+                  {quickAddErrors.phone_number && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {quickAddErrors.phone_number}
+                    </p>
+                  )}
+                </div>
+
+                {/* Reference Source */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Globe className="inline h-4 w-4 mr-1" />
+                    Reference Source <span className="text-red-500">*</span>
+                  </label>
+                  <ReferenceSourceSelector
+                    selectedReferenceSourceId={quickAddForm.reference_source_id}
+                    onReferenceSourceChange={(sourceId) => {
+                      setQuickAddForm({ ...quickAddForm, reference_source_id: sourceId })
+                      if (quickAddErrors.reference_source_id) {
+                        setQuickAddErrors({ ...quickAddErrors, reference_source_id: '' })
+                      }
+                    }}
+                    placeholder="Select a reference source..."
+                  />
+                  {quickAddErrors.reference_source_id && (
+                    <p className="mt-1 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">⚠️</span>
+                      {quickAddErrors.reference_source_id}
+                    </p>
+                  )}
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-2">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <svg className="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm text-blue-800">
+                        <strong>Auto-filled:</strong> Date (today), Status (Active), and a default referral will be added automatically.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={handleCloseQuickAdd}
+                    disabled={isCreatingLead}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isCreatingLead}
+                    onClick={(e) => {
+                      // Prevent any click event from bubbling
+                      e.preventDefault()
+                      e.stopPropagation()
+                      // Manually trigger form submission
+                      const fakeEvent = { preventDefault: () => {}, stopPropagation: () => {} } as React.FormEvent<HTMLFormElement>
+                      handleQuickAddSubmit(fakeEvent)
+                    }}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isCreatingLead ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-4 w-4" />
+                        Add Owner
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
