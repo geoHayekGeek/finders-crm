@@ -237,14 +237,20 @@ export default function HRPage() {
         // Calculate stats
         calculateStats(usersWithActions)
         
-        // Reload agents for any expanded team leaders
-        if (expandedTeamLeaders.size > 0 && token) {
-          console.log('🔄 Reloading agents for expanded team leaders:', Array.from(expandedTeamLeaders))
-          for (const teamLeaderId of expandedTeamLeaders) {
+        // Initialize expandedTeamLeaders with all team leaders (expanded by default)
+        const teamLeaderIds = usersWithActions
+          .filter((u: User) => roleEquals(u.role, 'team_leader'))
+          .map((u: User) => u.id)
+        setExpandedTeamLeaders(new Set(teamLeaderIds))
+        
+        // Load agents for all team leaders (since they start expanded)
+        if (teamLeaderIds.length > 0 && token) {
+          console.log('🔄 Loading agents for all team leaders:', teamLeaderIds)
+          for (const teamLeaderId of teamLeaderIds) {
             try {
               const agentsResponse = await usersApi.getTeamLeaderAgents(teamLeaderId, token)
               if (agentsResponse.success && agentsResponse.agents) {
-                console.log('✅ Reloaded agents for TL:', teamLeaderId, 'count:', agentsResponse.agents.length)
+                console.log('✅ Loaded agents for TL:', teamLeaderId, 'count:', agentsResponse.agents.length)
                 setUsers(prevUsers => prevUsers.map(u => 
                   u.id === teamLeaderId 
                     ? { ...u, agents: agentsResponse.agents, agent_count: agentsResponse.agents.length }
@@ -252,7 +258,7 @@ export default function HRPage() {
                 ))
               }
             } catch (error) {
-              console.error('❌ Error reloading agents for TL:', teamLeaderId, error)
+              console.error('❌ Error loading agents for TL:', teamLeaderId, error)
             }
           }
         }

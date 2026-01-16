@@ -1554,8 +1554,8 @@ export function PropertyModals({
                     price: parseFloat(addFormData.price),
                     notes: addFormData.notes || undefined,
                     property_url: addFormData.property_url || undefined,
-                    referrals: addFormData.referrals || []
-                    // Note: main_image will be added below after converting from file if needed
+                    referrals: addFormData.referrals || [],
+                    main_image: null // Main image will be uploaded separately after property creation
                     // Gallery images will be uploaded separately after property creation
                   }
 
@@ -1583,7 +1583,6 @@ export function PropertyModals({
 
                   // Main image will be uploaded separately after property creation (not included in propertyData)
                   // This matches the edit flow which works correctly
-                  propertyData.main_image = null
 
                   console.log('🚀 Final property data being sent to backend:', propertyData)
 
