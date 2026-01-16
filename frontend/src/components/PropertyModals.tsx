@@ -1347,7 +1347,7 @@ export function PropertyModals({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Upload className="h-5 w-5 text-blue-600" />
@@ -1457,7 +1457,7 @@ export function PropertyModals({
       {showAddPropertyModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-[101]">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1">
               <h2 className="text-2xl font-bold text-gray-900">Add New Property</h2>
               <button
                 onClick={() => {
@@ -2376,7 +2376,7 @@ export function PropertyModals({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   <Edit className="h-5 w-5 text-blue-600" />
@@ -3483,7 +3483,7 @@ export function PropertyModals({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-wrap gap-3">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1 flex-wrap gap-3  sticky top-0 bg-white z-1">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
                   {/* Eye icon for view property */}
@@ -4116,7 +4116,7 @@ export function PropertyModals({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4">
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1">
               <div className="flex items-center space-x-3">
                 <div className="p-2 bg-red-100 rounded-lg">
                   <Trash2 className="h-5 w-5 text-red-600" />

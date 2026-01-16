@@ -199,7 +199,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-lg z-10">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1 sticky top-0 bg-white rounded-t-lg z-10">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Edit Report</h2>
             <p className="text-sm text-gray-600 mt-1">
