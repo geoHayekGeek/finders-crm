@@ -257,12 +257,12 @@ const canManageUsers = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
-  if (role === 'admin' || role === 'hr') {
+  const role = normalizeRole(req.user.role);
+  if (role === 'admin' || role === 'hr' || role === 'operations manager') {
     next();
   } else {
     return res.status(403).json({ 
-      message: 'Access denied. User management restricted to admin and HR only.' 
+      message: 'Access denied. User management restricted to admin, HR, and operations manager only.' 
     });
   }
 };
@@ -273,12 +273,12 @@ const canViewAllUsers = (req, res, next) => {
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
-  if (role === 'admin' || role === 'hr') {
+  const role = normalizeRole(req.user.role);
+  if (role === 'admin' || role === 'hr' || role === 'operations manager') {
     next();
   } else {
     return res.status(403).json({ 
-      message: 'Access denied. Viewing all users restricted to admin and HR only.' 
+      message: 'Access denied. Viewing all users restricted to admin, HR, and operations manager only.' 
     });
   }
 };
@@ -452,8 +452,8 @@ const filterDataByRole = (req, res, next) => {
     canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team leader'].includes(role),
     canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team leader', 'agent'].includes(role) && !['accountant', 'hr'].includes(role),
-    canManageUsers: ['admin', 'hr'].includes(role),
-    canViewAllUsers: ['admin', 'hr'].includes(role),
+    canManageUsers: ['admin', 'hr', 'operations manager'].includes(role),
+    canViewAllUsers: ['admin', 'hr', 'operations manager'].includes(role),
     canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
     canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role),
     canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),

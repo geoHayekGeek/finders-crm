@@ -3,6 +3,12 @@ const UserDocument = require('../models/userDocumentModel');
 const path = require('path');
 const fs = require('fs').promises;
 
+// Normalize role to handle both 'operations_manager' and 'operations manager' formats
+const normalizeRole = (role) => {
+  if (!role) return '';
+  return role.toLowerCase().replace(/_/g, ' ').trim();
+};
+
 /**
  * Upload a document for a user
  */
@@ -21,8 +27,9 @@ const uploadDocument = async (req, res) => {
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
 
-    // Permission check: Only admin, HR, or the user themselves can upload documents
-    if (parseInt(userId) !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the user themselves can upload documents
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (parseInt(userId) !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only upload documents for yourself.'
@@ -92,8 +99,9 @@ const getUserDocuments = async (req, res) => {
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
 
-    // Permission check: Only admin, HR, or the user themselves can view documents
-    if (parseInt(userId) !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the user themselves can view documents
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (parseInt(userId) !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view your own documents.'
@@ -142,8 +150,9 @@ const getDocument = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin, HR, or the document owner can view the document
-    if (document.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the document owner can view the document
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (document.user_id !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only view your own documents.'
@@ -190,8 +199,9 @@ const downloadDocument = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin, HR, or the document owner can download the document
-    if (document.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the document owner can download the document
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (document.user_id !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only download your own documents.'
@@ -255,8 +265,9 @@ const updateDocument = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin, HR, or the document owner can update the document
-    if (existingDocument.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the document owner can update the document
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (existingDocument.user_id !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only update your own documents.'
@@ -317,8 +328,9 @@ const deleteDocument = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin, HR, or the document owner can delete the document
-    if (document.user_id !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the document owner can delete the document
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (document.user_id !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only delete your own documents.'
@@ -372,8 +384,9 @@ const searchDocuments = async (req, res) => {
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
 
-    // Permission check: Only admin, HR, or the user themselves can search documents
-    if (parseInt(userId) !== currentUserId && currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, operations manager, or the user themselves can search documents
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (parseInt(userId) !== currentUserId && normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
         message: 'Access denied. You can only search your own documents.'

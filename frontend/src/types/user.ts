@@ -35,6 +35,9 @@ export interface User {
   team_leader_code?: string | null
   team_leader_name?: string | null
   is_active: boolean
+  added_by?: number | null
+  added_by_name?: string | null
+  added_by_code?: string | null
   created_at: string
   updated_at: string
   // Runtime fields

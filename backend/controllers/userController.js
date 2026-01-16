@@ -19,12 +19,13 @@ const registerUser = async (req, res) => {
     }
 
     const currentUserRole = req.user.role;
+    const normalizedRole = normalizeRole(currentUserRole);
     
-    // Only admin and HR can create users
-    if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Only admin, HR, and operations manager can create users
+    if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({ 
         success: false, 
-        message: 'Access denied. Only admin and HR can create users.' 
+        message: 'Access denied. Only admin, HR, and operations manager can create users.' 
       });
     }
 
@@ -47,6 +48,9 @@ const registerUser = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Get the current user's ID (the user creating this account)
+    const addedBy = req.user.id;
+
     // Create user
     const newUser = await userModel.createUser({
       name,
@@ -58,6 +62,7 @@ const registerUser = async (req, res) => {
       work_location,
       user_code: userCode,
       address,
+      added_by: addedBy,
     });
 
     res.status(201).json({
@@ -217,6 +222,9 @@ const getAllUsers = async (req, res) => {
         team_leader_code: user.team_leader_code || null,
         team_leader_name: user.team_leader_name || null,
         is_active: user.is_active !== false, // Default to true if null
+        added_by: user.added_by || null,
+        added_by_name: user.added_by_name || null,
+        added_by_code: user.added_by_code || null,
         created_at: user.created_at,
         updated_at: user.updated_at
       }))
@@ -254,13 +262,14 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin and HR can update other users
+    // Permission check: Only admin, HR, and operations manager can update other users
     // Users can only update themselves (read-only fields only)
     if (parseInt(id) !== currentUserId) {
-      if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+      const normalizedRole = normalizeRole(currentUserRole);
+      if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
         return res.status(403).json({ 
           success: false,
-          message: 'Access denied. Only admin and HR can update other users.' 
+          message: 'Access denied. Only admin, HR, and operations manager can update other users.' 
         });
       }
     } else {
@@ -352,11 +361,12 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin and HR can delete users
-    if (currentUserRole !== 'admin' && currentUserRole !== 'hr') {
+    // Permission check: Only admin, HR, and operations manager can delete users
+    const normalizedRole = normalizeRole(currentUserRole);
+    if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only admin and HR can delete users.'
+        message: 'Access denied. Only admin, HR, and operations manager can delete users.'
       });
     }
 

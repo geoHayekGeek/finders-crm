@@ -69,8 +69,8 @@ export default function HRPage() {
   const normalizedCurrentUserRole = normalizeRoleKey(currentUserRole)
 
   const allowedCreateRoles = useMemo<User['role'][]>(() => {
-    // Only admin and HR can create users
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+    // Only admin, HR, and operations manager can create users
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
       return ALL_USER_ROLES
     }
     return []
@@ -83,8 +83,8 @@ export default function HRPage() {
       if (candidate.id === currentUserId) {
         return true
       }
-      // Only admin and HR can see all users
-      if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+      // Only admin, HR, and operations manager can see all users
+      if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
         return true
       }
       // All other users can only see themselves (already handled above)
@@ -95,8 +95,8 @@ export default function HRPage() {
   const canManageUser = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
     // Users cannot manage themselves (read-only for their own profile)
-    // Only admin and HR can manage users
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+    // Only admin, HR, and operations manager can manage users
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
       return true
     }
     return false
@@ -106,8 +106,8 @@ export default function HRPage() {
     if (!user || !currentUserRole) return false
     // Users can always view their own details
     if (targetUser.id === currentUserId) return true
-    // Only admin and HR can view other users' details
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+    // Only admin, HR, and operations manager can view other users' details
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
       return true
     }
     return false
@@ -122,8 +122,8 @@ export default function HRPage() {
     if (!user || !currentUserRole) return false
     // Users can manage their own documents
     if (targetUser.id === currentUserId) return true
-    // Only admin and HR can manage other users' documents
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+    // Only admin, HR, and operations manager can manage other users' documents
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
       return true
     }
     return false
@@ -131,8 +131,8 @@ export default function HRPage() {
 
   const getEditableRolesForUser = (targetUser: User): User['role'][] => {
     if (!currentUserRole) return []
-    // Only admin and HR can edit users and change their roles
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr') {
+    // Only admin, HR, and operations manager can edit users and change their roles
+    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
       return ALL_USER_ROLES
     }
     // Other users cannot edit other users
@@ -486,10 +486,11 @@ export default function HRPage() {
       user.work_location || '',
       user.phone || '',
       user.dob || '',
+      user.added_by_name || 'Not available',
       user.created_at ? new Date(user.created_at).toLocaleDateString() : ''
     ])
     
-    const headers = ['User Code', 'Name', 'Email', 'Role', 'Work Location', 'Phone', 'Date of Birth', 'Created Date']
+    const headers = ['User Code', 'Name', 'Email', 'Role', 'Work Location', 'Phone', 'Date of Birth', 'Added By', 'Created Date']
     
     const csvContent = [
       headers.join(','),
@@ -627,6 +628,34 @@ export default function HRPage() {
           {row.original.work_location || <span className="text-gray-400 italic">Not set</span>}
         </div>
       ),
+    },
+    {
+      header: 'Added By',
+      accessorKey: 'added_by',
+      cell: ({ row }: any) => {
+        const user = row.original
+        if (user.added_by_name && user.added_by) {
+          return (
+            <div 
+              onClick={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                window.open(`/dashboard/hr?view=${user.added_by}`, '_blank')
+              }}
+              className="text-sm text-gray-900 cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+              title="Click to view user who added this account"
+            >
+              <div className="font-medium">{user.added_by_name}</div>
+              {user.added_by_code && (
+                <div className="text-xs text-gray-500">{user.added_by_code}</div>
+              )}
+            </div>
+          )
+        }
+        return (
+          <div className="text-sm text-gray-400 italic">Not available</div>
+        )
+      },
     },
     {
       header: 'Phone',

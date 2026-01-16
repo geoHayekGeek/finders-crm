@@ -338,6 +338,24 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                   <span className="text-gray-600">Last Updated</span>
                   <p className="font-semibold text-gray-900">{formatDate(user.updated_at)}</p>
                 </div>
+                {user.added_by_name && user.added_by && (
+                  <div className="col-span-2">
+                    <span className="text-gray-600">Added By</span>
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const url = `/dashboard/hr?view=${user.added_by}`
+                        window.open(url, '_blank')
+                      }}
+                      className="mt-1 cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+                    >
+                      <p className="font-semibold text-gray-900">{user.added_by_name}</p>
+                      {user.added_by_code && (
+                        <p className="text-xs text-gray-500">{user.added_by_code}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
