@@ -4,18 +4,20 @@ import { useState, useEffect, useRef } from 'react'
 import { formatRole, getRoleColor } from '@/utils/roleFormatter'
 import { X, ChevronDown, Settings, RefreshCw } from 'lucide-react'
 import { OperationsUser } from '@/types/leads'
-import { leadsApi } from '@/utils/api'
+import { operationsDailyApi, leadsApi } from '@/utils/api'
 
 interface OperationsSelectorProps {
   selectedOperationsId?: number
   onOperationsChange: (userId: number | undefined) => void
   placeholder?: string
+  onlyOperations?: boolean // If true, only show operations and operations_manager (for daily reports)
 }
 
 export function OperationsSelector({ 
   selectedOperationsId, 
   onOperationsChange, 
-  placeholder = "Select operations staff..."
+  placeholder = "Select operations staff...",
+  onlyOperations = false // Default to false for backward compatibility with leads
 }: OperationsSelectorProps) {
   const [operationsUsers, setOperationsUsers] = useState<OperationsUser[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -30,12 +32,30 @@ export function OperationsSelector({
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching operations users...')
-      const data = await leadsApi.getOperationsUsers()
-      console.log('⚙️ Operations users data:', data)
+      let data
+      if (onlyOperations) {
+        // For operations daily reports: only operations and operations_manager
+        console.log('✅ Using operations-daily endpoint (only operations & operations_manager)')
+        data = await operationsDailyApi.getOperationsUsers()
+        console.log('⚙️ Operations users data received:', data)
+        if (data.success && data.data) {
+          console.log('📋 Users returned:', data.data.map((u: OperationsUser) => `${u.name} (${u.role})`))
+        }
+      } else {
+        // For leads: all users who can add leads (admin, operations_manager, operations, agent, team_leader)
+        console.log('⚠️ Using leads endpoint (all users who can add leads)')
+        data = await leadsApi.getOperationsUsers()
+        console.log('⚙️ Users data received:', data)
+      }
       
       if (data.success) {
-        setOperationsUsers(data.data)
+        if (onlyOperations) {
+          // Backend already filters to only operations and operations_manager
+          setOperationsUsers(data.data)
+        } else {
+          // Use all users from the leads endpoint
+          setOperationsUsers(data.data)
+        }
         console.log('✅ Operations users loaded:', data.data.length)
       } else {
         setError(data.message || 'Failed to load operations users')
@@ -53,8 +73,10 @@ export function OperationsSelector({
   }
 
   useEffect(() => {
+    console.log('🔄 OperationsSelector: onlyOperations =', onlyOperations)
     fetchOperationsUsers()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlyOperations])
 
   // Close dropdown when clicking outside
   useEffect(() => {

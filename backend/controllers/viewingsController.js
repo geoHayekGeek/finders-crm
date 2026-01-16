@@ -92,50 +92,103 @@ class ViewingsController {
       
       if (userRole === 'agent') {
         // Agents see only their viewings, with filters
+        // If filtering by property_id, verify the property belongs to the agent first
+        if (req.query.property_id) {
+          const propertyId = parseInt(req.query.property_id, 10);
+          if (!isNaN(propertyId)) {
+            // Check if the property belongs to this agent
+            const propertyCheck = await pool.query(
+              'SELECT agent_id FROM properties WHERE id = $1',
+              [propertyId]
+            );
+            
+            if (propertyCheck.rows.length === 0) {
+              // Property doesn't exist
+              return res.json({
+                success: true,
+                data: [],
+                message: 'Property not found'
+              });
+            }
+            
+            const propertyAgentId = propertyCheck.rows[0].agent_id;
+            
+            // Agents can only see viewings on their own properties
+            if (propertyAgentId !== userId) {
+              console.log(`⚠️ Agent ${userId} attempted to view viewings for property ${propertyId} assigned to agent ${propertyAgentId}`);
+              return res.json({
+                success: true,
+                data: [],
+                message: 'Access denied. You can only view viewings on properties assigned to you.'
+              });
+            }
+          }
+        }
+        
         // First get all their viewings
         let agentViewings = await Viewing.getViewingsByAgent(userId);
-        // #region debug log
-        fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewingsController.js:78',message:'Agent viewings fetched',data:{agentViewingsCount:agentViewings.length,agentViewingIds:agentViewings.map(v=>v.id),agentViewingAgentIds:agentViewings.map(v=>v.agent_id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-        // #endregion
         
         // Apply additional filters if provided (but only on their own viewings)
         if (Object.keys(req.query).length > 0) {
           // Build filter object that includes agent_id to ensure we only get their viewings
           const filtersWithAgent = { ...req.query, agent_id: userId };
-          // #region debug log
-          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewingsController.js:83',message:'Calling getViewingsWithFilters with agent filter',data:{filtersWithAgent},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-          // #endregion
           const filteredViewings = await Viewing.getViewingsWithFilters(filtersWithAgent);
-          // #region debug log
-          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewingsController.js:85',message:'Filtered viewings from model',data:{filteredCount:filteredViewings.length,filteredIds:filteredViewings.map(v=>v.id),filteredAgentIds:filteredViewings.map(v=>v.agent_id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'J'})}).catch(()=>{});
-          // #endregion
           
           // Create a Set of filtered viewing IDs for faster lookup
           const filteredIds = new Set(filteredViewings.map(v => v.id));
           
           // Keep only viewings that match the filters
           viewings = agentViewings.filter(viewing => filteredIds.has(viewing.id));
-          // #region debug log
-          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewingsController.js:90',message:'Final filtered viewings for agent',data:{finalCount:viewings.length,finalIds:viewings.map(v=>v.id),finalAgentIds:viewings.map(v=>v.agent_id)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
         } else {
           viewings = agentViewings;
         }
       } else if (userRole === 'team leader') {
         // Team leaders see their own and their team's viewings, with filters
+        // Get team agent IDs first (needed for property ownership check)
+        const User = require('../models/userModel');
+        const teamAgents = await User.getTeamLeaderAgents(userId);
+        const teamAgentIds = [userId, ...teamAgents.map(a => a.id)];
+        
+        // If filtering by property_id, verify the property belongs to the team leader or their team
+        if (req.query.property_id) {
+          const propertyId = parseInt(req.query.property_id, 10);
+          if (!isNaN(propertyId)) {
+            // Check if the property belongs to this team leader or their team agents
+            const propertyCheck = await pool.query(
+              'SELECT agent_id FROM properties WHERE id = $1',
+              [propertyId]
+            );
+            
+            if (propertyCheck.rows.length === 0) {
+              // Property doesn't exist
+              return res.json({
+                success: true,
+                data: [],
+                message: 'Property not found'
+              });
+            }
+            
+            const propertyAgentId = propertyCheck.rows[0].agent_id;
+            
+            // Team leaders can only see viewings on their own properties or their team's properties
+            if (propertyAgentId !== userId && !teamAgentIds.includes(propertyAgentId)) {
+              console.log(`⚠️ Team leader ${userId} attempted to view viewings for property ${propertyId} assigned to agent ${propertyAgentId}`);
+              return res.json({
+                success: true,
+                data: [],
+                message: 'Access denied. You can only view viewings on properties assigned to you or your team agents.'
+              });
+            }
+          }
+        }
+        
         // First get all their team's viewings
         let teamViewings = await Viewing.getViewingsForTeamLeader(userId);
         
         // Apply additional filters if provided
         if (Object.keys(req.query).length > 0) {
-          // Get team agent IDs
-          const User = require('../models/userModel');
-          const teamAgents = await User.getTeamLeaderAgents(userId);
-          const teamAgentIds = [userId, ...teamAgents.map(a => a.id)];
-          
           // Build filter that includes team agent IDs
           const filtersWithTeam = { ...req.query };
-          // If property_id is the only filter, we still need to filter by team agents
           const filteredViewings = await Viewing.getViewingsWithFilters(filtersWithTeam);
           
           // Create a Set of team agent IDs for faster lookup

@@ -294,6 +294,33 @@ async function exportReportToExcel(req, res) {
 }
 
 /**
+ * Get operations users for selector (operations and operations_manager only)
+ * GET /api/operations-daily/operations-users
+ */
+async function getOperationsUsers(req, res) {
+  try {
+    console.log('👥 Getting operations users for daily reports');
+    
+    const users = await operationsDailyModel.getOperationsUsers();
+    
+    console.log(`✅ Retrieved ${users.length} operations users`);
+    
+    res.json({
+      success: true,
+      data: users,
+      message: 'Operations users retrieved successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error getting operations users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve operations users',
+      error: error.message
+    });
+  }
+}
+
+/**
  * Export operations daily report to PDF
  * GET /api/operations-daily/:id/export/pdf
  */
@@ -343,6 +370,7 @@ module.exports = {
   recalculateReport,
   deleteReport,
   exportReportToExcel,
-  exportReportToPDF
+  exportReportToPDF,
+  getOperationsUsers
 };
 

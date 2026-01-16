@@ -104,6 +104,7 @@ export default function CreateOperationsDailyModal({
                 selectedOperationsId={formData.operations_id}
                 onOperationsChange={(id) => setFormData(prev => ({ ...prev, operations_id: id }))}
                 placeholder="Select operations user..."
+                onlyOperations={true}
               />
             </div>
 

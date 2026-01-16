@@ -65,12 +65,12 @@ async function calculateDailyData(operations_id, reportDateInput) {
     );
     const propertiesAdded = parseInt(propertiesAddedResult.rows[0].count) || 0;
 
-    // Calculate leads responded to (leads where operations_id matches and were created/added on this day)
+    // Calculate leads responded to (leads where added_by_id matches and were created/added on this day)
     // Note: We count all leads created on this day, but the display will subtract leads_responded_out_of_duty_time
     const leadsRespondedResult = await client.query(
       `SELECT COUNT(*) as count
        FROM leads
-       WHERE operations_id = $1
+       WHERE added_by_id = $1
          AND DATE(created_at AT TIME ZONE 'UTC') = $2::date`,
       [operations_id, dateStr]
     );
@@ -314,6 +314,20 @@ async function deleteReport(id) {
   return result.rows[0];
 }
 
+/**
+ * Get all operations users (operations and operations_manager roles only)
+ * @returns {Promise<Array>} - List of operations users
+ */
+async function getOperationsUsers() {
+  const result = await pool.query(`
+    SELECT id, name, email, role
+    FROM users
+    WHERE role IN ('operations', 'operations_manager')
+    ORDER BY name
+  `);
+  return result.rows;
+}
+
 module.exports = {
   calculateDailyData,
   createReport,
@@ -321,6 +335,7 @@ module.exports = {
   getReportById,
   updateReport,
   recalculateReport,
-  deleteReport
+  deleteReport,
+  getOperationsUsers
 };
 

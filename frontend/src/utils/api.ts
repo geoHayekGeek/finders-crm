@@ -1765,6 +1765,15 @@ export const operationsCommissionApi = {
 }
 
 export const operationsDailyApi = {
+  // Get operations users for selector (operations and operations_manager only)
+  getOperationsUsers: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[]; message?: string }>(
+    '/operations-daily/operations-users',
+    {
+      method: 'GET',
+    },
+    token
+  ),
+
   // Get all operations daily reports with optional filters
   getAll: (filters: OperationsDailyFilters = {}, token?: AuthToken) => {
     const params = new URLSearchParams()

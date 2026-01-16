@@ -7,6 +7,9 @@ const { authenticateToken } = require('../middlewares/permissions');
 // All routes require authentication
 router.use(authenticateToken);
 
+// Get operations users for selector - MUST come before /:id route
+router.get('/operations-users', operationsDailyController.getOperationsUsers);
+
 // Get all operations daily reports with optional filters
 router.get('/', operationsDailyController.getAllReports);
 

@@ -193,6 +193,7 @@ export default function OperationsDailyTab() {
               selectedOperationsId={filters.operations_id}
               onOperationsChange={(id) => setFilters(prev => ({ ...prev, operations_id: id }))}
               placeholder="All operations"
+              onlyOperations={true}
             />
           </div>
 
