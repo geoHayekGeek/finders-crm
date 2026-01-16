@@ -225,6 +225,10 @@ const getPropertiesWithFilters = async (req, res) => {
           matches = false;
         }
         
+        if (filters.location && property.location && !property.location.toLowerCase().includes(filters.location.toLowerCase())) {
+          matches = false;
+        }
+        
         if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {
           matches = false;
         }

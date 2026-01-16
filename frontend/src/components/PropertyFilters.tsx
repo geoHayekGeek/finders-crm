@@ -153,6 +153,18 @@ export function PropertyFilters({
               </div>
             </div>
 
+            {/* Location */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+              <input
+                type="text"
+                placeholder="Search location..."
+                value={filters.location || ''}
+                onChange={(e) => handleFilterChange('location', e.target.value || undefined)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 placeholder-gray-500"
+              />
+            </div>
+
             {/* View Type */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">View Type</label>
@@ -405,6 +417,17 @@ export function PropertyFilters({
                     <button
                       onClick={() => handleFilterChange('search', undefined)}
                       className="ml-2 text-purple-600 hover:text-purple-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.location && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                    Location: {filters.location}
+                    <button
+                      onClick={() => handleFilterChange('location', undefined)}
+                      className="ml-2 text-blue-600 hover:text-blue-800"
                     >
                       <X className="h-4 w-4" />
                     </button>

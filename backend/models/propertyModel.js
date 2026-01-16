@@ -1113,6 +1113,12 @@ class Property {
       valueIndex++;
     }
 
+    if (filters.location) {
+      query += ` AND p.location ILIKE $${valueIndex}`;
+      values.push(`%${filters.location}%`);
+      valueIndex++;
+    }
+
     if (filters.view_type && filters.view_type !== 'All') {
       query += ` AND p.view_type = $${valueIndex}`;
       values.push(filters.view_type);
