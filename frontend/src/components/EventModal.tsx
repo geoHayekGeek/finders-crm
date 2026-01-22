@@ -7,9 +7,8 @@ import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
-const API_BASE_URL = `${BACKEND_URL}/api`
+import { useAuth } from '@/contexts/AuthContext'
+import { calendarApi } from '@/utils/api'
 
 interface EventUser {
   id: number
@@ -45,6 +44,7 @@ export function EventModal({
   onDelete,
   permissions
 }: EventModalProps) {
+  const { token } = useAuth()
   const { showSuccess, showError, showWarning, showInfo } = useToast()
   
   const [formData, setFormData] = useState({
@@ -68,26 +68,6 @@ export function EventModal({
   const [loadingDropdowns, setLoadingDropdowns] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  // Debug form data changes
-  useEffect(() => {
-    console.log('🔄 FORM DATA CHANGED:', {
-      propertyId: formData.propertyId,
-      leadId: formData.leadId,
-      propertiesLoaded: properties.length,
-      leadsLoaded: leads.length,
-      loadingDropdowns: loadingDropdowns
-    })
-    
-    if (formData.propertyId) {
-      const selectedProperty = properties.find(p => p.id === formData.propertyId)
-      console.log('🏠 Selected property details:', selectedProperty)
-    }
-    
-    if (formData.leadId) {
-      const selectedLead = leads.find(l => l.id === formData.leadId)
-      console.log('👤 Selected lead details:', selectedLead)
-    }
-  }, [formData.propertyId, formData.leadId, properties.length, leads.length, loadingDropdowns, properties, leads])
 
   useEffect(() => {
     if (event) {
@@ -105,28 +85,6 @@ export function EventModal({
       const startLocal = new Date(event.start.getTime() - (event.start.getTimezoneOffset() * 60000))
       const endLocal = new Date(event.end.getTime() - (event.end.getTimezoneOffset() * 60000))
 
-      console.log('🎭 MODAL OPENED FOR EDITING EVENT!')
-      console.log('📋 Event data received in modal:', {
-        id: event.id,
-        title: event.title,
-        propertyId: event.propertyId,
-        propertyReference: event.propertyReference,
-        propertyLocation: event.propertyLocation,
-        leadId: event.leadId,
-        leadName: event.leadName,
-        leadPhone: event.leadPhone
-      })
-      
-      console.log('🎯 Form data will be set with:', {
-        propertyId: event.propertyId || null,
-        leadId: event.leadId || null
-      })
-      
-      console.log('📊 Current dropdown state:', {
-        propertiesLoaded: properties.length,
-        leadsLoaded: leads.length,
-        loadingDropdowns: loadingDropdowns
-      })
 
       setFormData({
         title: event.title,
@@ -179,29 +137,12 @@ export function EventModal({
 
   // Update form data when properties/leads are loaded and we have an event
   useEffect(() => {
-    console.log('🔄 Checking if should update form data after dropdowns loaded:', {
-      hasEvent: !!event,
-      loadingDropdowns: loadingDropdowns,
-      propertiesCount: properties.length,
-      leadsCount: leads.length,
-      eventPropertyId: event?.propertyId,
-      eventLeadId: event?.leadId
-    })
-    
     if (event && !loadingDropdowns && (properties.length > 0 || leads.length > 0)) {
-      console.log('✅ UPDATING FORM DATA AFTER DROPDOWNS LOADED!')
-      console.log('🎯 Setting propertyId to:', event.propertyId || null)
-      console.log('🎯 Setting leadId to:', event.leadId || null)
-      
-      setFormData(prev => {
-        const newFormData = {
-          ...prev,
-          propertyId: event.propertyId || null,
-          leadId: event.leadId || null
-        }
-        console.log('📝 New form data after update:', newFormData)
-        return newFormData
-      })
+      setFormData(prev => ({
+        ...prev,
+        propertyId: event.propertyId || null,
+        leadId: event.leadId || null
+      }))
     }
   }, [event, loadingDropdowns, properties.length, leads.length])
 
@@ -211,54 +152,41 @@ export function EventModal({
       const loadDropdownData = async () => {
         setLoadingDropdowns(true)
         try {
-          const token = localStorage.getItem('token')
-          const [propertiesResponse, leadsResponse] = await Promise.all([
-            fetch(`${API_BASE_URL}/calendar/properties`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
+          if (!token) {
+            setLoadingDropdowns(false)
+            showError('Authentication required. Please log in again.')
+            return
+          }
+          
+          const [propertiesData, leadsData] = await Promise.all([
+            calendarApi.getProperties(token).catch(err => {
+              // Return error response structure
+              return { success: false, properties: [], error: err }
             }),
-            fetch(`${API_BASE_URL}/calendar/leads`, {
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              }
+            calendarApi.getLeads(token).catch(err => {
+              // Return error response structure
+              return { success: false, leads: [], error: err }
             })
           ])
 
-          console.log('📡 Properties API response status:', propertiesResponse.status)
-          console.log('📡 Leads API response status:', leadsResponse.status)
-
-          if (propertiesResponse.ok) {
-            const propertiesData = await propertiesResponse.json()
-            console.log('📦 Properties API data:', propertiesData)
-            if (propertiesData.success) {
-              console.log('✅ PROPERTIES LOADED:', propertiesData.properties.length)
-              console.log('🏠 Properties list:', propertiesData.properties.map((p: any) => ({ id: p.id, ref: p.reference_number })))
-              setProperties(propertiesData.properties)
-            } else {
-              console.error('❌ Properties API failed:', propertiesData.message)
-            }
+          if (propertiesData.success) {
+            setProperties(propertiesData.properties || [])
           } else {
-            console.error('❌ Properties API request failed:', propertiesResponse.status)
+            const errorMsg = propertiesData.error?.message || 'Failed to load properties. Please try again.'
+            showError(errorMsg)
+            setProperties([])
           }
 
-          if (leadsResponse.ok) {
-            const leadsData = await leadsResponse.json()
-            console.log('📦 Leads API data:', leadsData)
-            if (leadsData.success) {
-              console.log('✅ LEADS LOADED:', leadsData.leads.length)
-              console.log('👤 Leads list:', leadsData.leads.map((l: any) => ({ id: l.id, name: l.customer_name })))
-              setLeads(leadsData.leads)
-            } else {
-              console.error('❌ Leads API failed:', leadsData.message)
-            }
+          if (leadsData.success) {
+            setLeads(leadsData.leads || [])
           } else {
-            console.error('❌ Leads API request failed:', leadsResponse.status)
+            const errorMsg = leadsData.error?.message || 'Failed to load leads. Please try again.'
+            showError(errorMsg)
+            setLeads([])
           }
-        } catch (error) {
-          console.error('Error loading dropdown data:', error)
+        } catch (error: any) {
+          const errorMessage = error?.message || 'Failed to load dropdown data. Please refresh and try again.'
+          showError(errorMessage)
         } finally {
           setLoadingDropdowns(false)
         }
@@ -409,7 +337,6 @@ export function EventModal({
       setErrors({})
       
     } catch (error) {
-      console.error('Error saving event:', error)
       showError('Failed to save event. Please try again.')
     } finally {
       setSaving(false)
@@ -431,7 +358,6 @@ export function EventModal({
         setShowDeleteModal(false)
         // Success toast will be shown by the parent component
       } catch (error) {
-        console.error('Error deleting event:', error)
         showError('Failed to delete event. Please try again.')
       }
     }
@@ -664,16 +590,9 @@ export function EventModal({
                 </label>
                 <select
                   id="property"
-                  value={(() => {
-                    const value = formData.propertyId?.toString() || ''
-                    console.log('🏠 Property dropdown rendering with value:', value)
-                    console.log('🏠 Available properties:', properties.map(p => ({ id: p.id, ref: p.reference_number })))
-                    console.log('🏠 Form data propertyId:', formData.propertyId)
-                    return value
-                  })()}
+                  value={formData.propertyId?.toString() || ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    console.log('🏠 Property selected:', value)
                     setFormData(prev => ({ 
                       ...prev, 
                       propertyId: value ? parseInt(value) : null
@@ -684,7 +603,6 @@ export function EventModal({
                 >
                   <option value="">Select a property...</option>
                   {properties.map((property) => {
-                    console.log('🏠 Rendering property option:', { id: property.id, ref: property.reference_number })
                     return (
                       <option key={property.id} value={property.id} className="text-gray-900 bg-white">
                         {property.reference_number} - {property.location}
@@ -703,16 +621,9 @@ export function EventModal({
                 </label>
                 <select
                   id="lead"
-                  value={(() => {
-                    const value = formData.leadId?.toString() || ''
-                    console.log('👤 Lead dropdown rendering with value:', value)
-                    console.log('👤 Available leads:', leads.map(l => ({ id: l.id, name: l.customer_name })))
-                    console.log('👤 Form data leadId:', formData.leadId)
-                    return value
-                  })()}
+                  value={formData.leadId?.toString() || ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    console.log('👤 Lead selected:', value)
                     setFormData(prev => ({ 
                       ...prev, 
                       leadId: value ? parseInt(value) : null
@@ -722,14 +633,11 @@ export function EventModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
                 >
                   <option value="">Select a lead...</option>
-                  {leads.map((lead) => {
-                    console.log('👤 Rendering lead option:', { id: lead.id, name: lead.customer_name })
-                    return (
-                      <option key={lead.id} value={lead.id} className="text-gray-900 bg-white">
-                        {lead.customer_name} {lead.phone_number ? `- ${lead.phone_number}` : ''}
-                      </option>
-                    )
-                  })}
+                  {leads.map((lead) => (
+                    <option key={lead.id} value={lead.id} className="text-gray-900 bg-white">
+                      {lead.customer_name} {lead.phone_number ? `- ${lead.phone_number}` : ''}
+                    </option>
+                  ))}
                 </select>
                 {loadingDropdowns && (
                   <p className="mt-1 text-xs text-gray-500">Loading leads...</p>

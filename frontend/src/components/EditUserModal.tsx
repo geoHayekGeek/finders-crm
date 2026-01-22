@@ -84,7 +84,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
         setInitialAgentIds(agentIds)
       }
     } catch (error) {
-      console.error('Error loading assigned agents:', error)
+      // Silently fail - non-critical
     } finally {
       setLoadingAgents(false)
     }
@@ -104,9 +104,28 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
       return
     }
     
-    if (changePassword && formData.password && formData.password.length < 6) {
-      showError('Password must be at least 6 characters')
-      return
+    // Password validation: min 8 chars, uppercase, lowercase, number, special char
+    if (changePassword && formData.password) {
+      if (formData.password.length < 8) {
+        showError('Password must be at least 8 characters long')
+        return
+      }
+      if (!/[a-z]/.test(formData.password)) {
+        showError('Password must contain at least one lowercase letter')
+        return
+      }
+      if (!/[A-Z]/.test(formData.password)) {
+        showError('Password must contain at least one uppercase letter')
+        return
+      }
+      if (!/[0-9]/.test(formData.password)) {
+        showError('Password must contain at least one number')
+        return
+      }
+      if (!/[^a-zA-Z0-9]/.test(formData.password)) {
+        showError('Password must contain at least one special character')
+        return
+      }
     }
     
     try {
@@ -152,7 +171,6 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
               await usersApi.removeAgentFromTeamLeader(user.id, agentId, token)
             }
           } catch (assignError) {
-            console.error('Error updating agent assignments:', assignError)
             showWarning('User updated but some agent assignments failed')
           }
         }
@@ -164,7 +182,6 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
         showError(response.message || 'Failed to update user')
       }
     } catch (error) {
-      console.error('Error updating user:', error)
       showError('Failed to update user')
     } finally {
       setSaving(false)
@@ -398,7 +415,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
               {changePassword && (
                 <div className="mt-3">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New Password (min. 6 characters)
+                    New Password (min. 8 characters with uppercase, lowercase, number, and special character)
                   </label>
                   <div className="relative">
                     <input

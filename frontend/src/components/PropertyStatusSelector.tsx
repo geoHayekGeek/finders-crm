@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, ChevronDown, Flag, RefreshCw } from 'lucide-react'
 import { Status } from '@/types/property'
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
-const API_BASE_URL = `${BACKEND_URL}/api`
+import { useAuth } from '@/contexts/AuthContext'
+import { statusesApi } from '@/utils/api'
 
 interface PropertyStatusSelectorProps {
   selectedStatusId?: number
@@ -20,6 +19,7 @@ export function PropertyStatusSelector({
   placeholder = "Select a status...",
   required = false
 }: PropertyStatusSelectorProps) {
+  const { token } = useAuth()
   const [statuses, setStatuses] = useState<Status[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -30,33 +30,23 @@ export function PropertyStatusSelector({
 
   // Fetch statuses from database
   const fetchStatuses = async () => {
+    if (!token) {
+      setError('No authentication token available')
+      setIsLoading(false)
+      return
+    }
+    
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching statuses...')
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE_URL}/statuses`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      console.log('🏳️ Statuses response status:', response.status)
+      const data = await statusesApi.getAll(token)
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🏳️ Statuses data:', data)
-        if (data.success) {
-          setStatuses(data.data || data.statuses || [])
-          console.log('✅ Statuses loaded:', data.data?.length || data.statuses?.length || 0)
-        } else {
-          setError(data.message || 'Failed to load statuses')
-        }
+      if (data.success) {
+        setStatuses(data.data || [])
       } else {
-        setError(`HTTP ${response.status}: ${response.statusText}`)
+        setError(data.message || 'Failed to load statuses')
       }
     } catch (error) {
-      console.error('❌ Error fetching statuses:', error)
       setError(error instanceof Error ? error.message : 'Unknown error')
     } finally {
       setIsLoading(false)
@@ -64,8 +54,10 @@ export function PropertyStatusSelector({
   }
 
   useEffect(() => {
-    fetchStatuses()
-  }, [])
+    if (token) {
+      fetchStatuses()
+    }
+  }, [token])
 
   // Close dropdown when clicking outside
   useEffect(() => {

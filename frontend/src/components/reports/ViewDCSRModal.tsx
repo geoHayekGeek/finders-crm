@@ -106,7 +106,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         setTeamLeaders(teamLeadersList)
       }
     } catch (error: any) {
-      console.error('Error loading team leaders:', error)
+      // Error handled silently - team leaders list will remain empty
     }
   }
 
@@ -117,7 +117,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         setStatuses(response.data || [])
       }
     } catch (error) {
-      console.error('Error loading statuses:', error)
+      // Error handled silently - statuses list will remain empty
     }
   }
 
@@ -128,7 +128,7 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         setCategories(response.data || [])
       }
     } catch (error) {
-      console.error('Error loading categories:', error)
+      // Error handled silently - categories list will remain empty
     }
   }
 
@@ -168,7 +168,6 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         setTeamBreakdownData(response.data)
       }
     } catch (error: any) {
-      console.error('Error loading team breakdown:', error)
       setError(error.message || 'Failed to load team breakdown')
     } finally {
       setLoadingTeamBreakdown(false)
@@ -198,7 +197,6 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
         setAllTeamsBreakdown(response.data)
       }
     } catch (error: any) {
-      console.error('Error loading all teams breakdown:', error)
       setError(error.message || 'Failed to load teams breakdown')
     } finally {
       setLoadingTeamBreakdown(false)

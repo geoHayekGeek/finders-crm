@@ -20,6 +20,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
+import { getCSRFToken, clearCSRFToken } from '@/utils/api'
 
 interface Setting {
   setting_key: string
@@ -211,7 +212,6 @@ export default function SettingsPageContent() {
       setCommissionAdministration(settingsObj.commission_administration_percentage ?? '4')
       setOperationsManagerShareOfAdmin(settingsObj.commission_operations_manager_share_of_admin ?? '0.5')
     } catch (error) {
-      console.error('Error loading settings:', error)
       showToast('error', 'Failed to load settings. Please refresh the page.')
     } finally {
       setLoading(false)
@@ -261,19 +261,58 @@ export default function SettingsPageContent() {
         { key: 'commission_operations_manager_share_of_admin', value: operationsManagerShareOfAdmin }
       ]
       
+      // Get CSRF token for the request
+      let csrfToken = await getCSRFToken()
+      if (!csrfToken) {
+        // Try to get a fresh token
+        csrfToken = await getCSRFToken(true)
+        if (!csrfToken) {
+          throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+        }
+      }
+
       // Update settings via API
       const response = await fetch(`${API_BASE_URL}/settings/bulk/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-CSRF-Token': csrfToken
         },
         body: JSON.stringify({ settings: settingsToUpdate })
       })
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || 'Failed to save settings')
+        
+        // Handle CSRF token errors - retry once with fresh token
+        if ((response.status === 403 && (errorData.message?.includes('CSRF') || errorData.message?.includes('csrf'))) || 
+            errorData.message === 'Invalid CSRF token') {
+          clearCSRFToken()
+          const newCsrfToken = await getCSRFToken(true)
+          if (newCsrfToken) {
+            // Retry the request with fresh CSRF token
+            const retryResponse = await fetch(`${API_BASE_URL}/settings/bulk/update`, {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+                'X-CSRF-Token': newCsrfToken
+              },
+              body: JSON.stringify({ settings: settingsToUpdate })
+            })
+            
+            if (!retryResponse.ok) {
+              const retryErrorData = await retryResponse.json().catch(() => ({}))
+              throw new Error(retryErrorData.message || 'Failed to save settings')
+            }
+            // Success on retry - continue with the rest of the function
+          } else {
+            throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+          }
+        } else {
+          throw new Error(errorData.message || 'Failed to save settings')
+        }
       }
 
       // Upload logo if selected
@@ -306,7 +345,6 @@ export default function SettingsPageContent() {
       // Refresh global settings context
       await refreshSettings()
     } catch (error: any) {
-      console.error('Error saving settings:', error)
       showToast('error', error.message || 'Failed to save settings. Please try again.')
     } finally {
       setSaving(false)
@@ -325,13 +363,23 @@ export default function SettingsPageContent() {
       throw new Error('Logo must be an image file (JPEG, PNG, GIF, SVG, WEBP)')
     }
 
+    // Get CSRF token
+    let csrfToken = await getCSRFToken()
+    if (!csrfToken) {
+      csrfToken = await getCSRFToken(true)
+      if (!csrfToken) {
+        throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+      }
+    }
+
     const formData = new FormData()
     formData.append('logo', file)
     
     const response = await fetch(`${API_BASE_URL}/settings/logo/upload`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'X-CSRF-Token': csrfToken
       },
       body: formData
     })
@@ -357,13 +405,23 @@ export default function SettingsPageContent() {
       throw new Error('Favicon must be an image file (ICO, PNG, GIF, JPEG, WEBP)')
     }
 
+    // Get CSRF token
+    let csrfToken = await getCSRFToken()
+    if (!csrfToken) {
+      csrfToken = await getCSRFToken(true)
+      if (!csrfToken) {
+        throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+      }
+    }
+
     const formData = new FormData()
     formData.append('favicon', file)
     
     const response = await fetch(`${API_BASE_URL}/settings/favicon/upload`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
+        'Authorization': `Bearer ${token}`,
+        'X-CSRF-Token': csrfToken
       },
       body: formData
     })
@@ -429,10 +487,20 @@ export default function SettingsPageContent() {
 
   const handleDeleteLogo = async () => {
     try {
+      // Get CSRF token
+      let csrfToken = await getCSRFToken()
+      if (!csrfToken) {
+        csrfToken = await getCSRFToken(true)
+        if (!csrfToken) {
+          throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+        }
+      }
+
       const response = await fetch(`${API_BASE_URL}/settings/logo`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-CSRF-Token': csrfToken
         }
       })
       
@@ -445,17 +513,26 @@ export default function SettingsPageContent() {
       setLogoPreview(null)
       showToast('success', 'Logo deleted successfully')
     } catch (error: any) {
-      console.error('Error deleting logo:', error)
       showToast('error', error.message || 'Failed to delete logo')
     }
   }
 
   const handleDeleteFavicon = async () => {
     try {
+      // Get CSRF token
+      let csrfToken = await getCSRFToken()
+      if (!csrfToken) {
+        csrfToken = await getCSRFToken(true)
+        if (!csrfToken) {
+          throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+        }
+      }
+
       const response = await fetch(`${API_BASE_URL}/settings/favicon`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-CSRF-Token': csrfToken
         }
       })
       
@@ -468,7 +545,6 @@ export default function SettingsPageContent() {
       setFaviconPreview(null)
       showToast('success', 'Favicon deleted successfully')
     } catch (error: any) {
-      console.error('Error deleting favicon:', error)
       showToast('error', error.message || 'Failed to delete favicon')
     }
   }
@@ -482,11 +558,21 @@ export default function SettingsPageContent() {
     try {
       setTestingEmail(true)
       
+      // Get CSRF token
+      let csrfToken = await getCSRFToken()
+      if (!csrfToken) {
+        csrfToken = await getCSRFToken(true)
+        if (!csrfToken) {
+          throw new Error('Failed to get CSRF token. Please refresh the page and try again.')
+        }
+      }
+      
       const response = await fetch(`${API_BASE_URL}/settings/email/test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-CSRF-Token': csrfToken
         },
         body: JSON.stringify({
           host: smtpHost,
@@ -507,7 +593,6 @@ export default function SettingsPageContent() {
       
       showToast('success', 'Test email sent successfully! Check your inbox.')
     } catch (error: any) {
-      console.error('Error testing email:', error)
       showToast('error', error.message || 'Failed to send test email. Please check your configuration.')
     } finally {
       setTestingEmail(false)

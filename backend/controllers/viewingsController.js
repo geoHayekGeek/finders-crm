@@ -5,11 +5,8 @@ const Notification = require('../models/notificationModel');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const ReminderService = require('../services/reminderService');
-
-// Normalize role to handle both 'operations_manager' and 'operations manager' formats
-// Converts to space format for consistent comparisons
-const normalizeRole = (role) =>
-  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+const logger = require('../utils/logger');
+const { normalizeRole } = require('../utils/roleUtils');
 
 class ViewingsController {
   // Helper function to find calendar event by viewing ID
@@ -26,7 +23,7 @@ class ViewingsController {
       );
       return result.rows[0];
     } catch (error) {
-      console.error('Error finding calendar event by viewing ID:', error);
+      logger.error('Error finding calendar event by viewing ID', error);
       return null;
     }
   }
@@ -42,13 +39,16 @@ class ViewingsController {
         [calendarEventId, viewingId]
       );
     } catch (error) {
-      console.error('Error linking calendar event to viewing:', error);
+      logger.error('Error linking calendar event to viewing', error);
     }
   }
   // Get all viewings (with role-based filtering)
   static async getAllViewings(req, res) {
     try {
-      console.log('📋 Getting all viewings for user:', req.user?.name, 'Role:', req.user?.role);
+      logger.debug('Getting all viewings', {
+        userId: req.user?.id,
+        userRole: req.user?.role
+      });
       
       const viewings = await Viewing.getViewingsForAgent(req.user.id, normalizeRole(req.user.role));
       
@@ -59,11 +59,10 @@ class ViewingsController {
         userRole: req.user.role
       });
     } catch (error) {
-      console.error('❌ Error getting viewings:', error);
+      logger.error('Error getting viewings', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve viewings',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve viewings'
       });
     }
   }
@@ -71,20 +70,22 @@ class ViewingsController {
   // Get viewings with filters
   static async getViewingsWithFilters(req, res) {
     try {
-      console.log('🔍 Getting filtered viewings for user:', req.user?.id, 'Role:', req.user?.role, 'Filters:', req.query);
+      logger.debug('Getting filtered viewings', {
+        userId: req.user?.id,
+        userRole: req.user?.role,
+        filterCount: Object.keys(req.query).length
+      });
       
       // Check if user is authenticated
       if (!req.user || !req.user.id || !req.user.role) {
-        console.error('❌ Unauthenticated request to getViewingsWithFilters');
+        logger.warn('Unauthenticated request to getViewingsWithFilters');
         return res.status(401).json({
           success: false,
           message: 'Authentication required'
         });
       }
       
-      // #region debug log
-      fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewingsController.js:67',message:'getViewingsWithFilters entry',data:{userId:req.user?.id,userRole:req.user?.role,query:req.query},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
+      // Debug logging removed - security risk
       
       let viewings;
       const userRole = normalizeRole(req.user.role);
@@ -115,7 +116,11 @@ class ViewingsController {
             
             // Agents can only see viewings on their own properties
             if (propertyAgentId !== userId) {
-              console.log(`⚠️ Agent ${userId} attempted to view viewings for property ${propertyId} assigned to agent ${propertyAgentId}`);
+              logger.security('Agent attempted to view viewings for unassigned property', {
+                agentId: userId,
+                propertyId: propertyId,
+                propertyAgentId: propertyAgentId
+              });
               return res.json({
                 success: true,
                 data: [],
@@ -172,7 +177,11 @@ class ViewingsController {
             
             // Team leaders can only see viewings on their own properties or their team's properties
             if (propertyAgentId !== userId && !teamAgentIds.includes(propertyAgentId)) {
-              console.log(`⚠️ Team leader ${userId} attempted to view viewings for property ${propertyId} assigned to agent ${propertyAgentId}`);
+              logger.security('Team leader attempted to view viewings for property not in team', {
+                teamLeaderId: userId,
+                propertyId: propertyId,
+                propertyAgentId: propertyAgentId
+              });
               return res.json({
                 success: true,
                 data: [],
@@ -212,7 +221,11 @@ class ViewingsController {
       fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'viewingsController.js:100',message:'Sending response',data:{viewingsCount:viewings.length,viewingAgentIds:viewings.map(v=>v.agent_id),userRole,userId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'L'})}).catch(()=>{});
       // #endregion
       
-      console.log('✅ Sending filtered viewings response:', { count: viewings.length, userRole, userId });
+      logger.debug('Sending filtered viewings response', {
+        count: viewings.length,
+        userRole,
+        userId
+      });
       
       res.json({
         success: true,
@@ -220,10 +233,7 @@ class ViewingsController {
         message: `Retrieved ${viewings.length} filtered viewings`
       });
     } catch (error) {
-      console.error('❌ Error getting filtered viewings:', error);
-      console.error('❌ Error stack:', error.stack);
-      console.error('❌ Request user:', req.user);
-      console.error('❌ Request query:', req.query);
+      logger.error('Error getting filtered viewings', error);
       
       // Ensure response is sent
       if (!res.headersSent) {
@@ -240,7 +250,7 @@ class ViewingsController {
   static async getViewingById(req, res) {
     try {
       const { id } = req.params;
-      console.log('🔍 Getting viewing by ID:', id);
+      logger.debug('Getting viewing by ID', { id });
       
       const viewing = await Viewing.getViewingById(id);
       
@@ -280,11 +290,10 @@ class ViewingsController {
         data: viewing
       });
     } catch (error) {
-      console.error('❌ Error getting viewing by ID:', error);
+      logger.error('Error getting viewing by ID', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve viewing',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve viewing'
       });
     }
   }
@@ -292,9 +301,10 @@ class ViewingsController {
   // Create new viewing
   static async createViewing(req, res) {
     try {
-      console.log('➕ Creating new viewing');
-      console.log('📋 Request body:', req.body);
-      console.log('👤 User:', req.user?.name, 'Role:', req.user?.role);
+      logger.debug('Creating new viewing', {
+        userId: req.user?.id,
+        userRole: req.user?.role
+      });
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -343,7 +353,11 @@ class ViewingsController {
         // Agents can only create viewings for properties assigned to them
         // If property has no agent_id (NULL), agents cannot create viewings for it
         if (propertyAgentId !== userId) {
-          console.warn(`⚠️ Security: Agent ${userId} attempted to create viewing for property ${req.body.property_id} assigned to agent ${propertyAgentId || 'NULL'}`);
+          logger.security('Agent attempted to create viewing for unassigned property', {
+            agentId: userId,
+            propertyId: req.body.property_id,
+            propertyAgentId: propertyAgentId || null
+          });
           return res.status(403).json({
             success: false,
             message: 'You can only create viewings for properties assigned to you'
@@ -352,7 +366,10 @@ class ViewingsController {
         // Agents can ONLY assign viewings to themselves - ALWAYS override any agent_id they send
         // This prevents agents from assigning viewings to other agents, even if they manipulate the request
         if (req.body.agent_id && req.body.agent_id !== userId) {
-          console.warn(`⚠️ Security: Agent ${userId} attempted to assign viewing to agent ${req.body.agent_id}`);
+          logger.security('Agent attempted to assign viewing to different agent', {
+            agentId: userId,
+            attemptedAgentId: req.body.agent_id
+          });
           return res.status(403).json({
             success: false,
             message: 'You can only assign viewings to yourself'
@@ -453,8 +470,12 @@ class ViewingsController {
         finalPropertyId = parentViewing.property_id;
         finalAgentId = parentViewing.agent_id;
         
-        console.log('📋 Creating sub-viewing for parent:', req.body.parent_viewing_id);
-        console.log('👤 Using parent lead_id:', finalLeadId, 'property_id:', finalPropertyId, 'agent_id:', finalAgentId);
+        logger.debug('Creating sub-viewing', {
+          parentViewingId: req.body.parent_viewing_id,
+          leadId: finalLeadId,
+          propertyId: finalPropertyId,
+          agentId: finalAgentId
+        });
       }
       
       // Check for duplicate viewing - prevent multiple viewings for the same lead
@@ -486,7 +507,18 @@ class ViewingsController {
         agent_id: finalAgentId
       };
       const viewing = await Viewing.createViewing(viewingData);
-      console.log('✅ Viewing created successfully:', viewing.id);
+      // Audit log: Viewing created
+      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      logger.security('Viewing created', {
+        viewingId: viewing.id,
+        propertyId: finalPropertyId,
+        leadId: finalLeadId,
+        agentId: finalAgentId,
+        viewingDate: req.body.viewing_date,
+        createdBy: req.user.id,
+        createdByName: req.user.name,
+        ip: clientIP
+      });
       
       // Get the full viewing details with property and lead information
       const fullViewing = await Viewing.getViewingById(viewing.id);
@@ -528,19 +560,19 @@ class ViewingsController {
             try {
               await ReminderService.clearViewingReminder(viewing.id);
             } catch (reminderError) {
-              console.error('⚠️ Failed to clear viewing reminder after initial update:', reminderError);
+              logger.error('Failed to clear viewing reminder after initial update', reminderError);
             }
 
             responseViewing = await Viewing.getViewingById(viewing.id);
           }
         } catch (initialUpdateError) {
-          console.error('⚠️ Failed to create initial viewing update:', initialUpdateError);
+          logger.error('Failed to create initial viewing update', initialUpdateError);
         }
       }
       
       // Create a calendar event for this viewing
       try {
-        console.log('📅 Creating calendar event for viewing...');
+        logger.debug('Creating calendar event for viewing', { viewingId: viewing.id });
         
         // Combine date and time to create start_time
         const viewingDate = new Date(req.body.viewing_date);
@@ -570,14 +602,16 @@ class ViewingsController {
         };
         
         const calendarEvent = await CalendarEvent.createEvent(calendarEventData);
-        console.log('✅ Calendar event created successfully:', calendarEvent.id);
+        logger.debug('Calendar event created successfully', {
+          viewingId: viewing.id,
+          calendarEventId: calendarEvent.id
+        });
         
         // Link the calendar event ID to the viewing for future reference
         await ViewingsController.linkCalendarEventToViewing(viewing.id, calendarEvent.id);
       } catch (calendarError) {
         // Log the error but don't fail the viewing creation
-        console.error('⚠️ Failed to create calendar event, but viewing was created:', calendarError);
-        console.error('Calendar error details:', calendarError.message);
+        logger.error('Failed to create calendar event, but viewing was created', calendarError);
       }
 
       // Notify management roles about the new viewing
@@ -595,7 +629,10 @@ class ViewingsController {
               .filter((id) => Number.isInteger(id) && id > 0 && id !== userId)
           )
         );
-        console.log('🔔 Viewing notification recipients (filtered):', recipientIds);
+        logger.debug('Viewing notification recipients', {
+          viewingId: viewing.id,
+          recipientCount: recipientIds.length
+        });
 
         if (recipientIds.length > 0) {
           const propertyDetails = fullViewing.property_reference || fullViewing.property_location || 'a property';
@@ -613,7 +650,7 @@ class ViewingsController {
           const timeDetails = fullViewing.viewing_time ? ` at ${fullViewing.viewing_time}` : '';
 
           const message = `A new viewing has been scheduled for ${propertyDetails}${leadDetails}${dateDetails}${timeDetails}.`;
-          console.log('🔔 Viewing notification message:', message);
+          logger.debug('Viewing notification message', { viewingId: viewing.id });
 
           const notificationPayload = {
             title: 'New Viewing Scheduled',
@@ -631,17 +668,24 @@ class ViewingsController {
               });
               return true;
             } catch (notificationCreationError) {
-              console.error(`⚠️ Failed to create viewing notification for user ${recipientId}:`, notificationCreationError);
+              logger.error('Failed to create viewing notification', {
+                viewingId: viewing.id,
+                recipientId,
+                error: notificationCreationError
+              });
               return false;
             }
           });
 
           const results = await Promise.all(notificationPromises);
           const createdCount = results.filter(Boolean).length;
-          console.log('🔔 Viewing notifications created:', createdCount);
+          logger.debug('Viewing notifications created', {
+            viewingId: viewing.id,
+            count: createdCount
+          });
         }
       } catch (notificationError) {
-        console.error('⚠️ Failed to create viewing notifications:', notificationError);
+        logger.error('Failed to create viewing notifications', notificationError);
       }
       
       res.status(201).json({
@@ -650,7 +694,7 @@ class ViewingsController {
         message: 'Viewing created successfully'
       });
     } catch (error) {
-      console.error('❌ Error creating viewing:', error);
+      logger.error('Error creating viewing', error);
       res.status(500).json({
         success: false,
         message: 'Failed to create viewing',
@@ -663,8 +707,10 @@ class ViewingsController {
   static async updateViewing(req, res) {
     try {
       const { id } = req.params;
-      console.log('🔧 Updating viewing:', id);
-      console.log('📋 Update data:', req.body);
+      logger.debug('Updating viewing', {
+        viewingId: id,
+        userId: req.user?.id
+      });
       
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
@@ -710,7 +756,11 @@ class ViewingsController {
       // Agents cannot reassign viewings to others - ALWAYS override agent_id for agents
       if (userRole === 'agent') {
         if (req.body.agent_id && req.body.agent_id !== userId) {
-          console.warn(`⚠️ Security: Agent ${userId} attempted to reassign viewing ${id} to agent ${req.body.agent_id}`);
+          logger.security('Agent attempted to reassign viewing to different agent', {
+            agentId: userId,
+            viewingId: id,
+            attemptedAgentId: req.body.agent_id
+          });
           return res.status(403).json({
             success: false,
             message: 'You cannot reassign viewings to other agents'
@@ -747,11 +797,11 @@ class ViewingsController {
           if (!isNaN(parsedDate.getTime())) {
             updatesToApply.viewing_date = parsedDate.toISOString().split('T')[0];
           } else {
-            console.warn('⚠️ Invalid viewing_date format provided, keeping original value');
+            logger.warn('Invalid viewing_date format provided', { viewingId: id });
             delete updatesToApply.viewing_date;
           }
         } catch (dateError) {
-          console.warn('⚠️ Error normalizing viewing_date, keeping original value:', dateError);
+          logger.warn('Error normalizing viewing_date', { viewingId: id, error: dateError });
           delete updatesToApply.viewing_date;
         }
       } else if (updatesToApply.viewing_date === '' || updatesToApply.viewing_date === null) {
@@ -766,7 +816,29 @@ class ViewingsController {
       }
 
       const viewing = await Viewing.updateViewing(id, updatesToApply);
-      console.log('✅ Viewing updated successfully');
+      
+      // Audit log: Viewing updated
+      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const changes = {};
+      if (req.body.agent_id !== undefined && req.body.agent_id !== existingViewing.agent_id) {
+        changes.agent_id = { from: existingViewing.agent_id, to: req.body.agent_id };
+      }
+      if (req.body.status !== undefined && req.body.status !== existingViewing.status) {
+        changes.status = { from: existingViewing.status, to: req.body.status };
+      }
+      if (req.body.is_serious !== undefined && req.body.is_serious !== existingViewing.is_serious) {
+        changes.is_serious = { from: existingViewing.is_serious, to: req.body.is_serious };
+      }
+      
+      logger.security('Viewing updated', {
+        viewingId: id,
+        propertyId: viewing.property_id,
+        leadId: viewing.lead_id,
+        updatedBy: req.user.id,
+        updatedByName: req.user.name,
+        changes: Object.keys(changes).length > 0 ? changes : null,
+        ip: clientIP
+      });
 
       // Handle reminder tracking when status changes or agents are reassigned
       try {
@@ -780,7 +852,7 @@ class ViewingsController {
           await ReminderService.clearViewingReminder(id, existingViewing.agent_id);
         }
       } catch (reminderError) {
-        console.error('⚠️ Failed to update viewing reminder tracking:', reminderError);
+        logger.error('Failed to update viewing reminder tracking', reminderError);
       }
       
       // Update the corresponding calendar event if date/time changed
@@ -788,7 +860,7 @@ class ViewingsController {
         const calendarEvent = await ViewingsController.findCalendarEventByViewingId(id);
         
         if (calendarEvent) {
-          console.log('📅 Updating calendar event for viewing...');
+          logger.debug('Updating calendar event for viewing', { viewingId: id });
           
           // Get updated viewing details
           const updatedViewing = await Viewing.getViewingById(id);
@@ -828,7 +900,11 @@ class ViewingsController {
             calendarUpdates.start_time = viewingDate;
             calendarUpdates.end_time = endTime;
             
-            console.log(`📅 Date/Time update: Date=${dateStr}, Time=${timeStr}, Result=${viewingDate.toISOString()}`);
+            logger.debug('Date/Time update for calendar event', {
+              viewingId: id,
+              date: dateStr,
+              time: timeStr
+            });
           }
           
           // Update title if property changed
@@ -869,13 +945,13 @@ class ViewingsController {
           
           if (Object.keys(calendarUpdates).length > 0) {
             await CalendarEvent.updateEvent(calendarEvent.id, calendarUpdates);
-            console.log('✅ Calendar event updated successfully');
+            logger.debug('Calendar event updated successfully', { viewingId: id });
           }
-        } else {
-          console.log('⚠️ No calendar event found for this viewing');
+          } else {
+          logger.debug('No calendar event found for viewing', { viewingId: id });
         }
       } catch (calendarError) {
-        console.error('⚠️ Failed to update calendar event:', calendarError);
+        logger.error('Failed to update calendar event', calendarError);
       }
       
       res.json({
@@ -884,11 +960,10 @@ class ViewingsController {
         message: 'Viewing updated successfully'
       });
     } catch (error) {
-      console.error('❌ Error updating viewing:', error);
+      logger.error('Error updating viewing', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to update viewing',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to update viewing'
       });
     }
   }
@@ -897,7 +972,7 @@ class ViewingsController {
   static async deleteViewing(req, res) {
     try {
       const { id } = req.params;
-      console.log('🗑️ Deleting viewing:', id);
+      logger.debug('Deleting viewing', { viewingId: id, userId: req.user?.id });
       
       // Only admins, operations managers, and operations can delete viewings
       const role = normalizeRole(req.user.role);
@@ -913,14 +988,14 @@ class ViewingsController {
         const calendarEvent = await ViewingsController.findCalendarEventByViewingId(id);
         
         if (calendarEvent) {
-          console.log('📅 Deleting calendar event for viewing...');
+          logger.debug('Deleting calendar event for viewing', { viewingId: id });
           await CalendarEvent.deleteEvent(calendarEvent.id);
-          console.log('✅ Calendar event deleted successfully');
-        } else {
-          console.log('⚠️ No calendar event found for this viewing');
+          logger.debug('Calendar event deleted successfully', { viewingId: id });
+          } else {
+          logger.debug('No calendar event found for viewing', { viewingId: id });
         }
       } catch (calendarError) {
-        console.error('⚠️ Failed to delete calendar event:', calendarError);
+        logger.error('Failed to delete calendar event', calendarError);
         // Continue with viewing deletion even if calendar deletion fails
       }
       
@@ -933,18 +1008,26 @@ class ViewingsController {
         });
       }
       
-      console.log('✅ Viewing deleted successfully');
+      // Audit log: Viewing deleted
+      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      logger.security('Viewing deleted', {
+        viewingId: id,
+        propertyId: existingViewing.property_id,
+        leadId: existingViewing.lead_id,
+        deletedBy: req.user.id,
+        deletedByName: req.user.name,
+        ip: clientIP
+      });
       
       res.json({
         success: true,
         message: 'Viewing deleted successfully'
       });
     } catch (error) {
-      console.error('❌ Error deleting viewing:', error);
+      logger.error('Error deleting viewing', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to delete viewing',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to delete viewing'
       });
     }
   }
@@ -952,7 +1035,7 @@ class ViewingsController {
   // Get viewing statistics
   static async getViewingStats(req, res) {
     try {
-      console.log('📊 Getting viewing statistics');
+      logger.debug('Getting viewing statistics');
       
       const stats = await Viewing.getViewingStats();
       
@@ -961,7 +1044,7 @@ class ViewingsController {
         data: stats
       });
     } catch (error) {
-      console.error('❌ Error getting viewing stats:', error);
+      logger.error('Error getting viewing stats', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve viewing statistics',
@@ -976,7 +1059,7 @@ class ViewingsController {
       const { agentId } = req.params;
       const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
-      console.log('🔍 Getting viewings for agent:', agentId, 'Requested by:', userId, 'Role:', userRole);
+      logger.debug('Getting viewings for agent', { agentId, requestedBy: userId, userRole });
       
       // Permission checks
       if (userRole === 'agent') {
@@ -1014,7 +1097,7 @@ class ViewingsController {
         data: viewings
       });
     } catch (error) {
-      console.error('❌ Error getting viewings by agent:', error);
+      logger.error('Error getting viewings by agent', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve agent viewings',
@@ -1027,7 +1110,7 @@ class ViewingsController {
   static async addViewingUpdate(req, res) {
     try {
       const { id } = req.params;
-      console.log('➕ Adding follow-up viewing to viewing:', id);
+      logger.debug('Adding follow-up viewing', { parentViewingId: id, userId: req.user?.id });
       
       // Extract follow-up viewing data from request
       // Support both old format (update_text, update_date) and new format (viewing_date, viewing_time, status, notes)
@@ -1117,12 +1200,12 @@ class ViewingsController {
       
       const followUpViewing = await Viewing.createViewing(followUpViewingData);
       
-      console.log('✅ Follow-up viewing created successfully');
+      logger.debug('Follow-up viewing created successfully', { parentViewingId: id });
 
       try {
         await ReminderService.clearViewingReminder(id);
       } catch (reminderError) {
-        console.error('⚠️ Failed to reset viewing reminder tracking after follow-up viewing:', reminderError);
+        logger.error('Failed to reset viewing reminder tracking after follow-up viewing', reminderError);
       }
       
       // Get full follow-up viewing details
@@ -1134,7 +1217,7 @@ class ViewingsController {
         message: 'Follow-up viewing created successfully'
       });
     } catch (error) {
-      console.error('❌ Error adding follow-up viewing:', error);
+      logger.error('Error adding follow-up viewing', error);
       res.status(500).json({
         success: false,
         message: 'Failed to create follow-up viewing',
@@ -1148,7 +1231,7 @@ class ViewingsController {
   static async updateViewingUpdate(req, res) {
     try {
       const { id, updateId } = req.params;
-      console.log('✏️ Updating follow-up viewing:', updateId, 'for parent viewing:', id);
+      logger.debug('Updating follow-up viewing', { updateId, parentViewingId: id });
 
       const viewingId = parseInt(id, 10);
       const followUpViewingId = parseInt(updateId, 10);
@@ -1238,7 +1321,7 @@ class ViewingsController {
       const updatedViewing = await Viewing.updateViewing(followUpViewingId, updatePayload);
       const refreshedViewing = await Viewing.getViewingById(followUpViewingId);
 
-      console.log('✅ Follow-up viewing updated successfully');
+      logger.debug('Follow-up viewing updated successfully', { updateId, parentViewingId: id });
 
       res.json({
         success: true,
@@ -1246,7 +1329,7 @@ class ViewingsController {
         message: 'Follow-up viewing updated successfully'
       });
     } catch (error) {
-      console.error('❌ Error updating follow-up viewing:', error);
+      logger.error('Error updating follow-up viewing', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update follow-up viewing',
@@ -1259,7 +1342,7 @@ class ViewingsController {
   static async getViewingUpdates(req, res) {
     try {
       const { id } = req.params;
-      console.log('📋 Getting follow-up viewings for viewing:', id);
+      logger.debug('Getting follow-up viewings', { viewingId: id });
 
       const viewing = await Viewing.getViewingById(id);
       if (!viewing) {
@@ -1278,7 +1361,7 @@ class ViewingsController {
         message: `Retrieved ${subViewings.length} follow-up viewings`
       });
     } catch (error) {
-      console.error('❌ Error getting follow-up viewings:', error);
+      logger.error('Error getting follow-up viewings', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve follow-up viewings',
@@ -1291,7 +1374,7 @@ class ViewingsController {
   static async deleteViewingUpdate(req, res) {
     try {
       const { id, updateId } = req.params;
-      console.log('🗑️ Deleting follow-up viewing:', updateId, 'for parent viewing:', id);
+      logger.debug('Deleting follow-up viewing', { updateId, parentViewingId: id });
 
       const viewingId = parseInt(id, 10);
       const followUpViewingId = parseInt(updateId, 10);
@@ -1333,14 +1416,14 @@ class ViewingsController {
       // Delete the follow-up viewing
       await Viewing.deleteViewing(followUpViewingId);
       
-      console.log('✅ Follow-up viewing deleted successfully');
+      logger.debug('Follow-up viewing deleted successfully', { updateId, parentViewingId: id });
       
       res.json({
         success: true,
         message: 'Follow-up viewing deleted successfully'
       });
     } catch (error) {
-      console.error('❌ Error deleting follow-up viewing:', error);
+      logger.error('Error deleting follow-up viewing', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete follow-up viewing',
@@ -1387,7 +1470,7 @@ class ViewingsController {
         count
       });
     } catch (error) {
-      console.error('Error getting serious viewings count:', error);
+      logger.error('Error getting serious viewings count', error);
       res.status(500).json({
         success: false,
         message: 'Failed to get serious viewings count',

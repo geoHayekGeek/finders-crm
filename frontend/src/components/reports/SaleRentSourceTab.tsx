@@ -65,7 +65,7 @@ export default function SaleRentSourceTab() {
       try {
         localStorage.setItem('saleRentSourceReports', JSON.stringify(reports))
       } catch (error) {
-        console.error('Error saving reports to localStorage:', error)
+        // Error handled silently - localStorage save failed
       }
     }
   }, [reports])
@@ -76,7 +76,7 @@ export default function SaleRentSourceTab() {
       try {
         localStorage.setItem('saleRentSourceReportRows', JSON.stringify(reportRows))
       } catch (error) {
-        console.error('Error saving report rows to localStorage:', error)
+        // Error handled silently - localStorage save failed
       }
     }
   }, [reportRows])
@@ -161,7 +161,6 @@ export default function SaleRentSourceTab() {
             setPreviewData(null)
           }
         } catch (error) {
-          console.error('Error loading preview:', error)
           setPreviewData(null)
         } finally {
           setPreviewLoading(false)
@@ -274,7 +273,6 @@ export default function SaleRentSourceTab() {
           }
           return null
         } catch (error) {
-          console.error(`Error refreshing report ${report.id}:`, error)
           return null
         }
       })
@@ -293,7 +291,6 @@ export default function SaleRentSourceTab() {
       setReportRows(updatedRows)
       showSuccess(`Refreshed ${results.filter(r => r !== null).length} report(s) successfully`)
     } catch (error: any) {
-      console.error('Error refreshing reports:', error)
       showError(error.message || 'Failed to refresh reports')
     } finally {
       setLoading(false)
@@ -326,7 +323,6 @@ export default function SaleRentSourceTab() {
       document.body.removeChild(a)
       showSuccess('Sale & Rent Source report exported to Excel successfully')
     } catch (error: any) {
-      console.error('Error exporting Sale & Rent Source report to Excel:', error)
       showError(error.message || 'Failed to export Sale & Rent Source report to Excel')
     }
   }
@@ -357,7 +353,6 @@ export default function SaleRentSourceTab() {
       document.body.removeChild(a)
       showSuccess('Sale & Rent Source report exported to PDF successfully')
     } catch (error: any) {
-      console.error('Error exporting Sale & Rent Source report to PDF:', error)
       showError(error.message || 'Failed to export Sale & Rent Source report to PDF')
     }
   }

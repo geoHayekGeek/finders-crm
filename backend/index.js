@@ -159,9 +159,9 @@ app.listen(PORT, HOST, () => {
   // Start the reminder scheduler
   try {
     reminderScheduler.start();
-    console.log('📅 Reminder scheduler started successfully');
+    logger.info('Reminder scheduler started successfully');
   } catch (error) {
-    console.error('❌ Failed to start reminder scheduler:', error);
+    logger.error('Failed to start reminder scheduler', error);
   }
 });
 

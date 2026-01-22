@@ -82,7 +82,7 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
         setLeadSources(response.data)
       }
     } catch (error) {
-      console.error('Error loading lead sources:', error)
+      // Error handled silently - lead sources list will remain empty
     }
   }
 
@@ -157,7 +157,6 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
         showSuccess('Values recalculated successfully')
       }
     } catch (error: any) {
-      console.error('Error recalculating:', error)
       showError(error.message || 'Failed to recalculate values')
     } finally {
       setLoading(false)

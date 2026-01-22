@@ -45,7 +45,6 @@ export default function OperationsDailyTab() {
         setReports(response.data)
       }
     } catch (error: any) {
-      console.error('Error loading operations daily reports:', error)
       showError(error.message || 'Failed to load operations daily reports')
     } finally {
       setLoading(false)
@@ -61,7 +60,6 @@ export default function OperationsDailyTab() {
         setShowEditModal(true)
       }
     } catch (error: any) {
-      console.error('Error loading report:', error)
       showError(error.message || 'Failed to load report')
     }
   }
@@ -75,7 +73,6 @@ export default function OperationsDailyTab() {
         loadReports()
       }
     } catch (error: any) {
-      console.error('Error recalculating report:', error)
       showError(error.message || 'Failed to recalculate report')
     }
   }
@@ -98,7 +95,6 @@ export default function OperationsDailyTab() {
         setReportToDelete(null)
       }
     } catch (error: any) {
-      console.error('Error deleting report:', error)
       showError(error.message || 'Failed to delete report')
     }
   }
@@ -122,7 +118,6 @@ export default function OperationsDailyTab() {
       document.body.removeChild(a)
       showSuccess('Report exported to Excel successfully')
     } catch (error: any) {
-      console.error('Error exporting to Excel:', error)
       showError(error.message || 'Failed to export report to Excel')
     }
   }
@@ -146,7 +141,6 @@ export default function OperationsDailyTab() {
       document.body.removeChild(a)
       showSuccess('Report exported to PDF successfully')
     } catch (error: any) {
-      console.error('Error exporting to PDF:', error)
       showError(error.message || 'Failed to export report to PDF')
     }
   }

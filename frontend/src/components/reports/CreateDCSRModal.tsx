@@ -96,7 +96,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         setStatuses(response.data || [])
       }
     } catch (error) {
-      console.error('Error loading statuses:', error)
+      // Error handled silently - statuses list will remain empty
     }
   }
 
@@ -107,7 +107,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         setCategories(response.data || [])
       }
     } catch (error) {
-      console.error('Error loading categories:', error)
+      // Error handled silently - categories list will remain empty
     }
   }
 
@@ -153,7 +153,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         setTeamLeaders(teamLeadersList)
       }
     } catch (error) {
-      console.error('Error loading team leaders:', error)
+      // Error handled silently - team leaders list will remain empty
     }
   }
 
@@ -175,7 +175,6 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         setTeamBreakdownData(response.data)
       }
     } catch (error: any) {
-      console.error('Error loading team breakdown:', error)
       setError(error.message || 'Failed to load team breakdown')
     } finally {
       setLoadingTeamBreakdown(false)
@@ -199,7 +198,6 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         setAllTeamsBreakdown(response.data)
       }
     } catch (error: any) {
-      console.error('Error loading all teams breakdown:', error)
       setError(error.message || 'Failed to load teams breakdown')
     } finally {
       setLoadingTeamBreakdown(false)
@@ -288,7 +286,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
       if (error.message?.includes('already exists')) {
         setError('A report already exists for this date range. Please select a different window.')
       } else {
-        console.error('Error calculating preview:', error)
+        // Error handled by error state
       }
     } finally {
       setCalculating(false)

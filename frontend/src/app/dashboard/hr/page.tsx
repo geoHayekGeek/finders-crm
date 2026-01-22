@@ -83,7 +83,7 @@ export default function HRPage() {
       if (candidate.id === currentUserId) {
         return true
       }
-      // Only admin, HR, and operations manager can see all users
+      // Only admin, HR, and operations manager can see all users (aligned with backend)
       if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
         return true
       }
@@ -212,13 +212,9 @@ export default function HRPage() {
 
       // Everyone can access the page, but backend will filter users based on role
       
-      console.log('🔍 Loading users...')
-      
       const response = await usersApi.getAll(token)
-      console.log('📡 API Response:', response)
       
       if (response.success && response.users) {
-        console.log('✅ Users data received:', response.users)
 
         const visibleUsers = filterUsersForCurrentUser(response.users)
 
@@ -232,7 +228,6 @@ export default function HRPage() {
         }))
         
         setUsers(usersWithActions)
-        console.log('✅ Loaded users:', usersWithActions.length, usersWithActions)
         
         // Calculate stats
         calculateStats(usersWithActions)
@@ -245,12 +240,10 @@ export default function HRPage() {
         
         // Load agents for all team leaders (since they start expanded)
         if (teamLeaderIds.length > 0 && token) {
-          console.log('🔄 Loading agents for all team leaders:', teamLeaderIds)
           for (const teamLeaderId of teamLeaderIds) {
             try {
               const agentsResponse = await usersApi.getTeamLeaderAgents(teamLeaderId, token)
               if (agentsResponse.success && agentsResponse.agents) {
-                console.log('✅ Loaded agents for TL:', teamLeaderId, 'count:', agentsResponse.agents.length)
                 setUsers(prevUsers => prevUsers.map(u => 
                   u.id === teamLeaderId 
                     ? { ...u, agents: agentsResponse.agents, agent_count: agentsResponse.agents.length }
@@ -258,7 +251,7 @@ export default function HRPage() {
                 ))
               }
             } catch (error) {
-              console.error('❌ Error loading agents for TL:', teamLeaderId, error)
+              // Silently fail - non-critical
             }
           }
         }
@@ -269,7 +262,7 @@ export default function HRPage() {
       
     } catch (error) {
       setError('Failed to load users data')
-      console.error('Error loading data:', error)
+      // Error handled by showError toast
     } finally {
       setLoading(false)
     }
@@ -356,7 +349,6 @@ export default function HRPage() {
           console.log('🔍 Loading agents for team leader:', teamLeaderId)
           const response = await usersApi.getTeamLeaderAgents(teamLeaderId, token)
           if (response.success && response.agents) {
-            console.log('✅ Loaded agents for TL:', teamLeaderId, 'count:', response.agents.length)
             setUsers(prevUsers => prevUsers.map(u => 
               u.id === teamLeaderId 
                 ? { ...u, agents: response.agents, agent_count: response.agents.length }
@@ -364,7 +356,6 @@ export default function HRPage() {
             ))
           }
         } catch (error) {
-          console.error('❌ Error loading team agents:', error)
           showError('Failed to load team agents')
         }
       }
@@ -442,7 +433,6 @@ export default function HRPage() {
     // First, try to find the user in the loaded users
     const user = users.find(u => u.id === userId)
     if (user) {
-      console.log('✅ Found user in list, opening modal:', userId)
       handleViewUser(user)
       // Clean up URL parameter
       const newUrl = window.location.pathname
@@ -453,7 +443,6 @@ export default function HRPage() {
     // If user not found in list, fetch it directly using the API
     const fetchUser = async () => {
       try {
-        console.log('🔍 User not in list, fetching directly:', userId)
         const response = await usersApi.getById(userId)
         if (response.success && response.data) {
           handleViewUser(response.data)
@@ -461,10 +450,10 @@ export default function HRPage() {
           const newUrl = window.location.pathname
           window.history.replaceState({}, '', newUrl)
         } else {
-          console.error('❌ Failed to fetch user:', (response as { message?: string }).message || 'Unknown error')
+          showError((response as { message?: string }).message || 'Failed to fetch user')
         }
       } catch (error) {
-        console.error('❌ Error fetching user:', error)
+        showError('Failed to fetch user')
       }
     }
     
@@ -869,7 +858,7 @@ export default function HRPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Human Resources</h1>
           <p className="text-gray-600 mt-1">
-            {normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' 
+            {normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager'
               ? `Manage all system users (${filteredUsers.length} users)`
               : `View your profile (${filteredUsers.length} user)`}
           </p>

@@ -4,10 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { formatRole } from '@/utils/roleFormatter'
 import { Search, Filter, X, ChevronDown, Calendar, Users, Tag } from 'lucide-react'
 import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
-import { usersApi } from '@/utils/api'
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
-const API_BASE_URL = `${BACKEND_URL}/api`
+import { usersApi, leadsApi } from '@/utils/api'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface User {
   id: number
@@ -35,6 +33,7 @@ export function LeadsFilters({
   onClearFilters,
   limitedAccess = false
 }: LeadsFiltersProps) {
+  const { token } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [referenceSources, setReferenceSources] = useState<ReferenceSource[]>([])
   const [loading, setLoading] = useState(false)
@@ -53,7 +52,7 @@ export function LeadsFilters({
           setUsers(data.agents)
         }
       } catch (error) {
-        console.error('Error fetching agents:', error)
+        // Error handled silently - agents list will remain empty
       } finally {
         setLoading(false)
       }
@@ -67,30 +66,25 @@ export function LeadsFilters({
     if (limitedAccess) return
 
     const fetchReferenceSources = async () => {
+      if (!token) return
+      
       setLoadingRefSources(true)
       try {
-        const token = localStorage.getItem('token')
-        const response = await fetch(`${API_BASE_URL}/leads/reference-sources`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success) {
-            setReferenceSources(data.data)
-          }
+        const data = await leadsApi.getReferenceSources()
+        if (data.success) {
+          setReferenceSources(data.data)
         }
       } catch (error) {
-        console.error('Error fetching reference sources:', error)
+        // Error handled silently - reference sources list will remain empty
       } finally {
         setLoadingRefSources(false)
       }
     }
 
-    fetchReferenceSources()
-  }, [limitedAccess])
+    if (token) {
+      fetchReferenceSources()
+    }
+  }, [limitedAccess, token])
 
   const handleFilterChange = (key: keyof LeadFilters, value: string | number | undefined) => {
     // For date inputs, ensure we handle empty strings properly

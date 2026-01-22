@@ -33,30 +33,15 @@ export function CategorySelector({
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching categories...')
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE_URL}/categories`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-      console.log('🏷️ Categories response status:', response.status)
+      const { categoriesApi } = await import('@/utils/api')
+      const data = await categoriesApi.getAll()
       
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🏷️ Categories data:', data)
-        if (data.success) {
-          setCategories(data.data || data.categories || [])
-          console.log('✅ Categories loaded:', data.data?.length || data.categories?.length || 0)
-        } else {
-          setError(data.message || 'Failed to load categories')
-        }
+      if (data.success) {
+        setCategories(data.data || [])
       } else {
-        setError(`HTTP ${response.status}: ${response.statusText}`)
+        setError(data.message || 'Failed to load categories')
       }
     } catch (error) {
-      console.error('❌ Error fetching categories:', error)
       setError(error instanceof Error ? error.message : 'Unknown error')
     } finally {
       setIsLoading(false)

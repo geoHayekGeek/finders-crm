@@ -2,20 +2,36 @@
 const express = require('express');
 const router = express.Router();
 const settingsController = require('../controllers/settingsController');
+const { 
+  authenticateToken, 
+  canManageSettings
+} = require('../middlewares/permissions');
+const { csrfProtection } = require('../middlewares/csrfProtection');
+const { createRateLimiter } = require('../middlewares/rateLimiter');
 
-// All routes - authentication is handled at page level via ProtectedRoute
-router.get('/', settingsController.getAllSettings);
-router.get('/category/:category', settingsController.getSettingsByCategory);
-router.put('/:key', settingsController.updateSetting);
-router.put('/bulk/update', settingsController.updateMultipleSettings);
+// Rate limiter for settings operations (stricter for admin operations)
+const settingsReadLimiter = createRateLimiter(50, 15 * 60 * 1000); // 50 requests per 15 minutes
+const settingsWriteLimiter = createRateLimiter(20, 15 * 60 * 1000); // 20 requests per 15 minutes
 
-// File upload routes
-router.post('/logo/upload', settingsController.uploadLogo);
-router.post('/favicon/upload', settingsController.uploadFavicon);
-router.delete('/logo', settingsController.deleteLogo);
-router.delete('/favicon', settingsController.deleteFavicon);
+// Apply authentication and admin-only access to all routes
+router.use(authenticateToken);
+router.use(canManageSettings);
 
-// Email configuration test
-router.post('/email/test', settingsController.testEmailConfiguration);
+// GET routes - read operations
+router.get('/', settingsReadLimiter, settingsController.getAllSettings);
+router.get('/category/:category', settingsReadLimiter, settingsController.getSettingsByCategory);
+
+// PUT routes - write operations (require CSRF protection)
+router.put('/:key', settingsWriteLimiter, csrfProtection, settingsController.updateSetting);
+router.put('/bulk/update', settingsWriteLimiter, csrfProtection, settingsController.updateMultipleSettings);
+
+// File upload routes (require CSRF protection)
+router.post('/logo/upload', settingsWriteLimiter, csrfProtection, settingsController.uploadLogo);
+router.post('/favicon/upload', settingsWriteLimiter, csrfProtection, settingsController.uploadFavicon);
+router.delete('/logo', settingsWriteLimiter, csrfProtection, settingsController.deleteLogo);
+router.delete('/favicon', settingsWriteLimiter, csrfProtection, settingsController.deleteFavicon);
+
+// Email configuration test (require CSRF protection)
+router.post('/email/test', settingsWriteLimiter, csrfProtection, settingsController.testEmailConfiguration);
 
 module.exports = router;

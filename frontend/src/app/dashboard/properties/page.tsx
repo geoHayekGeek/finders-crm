@@ -149,10 +149,8 @@ export default function PropertiesPage() {
     if (agentId) {
       const agentIdNum = parseInt(agentId, 10)
       if (!isNaN(agentIdNum) && agentIdNum > 0) {
-        console.log('🔍 Initializing filter from URL agent_id:', agentIdNum)
         setFilters(prev => {
           const newFilters = { ...prev, agent_id: agentIdNum }
-          console.log('🔍 Setting filters to:', newFilters)
           return newFilters
         })
         hasProcessedAgentFilter.current = true
@@ -173,7 +171,6 @@ export default function PropertiesPage() {
     if (!isAuthenticated) return
     
     // Always reload when filters change, even when cleared (empty object)
-    console.log('🔍 Filters changed, loading properties with filters:', filters)
     loadPropertiesOnly()
     setCurrentPage(1) // Reset to first page when filters change
   }, [filters, isAuthenticated])
@@ -241,12 +238,10 @@ export default function PropertiesPage() {
       }
       
       const queryString = queryParams.toString()
-      console.log('🔍 Query params for properties:', queryString, 'Effective Filters:', effectiveFilters)
       const endpoint = hasFilters 
         ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
         : `${API_BASE_URL}/properties`
       
-      console.log('🔍 Loading properties with endpoint:', endpoint)
       
       // Load properties from production API with authentication
       const propertiesResponse = await fetch(endpoint, {
@@ -267,7 +262,6 @@ export default function PropertiesPage() {
 
       const propertiesResponseData = await propertiesResponse.json()
       const propertiesData: Property[] = propertiesResponseData.data || propertiesResponseData
-      console.log('✅ Loaded properties from production API:', propertiesData.length)
       
       // Add action handlers to properties
       const propertiesWithActions = propertiesData.map((property: Property) => ({
@@ -282,7 +276,7 @@ export default function PropertiesPage() {
       
     } catch (error) {
       setError('Failed to load properties data')
-      console.error('Error loading properties:', error)
+      // Error handled by showError toast
     } finally {
       setPropertiesLoading(false)
     }
@@ -365,7 +359,6 @@ export default function PropertiesPage() {
         ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
         : `${API_BASE_URL}/properties`
       
-      console.log('🔍 Loading properties with endpoint:', endpoint)
       
       // Load properties from production API with authentication
       const propertiesResponse = await fetch(endpoint, {
@@ -386,7 +379,6 @@ export default function PropertiesPage() {
 
       const propertiesResponseData = await propertiesResponse.json()
       const propertiesData: Property[] = propertiesResponseData.data || propertiesResponseData
-      console.log('✅ Loaded properties from production API:', propertiesData.length)
       
       // Load categories from production API with authentication
       const categoriesResponse = await fetch(`${API_BASE_URL}/categories`, {
@@ -403,7 +395,6 @@ export default function PropertiesPage() {
 
       const categoriesResponseData = await categoriesResponse.json()
       const categoriesData: Category[] = categoriesResponseData.data || categoriesResponseData
-      console.log('✅ Loaded categories from production API:', categoriesData.length)
       
       // Load statuses from production API with authentication
       const statusesResponse = await fetch(`${API_BASE_URL}/statuses`, {
@@ -420,7 +411,6 @@ export default function PropertiesPage() {
 
       const statusesResponseData = await statusesResponse.json()
       const statusesData: Status[] = statusesResponseData.data || statusesResponseData
-      console.log('✅ Loaded statuses from production API:', statusesData.length)
       
       // Load agents from production API with authentication
       try {
@@ -439,13 +429,11 @@ export default function PropertiesPage() {
         const agentsResponseData = await agentsResponse.json()
         if (agentsResponseData.success) {
           setAgents(agentsResponseData.agents || [])
-          console.log('✅ Loaded agents from production API:', agentsResponseData.agents?.length || 0)
         } else {
-          console.warn('Could not load agents:', agentsResponseData.message)
           setAgents([])
         }
       } catch (agentsError) {
-        console.error('Error loading agents:', agentsError)
+        // Silently fail - non-critical
         setAgents([])
       }
       
@@ -465,7 +453,7 @@ export default function PropertiesPage() {
           setStats(statsData)
         }
       } catch (statsError) {
-        console.warn('Could not load statistics:', statsError)
+        // Silently fail - non-critical
       }
       
       // Add action handlers to properties
@@ -483,7 +471,7 @@ export default function PropertiesPage() {
       
     } catch (error) {
       setError('Failed to load properties data')
-      console.error('Error loading data:', error)
+      // Error handled by showError toast
     } finally {
       setLoading(false)
     }
@@ -532,7 +520,7 @@ export default function PropertiesPage() {
           setSeriousViewingsPct('0.0')
         }
       } catch (error) {
-        console.error('Error fetching serious viewings count:', error)
+        // Silently fail - non-critical
         setSeriousViewingsPct('0.0')
       }
     }
@@ -555,7 +543,6 @@ export default function PropertiesPage() {
 
   const handleSaveEdit = async () => {
     try {
-      console.log('💾 Saving property edits:', editFormData)
       
       // Check authentication
       if (!isAuthenticated || !token) {
@@ -591,23 +578,14 @@ export default function PropertiesPage() {
         referrals: editFormData.referrals || []
       }
 
-      console.log('📡 Sending update request:', updateData)
-      console.log('📡 Referrals in updateData:', updateData.referrals)
-      if (updateData.referrals && updateData.referrals.length > 0) {
-        console.log('📡 First referral details:', updateData.referrals[0])
-        console.log('📡 First referral date:', updateData.referrals[0].date)
-        console.log('📡 First referral date type:', typeof updateData.referrals[0].date)
-      }
 
       // Use the handleUpdateProperty function which handles CSRF tokens
       const result = await handleUpdateProperty(selectedProperty.id, updateData)
       
-      console.log('🔍 handleUpdateProperty result:', result)
       
       // Check if there were validation errors
       if (result && !result.success && result.validationErrors) {
         // Handle validation errors - don't close modal, show errors under inputs
-        console.log('🔍 Backend validation errors received:', result.validationErrors)
         
         // Convert backend validation errors to frontend format
         const fieldErrors: Record<string, string> = {}
@@ -617,7 +595,6 @@ export default function PropertiesPage() {
         
         // Set backend validation errors to display under inputs
         setBackendValidationErrors(fieldErrors)
-        console.log('🔍 Field errors to display:', fieldErrors)
         
         // Show a generic error message
         showError('Please fix the validation errors shown below')
@@ -626,7 +603,6 @@ export default function PropertiesPage() {
       
       // Check if there was an error (but not validation errors)
       if (result && !result.success && !result.validationErrors) {
-        console.log('🔍 Update failed with error:', result.error)
         // Show the error message
         showError(result.error || 'Update failed')
         // Don't close modal for other errors either
@@ -635,7 +611,6 @@ export default function PropertiesPage() {
       
       // Only close modal if update was successful
       if (result && result.success) {
-        console.log('🔍 Update successful, closing modal')
         setShowEditModal(false)
         setSelectedProperty(null)
         
@@ -646,11 +621,10 @@ export default function PropertiesPage() {
         await refreshCategories()
         await refreshStatuses()
       } else {
-        console.log('🔍 Unexpected result format:', result)
         // Don't close modal if we don't know what happened
       }
     } catch (error) {
-      console.error('❌ Error updating property:', error)
+      // Error handled by showError toast
       showError('Something went wrong while updating the property. Please try again.')
     }
   }
@@ -658,7 +632,6 @@ export default function PropertiesPage() {
   // Handle add property
   const handleAddProperty = async (propertyData: any) => {
     try {
-      console.log('Adding new property:', propertyData)
       
       // Check authentication
       if (!isAuthenticated || !token) {
@@ -703,22 +676,12 @@ export default function PropertiesPage() {
         
         // Note: image_gallery will be handled separately via file uploads after property creation
       
-              console.log('Formatted data to send:', formattedData)
-        console.log('📤 Referrals in formattedData:', formattedData.referrals)
-        if (formattedData.referrals && formattedData.referrals.length > 0) {
-          console.log('📤 First referral details:', formattedData.referrals[0])
-          console.log('📤 First referral date:', formattedData.referrals[0].date)
-          console.log('📤 First referral date type:', typeof formattedData.referrals[0].date)
-        }
         
         // Additional validation after formatting
         if (isNaN(formattedData.status_id) || isNaN(formattedData.category_id) || isNaN(formattedData.price)) {
           showError('Invalid values detected. Please check Status, Category, and Price fields.')
           return
         }
-        
-        // Debug: Log the exact JSON being sent
-        console.log('📤 JSON payload being sent:', JSON.stringify(formattedData, null, 2))
         
         // Call the production API with authentication
       const response = await fetch(`${API_BASE_URL}/properties`, {
@@ -740,7 +703,6 @@ export default function PropertiesPage() {
       }
 
       const newProperty = await response.json()
-      console.log('Property added successfully:', newProperty)
       showSuccess('Property added successfully!')
 
               // Refresh the properties list
@@ -754,7 +716,7 @@ export default function PropertiesPage() {
         return newProperty.data || newProperty
       
     } catch (error) {
-      console.error('Error adding property:', error)
+      // Error handled by showError toast
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       showError(`Something went wrong: ${errorMessage}`)
       throw error // Re-throw so the modal knows the creation failed
@@ -768,7 +730,6 @@ export default function PropertiesPage() {
   }
 
   const handleReferProperty = (property: Property) => {
-    console.log('Refer property clicked:', property)
     setSelectedProperty(property)
     setShowReferModal(true)
   }
@@ -792,7 +753,6 @@ export default function PropertiesPage() {
     // First, try to find the property in the loaded properties
     const property = properties.find(p => p.id === propertyId)
     if (property) {
-      console.log('✅ Found property in list, opening modal:', propertyId)
       handleViewProperty(property)
       // Clean up URL parameter but preserve hash (for scrolling to viewings)
       const hash = window.location.hash
@@ -802,14 +762,12 @@ export default function PropertiesPage() {
     }
     
     // If property not found in list, fetch it directly using the API
-    console.log('🔍 Property not in list, fetching:', propertyId)
     const fetchAndOpenProperty = async () => {
       try {
         const { propertiesApi } = await import('@/utils/api')
         const response = await propertiesApi.getById(propertyId)
         
         if (response.success && response.data) {
-          console.log('✅ Fetched property, opening modal:', propertyId)
           const fetchedProperty: Property = {
             ...response.data,
             onView: handleViewProperty,
@@ -823,10 +781,10 @@ export default function PropertiesPage() {
           const newUrl = window.location.pathname + (hash ? hash : '')
           window.history.replaceState({}, '', newUrl)
         } else {
-          console.error('❌ Failed to fetch property:', response)
+          showError('Failed to fetch property')
         }
       } catch (error) {
-        console.error('❌ Error fetching property for view:', error)
+        showError('Failed to fetch property')
       }
     }
     
@@ -857,14 +815,6 @@ export default function PropertiesPage() {
           return
         }
         
-        // Debug: Log the property being deleted
-        console.log('🔍 Deleting property:', {
-          id: deletingProperty.id,
-          type: typeof deletingProperty.id,
-          reference_number: deletingProperty.reference_number,
-          location: deletingProperty.location
-        })
-        
         // Call the production API to delete the property
         const response = await fetch(`${API_BASE_URL}/properties/${deletingProperty.id}`, {
           method: 'DELETE',
@@ -882,16 +832,10 @@ export default function PropertiesPage() {
           
           // Get the error response body
           const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-          console.error('❌ Delete property error response:', {
-            status: response.status,
-            statusText: response.statusText,
-            errorData
-          })
           
           throw new Error(`Failed to delete property: ${errorData.message || response.statusText}`)
         }
         
-        console.log('✅ Property deleted successfully!')
         
         // Refresh the properties list
         await loadData()
@@ -909,7 +853,7 @@ export default function PropertiesPage() {
         showSuccess('Property deleted successfully!')
         
       } catch (error) {
-        console.error('❌ Error deleting property:', error)
+        // Error handled by showError toast
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
         showError(`Something went wrong while deleting property: ${errorMessage}`)
       }
@@ -924,14 +868,13 @@ export default function PropertiesPage() {
     if (files) {
       // Note: This is just a generic file handler - actual image upload 
       // is handled in PropertyModals component using proper file upload API
-      console.log(`Selected ${files.length} files for upload. Use the Edit Property modal to upload images.`)
+      // Files selected - user will upload via Edit Property modal
     }
   }
 
   // Gallery image management is now handled internally by PropertyModals component
 
   const handleUpdateProperty = async (id: number, propertyData: any) => {
-    console.log('🚀 handleUpdateProperty called with centralized API')
     try {
       // Check authentication
       if (!isAuthenticated || !token) {
@@ -945,18 +888,14 @@ export default function PropertiesPage() {
         return
       }
       
-      console.log('🔍 Using centralized propertiesApi.update')
-      console.log('🔍 Request body:', JSON.stringify(propertyData, null, 2))
       
       // Use the centralized API function which handles CSRF tokens automatically
       const response = await propertiesApi.update(id, propertyData)
       
-      console.log('🔍 API response:', response)
       
       // Check if there were validation errors
       if (response && !response.success && (response as any).validationErrors) {
         // Handle validation errors - don't close modal, show errors under inputs
-        console.log('🔍 Backend validation errors received:', (response as any).validationErrors)
         
         // Convert backend validation errors to frontend format
         const fieldErrors: Record<string, string> = {}
@@ -970,7 +909,6 @@ export default function PropertiesPage() {
       
       // Check for other errors
       if (!response.success) {
-        console.log('🔍 API returned error:', response.message)
         return { success: false, error: response.message || 'Update failed' }
       }
       
@@ -989,7 +927,7 @@ export default function PropertiesPage() {
       return { success: true, data: response.data }
       
     } catch (error) {
-      console.error('Error updating property:', error)
+      // Error handled by showError toast
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       
       // Check if it's a CSRF error
@@ -1035,7 +973,7 @@ export default function PropertiesPage() {
     setCategoriesLoading(true)
     try {
       if (!isAuthenticated || !token) {
-        console.error('Not authenticated')
+        // Not authenticated - handled by AuthContext
         return
       }
 
@@ -1051,12 +989,11 @@ export default function PropertiesPage() {
         const categoriesResponseData = await categoriesResponse.json()
         const categoriesData: Category[] = categoriesResponseData.data || categoriesResponseData
         setCategories(categoriesData)
-        console.log('✅ Categories refreshed:', categoriesData.length)
       } else {
-        console.error('Failed to refresh categories')
+        showError('Failed to refresh categories')
       }
     } catch (error) {
-      console.error('Error refreshing categories:', error)
+      showError('Failed to refresh categories')
     } finally {
       setCategoriesLoading(false)
     }
@@ -1067,7 +1004,7 @@ export default function PropertiesPage() {
     setStatusesLoading(true)
     try {
       if (!isAuthenticated || !token) {
-        console.error('Not authenticated')
+        // Not authenticated - handled by AuthContext
         return
       }
 
@@ -1083,12 +1020,11 @@ export default function PropertiesPage() {
         const statusesResponseData = await statusesResponse.json()
         const statusesData: Status[] = statusesResponseData.data || statusesResponseData
         setStatuses(statusesData)
-        console.log('✅ Statuses refreshed:', statusesData.length)
       } else {
-        console.error('Failed to refresh statuses')
+        showError('Failed to refresh statuses')
       }
     } catch (error) {
-      console.error('Error refreshing statuses:', error)
+      showError('Failed to refresh statuses')
     } finally {
       setStatusesLoading(false)
     }

@@ -55,7 +55,6 @@ export default function EditOperationsDailyModal({
         onSuccess()
       }
     } catch (error: any) {
-      console.error('Error updating operations daily report:', error)
       showError(error.message || 'Failed to update operations daily report')
     } finally {
       setLoading(false)
@@ -77,7 +76,6 @@ export default function EditOperationsDailyModal({
         onSuccess()
       }
     } catch (error: any) {
-      console.error('Error recalculating report:', error)
       showError(error.message || 'Failed to recalculate report')
     } finally {
       setLoading(false)

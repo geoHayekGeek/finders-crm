@@ -19,24 +19,17 @@ export function PendingReferralsBadge() {
     if (!shouldShow) return
 
     const fetchPendingCount = async () => {
+      if (!token) return
+      
       try {
-        const response = await fetch(
-          `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/pending/count`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-            }
-          }
-        )
-
-        const data = await response.json()
+        const { propertiesApi } = await import('@/utils/api')
+        const data = await propertiesApi.getPendingReferralsCount(token)
+        
         if (data.success) {
           setPendingCount(data.count || 0)
         }
       } catch (error) {
-        console.error('Error fetching pending referrals count:', error)
+        // Error handled silently - count will remain 0
       }
     }
 
@@ -67,29 +60,20 @@ export function PendingReferralsBadge() {
       <PendingReferralsModal
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
-        onUpdate={() => {
+        onUpdate={async () => {
           // Refresh count when referrals are updated
-          const fetchPendingCount = async () => {
-            try {
-              const response = await fetch(
-                `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/pending/count`,
-                {
-                  method: 'GET',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-                  }
-                }
-              )
-              const data = await response.json()
-              if (data.success) {
-                setPendingCount(data.count || 0)
-              }
-            } catch (error) {
-              console.error('Error fetching pending referrals count:', error)
+          if (!token) return
+          
+          try {
+            const { propertiesApi } = await import('@/utils/api')
+            const data = await propertiesApi.getPendingReferralsCount(token)
+            
+            if (data.success) {
+              setPendingCount(data.count || 0)
             }
+          } catch (error) {
+            // Error handled silently - count will remain unchanged
           }
-          fetchPendingCount()
         }}
       />
     </>

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { useAuth } from './AuthContext'
+import { settingsApi } from '@/utils/api'
 
 interface SystemSettings {
   company_name: string
@@ -60,7 +61,6 @@ export const useSettings = () => {
 }
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
-const API_BASE_URL = `${BACKEND_URL}/api`
 
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState<SystemSettings>(defaultSettings)
@@ -70,18 +70,14 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const loadSettings = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`${API_BASE_URL}/settings`, {
-        headers: token ? {
-          'Authorization': `Bearer ${token}`
-        } : {}
-      })
+      const result = await settingsApi.getAll(token)
       
-      if (!response.ok) {
-        console.error('Failed to load settings, using defaults')
+      if (!result.success) {
+        // Failed to load settings, using defaults
         return
       }
 
-      const data = await response.json()
+      const data = { settings: result.settings }
       const settingsArray = data.settings as Array<{
         setting_key: string
         setting_value: string
@@ -97,8 +93,8 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       // Note: Static files are served at /uploads/... (not /api/uploads/...)
       const parsedSettings: SystemSettings = {
         company_name: settingsObj.company_name || defaultSettings.company_name,
-        company_logo: settingsObj.company_logo ? `${BACKEND_URL}${settingsObj.company_logo}` : null,
-        company_favicon: settingsObj.company_favicon ? `${BACKEND_URL}${settingsObj.company_favicon}` : null,
+        company_logo: settingsObj.company_logo ? (settingsObj.company_logo.startsWith('http') ? settingsObj.company_logo : `${BACKEND_URL}${settingsObj.company_logo}`) : null,
+        company_favicon: settingsObj.company_favicon ? (settingsObj.company_favicon.startsWith('http') ? settingsObj.company_favicon : `${BACKEND_URL}${settingsObj.company_favicon}`) : null,
         primary_color: settingsObj.primary_color || defaultSettings.primary_color,
         email_notifications_enabled: settingsObj.email_notifications_enabled === 'true',
         email_notifications_calendar_events: settingsObj.email_notifications_calendar_events === 'true',
@@ -123,7 +119,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       // Update primary color CSS variables
       updatePrimaryColor(parsedSettings.primary_color)
     } catch (error) {
-      console.error('Error loading settings:', error)
+      // Error loading settings - using defaults
     } finally {
       setLoading(false)
     }

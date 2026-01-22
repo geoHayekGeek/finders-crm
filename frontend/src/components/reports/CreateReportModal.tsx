@@ -89,7 +89,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
         setAgents(agentsList)
       }
     } catch (error) {
-      console.error('Error loading agents:', error)
+      // Error handled silently - agents list will remain empty
     }
   }
 
@@ -101,7 +101,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
         setLeadSources(response.data)
       }
     } catch (error) {
-      console.error('Error loading lead sources:', error)
+      // Error handled silently - lead sources list will remain empty
     }
   }
 
@@ -149,7 +149,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       if (error.message?.includes('already exists')) {
         setError('A report already exists for this agent and date range. Try adjusting the window or pick another agent.')
       } else {
-        console.error('Error calculating preview:', error)
+        // Error handled by error state
       }
     } finally {
       setCalculating(false)
@@ -224,8 +224,6 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
         onSuccess()
       }
     } catch (error: any) {
-      console.error('Error creating report:', error)
-      
       if (error.message?.includes('already exists')) {
         setError('A report already exists for this agent within the same date range. Please adjust the period.')
       } else {

@@ -64,18 +64,14 @@ export function OwnerSelector({
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching leads/owners with token...')
       const data = await leadsApi.getAll(token)
-      console.log('👥 Leads/Owners data:', data)
       
       if (data.success && data.data) {
         setOwners(data.data)
-        console.log('✅ Owners loaded:', data.data.length)
       } else {
         setError(data.message || 'Failed to load owners')
       }
     } catch (error) {
-      console.error('❌ Error fetching owners:', error)
       if (error instanceof Error) {
         setError(error.message)
       } else {
@@ -106,12 +102,8 @@ export function OwnerSelector({
       })
       
       if (owners.length === 0 && !isLoading) {
-        console.log('🔄 Re-fetching owners because selectedOwnerId is set but owners list is empty')
         fetchOwners()
       } else if (owners.length > 0 && !ownerExists && !isLoading) {
-        console.log('🔄 Owner not found in current list, re-fetching owners...')
-        console.log('🔍 Looking for owner ID:', selectedOwnerId, 'type:', typeof selectedOwnerId)
-        console.log('📋 Current owner IDs:', owners.slice(0, 5).map(o => ({ id: o.id, type: typeof o.id })))
         fetchOwners()
       }
     }
@@ -219,10 +211,7 @@ export function OwnerSelector({
       }
     }
     
-    console.log('🔍 Quick Add form submitted, preventing default and stopping propagation')
-    
     if (!validateQuickAddForm()) {
-      console.log('❌ Validation failed, not submitting')
       return
     }
     
@@ -251,13 +240,10 @@ export function OwnerSelector({
         ]
       }
       
-      console.log('🚀 Creating quick lead:', leadData)
-      
       // Create the lead
       const response = await leadsApi.create(leadData, token)
       
       if (response.success && response.data) {
-        console.log('✅ Lead created successfully:', response.data)
         showSuccess('Owner added successfully!')
         
         // Refresh the owners list
@@ -279,7 +265,6 @@ export function OwnerSelector({
         showError(response.message || 'Failed to create owner')
       }
     } catch (error) {
-      console.error('❌ Error creating lead:', error)
       showError(error instanceof Error ? error.message : 'Failed to create owner')
     } finally {
       setIsCreatingLead(false)
@@ -310,25 +295,10 @@ export function OwnerSelector({
         return !isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum
       })
       
-      if (found) {
-        console.log('✅ OwnerSelector - Owner found after owners loaded, notifying parent:', found.customer_name, 'ID:', found.id)
-        // Don't call onOwnerChange here as it might cause infinite loops
-        // The selectedOwner will be computed on next render
-      } else {
-        console.log('⚠️ OwnerSelector - Owner ID', selectedOwnerId, 'type:', typeof selectedOwnerId, 'not found in owners list')
-        console.log('📋 OwnerSelector - Sample owner IDs:', owners.slice(0, 5).map(o => ({ id: o.id, type: typeof o.id, name: o.customer_name })))
-      }
-    } else if (selectedOwnerId !== undefined && selectedOwnerId !== null && owners.length > 0 && selectedOwner) {
-      console.log('✅ OwnerSelector - Owner already found:', selectedOwner.customer_name, 'ID:', selectedOwner.id)
+      // Don't call onOwnerChange here as it might cause infinite loops
+      // The selectedOwner will be computed on next render
     }
   }, [owners, selectedOwnerId, selectedOwner])
-  
-  // Debug logging
-  if (selectedOwnerId !== undefined && selectedOwnerId !== null) {
-    console.log('🔍 OwnerSelector - selectedOwnerId:', selectedOwnerId, 'type:', typeof selectedOwnerId)
-    console.log('🔍 OwnerSelector - owners length:', owners.length)
-    console.log('🔍 OwnerSelector - selectedOwner:', selectedOwner ? `${selectedOwner.customer_name} (ID: ${selectedOwner.id}, type: ${typeof selectedOwner.id})` : 'not found')
-  }
 
   const getStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
@@ -348,18 +318,37 @@ export function OwnerSelector({
   }
 
   // Determine what to display - prefer selectedOwner from list, fallback to selectedOwnerName prop
-  const displayOwner = selectedOwner || (selectedOwnerId && selectedOwnerName ? {
-    id: selectedOwnerId,
-    customer_name: selectedOwnerName,
-    phone_number: undefined,
-    date: '',
-    status: undefined
-  } : null)
+  // If owner_name is 'Hidden', don't use it - let the component find the owner by ID from the list
+  // Also handle case where owner_name exists but owner_id is null (legacy data)
+  const displayOwner = selectedOwner || (
+    selectedOwnerName && 
+    selectedOwnerName !== 'Hidden' && 
+    selectedOwnerName.trim() !== '' ? {
+      id: selectedOwnerId || 0, // Use 0 as placeholder if owner_id is null
+      customer_name: selectedOwnerName,
+      phone_number: undefined,
+      date: '',
+      status: undefined
+    } : null
+  )
+  
+  // Debug: Log owner selection state (only in development)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[OwnerSelector] Owner selection state:', {
+        selectedOwnerId,
+        selectedOwnerName,
+        ownersCount: owners.length,
+        foundInList: !!selectedOwner,
+        displayOwner: displayOwner ? { id: displayOwner.id, name: displayOwner.customer_name } : null
+      })
+    }
+  }, [selectedOwnerId, selectedOwnerName, owners.length, selectedOwner, displayOwner])
 
   return (
     <div className="space-y-2">
-      {/* Display selected owner */}
-      {selectedOwnerId !== undefined && selectedOwnerId !== null && displayOwner && (
+      {/* Display selected owner - show if we have owner_id OR owner_name (for legacy data) */}
+      {displayOwner && (selectedOwnerId !== undefined && selectedOwnerId !== null || selectedOwnerName) && (
         <div className="flex items-center gap-2 p-2 bg-indigo-50 border border-indigo-200 rounded-lg">
           <div className="flex items-center gap-2 flex-1">
             <UserCircle className="h-4 w-4 text-indigo-600" />
@@ -376,8 +365,11 @@ export function OwnerSelector({
                     {displayOwner.status}
                   </span>
                 )}
-                {!selectedOwner && selectedOwnerName && (
+                {!selectedOwner && selectedOwnerName && selectedOwnerId && (
                   <span className="text-xs text-gray-500 italic">(Loading details...)</span>
+                )}
+                {!selectedOwnerId && selectedOwnerName && (
+                  <span className="text-xs text-yellow-600 italic">(Not linked to lead - please select a lead)</span>
                 )}
               </div>
             </div>

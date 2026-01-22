@@ -18,7 +18,7 @@ export function formatDateForInput(dateString: string): string {
     
     return `${year}-${month}-${day}`
   } catch (error) {
-    console.warn('Error formatting date for input:', dateString, error)
+    // Return empty string for invalid dates
     return ''
   }
 }
@@ -42,7 +42,7 @@ export function formatDateForDisplay(dateString: string): string {
     // Return in MM/DD/YYYY format (or adjust based on locale preferences)
     return `${month}/${day}/${year}`
   } catch (error) {
-    console.warn('Error formatting date for display:', dateString, error)
+    // Return '-' for invalid dates
     return '-'
   }
 }
@@ -67,7 +67,7 @@ export function formatDateTimeForDisplay(dateString: string): string {
       hour12: true
     })
   } catch (error) {
-    console.warn('Error formatting datetime for display:', dateString, error)
+    // Return '-' for invalid dates
     return '-'
   }
 }

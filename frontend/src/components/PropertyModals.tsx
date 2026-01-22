@@ -277,29 +277,16 @@ export function PropertyModals({
     const loadTeamAgents = async () => {
       if (isTeamLeaderRole(user?.role) && user?.id && token) {
         try {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:271',message:'Loading team agents for team leader',data:{teamLeaderId:user.id,role:user.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           const { usersApi } = await import('@/utils/api')
           const response = await usersApi.getTeamLeaderAgents(user.id, token)
           if (response.success) {
             const agentIds = response.agents.map((agent: any) => agent.id)
             const allIds = [user.id, ...agentIds]
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:277',message:'Team agents loaded successfully',data:{teamLeaderId:user.id,agentIds,allIds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             setTeamAgentIds(allIds)
           } else {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:280',message:'Team agents API failed, using only team leader ID',data:{teamLeaderId:user.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-            // #endregion
             setTeamAgentIds([user.id])
           }
         } catch (error) {
-          console.error('Error loading team agents:', error)
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:285',message:'Error loading team agents',data:{teamLeaderId:user.id,error:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-          // #endregion
           setTeamAgentIds([user.id])
         }
       }
@@ -326,14 +313,7 @@ export function PropertyModals({
   
   // Check if user can view viewings for a specific property
   const canViewViewingsForProperty = (property: Property | null): boolean => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:302',message:'canViewViewingsForProperty called',data:{hasProperty:!!property,hasUser:!!user,propertyId:property?.id,propertyAgentId:property?.agent_id,userId:user?.id,userRole:user?.role,canManageProperties},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    const result = canViewViewingsForPropertyUtil(property, user, canManageProperties, teamAgentIds)
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:305',message:'canViewViewingsForProperty result',data:{result,propertyId:property?.id,propertyAgentId:property?.agent_id,userId:user?.id,userRole:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    return result
+    return canViewViewingsForPropertyUtil(property, user, canManageProperties, teamAgentIds)
   }
   
   // Check if user can create viewings
@@ -400,24 +380,6 @@ export function PropertyModals({
     referrals: [] as Referral[]
   })
 
-  // Debug useEffect to monitor main_image changes
-  useEffect(() => {
-    console.log('addFormData.main_image changed:', addFormData.main_image ? 'has image' : 'no image')
-  }, [addFormData.main_image])
-
-  // Debug: Log when main_image preview changes in add form
-  useEffect(() => {
-    if (showAddPropertyModal && (addFormData.main_image_preview || addFormData.main_image)) {
-      console.log('🖼️ Add form image state changed:', {
-        hasPreview: !!addFormData.main_image_preview,
-        previewLength: addFormData.main_image_preview?.length || 0,
-        hasMainImage: !!addFormData.main_image,
-        mainImageLength: addFormData.main_image?.length || 0,
-        previewStart: addFormData.main_image_preview?.substring(0, 30) || 'none',
-        mainImageStart: addFormData.main_image?.substring(0, 30) || 'none'
-      })
-    }
-  }, [addFormData.main_image_preview, addFormData.main_image, showAddPropertyModal])
 
   // Reset image modal state when modal is closed
   useEffect(() => {
@@ -431,36 +393,22 @@ export function PropertyModals({
   // Fetch employees for referral selection
   useEffect(() => {
     const fetchEmployees = async () => {
+      if (!token) return
+      
       try {
-        console.log('🔍 Fetching employees for referrals...')
-        const response = await fetch(`${API_BASE_URL}/users/all`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        console.log('📡 Response status:', response.status)
-
-        if (response.ok) {
-          const data = await response.json()
-          console.log('📊 Response data:', data)
-
-          if (data.success) {
-            console.log('✅ Employees fetched successfully:', data.users)
-            setEmployees(data.users)
-          } else {
-            console.error('❌ API returned success: false:', data.message)
-          }
-        } else {
-          console.error('❌ HTTP error:', response.status, response.statusText)
+        const { usersApi } = await import('@/utils/api')
+        const response = await usersApi.getAll(token)
+        
+        if (response.success) {
+          setEmployees(response.users)
         }
       } catch (error) {
-        console.error('❌ Error fetching employees:', error)
+        // Error handled silently - employees list will remain empty
       }
     }
 
     fetchEmployees()
-  }, [])
+  }, [token])
 
   // Comprehensive validation function for all fields
   const isFieldValid = (fieldName: string, value: any) => {
@@ -693,7 +641,6 @@ export function PropertyModals({
     const isValid = isFieldValid(fieldName, value)
     const errorMessage = isValid ? '' : getFieldErrorMessage(fieldName, value)
     
-    console.log(`🔍 validateField called: field="${fieldName}", value="${value}", isValid=${isValid}, errorMessage="${errorMessage}", isEditForm=${isEditForm}`)
     
     if (isEditForm) {
       setEditValidationErrors(prev => {
@@ -701,7 +648,6 @@ export function PropertyModals({
           ...prev,
           [fieldName]: errorMessage
         }
-        console.log('🔍 Updated editValidationErrors:', newErrors)
         return newErrors
       })
     } else {
@@ -710,7 +656,6 @@ export function PropertyModals({
           ...prev,
           [fieldName]: errorMessage
         }
-        console.log('🔍 Updated validationErrors:', newErrors)
         return newErrors
       })
     }
@@ -746,34 +691,25 @@ export function PropertyModals({
     const fetchPropertyDetails = async () => {
       if (editingProperty && showEditPropertyModal) {
         try {
-          console.log('🔧 Fetching complete property details for ID:', editingProperty.id)
-
           // Make API call to get complete property details
-          const response = await fetch(`${API_BASE_URL}/properties/${editingProperty.id}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'Content-Type': 'application/json'
-            }
-          })
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
+          if (!token) {
+            throw new Error('Authentication token not available')
           }
-
-          const result = await response.json()
+          const { propertiesApi } = await import('@/utils/api')
+          const result = await propertiesApi.getById(editingProperty.id, token)
 
           if (result.success && result.data) {
             const propertyData = result.data
-            console.log('✅ Property details fetched from backend:', propertyData)
-            console.log('🔍 Owner ID from API:', propertyData.owner_id, 'Type:', typeof propertyData.owner_id)
-            console.log('🔍 Owner Name from API:', propertyData.owner_name)
-            console.log('🔍 Details field value:', propertyData.details)
-            console.log('🔍 Interior details field value:', propertyData.interior_details)
-            console.log('🔍 Notes field value:', propertyData.notes)
-            console.log('🔍 Referrals field value:', propertyData.referrals)
-            console.log('🔍 Closed date field value:', propertyData.closed_date)
-            console.log('🔍 Status ID:', propertyData.status_id)
-            console.log('🔍 Status Code:', statuses.find(s => s.id === propertyData.status_id)?.code)
+            
+            // Debug: Log owner data to help diagnose the issue
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[PropertyModals] Property data received:', {
+                id: propertyData.id,
+                owner_id: propertyData.owner_id,
+                owner_name: propertyData.owner_name,
+                phone_number: propertyData.phone_number
+              })
+            }
             
             // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
             const formatClosedDate = (dateStr: string) => {
@@ -804,16 +740,13 @@ export function PropertyModals({
               building_name: propertyData.building_name || '',
               owner_id: (() => {
                 const rawOwnerId = propertyData.owner_id
-                console.log('🔍 Raw owner_id from API:', rawOwnerId, 'Type:', typeof rawOwnerId, 'Is null:', rawOwnerId === null, 'Is undefined:', rawOwnerId === undefined)
                 if (rawOwnerId !== null && rawOwnerId !== undefined) {
                   const parsed = parseInt(rawOwnerId.toString())
-                  console.log('🔍 Parsed owner_id:', parsed, 'Type:', typeof parsed)
-                  return parsed
+                  return isNaN(parsed) ? undefined : parsed
                 }
-                console.log('🔍 Owner_id is null or undefined, returning undefined')
                 return undefined
               })(),
-              owner_name: propertyData.owner_name || '',
+              owner_name: propertyData.owner_name && propertyData.owner_name !== 'Hidden' ? propertyData.owner_name : '',
               phone_number: propertyData.phone_number || '',
               surface: propertyData.surface,
               details: (() => {
@@ -859,18 +792,16 @@ export function PropertyModals({
               image_gallery: galleryModified ? editFormData.image_gallery : (propertyData.image_gallery || [])
             }
 
-            console.log('🎯 Setting editFormData:', formData)
-            console.log('🎯 Owner ID from API:', propertyData.owner_id)
-            console.log('🎯 Owner ID converted:', formData.owner_id)
-            console.log('🎯 Owner ID type:', typeof formData.owner_id)
-            console.log('🎯 Agent ID from API:', propertyData.agent_id)
-            console.log('🎯 Agent ID converted:', formData.agent_id)
-            console.log('🎯 Agent ID type:', typeof formData.agent_id)
-            console.log('🎯 Full property data:', propertyData)
             setEditFormData(formData)
+            
+            // Debug: Log what was set in editFormData
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[PropertyModals] editFormData set with owner:', {
+                owner_id: formData.owner_id,
+                owner_name: formData.owner_name
+              })
+            }
           } else {
-            console.error('❌ Failed to fetch property details:', result.message)
-            console.log('🎯 Using fallback data. Agent ID from editingProperty:', editingProperty.agent_id)
             // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
             const formatClosedDate = (dateStr: string) => {
               if (!dateStr) return '';
@@ -947,7 +878,6 @@ export function PropertyModals({
             })
           }
         } catch (error) {
-          console.error('❌ Error fetching property details:', error)
           // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
           const formatClosedDate = (dateStr: string) => {
             if (!dateStr) return '';
@@ -1036,33 +966,19 @@ export function PropertyModals({
     const fetchViewPropertyDetails = async () => {
       if (viewingProperty && showViewPropertyModal) {
         try {
-          console.log('👁️ Fetching complete property details for viewing ID:', viewingProperty.id)
-
           // Make API call to get complete property details
-          const response = await fetch(`${API_BASE_URL}/properties/${viewingProperty.id}`, {
-            headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              'Content-Type': 'application/json'
-            }
-          })
-
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
+          if (!token) {
+            throw new Error('Authentication token not available')
           }
-
-          const result = await response.json()
+          const { propertiesApi } = await import('@/utils/api')
+          const result = await propertiesApi.getById(viewingProperty.id, token)
 
           if (result.success && result.data) {
-            console.log('✅ View property details fetched from backend:', result.data)
-            console.log('🔍 View Owner ID from API:', result.data.owner_id, 'Type:', typeof result.data.owner_id)
-            console.log('🔍 View Owner Name from API:', result.data.owner_name)
             setViewPropertyData(result.data)
           } else {
-            console.error('❌ Failed to fetch view property details:', result.message)
             setViewPropertyData(viewingProperty) // Fallback to existing data
           }
         } catch (error) {
-          console.error('❌ Error fetching view property details:', error)
           setViewPropertyData(viewingProperty) // Fallback to existing data
         }
       } else {
@@ -1083,59 +999,36 @@ export function PropertyModals({
 
   // Handle main image upload for add property modal (NEW FILE-BASED APPROACH)
   const handleMainImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('🖼️ handleMainImageUpload called', event.target.files)
     const file = event.target.files?.[0]
     if (file) {
-      console.log('🖼️ File selected:', { name: file.name, size: file.size, type: file.type })
-
       try {
         // Validate the file
         const validation = validateImageFile(file)
         if (!validation.valid) {
-          console.error('🖼️ File validation failed:', validation.error)
           showError(validation.error || 'Invalid image file')
           return
         }
-        console.log('🖼️ File validation passed')
 
         // Create preview URL (data URL for immediate display) - same as edit form
-        console.log('🖼️ Creating preview URL...')
         const previewUrl = await createImagePreview(file)
-        console.log('🖼️ Image preview created successfully')
-        console.log('🖼️ Preview URL length:', previewUrl.length)
-        console.log('🖼️ Preview URL starts with:', previewUrl.substring(0, 50))
 
         // Store the file and preview (base64 conversion will happen on form submit)
         // This matches the edit form approach which works correctly
-        console.log('🖼️ Setting form data with preview...')
-        setAddFormData((prev) => {
-          const newData = {
-            ...prev,
-            main_image_file: file,
-            main_image_preview: previewUrl,
-            main_image: previewUrl // Use preview URL as base64 for now (will be compressed on submit)
-          }
-          console.log('🖼️ New form data set:', {
-            hasFile: !!newData.main_image_file,
-            hasPreview: !!newData.main_image_preview,
-            previewLength: newData.main_image_preview?.length || 0,
-            hasMainImage: !!newData.main_image,
-            mainImageLength: newData.main_image?.length || 0
-          })
-          return newData
-        })
+        setAddFormData((prev) => ({
+          ...prev,
+          main_image_file: file,
+          main_image_preview: previewUrl,
+          main_image: previewUrl // Use preview URL as base64 for now (will be compressed on submit)
+        }))
 
         // Clear the file input
         if (event.target) {
           event.target.value = ''
         }
-        console.log('🖼️ Image upload handler completed successfully')
       } catch (error) {
-        console.error('🖼️ Error processing image:', error)
         showError('Something went wrong processing the image. Please try again.')
       }
     } else {
-      console.warn('🖼️ No file selected')
     }
   }
 
@@ -1156,7 +1049,6 @@ export function PropertyModals({
         // Create preview URLs for all files
         const newPreviews: string[] = []
         for (const file of fileArray) {
-          console.log('Processing gallery image:', file.name, file.size, file.type)
           const previewUrl = await createImagePreview(file)
           newPreviews.push(previewUrl)
         }
@@ -1173,7 +1065,6 @@ export function PropertyModals({
           event.target.value = ''
         }
       } catch (error) {
-        console.error('Error processing gallery images:', error)
         showError('Something went wrong processing gallery images. Please try again.')
       }
     }
@@ -1261,7 +1152,6 @@ export function PropertyModals({
           event.target.value = ''
         }
       } catch (error) {
-        console.error('Error processing edit image:', error)
         showError('Something went wrong processing the image. Please try again.')
       }
     }
@@ -1273,7 +1163,6 @@ export function PropertyModals({
     if (files) {
       try {
         const fileArray = Array.from(files)
-        console.log('Processing edit gallery images:', fileArray.length, 'files')
 
         // Validate files
         const validation = validateImageFiles(fileArray)
@@ -1291,7 +1180,6 @@ export function PropertyModals({
           event.target.value = ''
         }
       } catch (error) {
-        console.error('Error processing edit gallery images:', error)
         showError('Something went wrong processing gallery images. Please try again.')
       }
     }
@@ -1303,7 +1191,6 @@ export function PropertyModals({
       await navigator.clipboard.writeText(text)
       showSuccess('URL copied to clipboard!')
     } catch (err) {
-      console.error('Failed to copy: ', err)
       showError('Failed to copy URL to clipboard')
     }
   }
@@ -1477,9 +1364,6 @@ export function PropertyModals({
                 // Validate all required fields and optional fields with format requirements
                 const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image', 'referrals']
                 
-                console.log('🔍 Form data before validation:', addFormData)
-                console.log('🔍 Validation errors before validation:', validationErrors)
-                console.log('🔍 Fields to validate:', fieldsToValidate)
 
                 // Force validation on all fields and collect errors
                 const newValidationErrors: Record<string, string> = {}
@@ -1490,12 +1374,10 @@ export function PropertyModals({
                   const isValid = isFieldValid(field, value)
                   const errorMessage = isValid ? '' : getFieldErrorMessage(field, value)
                   
-                  console.log(`🔍 Validating field "${field}": value="${value}", isValid=${isValid}, errorMessage="${errorMessage}"`)
                   
                   newValidationErrors[field] = errorMessage
                   
                   if (!isValid) {
-                    console.log(`🔍 Field "${field}" is invalid, marking as error`)
                     hasErrors = true
                   }
                 })
@@ -1503,34 +1385,16 @@ export function PropertyModals({
                 // Update validation errors state
                 setValidationErrors(newValidationErrors)
 
-                console.log('🔍 Validation complete. hasErrors:', hasErrors)
-                console.log('🔍 New validation errors:', newValidationErrors)
                 
                 // If there are validation errors, don't submit
                 if (hasErrors) {
-                  console.log('🔍 Form submission blocked due to validation errors')
                   showError('Please fill in all required fields before submitting')
                   return
                 }
                 
-                console.log('🔍 Form validation passed, proceeding with submission')
 
                 try {
                   // Debug: Log the form data being sent
-                  console.log('🔍 Form data being submitted:', addFormData)
-                  console.log('🔍 Required fields check:')
-                  console.log('  - status_id:', addFormData.status_id, typeof addFormData.status_id)
-                  console.log('  - property_type:', addFormData.property_type, typeof addFormData.property_type)
-                  console.log('  - location:', addFormData.location, typeof addFormData.location)
-                  console.log('  - category_id:', addFormData.category_id, typeof addFormData.category_id)
-                  console.log('  - owner_name:', addFormData.owner_name, typeof addFormData.owner_name)
-                  console.log('  - phone_number:', addFormData.phone_number, typeof addFormData.phone_number)
-                  console.log('  - surface:', addFormData.surface, typeof addFormData.surface)
-                  console.log('  - view_type:', addFormData.view_type, typeof addFormData.view_type)
-                  console.log('  - price:', addFormData.price, typeof addFormData.price)
-                  console.log('  - concierge:', addFormData.concierge, typeof addFormData.concierge)
-                  console.log('  - details:', addFormData.details, typeof addFormData.details)
-                  console.log('  - interior_details:', addFormData.interior_details, typeof addFormData.interior_details)
 
                   // Create property data object
                   const propertyData = {
@@ -1559,21 +1423,6 @@ export function PropertyModals({
                     // Gallery images will be uploaded separately after property creation
                   }
 
-                  // Debug: Log the exact data being sent
-                  console.log('🚀 Property data to be sent:', JSON.stringify(propertyData, null, 2))
-                  console.log('🔍 Data types:', {
-                    status_id: typeof propertyData.status_id,
-                    category_id: typeof propertyData.category_id,
-                    location: typeof propertyData.location,
-                    owner_name: typeof propertyData.owner_name,
-                    phone_number: typeof propertyData.phone_number,
-                    surface: typeof propertyData.surface,
-                    view_type: typeof propertyData.view_type,
-                    price: typeof propertyData.price,
-                    concierge: typeof propertyData.concierge,
-                    details: typeof propertyData.details,
-                    interior_details: typeof propertyData.interior_details
-                  })
 
                   // Validate that we have a main image file
                   if (!addFormData.main_image_file) {
@@ -1584,67 +1433,45 @@ export function PropertyModals({
                   // Main image will be uploaded separately after property creation (not included in propertyData)
                   // This matches the edit flow which works correctly
 
-                  console.log('🚀 Final property data being sent to backend:', propertyData)
-
                   // Step 1: Create the property without main_image (will be uploaded separately)
-                  console.log('Step 1: Creating property...')
                   const newProperty = await onSaveAdd(propertyData)
 
                   // Step 2: Upload main image (required - property creation successful)
                   if (newProperty && newProperty.id) {
-                    console.log('Step 2: Uploading main image to property ID:', newProperty.id)
                     try {
                       const mainImageResult = await uploadMainPropertyImage(newProperty.id, addFormData.main_image_file)
                       if (!mainImageResult.success) {
-                        console.error('Main image upload failed:', mainImageResult.message)
-                        
                         // If it's a CSRF error, suggest refreshing the page
                         if (mainImageResult.message?.includes('Security token expired')) {
                           showError('Security token expired. Please refresh the page and try uploading images again.')
                         } else {
                           showWarning('Property created but main image upload failed: ' + mainImageResult.message)
                         }
-                      } else {
-                        console.log('Main image uploaded successfully')
                       }
                     } catch (imageError) {
-                      console.error('Error uploading main image:', imageError)
                       showWarning('Property created successfully, but there was an error uploading the main image. You can add it later by editing the property.')
                     }
                   }
 
                   // Step 3: Upload gallery images if any (only if property creation was successful)
                   if (newProperty && newProperty.id && addFormData.gallery_files.length > 0) {
-                    console.log('Step 3: Uploading gallery images to property ID:', newProperty.id)
-
                     try {
-
                       // Upload gallery images
-                      console.log('Uploading', addFormData.gallery_files.length, 'gallery images...')
                       const galleryResult = await uploadGalleryImages(newProperty.id, addFormData.gallery_files)
                       if (!galleryResult.success) {
-                        console.error('Gallery upload failed:', galleryResult.message)
-                        
                         // If it's a CSRF error, suggest refreshing the page
                         if (galleryResult.message?.includes('Security token expired')) {
                           showError('Security token expired. Please refresh the page and try uploading images again.')
                         } else {
                           showWarning('Property created but gallery upload failed: ' + galleryResult.message)
                         }
-                      } else {
-                        console.log('Gallery images uploaded successfully')
                       }
-
-                      console.log('✅ Property creation and image upload completed successfully!')
                       
                       // Refresh the property list to show updated images
                       if (onRefreshProperties) {
-                        console.log('🔄 Refreshing property list after image upload...')
                         await onRefreshProperties()
                       }
-
                     } catch (imageError) {
-                      console.error('Error uploading gallery images:', imageError)
                       showWarning('Property created successfully, but there was an error uploading gallery images. You can add gallery images later by editing the property.')
                     }
                   }
@@ -1654,7 +1481,6 @@ export function PropertyModals({
                   showSuccess('Property created successfully!')
 
                 } catch (error) {
-                  console.error('Error in property creation process:', error)
                   showError('Something went wrong creating property: ' + (error instanceof Error ? error.message : 'Unknown error'))
                 }
               }}>
@@ -1669,30 +1495,9 @@ export function PropertyModals({
                       {(addFormData.main_image_preview || addFormData.main_image) ? (
                         <div className="relative w-full h-full">
                           <img
-                            src={(() => {
-                              const src = addFormData.main_image_preview || addFormData.main_image || ''
-                              console.log('🖼️ IMG TAG RENDERING - src length:', src.length, 'is valid data URL:', src.startsWith('data:'), 'starts with:', src.substring(0, 50))
-                              return src
-                            })()}
+                            src={addFormData.main_image_preview || addFormData.main_image || ''}
                             alt="Main property image"
                             className="w-full h-full object-cover"
-                            onLoad={(e) => {
-                              console.log('🖼️ ✅✅✅ Add form image LOADED successfully!')
-                              const img = e.target as HTMLImageElement
-                              console.log('🖼️ Image dimensions:', img.naturalWidth, 'x', img.naturalHeight)
-                            }}
-                            onError={(e) => {
-                              const img = e.target as HTMLImageElement
-                              console.error('🖼️ ❌❌❌ Add form image FAILED to load')
-                              console.error('🖼️ Failed src length:', img.src?.length || 0)
-                              console.error('🖼️ Failed src preview:', img.src?.substring(0, 150))
-                              console.error('🖼️ Form state:', {
-                                hasPreview: !!addFormData.main_image_preview,
-                                previewLength: addFormData.main_image_preview?.length || 0,
-                                hasMainImage: !!addFormData.main_image,
-                                mainImageLength: addFormData.main_image?.length || 0
-                              })
-                            }}
                           />
                           {/* Remove Image Button */}
                           <button
@@ -1722,12 +1527,8 @@ export function PropertyModals({
                         <button
                           type="button"
                           onClick={() => {
-                            console.log('Main image upload button clicked')
-                            console.log('mainImageInputRef.current:', mainImageInputRef.current)
                             if (mainImageInputRef.current) {
                               mainImageInputRef.current.click()
-                            } else {
-                              console.error('mainImageInputRef.current is null')
                             }
                           }}
                           className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white bg-opacity-90 p-2 rounded-full shadow-lg hover:bg-opacity-100"
@@ -1851,7 +1652,6 @@ export function PropertyModals({
                     <OwnerSelector
                       selectedOwnerId={addFormData.owner_id}
                       onOwnerChange={(owner) => {
-                        console.log('Owner selected:', owner)
                         if (owner) {
                           setAddFormData(prev => ({
                             ...prev,
@@ -2227,7 +2027,6 @@ export function PropertyModals({
                       }}
                       onBlur={(e) => {
                         const value = e.target.value.trim()
-                        console.log('🔍 Add Property URL onBlur triggered with value:', value)
                         validateField('property_url', value)
                       }}
                       required={true}
@@ -2402,8 +2201,6 @@ export function PropertyModals({
                 const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image', 'referrals']
                 let hasErrors = false
                 
-                console.log('🔍 Edit form data before validation:', editFormData)
-                console.log('🔍 Edit validation errors before validation:', editValidationErrors)
 
                 fieldsToValidate.forEach(field => {
                   const value = editFormData[field as keyof EditFormData]
@@ -2416,9 +2213,7 @@ export function PropertyModals({
                     // For edit form, check if there's at least one referral
                     isValid = !!(value && Array.isArray(value) && value.length > 0)
                   }
-                  console.log(`🔍 Validating edit field "${field}": value="${value}", isValid=${isValid}`)
                   if (!isValid) {
-                    console.log(`🔍 Edit field "${field}" is invalid, calling validateField`)
                     validateField(field, value, true)
                     hasErrors = true
                   }
@@ -2426,12 +2221,9 @@ export function PropertyModals({
 
                 // If there are validation errors, don't submit
                 if (hasErrors) {
-                  console.log('🔍 Edit form submission blocked due to validation errors')
                   showError('Please fix the validation errors before saving')
                   return
                 }
-                
-                console.log('🔍 Edit form validation passed, proceeding with submission')
 
                 // Save property first and wait for completion
                 await onSaveEdit()
@@ -2439,10 +2231,8 @@ export function PropertyModals({
                 // Upload main image if present
                 if (editFormData.main_image_file) {
                   try {
-                    console.log('Uploading main image...')
                     const mainImageResult = await uploadMainPropertyImage(editingProperty!.id, editFormData.main_image_file)
                     if (!mainImageResult.success) {
-                      console.error('Main image upload failed:', mainImageResult.message)
                       
                       // If it's a CSRF error, suggest refreshing the page
                       if (mainImageResult.message?.includes('Security token expired')) {
@@ -2451,10 +2241,8 @@ export function PropertyModals({
                         showWarning('Property updated but main image upload failed: ' + mainImageResult.message)
                       }
                     } else {
-                      console.log('Main image uploaded successfully')
                     }
                   } catch (error) {
-                    console.error('Error uploading main image:', error)
                     showError('Failed to upload main image: ' + (error instanceof Error ? error.message : 'Unknown error'))
                   }
                 }
@@ -2462,10 +2250,8 @@ export function PropertyModals({
                 // Then upload local gallery files if any exist
                 if (localEditGallery.length > 0) {
                   try {
-                    console.log('Uploading', localEditGallery.length, 'gallery images...')
                     const galleryResult = await uploadGalleryImages(editingProperty!.id, localEditGallery)
                     if (!galleryResult.success) {
-                      console.error('Gallery upload failed:', galleryResult.message)
                       
                       // If it's a CSRF error, suggest refreshing the page
                       if (galleryResult.message?.includes('Security token expired')) {
@@ -2474,11 +2260,9 @@ export function PropertyModals({
                         showWarning('Property updated but gallery upload failed: ' + galleryResult.message)
                       }
                     } else {
-                      console.log('Gallery images uploaded successfully')
                     }
                     setLocalEditGallery([]) // Clear local gallery after upload
                   } catch (error) {
-                    console.error('Error uploading gallery images:', error)
                     showError('Failed to upload gallery images: ' + (error instanceof Error ? error.message : 'Unknown error'))
                   }
                 }
@@ -2535,10 +2319,8 @@ export function PropertyModals({
                             fileInput.accept = 'image/*'
                             fileInput.onchange = async (e) => {
                               const file = (e.target as HTMLInputElement).files?.[0]
-                              console.log('🖼️ Edit Modal - File selected:', file?.name, file?.size)
                               
                               if (!file) {
-                                console.error('❌ No file selected')
                                 return
                               }
 
@@ -2562,7 +2344,6 @@ export function PropertyModals({
 
                                 showSuccess('Image selected! It will be uploaded when you save the property.')
                               } catch (error) {
-                                console.error('❌ Error processing image:', error)
                                 showError('Failed to process image: ' + (error instanceof Error ? error.message : 'Unknown error'))
                               }
                             }
@@ -2638,7 +2419,6 @@ export function PropertyModals({
                     const selectedStatus = statuses.find(s => s.id === editFormData.status_id);
                     const shouldShowClosedFields = selectedStatus && selectedStatus.code === 'closed';
                     
-                    console.log('🔍 Render check - Status ID:', editFormData.status_id, 'Selected Status:', selectedStatus?.code, 'Should Show:', shouldShowClosedFields, 'Closed Date Value:', editFormData.closed_date);
                     
                     if (shouldShowClosedFields) {
                       return (
@@ -2656,7 +2436,6 @@ export function PropertyModals({
                               value={editFormData.closed_date || ''}
                               onChange={(e) => {
                                 const newValue = e.target.value;
-                                console.log('📅 Closed date input changed:', newValue);
                                 setEditFormData((prev: EditFormData) => ({ ...prev, closed_date: newValue }));
                               }}
                               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
@@ -2689,7 +2468,6 @@ export function PropertyModals({
                             <OwnerSelector
                               selectedOwnerId={editFormData.buyer_id}
                               onOwnerChange={(owner) => {
-                                console.log('Buyer selected:', owner)
                                 if (owner) {
                                   setEditFormData((prev: EditFormData) => ({
                                     ...prev,
@@ -2822,7 +2600,6 @@ export function PropertyModals({
                       selectedOwnerId={editFormData.owner_id}
                       selectedOwnerName={editFormData.owner_name}
                       onOwnerChange={(owner) => {
-                        console.log('Owner selected in edit:', owner)
                         if (owner) {
                           setEditFormData((prev: EditFormData) => ({
                             ...prev,
@@ -2912,7 +2689,6 @@ export function PropertyModals({
                       <AgentSelector
                         selectedAgentId={editFormData.agent_id}
                         onAgentChange={(agent) => {
-                          console.log('🔍 Agent selected in edit form:', agent)
                           const agentId = agent?.id
                           setEditFormData((prev: EditFormData) => ({ ...prev, agent_id: agentId }))
                         }}
@@ -3255,7 +3031,6 @@ export function PropertyModals({
                     }}
                     onBlur={(e) => {
                       const value = e.target.value.trim()
-                      console.log('🔍 Property URL onBlur triggered with value:', value)
                       validateField('property_url', value, true)
                     }}
                     required={true}
@@ -3389,8 +3164,6 @@ export function PropertyModals({
               </button>
               <button
                 onClick={async () => {
-                  console.log('🔍 Save Changes button clicked - validating form...')
-                  console.log('🔍 Current property_url value:', editFormData.property_url)
                   
                   // Validate required fields and optional fields with format requirements for edit form
                   const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
@@ -3399,7 +3172,6 @@ export function PropertyModals({
                   fieldsToValidate.forEach(field => {
                     const value = editFormData[field as keyof EditFormData]
                     const isValid = isFieldValid(field, value)
-                    console.log(`🔍 Field ${field}: value="${value}", isValid=${isValid}`)
                     
                     if (!isValid) {
                       validateField(field, value, true)
@@ -3407,16 +3179,12 @@ export function PropertyModals({
                     }
                   })
 
-                  console.log('🔍 Validation complete. HasErrors:', hasErrors)
-
                   // If there are validation errors, don't save
                   if (hasErrors) {
-                    console.log('🚫 Validation failed - showing error message')
                     showError('Please fix the validation errors before saving')
                     return
                   }
 
-                  console.log('✅ Validation passed - calling onSaveEdit()')
                   
                   // Save property first and wait for completion
                   await onSaveEdit()
@@ -3424,10 +3192,8 @@ export function PropertyModals({
                   // Upload main image if present
                   if (editFormData.main_image_file) {
                     try {
-                      console.log('Uploading main image...')
                       const mainImageResult = await uploadMainPropertyImage(editingProperty!.id, editFormData.main_image_file)
                       if (!mainImageResult.success) {
-                        console.error('Main image upload failed:', mainImageResult.message)
                         
                         // If it's a CSRF error, suggest refreshing the page
                         if (mainImageResult.message?.includes('Security token expired')) {
@@ -3436,10 +3202,8 @@ export function PropertyModals({
                           showWarning('Property updated but main image upload failed: ' + mainImageResult.message)
                         }
                       } else {
-                        console.log('Main image uploaded successfully')
                       }
                     } catch (error) {
-                      console.error('Error uploading main image:', error)
                       showError('Failed to upload main image: ' + (error instanceof Error ? error.message : 'Unknown error'))
                     }
                   }
@@ -3447,10 +3211,8 @@ export function PropertyModals({
                   // Then upload local gallery files if any exist
                   if (localEditGallery.length > 0) {
                     try {
-                      console.log('Uploading', localEditGallery.length, 'gallery images...')
                       const galleryResult = await uploadGalleryImages(editingProperty!.id, localEditGallery)
                       if (!galleryResult.success) {
-                        console.error('Gallery upload failed:', galleryResult.message)
                         
                         // If it's a CSRF error, suggest refreshing the page
                         if (galleryResult.message?.includes('Security token expired')) {
@@ -3459,11 +3221,9 @@ export function PropertyModals({
                           showWarning('Property updated but gallery upload failed: ' + galleryResult.message)
                         }
                       } else {
-                        console.log('Gallery images uploaded successfully')
                       }
                       setLocalEditGallery([]) // Clear local gallery after upload
                     } catch (error) {
-                      console.error('Error uploading gallery images:', error)
                       showError('Failed to upload gallery images: ' + (error instanceof Error ? error.message : 'Unknown error'))
                     }
                   }
@@ -3694,22 +3454,10 @@ export function PropertyModals({
                         const notHidden = viewPropertyData?.owner_name !== 'Hidden'
                         const isClickable = hasOwner && hasRole && notHidden
                         
-                        console.log('🔍 View Modal Owner Check:', {
-                          hasOwner,
-                          owner_id: viewPropertyData?.owner_id,
-                          owner_id_type: typeof viewPropertyData?.owner_id,
-                          hasRole,
-                          userRole: user?.role,
-                          notHidden,
-                          owner_name: viewPropertyData?.owner_name,
-                          isClickable
-                        })
-                        
                         return isClickable ? (
                           <div 
                             onClick={() => {
                               const url = `/dashboard/leads?view=${viewPropertyData.owner_id}`
-                              console.log('🔗 Opening lead URL:', url)
                               window.open(url, '_blank')
                             }}
                             className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-900"
@@ -3759,7 +3507,6 @@ export function PropertyModals({
                           <div 
                             onClick={() => {
                               const url = `/dashboard/hr?view=${viewPropertyData.agent_id}`
-                              console.log('🔗 Opening HR URL:', url)
                               window.open(url, '_blank')
                             }}
                             className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-900"
@@ -3956,9 +3703,6 @@ export function PropertyModals({
                     {/* Viewings Section - Only show if user has permission to view viewings for this property */}
                     {(() => {
                       const canView = canViewViewingsForProperty(viewPropertyData)
-                      // #region agent log
-                      fetch('http://127.0.0.1:7242/ingest/a101b0eb-224a-4f17-9c2b-5d6529445386',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'PropertyModals.tsx:3752',message:'Rendering Property Viewings section check',data:{canView,propertyId:viewPropertyData?.id,propertyAgentId:viewPropertyData?.agent_id,userId:user?.id,userRole:user?.role},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-                      // #endregion
                       return canView ? (
                         <div id="viewings">
                           <label className="block text-sm font-medium text-gray-700 mb-3">Property Viewings</label>
@@ -3997,7 +3741,6 @@ export function PropertyModals({
                             onClick={() => {
                               const fullImageUrl = getFullImageUrl(image)
                               const allImages = viewPropertyData.image_gallery?.map(img => getFullImageUrl(img)) || []
-                              console.log('Opening image modal. Index:', index, 'Image URL:', fullImageUrl, 'All images:', allImages.length)
                               setSelectedImageState(fullImageUrl)
                               setAllImagesState(allImages)
                               setCurrentImageIndexState(index)
@@ -4056,10 +3799,8 @@ export function PropertyModals({
                 {/* Previous Button */}
                 <button
                   onClick={() => {
-                    console.log('Previous button clicked. Current index:', currentImageIndexState, 'Total images:', allImagesState.length)
                     if (currentImageIndexState > 0) {
                       const newIndex = currentImageIndexState - 1
-                      console.log('Moving to index:', newIndex, 'Image URL:', allImagesState[newIndex])
                       setCurrentImageIndexState(newIndex)
                       setSelectedImageState(allImagesState[newIndex])
                     }
@@ -4075,10 +3816,8 @@ export function PropertyModals({
                 {/* Next Button */}
                 <button
                   onClick={() => {
-                    console.log('Next button clicked. Current index:', currentImageIndexState, 'Total images:', allImagesState.length)
                     if (currentImageIndexState < allImagesState.length - 1) {
                       const newIndex = currentImageIndexState + 1
-                      console.log('Moving to index:', newIndex, 'Image URL:', allImagesState[newIndex])
                       setCurrentImageIndexState(newIndex)
                       setSelectedImageState(allImagesState[newIndex])
                     }
@@ -4229,7 +3968,6 @@ export function PropertyModals({
                 throw new Error(response.message || 'Failed to create viewing')
               }
             } catch (error) {
-              console.error('Error creating viewing:', error)
               showError(error instanceof Error ? error.message : 'Failed to create viewing')
               throw error
             }

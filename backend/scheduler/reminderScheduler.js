@@ -1,6 +1,7 @@
 // scheduler/reminderScheduler.js
 const cron = require('node-cron');
 const ReminderService = require('../services/reminderService');
+const logger = require('../utils/logger');
 
 class ReminderScheduler {
   constructor() {
@@ -11,24 +12,46 @@ class ReminderScheduler {
   // Start the reminder scheduler
   start() {
     if (this.isRunning) {
-      console.log('⚠️ Reminder scheduler is already running');
+      logger.warn('Reminder scheduler is already running');
       return;
     }
 
-    console.log('🚀 Starting reminder scheduler...');
+    logger.info('Starting reminder scheduler...');
 
-    // Run every 1 minute to check for reminders (for testing)
-    const reminderJob = cron.schedule('* * * * *', async () => {
-      console.log('⏰ Running reminder check...');
-      await ReminderService.processReminders();
+    // Get cron schedule from environment variable (default: every 5 minutes in production, every 1 minute in development)
+    const reminderCronSchedule = process.env.REMINDER_CRON_SCHEDULE || 
+      (process.env.NODE_ENV === 'production' ? '*/5 * * * *' : '* * * * *');
+    
+    // Run reminder check job
+    const reminderJob = cron.schedule(reminderCronSchedule, async () => {
+      logger.debug('Running reminder check...');
+      try {
+        await ReminderService.processReminders();
+      } catch (error) {
+        logger.error('Error in reminder job execution', error);
+        // Audit log: Job execution failure
+        logger.security('Reminder job execution failed', {
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
     }, {
       scheduled: false
     });
 
     // Run cleanup every day at 2 AM
     const cleanupJob = cron.schedule('0 2 * * *', async () => {
-      console.log('🧹 Running reminder cleanup...');
-      await ReminderService.cleanupOldReminders();
+      logger.debug('Running reminder cleanup...');
+      try {
+        await ReminderService.cleanupOldReminders();
+      } catch (error) {
+        logger.error('Error in cleanup job execution', error);
+        // Audit log: Cleanup job failure
+        logger.security('Cleanup job execution failed', {
+          error: error.message,
+          timestamp: new Date().toISOString()
+        });
+      }
     }, {
       scheduled: false
     });
@@ -40,19 +63,26 @@ class ReminderScheduler {
     this.jobs.push(reminderJob, cleanupJob);
     this.isRunning = true;
 
-    console.log('✅ Reminder scheduler started successfully');
-    console.log('📅 Reminder checks: Every 1 minute (testing mode)');
-    console.log('🧹 Cleanup: Daily at 2:00 AM');
+    // Audit log: Scheduler started
+    logger.security('Reminder scheduler started', {
+      reminderSchedule: reminderCronSchedule,
+      cleanupSchedule: '0 2 * * *',
+      timestamp: new Date().toISOString()
+    });
+
+    logger.info('Reminder scheduler started successfully');
+    logger.info(`Reminder checks: ${reminderCronSchedule}`);
+    logger.info('Cleanup: Daily at 2:00 AM');
   }
 
   // Stop the reminder scheduler
   stop() {
     if (!this.isRunning) {
-      console.log('⚠️ Reminder scheduler is not running');
+      logger.warn('Reminder scheduler is not running');
       return;
     }
 
-    console.log('🛑 Stopping reminder scheduler...');
+    logger.info('Stopping reminder scheduler...');
 
     this.jobs.forEach(job => {
       job.stop();
@@ -61,32 +91,40 @@ class ReminderScheduler {
     this.jobs = [];
     this.isRunning = false;
 
-    console.log('✅ Reminder scheduler stopped');
+    // Audit log: Scheduler stopped
+    logger.security('Reminder scheduler stopped', {
+      timestamp: new Date().toISOString()
+    });
+
+    logger.info('Reminder scheduler stopped');
   }
 
   // Get scheduler status
   getStatus() {
+    const reminderSchedule = process.env.REMINDER_CRON_SCHEDULE || 
+      (process.env.NODE_ENV === 'production' ? '*/5 * * * *' : '* * * * *');
     return {
       isRunning: this.isRunning,
       jobsCount: this.jobs.length,
-      nextRun: this.jobs.length > 0 ? 'Every 1 minute' : 'Not scheduled'
+      reminderSchedule,
+      cleanupSchedule: '0 2 * * *'
     };
   }
 
   // Run reminders immediately (for testing)
   async runNow() {
-    console.log('🔄 Running reminders immediately...');
+    logger.debug('Running reminders immediately...');
     await ReminderService.processReminders();
   }
 
   // Test email configuration
   async testEmail() {
-    console.log('🧪 Testing email configuration...');
+    logger.debug('Testing email configuration...');
     const isValid = await ReminderService.testEmailConfiguration();
     if (isValid) {
-      console.log('✅ Email configuration is working');
+      logger.info('Email configuration is working');
     } else {
-      console.log('❌ Email configuration has issues');
+      logger.warn('Email configuration has issues');
     }
     return isValid;
   }

@@ -35,7 +35,7 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
         setAgents(response.agents)
       }
     } catch (error) {
-      console.error('Error loading team agents:', error)
+      // Silently fail - non-critical
     } finally {
       setLoadingAgents(false)
     }
@@ -211,7 +211,6 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                         onClick={(e) => {
                           e.stopPropagation()
                           const url = `/dashboard/hr?view=${user.assigned_to}`
-                          console.log('🔗 Opening HR URL for team leader:', url)
                           window.open(url, '_blank')
                         }}
                         className="px-3 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"

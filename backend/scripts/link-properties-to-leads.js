@@ -45,21 +45,44 @@ async function linkPropertiesToLeads() {
       console.log(`   Phone: "${property.phone_number}"`);
       console.log(`   Agent ID: ${property.agent_id}`);
       
-      // Try to find matching lead by NAME ONLY (case-insensitive, trimmed)
-      // If multiple leads match, pick one at random (with slight preference for same agent)
-      const leadResult = await client.query(`
-        SELECT 
-          id,
-          customer_name,
-          phone_number,
-          agent_id
-        FROM leads
-        WHERE LOWER(TRIM(customer_name)) = LOWER(TRIM($1))
-        ORDER BY 
-          CASE WHEN agent_id = $2 THEN 0 ELSE 1 END,  -- Prefer same agent
-          RANDOM()
-        LIMIT 1
-      `, [property.owner_name, property.agent_id]);
+      // Try to find matching lead by NAME + PHONE (more accurate)
+      // If phone matches, use that; otherwise fall back to name-only
+      let leadResult;
+      
+      if (property.phone_number) {
+        // First try: exact match by name AND phone
+        leadResult = await client.query(`
+          SELECT 
+            id,
+            customer_name,
+            phone_number,
+            agent_id
+          FROM leads
+          WHERE LOWER(TRIM(customer_name)) = LOWER(TRIM($1))
+            AND LOWER(TRIM(phone_number)) = LOWER(TRIM($2))
+          ORDER BY 
+            CASE WHEN agent_id = $3 THEN 0 ELSE 1 END,  -- Prefer same agent
+            id  -- Deterministic ordering
+          LIMIT 1
+        `, [property.owner_name, property.phone_number, property.agent_id]);
+      }
+      
+      // Second try: name-only match (if phone didn't match or wasn't provided)
+      if (!leadResult || leadResult.rows.length === 0) {
+        leadResult = await client.query(`
+          SELECT 
+            id,
+            customer_name,
+            phone_number,
+            agent_id
+          FROM leads
+          WHERE LOWER(TRIM(customer_name)) = LOWER(TRIM($1))
+          ORDER BY 
+            CASE WHEN agent_id = $2 THEN 0 ELSE 1 END,  -- Prefer same agent
+            id  -- Deterministic ordering (instead of RANDOM for consistency)
+          LIMIT 1
+        `, [property.owner_name, property.agent_id]);
+      }
       
       if (leadResult.rows.length > 0) {
         const lead = leadResult.rows[0];

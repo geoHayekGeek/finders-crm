@@ -3,6 +3,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('./logger');
 
 /**
  * Convert Base64 string to file
@@ -13,28 +14,59 @@ const path = require('path');
  */
 async function base64ToFile(base64String, filename, directory) {
   try {
+    // Validate inputs
+    if (!base64String || typeof base64String !== 'string') {
+      throw new Error('Invalid base64String: must be a non-empty string');
+    }
+    if (!filename || typeof filename !== 'string') {
+      throw new Error('Invalid filename: must be a non-empty string');
+    }
+    if (!directory || typeof directory !== 'string') {
+      throw new Error('Invalid directory: must be a non-empty string');
+    }
+
     // Ensure directory exists
-    if (!fs.existsSync(directory)) {
-      fs.mkdirSync(directory, { recursive: true });
+    try {
+      if (!fs.existsSync(directory)) {
+        fs.mkdirSync(directory, { recursive: true });
+      }
+    } catch (dirError) {
+      logger.error('Error creating directory', { directory, error: dirError });
+      throw new Error(`Failed to create directory: ${directory}`);
     }
 
     // Remove data URL prefix if present (e.g., "data:image/jpeg;base64,")
     const base64Data = base64String.replace(/^data:image\/[a-z]+;base64,/, '');
     
+    // Validate base64 data
+    if (!base64Data || base64Data.length === 0) {
+      throw new Error('Invalid base64 data: empty after removing data URL prefix');
+    }
+    
     // Convert to buffer
-    const buffer = Buffer.from(base64Data, 'base64');
+    let buffer;
+    try {
+      buffer = Buffer.from(base64Data, 'base64');
+    } catch (bufferError) {
+      logger.error('Error converting base64 to buffer', { error: bufferError });
+      throw new Error('Invalid base64 string: failed to decode');
+    }
     
     // Generate full file path
     const filePath = path.join(directory, filename);
     
     // Write file
-    fs.writeFileSync(filePath, buffer);
-    
-    console.log(`✅ Converted Base64 to file: ${filePath}`);
-    return filePath;
+    try {
+      fs.writeFileSync(filePath, buffer);
+      logger.debug('Converted Base64 to file', { filePath, filename });
+      return filePath;
+    } catch (writeError) {
+      logger.error('Error writing file', { filePath, error: writeError });
+      throw new Error(`Failed to write file: ${filePath}`);
+    }
     
   } catch (error) {
-    console.error('❌ Error converting Base64 to file:', error);
+    logger.error('Error converting Base64 to file', error);
     throw error;
   }
 }
@@ -99,7 +131,7 @@ async function convertPropertyImages(property, outputDirectory) {
       
       // Update property with file URL
       updatedProperty.main_image = `/assets/properties/${filename}`;
-      console.log(`✅ Converted main image for property ${property.id}`);
+      logger.debug('Converted main image for property', { propertyId: property.id, filename });
     }
     
     // Convert gallery images if they're Base64
@@ -117,7 +149,7 @@ async function convertPropertyImages(property, outputDirectory) {
           
           // Add file URL to gallery
           convertedGallery.push(`/assets/properties/${filename}`);
-          console.log(`✅ Converted gallery image ${i + 1} for property ${property.id}`);
+          logger.debug('Converted gallery image for property', { propertyId: property.id, imageIndex: i + 1, filename });
         } else {
           // Keep existing URL/path
           convertedGallery.push(image);
@@ -130,7 +162,7 @@ async function convertPropertyImages(property, outputDirectory) {
     return updatedProperty;
     
   } catch (error) {
-    console.error(`❌ Error converting images for property ${property.id}:`, error);
+    logger.error('Error converting images for property', { propertyId: property?.id, error });
     throw error;
   }
 }

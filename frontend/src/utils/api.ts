@@ -9,8 +9,10 @@ import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
 
-// Debug: Log the actual values being used
-if (typeof window !== 'undefined') {
+// Debug: Log the actual values being used (development only)
+const isDevelopment = typeof window !== 'undefined' && process.env.NODE_ENV === 'development'
+
+if (isDevelopment && typeof window !== 'undefined') {
   console.log('🔍 Environment Debug:', {
     'process.env.NEXT_PUBLIC_BACKEND_URL': process.env.NEXT_PUBLIC_BACKEND_URL,
     'BACKEND_URL (final)': BACKEND_URL,
@@ -20,14 +22,13 @@ if (typeof window !== 'undefined') {
   })
 }
 
-// Warn if using default localhost URL in production (check if we're using the default and not on localhost)
-if (typeof window !== 'undefined' && BACKEND_URL === 'http://localhost:10000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+// Warn if using default localhost URL in production (development only)
+if (isDevelopment && typeof window !== 'undefined' && BACKEND_URL === 'http://localhost:10000' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
   console.error('❌ NEXT_PUBLIC_BACKEND_URL is not set or was not set at build time!')
   console.error('❌ Using default localhost URL. This will not work in production!')
   console.error('❌ Please set NEXT_PUBLIC_BACKEND_URL in Railway and REDEPLOY the frontend service')
   console.error('❌ Current API URL being used:', API_BASE_URL)
   console.error('❌ Production hostname:', window.location.hostname)
-  console.error('❌ Expected NEXT_PUBLIC_BACKEND_URL value:', 'https://finders-crm-backend.up.railway.app')
 }
 
 export class ApiError extends Error {
@@ -43,7 +44,10 @@ type AuthToken = string | null | undefined
 // CSRF token cache
 let csrfToken: string | null = null
 let csrfTokenTimestamp: number = 0
-const CSRF_TOKEN_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
+// CSRF token cache duration - configurable via environment variable (default: 5 minutes)
+const CSRF_TOKEN_CACHE_DURATION = typeof window !== 'undefined' 
+  ? parseInt(process.env.NEXT_PUBLIC_CSRF_CACHE_DURATION || '300000', 10)
+  : 5 * 60 * 1000 // 5 minutes default
 
 // Handle automatic logout when token expires
 function handleTokenExpiration() {
@@ -228,16 +232,18 @@ async function apiRequest<T>(
         // Many 403s are legitimate authorization errors (agents hitting admin-only endpoints).
         // We'll only logout when we have a definitive auth signal (401 or explicit token-invalid message).
         // If we can't parse the response, use the default message
-        console.warn('Could not parse error response:', parseError)
-        console.warn('Response status:', response.status)
-        console.warn('Response statusText:', response.statusText)
-        
-        // Try to get response as text to see what we're actually getting
-        try {
-          const responseText = await response.text()
-          console.warn('Raw response text:', responseText)
-        } catch (textError) {
-          console.warn('Could not get response as text:', textError)
+        if (isDevelopment) {
+          console.warn('Could not parse error response:', parseError)
+          console.warn('Response status:', response.status)
+          console.warn('Response statusText:', response.statusText)
+          
+          // Try to get response as text to see what we're actually getting
+          try {
+            const responseText = await response.text()
+            console.warn('Raw response text:', responseText)
+          } catch (textError) {
+            console.warn('Could not get response as text:', textError)
+          }
         }
       }
       throw new ApiError(response.status, errorMessage, validationErrors)
@@ -255,7 +261,7 @@ async function apiRequest<T>(
 
 // Authentication API
 // Export CSRF utilities
-export { clearCSRFToken }
+export { clearCSRFToken, getCSRFToken }
 
 export const apiClient = {
   // Login user
@@ -455,7 +461,7 @@ export const propertiesApi = {
   },
   
   // Get property by ID
-  getById: (id: number) => apiRequest<{ success: boolean; data: any }>(`/properties/${id}`),
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any }>(`/properties/${id}`, {}, token),
   
   // Create property
   create: (data: any) => apiRequest<{ success: boolean; data: any; message: string }>('/properties', {
@@ -466,7 +472,9 @@ export const propertiesApi = {
   // Update property
   update: async (id: number, data: any) => {
     // First get a fresh CSRF token for this specific property
-    console.log(`🔐 Getting CSRF token for property ${id}...`)
+    if (isDevelopment) {
+      console.log(`🔐 Getting CSRF token for property ${id}...`)
+    }
     try {
       const csrfResponse = await fetch(`${API_BASE_URL}/properties/${id}`, {
         method: 'GET',
@@ -480,11 +488,15 @@ export const propertiesApi = {
         if (newToken) {
           csrfToken = newToken
           csrfTokenTimestamp = Date.now()
-          console.log('🔐 CSRF token updated for property update')
+          if (isDevelopment) {
+            console.log('🔐 CSRF token updated for property update')
+          }
         }
       }
     } catch (error) {
-      console.warn('🔐 Failed to get fresh CSRF token, using cached one:', error)
+      if (isDevelopment) {
+        console.warn('🔐 Failed to get fresh CSRF token, using cached one:', error)
+      }
     }
     
     // Now make the update request
@@ -501,6 +513,33 @@ export const propertiesApi = {
   
   // Get property statistics
   getStats: () => apiRequest<{ success: boolean; data: any }>('/properties/stats/overview'),
+  
+  // Refer property to agent
+  referToAgent: (propertyId: number, referredToAgentId: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/properties/${propertyId}/refer`, {
+      method: 'POST',
+      body: JSON.stringify({ referred_to_agent_id: referredToAgentId }),
+    }, token),
+  
+  // Get pending property referrals
+  getPendingReferrals: (token?: AuthToken) => 
+    apiRequest<{ success: boolean; data: any[] }>('/properties/referrals/pending', {}, token),
+  
+  // Get pending property referrals count
+  getPendingReferralsCount: (token?: AuthToken) => 
+    apiRequest<{ success: boolean; count: number }>('/properties/referrals/pending/count', {}, token),
+  
+  // Confirm property referral
+  confirmReferral: (referralId: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/properties/referrals/${referralId}/confirm`, {
+      method: 'PUT',
+    }, token),
+  
+  // Reject property referral
+  rejectReferral: (referralId: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/properties/referrals/${referralId}/reject`, {
+      method: 'PUT',
+    }, token),
 }
 
 // Leads API
@@ -578,6 +617,33 @@ export const leadsApi = {
   
   // Get referral statistics for an agent
   getAgentReferralStats: (agentId: number, token?: AuthToken) => apiRequest<AgentReferralStatsResponse>(`/leads/agent/${agentId}/referral-stats`, {}, token),
+  
+  // Refer lead to agent
+  referToAgent: (leadId: number, referredToAgentId: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/leads/${leadId}/refer`, {
+      method: 'POST',
+      body: JSON.stringify({ referred_to_agent_id: referredToAgentId }),
+    }, token),
+  
+  // Get pending lead referrals
+  getPendingReferrals: (token?: AuthToken) => 
+    apiRequest<{ success: boolean; data: any[] }>('/leads/referrals/pending', {}, token),
+  
+  // Get pending lead referrals count
+  getPendingReferralsCount: (token?: AuthToken) => 
+    apiRequest<{ success: boolean; count: number }>('/leads/referrals/pending/count', {}, token),
+  
+  // Confirm lead referral
+  confirmReferral: (referralId: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/leads/referrals/${referralId}/confirm`, {
+      method: 'PUT',
+    }, token),
+  
+  // Reject lead referral
+  rejectReferral: (referralId: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/leads/referrals/${referralId}/reject`, {
+      method: 'PUT',
+    }, token),
   
   // Get viewings for a lead
   getViewings: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/viewings`, {}, token),
@@ -1855,4 +1921,72 @@ export const userDocumentsApi = {
   getDownloadUrl(documentId: number): string {
     return `${API_BASE_URL}/users/documents/${documentId}/download`
   },
+}
+
+// Settings API
+export const settingsApi = {
+  getAll: (token?: AuthToken) => apiRequest<{ success: boolean; settings: Array<{ setting_key: string; setting_value: string }> }>('/settings', {}, token),
+  getByCategory: (category: string, token?: AuthToken) => apiRequest<{ success: boolean; settings: Array<{ setting_key: string; setting_value: string }> }>(`/settings/category/${category}`, {}, token),
+  update: (key: string, value: any, token?: AuthToken) => apiRequest<{ success: boolean; message: string; setting: any }>(`/settings/${key}`, {
+    method: 'PUT',
+    body: JSON.stringify({ value }),
+  }, token),
+  updateMultiple: (settings: Record<string, any>, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>('/settings/bulk/update', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
+  }, token),
+}
+
+// Calendar API
+export const calendarApi = {
+  // Get all events
+  getAll: (token?: AuthToken) => apiRequest<{ success: boolean; events: any[] }>('/calendar', {}, token),
+  
+  // Get events by date range
+  getByDateRange: (dateFrom: string, dateTo: string, token?: AuthToken) => 
+    apiRequest<{ success: boolean; events: any[] }>(`/calendar/range?dateFrom=${dateFrom}&dateTo=${dateTo}`, {}, token),
+  
+  // Get events by month
+  getByMonth: (month: number, year: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; events: any[] }>(`/calendar/month?month=${month}&year=${year}`, {}, token),
+  
+  // Get events by week
+  getByWeek: (week: number, year: number, token?: AuthToken) => 
+    apiRequest<{ success: boolean; events: any[] }>(`/calendar/week?week=${week}&year=${year}`, {}, token),
+  
+  // Get events by day
+  getByDay: (date: string, token?: AuthToken) => 
+    apiRequest<{ success: boolean; events: any[] }>(`/calendar/day?date=${date}`, {}, token),
+  
+  // Search events
+  search: (query: string, token?: AuthToken) => 
+    apiRequest<{ success: boolean; events: any[] }>(`/calendar/search?q=${encodeURIComponent(query)}`, {}, token),
+  
+  // Get properties for dropdown
+  getProperties: (token?: AuthToken) => 
+    apiRequest<{ success: boolean; properties: any[] }>('/calendar/properties', {}, token),
+  
+  // Get leads for dropdown
+  getLeads: (token?: AuthToken) => 
+    apiRequest<{ success: boolean; leads: any[] }>('/calendar/leads', {}, token),
+  
+  // Create event
+  create: (eventData: any, token?: AuthToken) => 
+    apiRequest<{ success: boolean; data: any; message: string }>('/calendar', {
+      method: 'POST',
+      body: JSON.stringify(eventData),
+    }, token),
+  
+  // Update event
+  update: (eventId: string, eventData: any, token?: AuthToken) => 
+    apiRequest<{ success: boolean; data: any; message: string }>(`/calendar/${eventId}`, {
+      method: 'PUT',
+      body: JSON.stringify(eventData),
+    }, token),
+  
+  // Delete event
+  delete: (eventId: string, token?: AuthToken) => 
+    apiRequest<{ success: boolean; message: string }>(`/calendar/${eventId}`, {
+      method: 'DELETE',
+    }, token),
 }

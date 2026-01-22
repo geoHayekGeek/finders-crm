@@ -35,15 +35,9 @@ export async function uploadMainPropertyImage(propertyId: number, imageFile: Fil
     }
     
     const csrfToken = csrfResponse.headers.get('X-CSRF-Token')
-    console.log('🔍 Main Image CSRF Response status:', csrfResponse.status)
-    console.log('🔍 Main Image CSRF Response headers:', Array.from(csrfResponse.headers.entries()))
-    console.log('🔍 Main Image CSRF Token received:', csrfToken ? csrfToken.substring(0, 8) + '...' : 'None')
     
     if (!csrfToken) {
-      console.error('❌ CSRF token not received from backend')
-      console.error('❌ Response status:', csrfResponse.status)
-      console.error('❌ Response headers:', Object.fromEntries(csrfResponse.headers.entries()))
-      throw new Error('CSRF token not received')
+      throw new Error('CSRF token not received from backend')
     }
 
     const response = await fetch(`${API_BASE_URL}/properties/${propertyId}/upload-main-image`, {
@@ -57,7 +51,6 @@ export async function uploadMainPropertyImage(propertyId: number, imageFile: Fil
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error('Main image upload error response:', errorData)
       
       // Handle CSRF token errors specifically
       if (response.status === 403 && errorData.message?.includes('CSRF')) {
@@ -74,7 +67,6 @@ export async function uploadMainPropertyImage(propertyId: number, imageFile: Fil
       message: result.message
     }
   } catch (error) {
-    console.error('Error uploading main image:', error)
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Upload failed'
@@ -113,15 +105,9 @@ export async function uploadGalleryImages(propertyId: number, imageFiles: File[]
     }
     
     const csrfToken = csrfResponse.headers.get('X-CSRF-Token')
-    console.log('🔍 Gallery CSRF Response status:', csrfResponse.status)
-    console.log('🔍 Gallery CSRF Response headers:', Array.from(csrfResponse.headers.entries()))
-    console.log('🔍 Gallery CSRF Token received:', csrfToken ? csrfToken.substring(0, 8) + '...' : 'None')
     
     if (!csrfToken) {
-      console.error('❌ Gallery CSRF token not received from backend')
-      console.error('❌ Response status:', csrfResponse.status)
-      console.error('❌ Response headers:', Object.fromEntries(csrfResponse.headers.entries()))
-      throw new Error('CSRF token not received')
+      throw new Error('CSRF token not received from backend')
     }
 
     const response = await fetch(`${API_BASE_URL}/properties/${propertyId}/upload-gallery`, {
@@ -135,7 +121,6 @@ export async function uploadGalleryImages(propertyId: number, imageFiles: File[]
 
     if (!response.ok) {
       const errorData = await response.json()
-      console.error('Gallery upload error response:', errorData)
       
       // Handle CSRF token errors specifically
       if (response.status === 403 && errorData.message?.includes('CSRF')) {
@@ -152,7 +137,6 @@ export async function uploadGalleryImages(propertyId: number, imageFiles: File[]
       message: result.message
     }
   } catch (error) {
-    console.error('Error uploading gallery images:', error)
     return {
       success: false,
       message: error instanceof Error ? error.message : 'Upload failed'

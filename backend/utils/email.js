@@ -1,5 +1,6 @@
 const nodemailer = require('nodemailer');
 const SettingsModel = require('../models/settingsModel');
+const logger = require('./logger');
 
 class EmailService {
   constructor() {
@@ -29,16 +30,30 @@ class EmailService {
       this.lastSettingsLoad = now;
       return settings;
     } catch (error) {
-      console.error('Failed to load email settings from database, using environment variables as fallback:', error);
+      logger.error('Failed to load email settings from database, using environment variables as fallback', error);
       // Fallback to environment variables if database is unavailable
+      // Validate required environment variables exist
+      const smtpHost = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+      const smtpUser = process.env.SMTP_USER || process.env.EMAIL_USER;
+      const smtpPass = process.env.SMTP_PASS || process.env.EMAIL_PASS;
+      
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        logger.error('Missing required email environment variables', {
+          hasHost: !!smtpHost,
+          hasUser: !!smtpUser,
+          hasPass: !!smtpPass
+        });
+        throw new Error('Email configuration is incomplete. Please set SMTP_HOST, SMTP_USER, and SMTP_PASS environment variables.');
+      }
+      
       return {
-        smtp_host: process.env.SMTP_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+        smtp_host: smtpHost,
         smtp_port: parseInt(process.env.SMTP_PORT || process.env.EMAIL_PORT) || 587,
-        smtp_user: process.env.SMTP_USER || process.env.EMAIL_USER,
-        smtp_pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
+        smtp_user: smtpUser,
+        smtp_pass: smtpPass,
         smtp_secure: false,
         email_from_name: 'Finders CRM',
-        email_from_address: process.env.SMTP_USER || process.env.EMAIL_USER || 'noreply@finderscrm.com'
+        email_from_address: smtpUser
       };
     }
   }
@@ -114,10 +129,10 @@ class EmailService {
       };
 
       const info = await transporter.sendMail(mailOptions);
-      console.log('Password reset email sent:', info.messageId);
+      logger.debug('Password reset email sent', { messageId: info.messageId, recipient: email });
       return true;
     } catch (error) {
-      console.error('Error sending password reset email:', error);
+      logger.error('Error sending password reset email', error);
       throw error;
     }
   }
@@ -161,10 +176,10 @@ class EmailService {
       };
 
       const info = await transporter.sendMail(mailOptions);
-      console.log('Password changed email sent:', info.messageId);
+      logger.debug('Password changed email sent', { messageId: info.messageId, recipient: email });
       return true;
     } catch (error) {
-      console.error('Error sending password changed email:', error);
+      logger.error('Error sending password changed email', error);
       throw error;
     }
   }

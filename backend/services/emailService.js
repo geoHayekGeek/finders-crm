@@ -1,6 +1,7 @@
 // services/emailService.js
 const nodemailer = require('nodemailer');
 const SettingsModel = require('../models/settingsModel');
+const logger = require('../utils/logger');
 require('dotenv').config();
 
 class EmailService {
@@ -8,7 +9,12 @@ class EmailService {
     this.transporter = null;
     this.settings = null;
     this.lastSettingsLoad = null;
+    this.lastTransporterInit = null;
     this.settingsCacheDuration = 60000; // 1 minute cache
+    this.transporterCacheDuration = 300000; // 5 minutes cache for transporter
+    this.emailTimeout = 30000; // 30 seconds timeout for email operations
+    this.maxRetries = 3;
+    this.retryDelay = 1000; // Initial retry delay in ms
   }
 
   async getEmailSettings() {
@@ -31,16 +37,27 @@ class EmailService {
       this.lastSettingsLoad = now;
       return settings;
     } catch (error) {
-      console.error('Failed to load email settings from database, using environment variables as fallback:', error);
+      logger.error('Failed to load email settings from database, using environment variables as fallback', error);
       // Fallback to environment variables if database is unavailable
+      // CRITICAL: No hardcoded credentials - must use environment variables
+      const smtpHost = process.env.EMAIL_HOST || process.env.SMTP_HOST;
+      const smtpPort = process.env.EMAIL_PORT || process.env.SMTP_PORT;
+      const smtpUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+      const smtpPass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+      
+      if (!smtpHost || !smtpUser || !smtpPass) {
+        logger.error('Email configuration missing - no SMTP credentials available', new Error('SMTP credentials not configured'));
+        throw new Error('Email service configuration is incomplete. Please configure SMTP settings in database or environment variables.');
+      }
+      
       return {
-        smtp_host: process.env.EMAIL_HOST || 'smtp.gmail.com',
-        smtp_port: parseInt(process.env.EMAIL_PORT) || 587,
-        smtp_user: process.env.EMAIL_USER || 'your-email@gmail.com',
-        smtp_pass: process.env.EMAIL_PASS || 'your-app-password',
+        smtp_host: smtpHost,
+        smtp_port: parseInt(smtpPort) || 587,
+        smtp_user: smtpUser,
+        smtp_pass: smtpPass,
         smtp_secure: false,
-        email_from_name: 'Finders CRM',
-        email_from_address: 'noreply@finderscrm.com'
+        email_from_name: process.env.EMAIL_FROM_NAME || 'Finders CRM',
+        email_from_address: process.env.EMAIL_FROM_ADDRESS || smtpUser
       };
     }
   }
@@ -50,22 +67,51 @@ class EmailService {
     
     // Email configuration from database
     this.transporter = nodemailer.createTransport({
-      host: settings.smtp_host || 'smtp.gmail.com',
+      host: settings.smtp_host,
       port: parseInt(settings.smtp_port) || 587,
       secure: settings.smtp_secure || false, // true for 465, false for other ports
       auth: {
-        user: settings.smtp_user || 'your-email@gmail.com',
-        pass: settings.smtp_pass || 'your-app-password'
-      }
+        user: settings.smtp_user,
+        pass: settings.smtp_pass
+      },
+      connectionTimeout: this.emailTimeout,
+      greetingTimeout: this.emailTimeout,
+      socketTimeout: this.emailTimeout
     });
 
+    this.lastTransporterInit = Date.now();
     return this.transporter;
   }
 
   async getTransporter() {
-    // Always reinitialize to get fresh settings
+    // Cache transporter to avoid reinitializing on every send
+    const now = Date.now();
+    if (this.transporter && this.lastTransporterInit && 
+        (now - this.lastTransporterInit < this.transporterCacheDuration)) {
+      return this.transporter;
+    }
+    
+    // Reinitialize if cache expired or transporter doesn't exist
     await this.initializeTransporter();
     return this.transporter;
+  }
+
+  // Retry helper with exponential backoff
+  async retryOperation(operation, retries = this.maxRetries) {
+    let lastError;
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        lastError = error;
+        if (attempt < retries - 1) {
+          const delay = this.retryDelay * Math.pow(2, attempt);
+          logger.debug(`Email operation failed, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+    throw lastError;
   }
 
   async sendReminderEmail(userEmail, userName, eventData, reminderType) {
@@ -115,11 +161,21 @@ class EmailService {
         html: message
       };
 
-      const result = await transporter.sendMail(mailOptions);
-      console.log(`✅ Reminder email sent to ${userEmail} for event: ${title}`);
+      // Use retry logic with timeout
+      const sendWithTimeout = () => {
+        return Promise.race([
+          transporter.sendMail(mailOptions),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Email send timeout')), this.emailTimeout)
+          )
+        ]);
+      };
+
+      const result = await this.retryOperation(sendWithTimeout);
+      logger.debug(`Reminder email sent successfully for event: ${title}`);
       return result;
     } catch (error) {
-      console.error(`❌ Error sending reminder email to ${userEmail}:`, error);
+      logger.error(`Error sending reminder email`, error);
       throw error;
     }
   }
@@ -194,11 +250,21 @@ class EmailService {
         html: message
       };
 
-      const result = await transporter.sendMail(mailOptions);
-      console.log(`✅ Viewing update reminder email sent to ${userEmail}`);
+      // Use retry logic with timeout
+      const sendWithTimeout = () => {
+        return Promise.race([
+          transporter.sendMail(mailOptions),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Email send timeout')), this.emailTimeout)
+          )
+        ]);
+      };
+
+      const result = await this.retryOperation(sendWithTimeout);
+      logger.debug('Viewing update reminder email sent successfully');
       return result;
     } catch (error) {
-      console.error(`❌ Error sending viewing update reminder email to ${userEmail}:`, error);
+      logger.error('Error sending viewing update reminder email', error);
       throw error;
     }
   }
@@ -472,10 +538,10 @@ class EmailService {
       }
       
       await transporter.verify();
-      console.log('✅ Email configuration is valid');
+      logger.info('Email configuration is valid');
       return true;
     } catch (error) {
-      console.error('❌ Email configuration error:', error);
+      logger.error('Email configuration error', error);
       return false;
     }
   }
@@ -546,11 +612,21 @@ class EmailService {
         `
       };
 
-      const result = await transporter.sendMail(mailOptions);
-      console.log(`✅ Test email sent to ${recipientEmail}`);
+      // Use retry logic with timeout
+      const sendWithTimeout = () => {
+        return Promise.race([
+          transporter.sendMail(mailOptions),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Email send timeout')), this.emailTimeout)
+          )
+        ]);
+      };
+
+      const result = await this.retryOperation(sendWithTimeout);
+      logger.info(`Test email sent to ${recipientEmail}`);
       return result;
     } catch (error) {
-      console.error(`❌ Error sending test email to ${recipientEmail}:`, error);
+      logger.error(`Error sending test email to ${recipientEmail}`, error);
       throw error;
     }
   }

@@ -45,8 +45,6 @@ export function AgentSelector({
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 Fetching agents with token...', { teamLeaderId })
-      
       if (teamLeaderId) {
         // For team leaders: get themselves + their agents
         const [agentsData, teamLeaderData] = await Promise.all([
@@ -65,21 +63,17 @@ export function AgentSelector({
         allAgents.push(...teamAgents)
         
         setAgents(allAgents)
-        console.log('✅ Team leader agents loaded:', allAgents.length)
       } else {
         // For admin/operations/agent manager: get all agents
         const data = await usersApi.getAgents(token)
-        console.log('👥 Agents data:', data)
         
         if (data.success) {
           setAgents(data.agents)
-          console.log('✅ Agents loaded:', data.agents.length)
         } else {
           setError(data.message || 'Failed to load agents')
         }
       }
     } catch (error) {
-      console.error('❌ Error fetching agents:', error)
       if (error instanceof Error) {
         setError(error.message)
       } else {
@@ -130,16 +124,6 @@ export function AgentSelector({
 
   const selectedAgent = agents.find(a => a.id == selectedAgentId) // Use == for type coercion
   
-  // Debug logging
-  console.log('🔍 AgentSelector - selectedAgentId:', selectedAgentId, 'type:', typeof selectedAgentId)
-  console.log('🔍 AgentSelector - agents:', agents)
-  console.log('🔍 AgentSelector - selectedAgent:', selectedAgent)
-  console.log('🔍 AgentSelector - agents length:', agents.length)
-  if (selectedAgentId) {
-    console.log('🔍 AgentSelector - looking for agent with ID:', selectedAgentId)
-    const foundAgent = agents.find(a => a.id == selectedAgentId) // Use == for type coercion
-    console.log('🔍 AgentSelector - found agent:', foundAgent)
-  }
 
   const getRoleColor = (role: string) => {
     switch (role) {

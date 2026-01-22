@@ -3,6 +3,7 @@ const pool = require('../config/db');
 const Notification = require('../models/notificationModel');
 const EmailService = require('./emailService');
 const Settings = require('../models/settingsModel');
+const logger = require('../utils/logger');
 
 class ReminderService {
   constructor() {
@@ -13,19 +14,24 @@ class ReminderService {
   // Main method to process all pending reminders
   async processReminders() {
     if (this.isRunning) {
-      console.log('⏳ Reminder service already running, skipping...');
+      logger.debug('Reminder service already running, skipping...');
       return;
     }
 
     this.isRunning = true;
-    console.log('🔄 Starting reminder processing...');
+    logger.debug('Starting reminder processing...');
 
     try {
       await this.processCalendarEventReminders();
       await this.processViewingUpdateReminders();
-      console.log('✅ Reminder processing completed');
+      logger.debug('Reminder processing completed');
     } catch (error) {
-      console.error('❌ Error processing reminders:', error);
+      logger.error('Error processing reminders', error);
+      // Audit log: Reminder processing failure
+      logger.security('Reminder processing failed', {
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
     } finally {
       this.isRunning = false;
     }
@@ -34,7 +40,7 @@ class ReminderService {
   async processCalendarEventReminders() {
     // Get events that need reminders using direct SQL instead of function
     const eventsNeedingReminders = await this.getEventsNeedingRemindersDirect();
-    console.log(`📋 Found ${eventsNeedingReminders.length} events needing reminders`);
+    logger.debug(`Found ${eventsNeedingReminders.length} events needing reminders`);
 
     for (const event of eventsNeedingReminders) {
       await this.processEventReminder(event);
@@ -44,13 +50,13 @@ class ReminderService {
   async processViewingUpdateReminders() {
     try {
       const viewingsNeedingReminders = await this.getViewingsNeedingUpdateReminders();
-      console.log(`👀 Found ${viewingsNeedingReminders.length} viewings needing update reminders`);
+      logger.debug(`Found ${viewingsNeedingReminders.length} viewings needing update reminders`);
 
       for (const viewing of viewingsNeedingReminders) {
         await this.sendViewingUpdateReminder(viewing);
       }
     } catch (error) {
-      console.error('❌ Error processing viewing update reminders:', error);
+      logger.error('Error processing viewing update reminders', error);
       throw error;
     }
   }
@@ -100,7 +106,7 @@ class ReminderService {
       await pool.query(sql);
       this.viewingReminderTableEnsured = true;
     } catch (error) {
-      console.error('Error ensuring viewing update reminder table:', error);
+      logger.error('Error ensuring viewing update reminder table', error);
       throw error;
     }
   }
@@ -246,7 +252,7 @@ class ReminderService {
       const result = await pool.query(query);
       return result.rows;
     } catch (error) {
-      console.error('Error getting events needing reminders:', error);
+      logger.error('Error getting events needing reminders', error);
       return [];
     }
   }
@@ -256,11 +262,11 @@ class ReminderService {
     const { event_id, user_id, user_name, user_email, event_title, event_start_time, event_end_time, event_location, event_description, reminder_type, scheduled_time } = eventData;
 
     try {
-      console.log(`📧 Processing ${reminder_type} reminder for ${user_name} (ID: ${user_id}) - ${event_title}`);
+      logger.debug(`Processing ${reminder_type} reminder for user ${user_id} - event ${event_id}`);
 
       // Validate user_id
       if (!user_id) {
-        console.error(`❌ Invalid user_id for reminder: ${user_id}`);
+        logger.error('Invalid user_id for reminder', new Error(`user_id is ${user_id}`));
         return;
       }
 
@@ -276,21 +282,40 @@ class ReminderService {
       // Update tracking record with actual send status
       await this.updateReminderTracking(trackingId, emailSent, notificationSent);
 
+      // Audit log: Reminder sent
+      logger.security('Reminder sent', {
+        eventId: event_id,
+        userId: user_id,
+        reminderType: reminder_type,
+        emailSent,
+        notificationSent,
+        timestamp: new Date().toISOString()
+      });
+
       if (emailSent || notificationSent) {
-        console.log(`✅ ${reminder_type} reminder sent to ${user_name} (Email: ${emailSent}, Notification: ${notificationSent})`);
+        logger.debug(`${reminder_type} reminder sent to user ${user_id} (Email: ${emailSent}, Notification: ${notificationSent})`);
       } else {
-        console.log(`⚠️ ${reminder_type} reminder skipped for ${user_name} (reminders disabled or failed)`);
+        logger.debug(`${reminder_type} reminder skipped for user ${user_id} (reminders disabled or failed)`);
       }
 
     } catch (error) {
-      console.error(`❌ Error processing ${reminder_type} reminder for ${user_name}:`, error);
+      logger.error(`Error processing ${reminder_type} reminder for user ${user_id}`, error);
+      
+      // Audit log: Reminder processing failure
+      logger.security('Reminder processing failed', {
+        eventId: event_id,
+        userId: user_id,
+        reminderType: reminder_type,
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
       
       // Update tracking record to mark as failed
       try {
         const trackingId = await this.createReminderTracking(event_id, user_id, reminder_type, scheduled_time);
         await this.updateReminderTracking(trackingId, false, false);
       } catch (trackingError) {
-        console.error('Error updating tracking record:', trackingError);
+        logger.error('Error updating tracking record', trackingError);
       }
     }
   }
@@ -312,7 +337,7 @@ class ReminderService {
       );
       return result.rows[0].id;
     } catch (error) {
-      console.error('Error creating reminder tracking:', error);
+      logger.error('Error creating reminder tracking', error);
       throw error;
     }
   }
@@ -327,7 +352,7 @@ class ReminderService {
         [emailSent, notificationSent, trackingId]
       );
     } catch (error) {
-      console.error('Error updating reminder tracking:', error);
+      logger.error('Error updating reminder tracking', error);
       throw error;
     }
   }
@@ -335,7 +360,7 @@ class ReminderService {
   // Send in-app notification
   async sendInAppNotification(eventId, userId, eventTitle, eventStartTime, eventLocation, reminderType) {
     try {
-      console.log(`📱 Sending in-app notification to user ${userId} for event ${eventId}`);
+      logger.debug(`Sending in-app notification to user ${userId} for event ${eventId}`);
       
       const reminderMessages = {
         '1_day': `Reminder: ${eventTitle} is tomorrow`,
@@ -357,10 +382,10 @@ class ReminderService {
         entity_id: eventId
       });
 
-      console.log(`📱 In-app notification sent to user ${userId}`);
+      logger.debug(`In-app notification sent to user ${userId}`);
       return true;
     } catch (error) {
-      console.error('Error sending in-app notification:', error);
+      logger.error('Error sending in-app notification', error);
       return false;
     }
   }
@@ -371,25 +396,25 @@ class ReminderService {
       // Check if email notifications are enabled
       const emailEnabled = await Settings.isEmailNotificationsEnabled();
       if (!emailEnabled) {
-        console.log('📧 Email notifications are disabled globally, skipping email');
+        logger.debug('Email notifications are disabled globally, skipping email');
         return false;
       }
 
       // Check if calendar event notifications are enabled
       const calendarNotificationsEnabled = await Settings.isEmailNotificationTypeEnabled('calendar_events');
       if (!calendarNotificationsEnabled) {
-        console.log('📧 Calendar event email notifications are disabled, skipping email');
+        logger.debug('Calendar event email notifications are disabled, skipping email');
         return false;
       }
 
       // Check if this specific reminder type is enabled
       const reminderEnabled = await Settings.isReminderEnabled(reminderType);
       if (!reminderEnabled) {
-        console.log(`📧 ${reminderType} reminder is disabled, skipping email`);
+        logger.debug(`${reminderType} reminder is disabled, skipping email`);
         return false;
       }
 
-      console.log(`📧 Sending email reminder to ${userEmail} for ${eventTitle}`);
+      logger.debug(`Sending email reminder for event: ${eventTitle}`);
       
       // Fix: Use the correct EmailService method signature
       const eventData = {
@@ -401,10 +426,10 @@ class ReminderService {
       };
 
       await EmailService.sendReminderEmail(userEmail, userName, eventData, reminderType);
-      console.log(`📧 Email reminder sent to ${userEmail}`);
+      logger.debug('Email reminder sent successfully');
       return true;
     } catch (error) {
-      console.error('Error sending email reminder:', error);
+      logger.error('Error sending email reminder', error);
       return false;
     }
   }
@@ -412,7 +437,7 @@ class ReminderService {
   // Schedule reminders for a specific event
   async scheduleEventReminders(eventId) {
     try {
-      console.log(`📅 Scheduling reminders for event ${eventId}`);
+      logger.debug(`Scheduling reminders for event ${eventId}`);
 
       // Get event details
       const eventResult = await pool.query(
@@ -424,7 +449,7 @@ class ReminderService {
       );
 
       if (eventResult.rows.length === 0) {
-        console.log(`⚠️ Event ${eventId} not found`);
+        logger.warn(`Event ${eventId} not found`);
         return;
       }
 
@@ -435,11 +460,11 @@ class ReminderService {
       const users = await this.getEventUsers(eventId);
 
       if (!users || !Array.isArray(users)) {
-        console.log(`⚠️ No users found for event ${eventId}`);
+        logger.warn(`No users found for event ${eventId}`);
         return;
       }
 
-      console.log(`👥 Found ${users.length} users to notify for event ${eventId}`);
+      logger.debug(`Found ${users.length} users to notify for event ${eventId}`);
 
       // Schedule reminders for each user
       for (const user of users) {
@@ -474,9 +499,16 @@ class ReminderService {
         await this.scheduleReminder(eventId, user.id, '1_hour', oneHourBefore);
       }
 
-      console.log(`✅ Scheduled reminders for event ${eventId}`);
+      // Audit log: Reminders scheduled
+      logger.security('Reminders scheduled for event', {
+        eventId,
+        usersCount: users.length,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug(`Scheduled reminders for event ${eventId}`);
     } catch (error) {
-      console.error('Error scheduling event reminders:', error);
+      logger.error('Error scheduling event reminders', error);
       throw error;
     }
   }
@@ -496,7 +528,7 @@ class ReminderService {
       );
       return result.rows;
     } catch (error) {
-      console.error('Error getting event users:', error);
+      logger.error('Error getting event users', error);
       return [];
     }
   }
@@ -504,7 +536,7 @@ class ReminderService {
   // Schedule a single reminder
   async scheduleReminder(eventId, userId, reminderType, scheduledTime) {
     try {
-      console.log(`📅 Scheduled ${reminderType} reminder for user ${userId} at ${scheduledTime}`);
+      logger.debug(`Scheduled ${reminderType} reminder for user ${userId} at ${scheduledTime}`);
       
       // When rescheduling (ON CONFLICT), reset the sent flags so reminders can be sent again
       await pool.query(
@@ -519,7 +551,7 @@ class ReminderService {
         [eventId, userId, reminderType, scheduledTime]
       );
     } catch (error) {
-      console.error('Error scheduling reminder:', error);
+      logger.error('Error scheduling reminder', error);
       throw error;
     }
   }
@@ -532,7 +564,7 @@ class ReminderService {
          WHERE created_at < NOW() - INTERVAL '7 days'`,
         []
       );
-      console.log(`🧹 Cleaned up ${eventCleanup.rowCount} old reminder records`);
+      logger.debug(`Cleaned up ${eventCleanup.rowCount} old reminder records`);
 
       await this.ensureViewingReminderTable();
 
@@ -542,9 +574,16 @@ class ReminderService {
            AND last_reminder_sent_at < NOW() - INTERVAL '90 days'`,
         []
       );
-      console.log(`🧹 Cleaned up ${viewingCleanup.rowCount} old viewing update reminder records`);
+      logger.debug(`Cleaned up ${viewingCleanup.rowCount} old viewing update reminder records`);
+
+      // Audit log: Cleanup completed
+      logger.security('Reminder cleanup completed', {
+        eventRecordsDeleted: eventCleanup.rowCount,
+        viewingRecordsDeleted: viewingCleanup.rowCount,
+        timestamp: new Date().toISOString()
+      });
     } catch (error) {
-      console.error('Error cleaning up old reminders:', error);
+      logger.error('Error cleaning up old reminders', error);
     }
   }
 
@@ -561,10 +600,10 @@ class ReminderService {
            AND rt.email_sent = false`,
         [reminderType]
       );
-      console.log(`🔄 Reset ${result.rowCount} tracking records for ${reminderType} reminders`);
+      logger.debug(`Reset ${result.rowCount} tracking records for ${reminderType} reminders`);
       return result.rowCount;
     } catch (error) {
-      console.error('Error resetting reminder tracking:', error);
+      logger.error('Error resetting reminder tracking', error);
       throw error;
     }
   }
@@ -655,7 +694,7 @@ class ReminderService {
     } = viewing;
 
     if (!agent_id) {
-      console.warn(`⚠️ Viewing ${viewing_id} has no assigned agent, skipping reminder`);
+      logger.warn(`Viewing ${viewing_id} has no assigned agent, skipping reminder`);
       return;
     }
 
@@ -672,7 +711,7 @@ class ReminderService {
         lastActivityDate: last_activity_date
       });
     } catch (error) {
-      console.error(`Error sending viewing update notification for viewing ${viewing_id}:`, error);
+      logger.error(`Error sending viewing update notification for viewing ${viewing_id}`, error);
     }
 
     try {
@@ -686,18 +725,29 @@ class ReminderService {
           viewingDate: viewing_date,
           viewingTime: viewing_time,
           lastActivityDate: last_activity_date,
-          reminderCount
+          reminderCount: reminder_count || 0
         }
       );
     } catch (error) {
-      console.error(`Error sending viewing update email for viewing ${viewing_id}:`, error);
+      logger.error(`Error sending viewing update email for viewing ${viewing_id}`, error);
     }
 
     if (emailSent || notificationSent) {
       await this.recordViewingReminder(viewing_id, agent_id, emailSent, notificationSent);
-      console.log(`✅ Viewing update reminder sent to agent ${agent_id} for viewing ${viewing_id} (email: ${emailSent}, notification: ${notificationSent})`);
+      
+      // Audit log: Viewing update reminder sent
+      logger.security('Viewing update reminder sent', {
+        viewingId: viewing_id,
+        agentId: agent_id,
+        emailSent,
+        notificationSent,
+        reminderCount: reminder_count + 1,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.debug(`Viewing update reminder sent to agent ${agent_id} for viewing ${viewing_id} (email: ${emailSent}, notification: ${notificationSent})`);
     } else {
-      console.log(`⚠️ No viewing update reminder sent for viewing ${viewing_id} (email and notification skipped or failed)`);
+      logger.debug(`No viewing update reminder sent for viewing ${viewing_id} (email and notification skipped or failed)`);
     }
   }
 
@@ -739,7 +789,7 @@ class ReminderService {
 
       return true;
     } catch (error) {
-      console.error('Error creating viewing update notification:', error);
+      logger.error('Error creating viewing update notification', error);
       return false;
     }
   }
@@ -751,13 +801,13 @@ class ReminderService {
 
     const emailEnabled = await Settings.isEmailNotificationsEnabled();
     if (!emailEnabled) {
-      console.log('📧 Email notifications are globally disabled, skipping viewing update email');
+      logger.debug('Email notifications are globally disabled, skipping viewing update email');
       return false;
     }
 
     const viewingsEmailEnabled = await Settings.isEmailNotificationTypeEnabled('viewings');
     if (!viewingsEmailEnabled) {
-      console.log('📧 Viewing email notifications are disabled, skipping viewing update email');
+      logger.debug('Viewing email notifications are disabled, skipping viewing update email');
       return false;
     }
 
@@ -813,7 +863,7 @@ class ReminderService {
         );
       }
     } catch (error) {
-      console.error('Error clearing viewing reminder tracking:', error);
+      logger.error('Error clearing viewing reminder tracking', error);
     }
   }
 }

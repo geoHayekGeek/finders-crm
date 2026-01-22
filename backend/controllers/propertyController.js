@@ -6,12 +6,14 @@ const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
 const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
+const logger = require('../utils/logger');
+const { normalizeRole } = require('../utils/roleUtils');
 
 // Helper function to filter created_by info based on user role
 // Only admin, operations manager, agent manager, and operations can see who created the property
 const filterCreatedByInfo = (properties, userRole) => {
   // Normalize role for comparison
-  const normalizedRole = userRole ? userRole.toLowerCase().replace(/_/g, ' ').trim() : '';
+  const normalizedRole = normalizeRole(userRole);
   const canSeeCreatedBy = ['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizedRole);
   
   if (canSeeCreatedBy) {
@@ -37,20 +39,21 @@ const getDemoProperties = async (req, res) => {
       message: 'Demo properties loaded successfully'
     });
   } catch (error) {
-    console.error('Error getting demo properties:', error);
+    logger.error('Error getting demo properties', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
 
 // Get all properties with role-based filtering
 const getAllProperties = async (req, res) => {
-  console.log('🚀 getAllProperties called');
-  console.log('📊 Request headers:', req.headers);
-  console.log('👤 User:', req.user);
-  console.log('🔑 Role filters:', req.roleFilters);
-  
   try {
     const { roleFilters } = req;
+    logger.debug('getAllProperties called', {
+      userId: req.user?.id,
+      role: req.user?.role,
+      canViewAll: roleFilters?.canViewAll
+    });
+    
     let properties;
 
     if (roleFilters.canViewAll) {
@@ -115,16 +118,9 @@ const getAllProperties = async (req, res) => {
       role: roleFilters.role
     });
   } catch (error) {
-    console.error('Error getting properties:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      code: error.code
-    });
+    logger.error('Error getting properties', error);
     res.status(500).json({ 
-      message: 'Server error',
-      error: error.message,
-      code: error.code
+      message: 'Server error'
     });
   }
 };
@@ -135,7 +131,11 @@ const getPropertiesWithFilters = async (req, res) => {
     const { roleFilters } = req;
     const filters = req.query;
 
-    console.log('🔍 getPropertiesWithFilters called with role:', roleFilters.role, 'filters:', filters);
+    logger.debug('getPropertiesWithFilters called', {
+      userId: req.user?.id,
+      role: roleFilters.role,
+      filterCount: Object.keys(filters).length
+    });
 
     // Get all properties first, then apply role-based filtering for owner details
     let properties;
@@ -192,7 +192,7 @@ const getPropertiesWithFilters = async (req, res) => {
 
     // Apply additional filters manually if provided
     if (Object.keys(filters).length > 0) {
-      console.log('🔍 Applying filters to properties:', filters);
+      logger.debug('Applying filters to properties', { filterCount: Object.keys(filters).length });
       properties = properties.filter(property => {
         let matches = true;
         
@@ -541,12 +541,12 @@ const getPropertiesWithFilters = async (req, res) => {
             properties = [];
           }
         } catch (viewingsError) {
-          console.error('Error filtering by serious viewings:', viewingsError);
+          logger.error('Error filtering by serious viewings', viewingsError);
           // If there's an error, don't filter by serious viewings
         }
       }
       
-      console.log('📊 After filtering properties:', properties.length);
+      logger.debug('Properties after filtering', { count: properties.length });
     }
 
     // Filter created_by info based on role (already done earlier, but ensure it's still applied)
@@ -559,7 +559,7 @@ const getPropertiesWithFilters = async (req, res) => {
       role: roleFilters.role
     });
   } catch (error) {
-    console.error('Error getting filtered properties:', error);
+    logger.error('Error getting filtered properties', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -610,7 +610,7 @@ const getPropertyById = async (req, res) => {
       role: roleFilters.role
     });
   } catch (error) {
-    console.error('Error getting property:', error);
+    logger.error('Error getting property', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -701,17 +701,34 @@ const createProperty = async (req, res) => {
       created_by: req.user.id // Track who created the property
     });
 
+    // Audit log: Property created
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    logger.security('Property created', {
+      propertyId: newProperty.id,
+      referenceNumber: newProperty.reference_number,
+      propertyType: property_type,
+      location,
+      price,
+      agentId: finalAgentId,
+      createdBy: req.user.id,
+      createdByName: req.user.name,
+      referralCount: referrals?.length || 0,
+      ip: clientIP
+    });
+
     // Apply the 30-day external rule to all referrals for this property
     if (referrals && referrals.length > 0) {
       try {
-        console.log(`🔄 Applying 30-day external rule to property ${newProperty.id} referrals...`);
+        logger.debug('Applying 30-day external rule to property referrals', {
+          propertyId: newProperty.id
+        });
         const ruleResult = await PropertyReferral.applyExternalRuleToPropertyReferrals(newProperty.id);
-        console.log(`✅ External rule applied: ${ruleResult.message}`);
-        if (ruleResult.markedExternalReferrals.length > 0) {
-          console.log(`   Marked ${ruleResult.markedExternalReferrals.length} referral(s) as external`);
-        }
+        logger.debug('External rule applied', {
+          propertyId: newProperty.id,
+          markedExternal: ruleResult.markedExternalReferrals.length
+        });
       } catch (referralError) {
-        console.error('Error applying external rule to property referrals:', referralError);
+        logger.error('Error applying external rule to property referrals', referralError);
         // Don't fail the property creation if referral rule application fails
       }
     }
@@ -759,9 +776,12 @@ const createProperty = async (req, res) => {
           };
 
           await CalendarEvent.createEvent(eventData);
-          console.log('📅 Calendar event created for property assignment');
+          logger.debug('Calendar event created for property assignment', {
+            propertyId: newProperty.id,
+            agentId: finalAgentId
+          });
         } catch (calendarError) {
-          console.error('❌ Error creating calendar event:', calendarError);
+          logger.error('Error creating calendar event', calendarError);
           // Don't fail the property creation if calendar event creation fails
         }
       }
@@ -783,7 +803,7 @@ const createProperty = async (req, res) => {
         }
       }
     } catch (notificationError) {
-      console.error('Error creating property notifications:', notificationError);
+      logger.error('Error creating property notifications', notificationError);
       // Don't fail the property creation if notifications fail
     }
 
@@ -793,7 +813,7 @@ const createProperty = async (req, res) => {
       data: newProperty
     });
   } catch (error) {
-    console.error('Error creating property:', error);
+    logger.error('Error creating property', error);
     
     // Handle specific validation errors
     if (error.message.includes('base64')) {
@@ -841,21 +861,35 @@ const updateProperty = async (req, res) => {
     }
 
     const updates = req.body;
-    console.log('🔍 Updates being sent to updateProperty:', JSON.stringify(updates, null, 2));
-    console.log('🔍 Referrals in updates:', updates.referrals);
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    
+    // Track what changed for audit logging
+    const changes = {};
+    if (updates.status_id && updates.status_id !== property.status_id) {
+      changes.status_id = { from: property.status_id, to: updates.status_id };
+    }
+    if (updates.price !== undefined && updates.price !== property.price) {
+      changes.price = { from: property.price, to: updates.price };
+    }
+    if (updates.agent_id !== undefined && updates.agent_id !== property.agent_id) {
+      changes.agent_id = { from: property.agent_id, to: updates.agent_id };
+    }
     
     // If status_id is being updated, check if it's 'closed' and set closed_date
     if (updates.status_id && updates.status_id !== property.status_id) {
       const newStatus = await Status.getStatusById(updates.status_id);
-      console.log('📊 New status:', newStatus);
+      logger.debug('Property status change', {
+        propertyId: id,
+        oldStatusId: property.status_id,
+        newStatusId: updates.status_id,
+        newStatusCode: newStatus?.code
+      });
       
       if (newStatus && newStatus.code === 'closed') {
         // Set closed_date to today if not already set (either not present or empty string)
         if (!updates.closed_date || updates.closed_date === '') {
           updates.closed_date = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-          console.log('📅 Auto-setting closed_date to today:', updates.closed_date);
-        } else {
-          console.log('📅 Using provided closed_date:', updates.closed_date);
+          logger.debug('Auto-setting closed_date', { propertyId: id, closedDate: updates.closed_date });
         }
         
         // If platform_id is not provided, default to the lead's reference_source_id (if owner_id exists)
@@ -864,7 +898,10 @@ const updateProperty = async (req, res) => {
           const lead = await Lead.getLeadById(property.owner_id);
           if (lead && lead.reference_source_id) {
             updates.platform_id = lead.reference_source_id;
-            console.log('📱 Auto-setting platform_id from lead reference_source_id:', updates.platform_id);
+            logger.debug('Auto-setting platform_id from lead', {
+              propertyId: id,
+              platformId: updates.platform_id
+            });
           }
         }
       } else if (newStatus && newStatus.code !== 'closed') {
@@ -874,25 +911,33 @@ const updateProperty = async (req, res) => {
         updates.buyer_id = null;
         updates.commission = null;
         updates.platform_id = null;
-        console.log('📅 Clearing closed_date and closing fields (moving away from closed)');
+        logger.debug('Clearing closed_date fields', { propertyId: id });
       }
     }
     
     const updatedProperty = await Property.updateProperty(id, updates);
-    console.log('🔍 Updated property returned:', JSON.stringify(updatedProperty, null, 2));
+
+    // Audit log: Property updated
+    logger.security('Property updated', {
+      propertyId: id,
+      referenceNumber: property.reference_number,
+      updatedBy: req.user.id,
+      updatedByName: req.user.name,
+      changes: Object.keys(changes).length > 0 ? changes : null,
+      ip: clientIP
+    });
 
     // Apply the 30-day external rule to all referrals for this property if referrals were updated
     if (updates.referrals !== undefined) {
       try {
-        console.log(`🔄 Applying 30-day external rule to property ${id} referrals...`);
+        logger.debug('Applying 30-day external rule to property referrals', { propertyId: id });
         const ruleResult = await PropertyReferral.applyExternalRuleToPropertyReferrals(parseInt(id));
-        console.log(`✅ External rule applied: ${ruleResult.message}`);
-        if (ruleResult.markedExternalReferrals.length > 0) {
-          console.log(`   Marked ${ruleResult.markedExternalReferrals.length} referral(s) as external`);
-        }
+        logger.debug('External rule applied', {
+          propertyId: id,
+          markedExternal: ruleResult.markedExternalReferrals.length
+        });
       } catch (referralError) {
-        console.error('❌ Error updating property referrals:', referralError);
-        console.error('❌ Error stack:', referralError.stack);
+        logger.error('Error updating property referrals', referralError);
         // Don't fail the property update if referral rule application fails
       }
     }
@@ -940,9 +985,12 @@ const updateProperty = async (req, res) => {
           };
 
           await CalendarEvent.createEvent(eventData);
-          console.log('📅 Calendar event created for property reassignment');
+          logger.debug('Calendar event created for property reassignment', {
+            propertyId: id,
+            newAgentId: updates.agent_id
+          });
         } catch (calendarError) {
-          console.error('❌ Error creating calendar event for reassignment:', calendarError);
+          logger.error('Error creating calendar event for reassignment', calendarError);
           // Don't fail the property update if calendar event creation fails
         }
       }
@@ -964,7 +1012,7 @@ const updateProperty = async (req, res) => {
         }
       }
     } catch (notificationError) {
-      console.error('Error creating property update notifications:', notificationError);
+      logger.error('Error creating property update notifications', notificationError);
       // Don't fail the property update if notifications fail
     }
 
@@ -974,7 +1022,7 @@ const updateProperty = async (req, res) => {
       data: updatedProperty
     });
   } catch (error) {
-    console.error('Error updating property:', error);
+    logger.error('Error updating property', error);
     
     // Handle specific validation errors
     if (error.message.includes('base64')) {
@@ -999,19 +1047,10 @@ const deleteProperty = async (req, res) => {
       return res.status(400).json({ message: 'Invalid property ID' });
     }
     
-    console.log('🔍 Delete property request:', {
-      originalId: id,
-      parsedId: propertyId,
-      type: typeof propertyId,
-      roleFilters: roleFilters,
-      user: req.user
-    });
-    
     // Permission is already checked by canDeleteProperties middleware
     // Only admin and operations manager can reach this point
 
     const property = await Property.getPropertyById(propertyId);
-    console.log('🔍 Property lookup result:', property ? 'Found' : 'Not found', { propertyId: propertyId });
     
     if (!property) {
       return res.status(404).json({ message: 'Property not found' });
@@ -1030,18 +1069,31 @@ const deleteProperty = async (req, res) => {
         req.user.id
       );
     } catch (notificationError) {
-      console.error('Error creating property deletion notifications:', notificationError);
+      logger.error('Error creating property deletion notifications', notificationError);
       // Don't fail the property deletion if notifications fail
     }
 
     await Property.deleteProperty(id);
+
+    // Audit log: Property deleted
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    logger.security('Property deleted', {
+      propertyId: propertyId,
+      referenceNumber: property.reference_number,
+      propertyType: property.property_type,
+      location: property.location,
+      price: property.price,
+      deletedBy: req.user.id,
+      deletedByName: req.user.name,
+      ip: clientIP
+    });
 
     res.json({
       success: true,
       message: 'Property deleted successfully'
     });
   } catch (error) {
-    console.error('Error deleting property:', error);
+    logger.error('Error deleting property', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1076,7 +1128,7 @@ const getPropertyStats = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error getting property stats:', error);
+    logger.error('Error getting property stats', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1111,7 +1163,7 @@ const getPropertiesByAgent = async (req, res) => {
       total: properties.length
     });
   } catch (error) {
-    console.error('Error getting properties by agent:', error);
+    logger.error('Error getting properties by agent', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1149,7 +1201,7 @@ const updatePropertyImages = async (req, res) => {
       data: updatedProperty
     });
   } catch (error) {
-    console.error('Error updating property images:', error);
+    logger.error('Error updating property images', error);
     
     // Handle specific validation errors
     if (error.message.includes('base64')) {
@@ -1198,7 +1250,7 @@ const addImageToGallery = async (req, res) => {
       data: updatedProperty
     });
   } catch (error) {
-    console.error('Error adding image to gallery:', error);
+    logger.error('Error adding image to gallery', error);
     
     // Handle specific validation errors
     if (error.message.includes('base64')) {
@@ -1247,7 +1299,7 @@ const removeImageFromGallery = async (req, res) => {
       data: updatedProperty
     });
   } catch (error) {
-    console.error('Error removing image from gallery:', error);
+    logger.error('Error removing image from gallery', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1270,7 +1322,7 @@ const getPropertiesWithImages = async (req, res) => {
       total: properties.length
     });
   } catch (error) {
-    console.error('Error getting properties with images:', error);
+    logger.error('Error getting properties with images', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1303,7 +1355,7 @@ const uploadMainImage = async (req, res) => {
       message: 'Main image uploaded successfully'
     });
   } catch (error) {
-    console.error('Error uploading main image:', error);
+    logger.error('Error uploading main image', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1341,7 +1393,7 @@ const uploadGalleryImages = async (req, res) => {
       message: `${imageUrls.length} gallery images uploaded successfully`
     });
   } catch (error) {
-    console.error('Error uploading gallery images:', error);
+    logger.error('Error uploading gallery images', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1364,7 +1416,7 @@ const getImageStats = async (req, res) => {
       data: imageStats
     });
   } catch (error) {
-    console.error('Error getting image stats:', error);
+    logger.error('Error getting image stats', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1428,7 +1480,7 @@ const referPropertyToAgent = async (req, res) => {
         is_read: false
       });
     } catch (notifError) {
-      console.error('Error creating notification:', notifError);
+      logger.error('Error creating notification', notifError);
       // Don't fail the request if notification fails
     }
 
@@ -1438,7 +1490,7 @@ const referPropertyToAgent = async (req, res) => {
       message: 'Property referred successfully'
     });
   } catch (error) {
-    console.error('Error referring property:', error);
+    logger.error('Error referring property', error);
     res.status(500).json({ 
       message: error.message || 'Server error' 
     });
@@ -1466,7 +1518,7 @@ const getPendingReferrals = async (req, res) => {
       count: pendingReferrals.length
     });
   } catch (error) {
-    console.error('Error getting pending referrals:', error);
+    logger.error('Error getting pending referrals', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1492,7 +1544,7 @@ const getPendingReferralsCount = async (req, res) => {
       count
     });
   } catch (error) {
-    console.error('Error getting pending referrals count:', error);
+    logger.error('Error getting pending referrals count', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -1526,7 +1578,7 @@ const confirmReferral = async (req, res) => {
         });
       }
     } catch (notifError) {
-      console.error('Error creating notification:', notifError);
+      logger.error('Error creating notification', notifError);
       // Don't fail the request if notification fails
     }
 
@@ -1536,7 +1588,7 @@ const confirmReferral = async (req, res) => {
       message: 'Referral confirmed and property assigned successfully'
     });
   } catch (error) {
-    console.error('Error confirming referral:', error);
+    logger.error('Error confirming referral', error);
     res.status(500).json({ 
       message: error.message || 'Server error' 
     });
@@ -1573,7 +1625,7 @@ const rejectReferral = async (req, res) => {
         });
       }
     } catch (notifError) {
-      console.error('Error creating notification:', notifError);
+      logger.error('Error creating notification', notifError);
       // Don't fail the request if notification fails
     }
 
@@ -1583,7 +1635,7 @@ const rejectReferral = async (req, res) => {
       message: 'Referral rejected successfully'
     });
   } catch (error) {
-    console.error('Error rejecting referral:', error);
+    logger.error('Error rejecting referral', error);
     res.status(500).json({ 
       message: error.message || 'Server error' 
     });

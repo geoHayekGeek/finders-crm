@@ -3,9 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { formatRole } from '@/utils/roleFormatter'
 import { MagnifyingGlassIcon, XMarkIcon, UserIcon } from '@heroicons/react/24/outline'
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
-const API_BASE_URL = `${BACKEND_URL}/api`
+import { useAuth } from '@/contexts/AuthContext'
+import { usersApi } from '@/utils/api'
 
 interface User {
   id: number
@@ -28,6 +27,7 @@ export function UserSelector({
   placeholder = "Search and select users...",
   maxUsers = 10
 }: UserSelectorProps) {
+  const { token } = useAuth()
   const [users, setUsers] = useState<User[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -39,35 +39,32 @@ export function UserSelector({
   // Fetch users from database
   useEffect(() => {
     const fetchUsers = async () => {
+      if (!token) {
+        setError('No authentication token available')
+        setIsLoading(false)
+        return
+      }
+      
       setIsLoading(true)
       setError('')
       try {
-        const response = await fetch(`${API_BASE_URL}/users/all`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
-        })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success) {
-            setUsers(data.users)
-          } else {
-            setError('Failed to fetch users')
-          }
+        const data = await usersApi.getAll(token)
+        if (data.success) {
+          setUsers(data.users)
         } else {
           setError('Failed to fetch users')
         }
       } catch (err) {
         setError('Failed to fetch users')
-        console.error('Error fetching users:', err)
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchUsers()
-  }, [])
+    if (token) {
+      fetchUsers()
+    }
+  }, [token])
 
   // Close dropdown when clicking outside
   useEffect(() => {

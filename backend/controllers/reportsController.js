@@ -8,6 +8,7 @@ const {
   exportSaleRentSourceToPDF
 } = require('../utils/saleRentSourceReportExporter');
 const pool = require('../config/db');
+const logger = require('../utils/logger');
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 // Converts to space format for consistent comparisons
@@ -20,7 +21,7 @@ class ReportsController {
    */
   static async createMonthlyReport(req, res) {
     try {
-      console.log('📊 Creating monthly report:', req.body);
+      logger.debug('Creating monthly report', { agent_id: req.body.agent_id, start_date: req.body.start_date, end_date: req.body.end_date });
       
       const role = normalizeRole(req.user.role);
       
@@ -65,7 +66,7 @@ class ReportsController {
         req.user.id
       );
 
-      console.log('✅ Report created successfully:', report.id);
+      logger.debug('Report created successfully', { reportId: report.id });
       
       res.status(201).json({
         success: true,
@@ -73,7 +74,7 @@ class ReportsController {
         message: 'Monthly report created successfully'
       });
     } catch (error) {
-      console.error('❌ Error creating monthly report:', error);
+      logger.error('Error creating monthly report', error);
       
       if (error.message?.includes('already exists')) {
         return res.status(409).json({
@@ -111,8 +112,7 @@ class ReportsController {
    */
   static async getAllReports(req, res) {
     try {
-      console.log('📊 Getting monthly reports with filters:', req.query);
-      console.log('👤 User:', req.user?.name, 'Role:', req.user?.role);
+      logger.debug('Getting monthly reports with filters', { query: req.query, userId: req.user?.id, role: req.user?.role });
       
       const role = normalizeRole(req.user.role);
       const userId = req.user.id;
@@ -170,7 +170,7 @@ class ReportsController {
 
       let reports = await Report.getAllReports(filters);
       
-      console.log('✅ Retrieved reports:', reports.length);
+      logger.debug('Retrieved reports', { count: reports.length });
       
       res.json({
         success: true,
@@ -179,7 +179,7 @@ class ReportsController {
         message: `Retrieved ${reports.length} reports`
       });
     } catch (error) {
-      console.error('❌ Error getting monthly reports:', error);
+      logger.error('Error getting monthly reports', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve monthly reports',
@@ -197,7 +197,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      console.log('📊 Getting report by ID:', id);
+      logger.debug('Getting report by ID', { reportId: id });
       
       let report = await Report.getReportById(parseInt(id));
       
@@ -245,7 +245,7 @@ class ReportsController {
       }
       // Admin, operations manager, operations: full access
       
-      console.log('✅ Retrieved report:', report.id);
+      logger.debug('Retrieved report', { reportId: report.id });
       
       res.json({
         success: true,
@@ -253,7 +253,7 @@ class ReportsController {
         message: 'Report retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting report:', error);
+      logger.error('Error getting report', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve report',
@@ -272,7 +272,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      console.log('📊 Updating report:', id, updates);
+      logger.debug('Updating report', { reportId: id, updates: Object.keys(updates) });
       
       // Check if report exists and user has permission
       const existingReport = await Report.getReportById(parseInt(id));
@@ -296,7 +296,7 @@ class ReportsController {
       
       const report = await Report.updateReport(parseInt(id), updates);
       
-      console.log('✅ Report updated successfully:', report.id);
+      logger.debug('Report updated successfully', { reportId: report.id });
       
       res.json({
         success: true,
@@ -304,7 +304,7 @@ class ReportsController {
         message: 'Report updated successfully'
       });
     } catch (error) {
-      console.error('❌ Error updating report:', error);
+      logger.error('Error updating report', error);
       
       if (error.message === 'Report not found') {
         return res.status(404).json({
@@ -337,11 +337,11 @@ class ReportsController {
         });
       }
       
-      console.log('📊 Recalculating report:', id);
+      logger.debug('Recalculating report', { reportId: id });
       
       const report = await Report.recalculateReport(parseInt(id));
       
-      console.log('✅ Report recalculated successfully:', report.id);
+      logger.debug('Report recalculated successfully', { reportId: report.id });
       
       res.json({
         success: true,
@@ -349,7 +349,7 @@ class ReportsController {
         message: 'Report recalculated successfully'
       });
     } catch (error) {
-      console.error('❌ Error recalculating report:', error);
+      logger.error('Error recalculating report', error);
       
       if (error.message === 'Report not found') {
         return res.status(404).json({
@@ -382,11 +382,11 @@ class ReportsController {
         });
       }
       
-      console.log('📊 Deleting report:', id);
+      logger.debug('Deleting report', { reportId: id });
       
       const report = await Report.deleteReport(parseInt(id));
       
-      console.log('✅ Report deleted successfully:', id);
+      logger.debug('Report deleted successfully', { reportId: id });
       
       res.json({
         success: true,
@@ -394,7 +394,7 @@ class ReportsController {
         message: 'Report deleted successfully'
       });
     } catch (error) {
-      console.error('❌ Error deleting report:', error);
+      logger.error('Error deleting report', error);
       
       if (error.message === 'Report not found') {
         return res.status(404).json({
@@ -416,11 +416,11 @@ class ReportsController {
    */
   static async getLeadSources(req, res) {
     try {
-      console.log('📊 Getting available lead sources');
+      logger.debug('Getting available lead sources');
       
       const sources = await Report.getAvailableLeadSources();
       
-      console.log('✅ Retrieved lead sources:', sources.length);
+      logger.debug('Retrieved lead sources', { count: sources.length });
       
       res.json({
         success: true,
@@ -428,7 +428,7 @@ class ReportsController {
         message: 'Lead sources retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting lead sources:', error);
+      logger.error('Error getting lead sources', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve lead sources',
@@ -446,7 +446,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      console.log('📊 Exporting report to Excel:', id);
+      logger.debug('Exporting report to Excel', { reportId: id });
       
       let report = await Report.getReportById(parseInt(id));
       
@@ -509,7 +509,7 @@ class ReportsController {
           try {
             report.lead_sources = JSON.parse(report.lead_sources);
           } catch (e) {
-            console.warn('Failed to parse lead_sources:', e);
+            logger.warn('Failed to parse lead_sources', e);
             report.lead_sources = {};
           }
         }
@@ -519,7 +519,7 @@ class ReportsController {
           try {
             report.lead_sources = JSON.parse(report.lead_sources);
           } catch (e) {
-            console.warn('Failed to parse lead_sources:', e);
+            logger.warn('Failed to parse lead_sources', e);
             report.lead_sources = {};
           }
         }
@@ -543,9 +543,9 @@ class ReportsController {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
       
-      console.log('✅ Report exported to Excel successfully');
+      logger.debug('Report exported to Excel successfully', { reportId: id });
     } catch (error) {
-      console.error('❌ Error exporting report to Excel:', error);
+      logger.error('Error exporting report to Excel', error);
       res.status(500).json({
         success: false,
         message: 'Failed to export report to Excel',
@@ -563,7 +563,7 @@ class ReportsController {
       const role = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      console.log('📊 Exporting report to PDF:', id);
+      logger.debug('Exporting report to PDF', { reportId: id });
       
       let report = await Report.getReportById(parseInt(id));
       
@@ -627,7 +627,7 @@ class ReportsController {
           try {
             report.lead_sources = JSON.parse(report.lead_sources);
           } catch (e) {
-            console.warn('Failed to parse lead_sources:', e);
+            logger.warn('Failed to parse lead_sources', e);
             report.lead_sources = {};
           }
         }
@@ -637,7 +637,7 @@ class ReportsController {
           try {
             report.lead_sources = JSON.parse(report.lead_sources);
           } catch (e) {
-            console.warn('Failed to parse lead_sources:', e);
+            logger.warn('Failed to parse lead_sources', e);
             report.lead_sources = {};
           }
         }
@@ -661,9 +661,9 @@ class ReportsController {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
       
-      console.log('✅ Report exported to PDF successfully');
+      logger.debug('Report exported to PDF successfully', { reportId: id });
     } catch (error) {
-      console.error('❌ Error exporting report to PDF:', error);
+      logger.error('Error exporting report to PDF', error);
       res.status(500).json({
         success: false,
         message: 'Failed to export report to PDF',
@@ -699,7 +699,7 @@ class ReportsController {
         message: 'Sale & Rent Source report generated successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting Sale & Rent Source report:', error);
+      logger.error('Error getting Sale & Rent Source report', error);
       res.status(500).json({
         success: false,
         message: 'Failed to generate Sale & Rent Source report',
@@ -740,7 +740,7 @@ class ReportsController {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
     } catch (error) {
-      console.error('❌ Error exporting Sale & Rent Source report to Excel:', error);
+      logger.error('Error exporting Sale & Rent Source report to Excel', error);
       res.status(500).json({
         success: false,
         message: 'Failed to export Sale & Rent Source report to Excel',
@@ -781,7 +781,7 @@ class ReportsController {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
     } catch (error) {
-      console.error('❌ Error exporting Sale & Rent Source report to PDF:', error);
+      logger.error('Error exporting Sale & Rent Source report to PDF', error);
       res.status(500).json({
         success: false,
         message: 'Failed to export Sale & Rent Source report to PDF',

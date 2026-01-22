@@ -53,7 +53,6 @@ export function ReferPropertyModal({
         setAgents(filteredAgents)
       }
     } catch (error) {
-      console.error('Error fetching agents:', error)
       showToast('error', 'Unable to load the list of agents and team leaders. Please refresh the page and try again.')
     } finally {
       setFetchingAgents(false)
@@ -67,25 +66,17 @@ export function ReferPropertyModal({
       return
     }
 
+    if (!token) {
+      showToast('error', 'Authentication required. Please log in again.')
+      return
+    }
+
     try {
       setLoading(true)
-      const response = await fetch(
-        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/${property.id}/refer`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-          },
-          body: JSON.stringify({
-            referred_to_agent_id: selectedAgentId
-          })
-        }
-      )
+      const { propertiesApi } = await import('@/utils/api')
+      const data = await propertiesApi.referToAgent(property.id, selectedAgentId as number, token)
 
-      const data = await response.json()
-
-      if (response.ok && data.success) {
+      if (data.success) {
         const selectedAgent = agents.find(a => a.id === selectedAgentId)
         const agentName = selectedAgent?.name || 'the selected agent'
         showToast('success', `Property ${property.reference_number} has been successfully referred to ${agentName}. They will receive a notification and can confirm or reject the referral.`)
@@ -97,7 +88,6 @@ export function ReferPropertyModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      console.error('Error referring property:', error)
       showToast('error', 'Failed to refer property due to a network error. Please check your connection and try again.')
     } finally {
       setLoading(false)

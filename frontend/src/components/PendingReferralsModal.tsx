@@ -51,25 +51,20 @@ export function PendingReferralsModal({
   }, [isOpen])
 
   const fetchPendingReferrals = async () => {
+    if (!token) {
+      showToast('error', 'Authentication required. Please log in again.')
+      return
+    }
+
     try {
       setLoading(true)
-      const response = await fetch(
-        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/pending`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-          }
-        }
-      )
-
-      const data = await response.json()
+      const { propertiesApi } = await import('@/utils/api')
+      const data = await propertiesApi.getPendingReferrals(token)
+      
       if (data.success) {
         setReferrals(data.data || [])
       }
     } catch (error) {
-      console.error('Error fetching pending referrals:', error)
       showToast('error', 'Unable to load your pending property referrals. Please refresh the page and try again.')
     } finally {
       setLoading(false)
@@ -77,21 +72,17 @@ export function PendingReferralsModal({
   }
 
   const handleConfirm = async (referralId: number) => {
+    if (!token) {
+      showToast('error', 'Authentication required. Please log in again.')
+      return
+    }
+
     try {
       setProcessing(referralId)
-      const response = await fetch(
-        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/${referralId}/confirm`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-          }
-        }
-      )
-
-      const data = await response.json()
-      if (response.ok && data.success) {
+      const { propertiesApi } = await import('@/utils/api')
+      const data = await propertiesApi.confirmReferral(referralId, token)
+      
+      if (data.success) {
         const referral = referrals.find(r => r.id === referralId)
         const propertyRef = referral?.reference_number || 'the property'
         showToast('success', `Referral confirmed successfully! Property ${propertyRef} has been assigned to you. You can now manage this property.`)
@@ -102,7 +93,6 @@ export function PendingReferralsModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      console.error('Error confirming referral:', error)
       showToast('error', 'Failed to confirm the referral due to a network error. Please check your connection and try again.')
     } finally {
       setProcessing(null)
@@ -110,21 +100,17 @@ export function PendingReferralsModal({
   }
 
   const handleReject = async (referralId: number) => {
+    if (!token) {
+      showToast('error', 'Authentication required. Please log in again.')
+      return
+    }
+
     try {
       setProcessing(referralId)
-      const response = await fetch(
-        `${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/properties/referrals/${referralId}/reject`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-          }
-        }
-      )
-
-      const data = await response.json()
-      if (response.ok && data.success) {
+      const { propertiesApi } = await import('@/utils/api')
+      const data = await propertiesApi.rejectReferral(referralId, token)
+      
+      if (data.success) {
         const referral = referrals.find(r => r.id === referralId)
         const propertyRef = referral?.reference_number || 'the property'
         showToast('success', `Referral rejected. The referrer has been notified that you declined the referral for property ${propertyRef}.`)
@@ -135,7 +121,6 @@ export function PendingReferralsModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      console.error('Error rejecting referral:', error)
       showToast('error', 'Failed to reject the referral due to a network error. Please check your connection and try again.')
     } finally {
       setProcessing(null)

@@ -22,6 +22,10 @@ const {
 } = require('../middlewares/propertyValidation');
 const { csrfProtection } = require('../middlewares/csrfProtection');
 const { xssProtection } = require('../middlewares/xssProtection');
+const { createRateLimiter } = require('../middlewares/rateLimiter');
+
+// Rate limiter for property read operations
+const propertyReadLimiter = createRateLimiter(100, 15 * 60 * 1000); // 100 requests per 15 minutes
 
 // Apply authentication and role filtering to all routes
 router.use(authenticateToken);
@@ -30,16 +34,16 @@ router.use(filterDataByRole);
 
 
 // GET /api/properties - Get all properties (filtered by role)
-router.get('/', canViewProperties, csrfProtection, propertyController.getAllProperties);
+router.get('/', canViewProperties, propertyReadLimiter, csrfProtection, propertyController.getAllProperties);
 
 // GET /api/properties/filtered - Get properties with filters (filtered by role)
-router.get('/filtered', canViewProperties, csrfProtection, propertyController.getPropertiesWithFilters);
+router.get('/filtered', canViewProperties, propertyReadLimiter, csrfProtection, propertyController.getPropertiesWithFilters);
 
 // GET /api/properties/stats/overview - Get property statistics (admin, operations manager, operations, agent manager)
-router.get('/stats/overview', canViewAllData, propertyController.getPropertyStats);
+router.get('/stats/overview', canViewAllData, propertyReadLimiter, propertyController.getPropertyStats);
 
 // GET /api/properties/agent/:agentId - Get properties by agent (admin, operations manager, agent manager)
-router.get('/agent/:agentId', canViewAgentPerformance, propertyController.getPropertiesByAgent);
+router.get('/agent/:agentId', canViewAgentPerformance, propertyReadLimiter, propertyController.getPropertiesByAgent);
 
 // Image management routes (file uploads)
 // POST /api/properties/:id/upload-main-image - Upload main property image
@@ -52,17 +56,17 @@ router.post('/:id/upload-gallery', canManageProperties, csrfProtection, uploadMu
 router.delete('/:id/images/:imageUrl', canManageProperties, propertyController.removeImageFromGallery);
 
 // GET /api/properties/images/all - Get all properties with images
-router.get('/images/all', canViewAllData, propertyController.getPropertiesWithImages);
+router.get('/images/all', canViewAllData, propertyReadLimiter, propertyController.getPropertiesWithImages);
 
 // GET /api/properties/images/stats - Get image statistics
-router.get('/images/stats', canViewAllData, propertyController.getImageStats);
+router.get('/images/stats', canViewAllData, propertyReadLimiter, propertyController.getImageStats);
 
 // Property referral routes (must be before /:id route to avoid conflicts)
 // GET /api/properties/referrals/pending - Get pending referrals for current user
-router.get('/referrals/pending', canViewProperties, propertyController.getPendingReferrals);
+router.get('/referrals/pending', canViewProperties, propertyReadLimiter, propertyController.getPendingReferrals);
 
 // GET /api/properties/referrals/pending/count - Get count of pending referrals
-router.get('/referrals/pending/count', canViewProperties, propertyController.getPendingReferralsCount);
+router.get('/referrals/pending/count', canViewProperties, propertyReadLimiter, propertyController.getPendingReferralsCount);
 
 // PUT /api/properties/referrals/:id/confirm - Confirm a referral
 router.put('/referrals/:id/confirm', canViewProperties, propertyController.confirmReferral);
@@ -74,7 +78,7 @@ router.put('/referrals/:id/reject', canViewProperties, propertyController.reject
 router.post('/:id/refer', canViewProperties, propertyController.referPropertyToAgent);
 
 // GET /api/properties/:id - Get single property (filtered by role) - MUST BE LAST
-router.get('/:id', canViewProperties, csrfProtection, propertyController.getPropertyById);
+router.get('/:id', canViewProperties, propertyReadLimiter, csrfProtection, propertyController.getPropertyById);
 
 // POST /api/properties - Create new property (admin, operations manager, operations, agent manager)
 router.post('/', 

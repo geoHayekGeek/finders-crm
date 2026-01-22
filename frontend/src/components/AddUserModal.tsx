@@ -70,8 +70,25 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
       return
     }
     
-    if (!formData.password || formData.password.length < 6) {
-      showError('Password must be at least 6 characters')
+    // Password validation: min 8 chars, uppercase, lowercase, number, special char
+    if (!formData.password || formData.password.length < 8) {
+      showError('Password must be at least 8 characters long')
+      return
+    }
+    if (!/[a-z]/.test(formData.password)) {
+      showError('Password must contain at least one lowercase letter')
+      return
+    }
+    if (!/[A-Z]/.test(formData.password)) {
+      showError('Password must contain at least one uppercase letter')
+      return
+    }
+    if (!/[0-9]/.test(formData.password)) {
+      showError('Password must contain at least one number')
+      return
+    }
+    if (!/[^a-zA-Z0-9]/.test(formData.password)) {
+      showError('Password must contain at least one special character')
       return
     }
     
@@ -101,7 +118,6 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
               await usersApi.assignAgentToTeamLeader(response.user.id, agentId, token)
             }
           } catch (assignError) {
-            console.error('Error assigning agents:', assignError)
             showWarning('User created but some agent assignments failed')
           }
         }
@@ -113,7 +129,6 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
         showError(response.message || 'Failed to create user')
       }
     } catch (error: any) {
-      console.error('Error creating user:', error)
       showError(error?.message || 'Failed to create user')
     } finally {
       setSaving(false)
@@ -214,7 +229,7 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                Password must be at least 6 characters long
+                Password must be at least 8 characters with uppercase, lowercase, number, and special character
               </p>
             </div>
 

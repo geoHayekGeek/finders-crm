@@ -26,24 +26,11 @@ export async function compressImage(
 ): Promise<File> {
   try {
     const compressionOptions = { ...defaultOptions, ...options };
-    
-    console.log('Compressing image:', {
-      originalSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
-      originalType: file.type,
-      options: compressionOptions
-    });
-
     const compressedFile = await imageCompression(file, compressionOptions);
-    
-    console.log('Image compressed successfully:', {
-      compressedSize: `${(compressedFile.size / 1024 / 1024).toFixed(2)}MB`,
-      compressionRatio: `${((1 - compressedFile.size / file.size) * 100).toFixed(1)}%`
-    });
-
     return compressedFile;
   } catch (error) {
-    console.error('Error compressing image:', error);
     // Return original file if compression fails
+    // Error is silently handled to prevent breaking the upload flow
     return file;
   }
 }

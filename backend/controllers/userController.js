@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
 const jwtUtil = require('../utils/jwt');
 const logger = require('../utils/logger');
+const { sanitizeInput, sanitizeObject } = require('../utils/sanitize');
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 // Converts to space format for consistent comparisons
@@ -13,6 +14,11 @@ const registerUser = async (req, res) => {
   try {
     // Check if user is authenticated (for creating new users, only admin and HR can do this)
     if (!req.user || !req.user.role) {
+      logger.security('User registration attempt without authentication', {
+        url: req.url,
+        method: req.method,
+        ip: req.ip
+      });
       return res.status(401).json({ 
         success: false, 
         message: 'Authentication required' 
@@ -21,16 +27,26 @@ const registerUser = async (req, res) => {
 
     const currentUserRole = req.user.role;
     const normalizedRole = normalizeRole(currentUserRole);
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     // Only admin, HR, and operations manager can create users
     if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
+      logger.security('User registration access denied', {
+        userId: req.user.id,
+        role: req.user.role,
+        normalizedRole,
+        url: req.url,
+        method: req.method,
+        ip: clientIP
+      });
       return res.status(403).json({ 
         success: false, 
         message: 'Access denied. Only admin, HR, and operations manager can create users.' 
       });
     }
 
-    const { name, email, password, role, phone, dob, work_location, address } = req.body;
+    // Sanitize input to prevent XSS and SQL injection
+    const { name, email, password, role, phone, dob, work_location, address } = sanitizeObject(req.body);
 
     // Basic validation
     if (!name || !email || !password || !role) {
@@ -40,6 +56,11 @@ const registerUser = async (req, res) => {
     // Check if user already exists
     const existingUser = await userModel.findByEmail(email);
     if (existingUser) {
+      logger.security('User registration attempt with existing email', {
+        email,
+        attemptedBy: req.user.id,
+        ip: clientIP
+      });
       return res.status(409).json({ success: false, message: 'User already exists' });
     }
 
@@ -55,16 +76,26 @@ const registerUser = async (req, res) => {
 
     // Create user
     const newUser = await userModel.createUser({
-      name,
-      email,
+      name: sanitizeInput(name),
+      email: sanitizeInput(email).toLowerCase(),
       password: hashedPassword,
-      role,
-      phone,
-      dob,
-      work_location,
+      role: sanitizeInput(role),
+      phone: phone ? sanitizeInput(phone) : null,
+      dob: dob || null,
+      work_location: work_location ? sanitizeInput(work_location) : null,
       user_code: userCode,
-      address,
+      address: address ? sanitizeInput(address) : null,
       added_by: addedBy,
+    });
+
+    // Audit log: User created
+    logger.security('User created', {
+      createdUserId: newUser.id,
+      createdUserEmail: newUser.email,
+      createdUserRole: newUser.role,
+      createdBy: req.user.id,
+      createdByName: req.user.name,
+      ip: clientIP
     });
 
     res.status(201).json({
@@ -79,7 +110,7 @@ const registerUser = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    logger.error('User registration error', err);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 };
@@ -249,7 +280,7 @@ const checkUserExists = async (req, res) => {
         message: user ? 'User found' : 'User not found'
       });
     } catch (dbError) {
-      console.error('Database error:', dbError.message);
+      logger.error('Database error checking user existence', dbError);
       // When database is not available, return an error instead of a mock response
       res.status(503).json({
         success: false,
@@ -259,7 +290,7 @@ const checkUserExists = async (req, res) => {
     }
 
   } catch (error) {
-    console.error('Error checking user existence:', error);
+    logger.error('Error checking user existence', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'
@@ -271,6 +302,11 @@ const getAllUsers = async (req, res) => {
   try {
     // Check if user is authenticated
     if (!req.user || !req.user.id) {
+      logger.security('getAllUsers called without authentication', {
+        url: req.url,
+        method: req.method,
+        ip: req.ip
+      });
       return res.status(401).json({
         success: false,
         message: 'Authentication required'
@@ -279,24 +315,16 @@ const getAllUsers = async (req, res) => {
 
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
+    const normalizedRole = normalizeRole(currentUserRole);
 
     // Get all users from database
     const allUsers = await userModel.getAllUsers();
-    console.log('📊 Fetched users from database:', allUsers.length);
-
-    // Normalize role for comparison
-    const normalizeRole = (role) => {
-      if (!role) return '';
-      return role.toLowerCase().replace(/_/g, ' ').trim();
-    };
-    const normalizedRole = normalizeRole(currentUserRole);
+    logger.debug('Fetched users from database', { count: allUsers.length });
 
     // Filter users based on role
+    // Only admin, HR, and operations manager can see all users (aligned with permissions middleware)
     let filteredUsers = allUsers;
-    
-    // Admin, HR, operations manager, operations, and agent manager can see all users
-    // (needed for referrals and other management functions)
-    const canViewAllUsers = ['admin', 'hr', 'operations manager', 'operations', 'agent manager'].includes(normalizedRole);
+    const canViewAllUsers = ['admin', 'hr', 'operations manager'].includes(normalizedRole);
     
     if (!canViewAllUsers) {
       // Other users can only see themselves
@@ -331,7 +359,7 @@ const getAllUsers = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('❌ Error fetching users:', error);
+    logger.error('Error fetching users', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch users'
@@ -343,6 +371,11 @@ const updateUser = async (req, res) => {
   try {
     // Check if user is authenticated
     if (!req.user || !req.user.id) {
+      logger.security('updateUser called without authentication', {
+        url: req.url,
+        method: req.method,
+        ip: req.ip
+      });
       return res.status(401).json({ 
         success: false,
         message: 'Authentication required' 
@@ -350,9 +383,11 @@ const updateUser = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, email, role, phone, dob, work_location, user_code, is_active, password, address } = req.body;
+    // Sanitize input to prevent XSS and SQL injection
+    const { name, email, role, phone, dob, work_location, user_code, is_active, password, address } = sanitizeObject(req.body);
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
     // Check if user exists
     const existingUser = await userModel.findById(id);
@@ -368,6 +403,12 @@ const updateUser = async (req, res) => {
     if (parseInt(id) !== currentUserId) {
       const normalizedRole = normalizeRole(currentUserRole);
       if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
+        logger.security('User update access denied', {
+          userId: req.user.id,
+          role: req.user.role,
+          targetUserId: id,
+          ip: clientIP
+        });
         return res.status(403).json({ 
           success: false,
           message: 'Access denied. Only admin, HR, and operations manager can update other users.' 
@@ -390,6 +431,23 @@ const updateUser = async (req, res) => {
       }
     }
 
+    // Check email uniqueness if email is being changed
+    if (email && email !== existingUser.email) {
+      const emailUser = await userModel.findByEmail(email);
+      if (emailUser && emailUser.id !== parseInt(id)) {
+        logger.security('User update attempt with existing email', {
+          email,
+          attemptedBy: req.user.id,
+          targetUserId: id,
+          ip: clientIP
+        });
+        return res.status(409).json({ 
+          success: false,
+          message: 'Email already in use' 
+        });
+      }
+    }
+
     // If updating user_code, check if it's already taken by another user
     if (user_code && user_code !== existingUser.user_code) {
       const userWithCode = await userModel.findByUserCode(user_code);
@@ -401,17 +459,25 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // Prepare update data
+    // Track what changed for audit logging
+    const changes = {};
+    if (name && name !== existingUser.name) changes.name = { from: existingUser.name, to: name };
+    if (email && email !== existingUser.email) changes.email = { from: existingUser.email, to: email };
+    if (role && role !== existingUser.role) changes.role = { from: existingUser.role, to: role };
+    if (is_active !== undefined && is_active !== existingUser.is_active) changes.is_active = { from: existingUser.is_active, to: is_active };
+    if (password && password.trim() !== '') changes.password = { changed: true };
+
+    // Prepare update data with sanitization
     const updateData = {
-      name,
-      email,
-      role,
-      phone,
-      dob,
-      work_location,
-      user_code,
-      is_active,
-      address
+      name: name ? sanitizeInput(name) : undefined,
+      email: email ? sanitizeInput(email).toLowerCase() : undefined,
+      role: role ? sanitizeInput(role) : undefined,
+      phone: phone ? sanitizeInput(phone) : null,
+      dob: dob || null,
+      work_location: work_location ? sanitizeInput(work_location) : null,
+      user_code: user_code || undefined,
+      is_active: is_active !== undefined ? is_active : undefined,
+      address: address ? sanitizeInput(address) : null
     };
 
     // If password is provided, hash it and include in update
@@ -424,13 +490,23 @@ const updateUser = async (req, res) => {
     // Update user
     const updatedUser = await userModel.updateUser(id, updateData);
 
+    // Audit log: User updated
+    logger.security('User updated', {
+      updatedUserId: id,
+      updatedUserEmail: existingUser.email,
+      updatedBy: req.user.id,
+      updatedByName: req.user.name,
+      changes: Object.keys(changes).length > 0 ? changes : null,
+      ip: clientIP
+    });
+
     res.json({
       success: true,
       message: 'User updated successfully',
       user: updatedUser
     });
   } catch (error) {
-    console.error('Error updating user:', error);
+    logger.error('Error updating user', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update user'
@@ -442,6 +518,11 @@ const deleteUser = async (req, res) => {
   try {
     // Check if user is authenticated
     if (!req.user || !req.user.id) {
+      logger.security('deleteUser called without authentication', {
+        url: req.url,
+        method: req.method,
+        ip: req.ip
+      });
       return res.status(401).json({
         success: false,
         message: 'Authentication required'
@@ -451,8 +532,7 @@ const deleteUser = async (req, res) => {
     const { id } = req.params;
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
-
-    console.log('🗑️ Deleting user:', id);
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
     // Check if user exists
     const existingUser = await userModel.findById(id);
@@ -466,6 +546,13 @@ const deleteUser = async (req, res) => {
     // Permission check: Only admin, HR, and operations manager can delete users
     const normalizedRole = normalizeRole(currentUserRole);
     if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
+      logger.security('User deletion access denied', {
+        userId: req.user.id,
+        role: req.user.role,
+        targetUserId: id,
+        targetUserEmail: existingUser.email,
+        ip: clientIP
+      });
       return res.status(403).json({
         success: false,
         message: 'Access denied. Only admin, HR, and operations manager can delete users.'
@@ -474,6 +561,10 @@ const deleteUser = async (req, res) => {
 
     // Prevent users from deleting themselves
     if (parseInt(id) === currentUserId) {
+      logger.security('User deletion attempt on own account', {
+        userId: req.user.id,
+        ip: clientIP
+      });
       return res.status(403).json({
         success: false,
         message: 'You cannot delete your own account'
@@ -481,7 +572,13 @@ const deleteUser = async (req, res) => {
     }
 
     // Prevent deletion of admins (optional safety check)
-    if (existingUser.role === 'admin') {
+    if (normalizeRole(existingUser.role) === 'admin') {
+      logger.security('User deletion attempt on admin account', {
+        userId: req.user.id,
+        targetUserId: id,
+        targetUserEmail: existingUser.email,
+        ip: clientIP
+      });
       return res.status(403).json({
         success: false,
         message: 'Cannot delete admin users'
@@ -498,7 +595,16 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    console.log('✅ User deleted successfully:', deletedUser.id);
+    // Audit log: User deleted
+    logger.security('User deleted', {
+      deletedUserId: deletedUser.id,
+      deletedUserEmail: deletedUser.email,
+      deletedUserRole: deletedUser.role,
+      deletedUserName: deletedUser.name,
+      deletedBy: req.user.id,
+      deletedByName: req.user.name,
+      ip: clientIP
+    });
 
     res.json({
       success: true,
@@ -510,7 +616,7 @@ const deleteUser = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error deleting user:', error);
+    logger.error('Error deleting user', error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete user'
@@ -541,7 +647,7 @@ const getAgents = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching agents:', error);
+    logger.error('Error fetching agents', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch agents'
@@ -604,7 +710,7 @@ const getUsersByRole = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching users by role:', error);
+    logger.error('Error fetching users by role', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch users by role'
@@ -630,7 +736,7 @@ const getTeamLeaders = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching team leaders:', error);
+    logger.error('Error fetching team leaders', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch team leaders'
@@ -664,7 +770,7 @@ const getTeamLeaderAgents = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching team leader agents:', error);
+    logger.error('Error fetching team leader agents', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch team leader agents'
@@ -707,7 +813,7 @@ const getAgentTeamLeader = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching agent team leader:', error);
+    logger.error('Error fetching agent team leader', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch agent team leader'
@@ -733,7 +839,7 @@ const getAvailableAgents = async (req, res) => {
       }))
     });
   } catch (error) {
-    console.error('Error fetching available agents:', error);
+    logger.error('Error fetching available agents', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch available agents'
@@ -745,6 +851,7 @@ const assignAgentToTeamLeader = async (req, res) => {
   try {
     const { teamLeaderId, agentId } = req.body;
     const assignedBy = req.user?.id; // From JWT token
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     if (!teamLeaderId || !agentId) {
       return res.status(400).json({
@@ -773,6 +880,15 @@ const assignAgentToTeamLeader = async (req, res) => {
 
     const assignment = await userModel.assignAgentToTeamLeader(teamLeaderId, agentId, assignedBy);
     
+    // Audit log: Agent assignment
+    logger.security('Agent assigned to team leader', {
+      teamLeaderId,
+      agentId,
+      assignedBy: req.user?.id,
+      assignedByName: req.user?.name,
+      ip: clientIP
+    });
+    
     res.json({
       success: true,
       message: 'Agent assigned to team leader successfully',
@@ -785,7 +901,7 @@ const assignAgentToTeamLeader = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error assigning agent to team leader:', error);
+    logger.error('Error assigning agent to team leader', error);
     res.status(500).json({
       success: false,
       message: 'Failed to assign agent to team leader'
@@ -818,7 +934,7 @@ const removeAgentFromTeamLeader = async (req, res) => {
       message: 'Agent removed from team leader successfully'
     });
   } catch (error) {
-    console.error('Error removing agent from team leader:', error);
+    logger.error('Error removing agent from team leader', error);
     res.status(500).json({
       success: false,
       message: 'Failed to remove agent from team leader'
@@ -830,6 +946,7 @@ const transferAgent = async (req, res) => {
   try {
     const { currentTeamLeaderId, agentId, newTeamLeaderId } = req.body;
     const assignedBy = req.user?.id; // From JWT token
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     if (!currentTeamLeaderId || !agentId || !newTeamLeaderId) {
       return res.status(400).json({
@@ -863,6 +980,16 @@ const transferAgent = async (req, res) => {
       assignedBy
     );
     
+    // Audit log: Agent transfer
+    logger.security('Agent transferred between team leaders', {
+      agentId,
+      fromTeamLeaderId: currentTeamLeaderId,
+      toTeamLeaderId: newTeamLeaderId,
+      transferredBy: req.user?.id,
+      transferredByName: req.user?.name,
+      ip: clientIP
+    });
+    
     res.json({
       success: true,
       message: 'Agent transferred successfully',
@@ -875,7 +1002,7 @@ const transferAgent = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error transferring agent:', error);
+    logger.error('Error transferring agent', error);
     res.status(500).json({
       success: false,
       message: 'Failed to transfer agent'

@@ -926,6 +926,38 @@ const canManageOperationsCommission = (req, res, next) => {
   next();
 };
 
+// Middleware to check if user can manage settings (admin and operations manager only)
+const canManageSettings = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    logger.security('canManageSettings called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = normalizeRole(req.user.role);
+  
+  // Only admin and operations manager can manage settings
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER];
+  if (!allowedRoles.includes(role)) {
+    logger.security('Settings management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(403).json({ 
+      message: 'Access denied. Settings management restricted to admin and operations manager only.' 
+    });
+  }
+
+  next();
+};
+
 module.exports = {
   authenticateToken,
   checkPermission,
@@ -949,6 +981,7 @@ module.exports = {
   canManageSaleRentSource,
   canViewOperationsCommission,
   canManageOperationsCommission,
+  canManageSettings,
   filterDataByRole,
   hasPermission,
   PERMISSIONS

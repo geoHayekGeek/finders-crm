@@ -1,5 +1,6 @@
 // models/propertyModel.js
 const pool = require('../config/db');
+const logger = require('../utils/logger');
 
 class Property {
   static async createProperty(propertyData) {
@@ -186,7 +187,7 @@ class Property {
 
   static async getAllProperties() {
     try {
-      console.log('🔍 Executing getAllProperties query...');
+      logger.debug('Executing getAllProperties query');
       const result = await pool.query(`
         SELECT 
           p.id,
@@ -239,7 +240,7 @@ class Property {
         LEFT JOIN reference_sources rs ON p.platform_id = rs.id
         ORDER BY p.created_at DESC
       `);
-      console.log('✅ Query executed successfully, rows returned:', result.rows.length);
+      logger.debug('Query executed successfully', { rowCount: result.rows.length });
       
       // Fetch all referrals in a single query for better performance
       const propertyIds = result.rows.map(p => p.id);
@@ -284,13 +285,7 @@ class Property {
       
       return propertiesWithReferrals;
     } catch (error) {
-      console.error('❌ Error in getAllProperties:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        detail: error.detail,
-        hint: error.hint
-      });
+      logger.error('Error in getAllProperties', error);
       throw error;
     }
   }
@@ -420,7 +415,7 @@ class Property {
   // Get all properties with filtered owner details based on user role and permissions
   static async getAllPropertiesWithFilteredOwnerDetails(userRole, userId) {
     try {
-      console.log('🔍 Executing getAllPropertiesWithFilteredOwnerDetails query...');
+      logger.debug('Executing getAllPropertiesWithFilteredOwnerDetails query');
       const result = await pool.query(`
         SELECT 
           p.id,
@@ -473,7 +468,7 @@ class Property {
         LEFT JOIN reference_sources rs ON p.platform_id = rs.id
         ORDER BY p.created_at DESC
       `);
-      console.log('✅ Query executed successfully, rows returned:', result.rows.length);
+      logger.debug('Query executed successfully', { rowCount: result.rows.length });
       
       // Fetch all referrals in a single query for better performance
       const propertyIds = result.rows.map(p => p.id);
@@ -518,13 +513,7 @@ class Property {
       
       return propertiesWithReferrals;
     } catch (error) {
-      console.error('❌ Error in getAllPropertiesWithFilteredOwnerDetails:', error);
-      console.error('Error details:', {
-        message: error.message,
-        code: error.code,
-        detail: error.detail,
-        hint: error.hint
-      });
+      logger.error('Error in getAllPropertiesWithFilteredOwnerDetails', error);
       throw error;
     }
   }
@@ -701,12 +690,12 @@ class Property {
   }
 
   static async getPropertyById(id) {
-    console.log('🔍 getPropertyById called with ID:', id, 'Type:', typeof id);
+    logger.debug('getPropertyById called', { id, idType: typeof id });
     
     // Ensure ID is a number
     const propertyId = parseInt(id, 10);
     if (isNaN(propertyId)) {
-      console.log('❌ Invalid property ID:', id);
+      logger.warn('Invalid property ID', { id });
       return null;
     }
     
@@ -765,13 +754,13 @@ class Property {
       WHERE p.id = $1
     `, [propertyId]);
     
-    console.log('🔍 Database query result:', {
+    logger.debug('Database query result', {
       rowsReturned: result.rows.length,
       firstRow: result.rows[0] ? { id: result.rows[0].id, reference_number: result.rows[0].reference_number } : null
     });
     
     if (result.rows.length === 0) {
-      console.log('❌ No property found with ID:', id);
+      logger.debug('No property found', { id });
       return null;
     }
     
@@ -787,11 +776,10 @@ class Property {
          date DESC`,
       [propertyId]
     );
-    console.log('🔍 Referrals fetched for property', propertyId, ':', referralsResult.rows);
+    logger.debug('Referrals fetched for property', { propertyId, referralCount: referralsResult.rows.length });
     property.referrals = referralsResult.rows;
     
-    console.log('🔍 Returning property with owner_id:', property.owner_id, 'Type:', typeof property.owner_id);
-    console.log('🔍 Owner name:', property.owner_name);
+    logger.debug('Returning property', { propertyId, hasOwnerId: !!property.owner_id });
     
     return property;
   }
@@ -804,8 +792,10 @@ class Property {
       
       // Extract referrals from updates and remove them from property updates
       const { referrals, ...propertyUpdates } = updates;
-      console.log('🔍 Extracted referrals:', referrals);
-      console.log('🔍 Property updates (without referrals):', propertyUpdates);
+      logger.debug('Extracted referrals and property updates', {
+        referralCount: referrals?.length || 0,
+        updateFieldCount: Object.keys(propertyUpdates).length
+      });
 
       // If owner_id is being changed, always refresh owner_name and phone_number from the lead
       if (propertyUpdates.owner_id) {
@@ -938,25 +928,26 @@ class Property {
           throw new Error('At least one referral is required. Please provide at least one referral for the property.');
         }
         
-        console.log('🔍 Handling referrals for property ID:', id);
-        console.log('🔍 Referrals to insert:', referrals);
+        logger.debug('Handling referrals for property', { propertyId: id, referralCount: referrals.length });
         
         // Delete existing referrals for this property
         await client.query('DELETE FROM referrals WHERE property_id = $1', [id]);
-        console.log('🔍 Deleted existing referrals');
+        logger.debug('Deleted existing referrals', { propertyId: id });
         
         // Insert new referrals (required, already validated above)
-        console.log('🔍 Inserting', referrals.length, 'referrals');
+        logger.debug('Inserting referrals', { propertyId: id, count: referrals.length });
         for (const referral of referrals) {
-          console.log('🔍 Inserting referral:', referral);
-          console.log('🔍 Referral date value:', referral.date);
-          console.log('🔍 Referral date type:', typeof referral.date);
+          logger.debug('Inserting referral', {
+            propertyId: id,
+            referralName: referral.name,
+            referralType: referral.type
+          });
           const result = await client.query(`
             INSERT INTO referrals (property_id, name, type, employee_id, date)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id
           `, [id, referral.name, referral.type, referral.employee_id, referral.date]);
-          console.log('🔍 Referral inserted with ID:', result.rows[0].id);
+          logger.debug('Referral inserted', { referralId: result.rows[0].id });
         }
         
         // Update referrals_count in properties table

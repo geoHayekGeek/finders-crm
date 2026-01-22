@@ -68,7 +68,6 @@ export default function CreateOperationsCommissionModal({
             await operationsCommissionApi.delete(response.data.id, token)
           }
         } catch (createError: any) {
-          console.error('Error creating preview:', createError)
           setPreview(null)
         }
       }
@@ -92,7 +91,6 @@ export default function CreateOperationsCommissionModal({
         onSuccess()
       }
     } catch (error: any) {
-      console.error('Error creating operations commission report:', error)
       showError(error.message || 'Failed to create operations commission report')
     } finally {
       setLoading(false)

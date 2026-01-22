@@ -42,7 +42,6 @@ export function DeleteUserModal({ user, onClose, onSuccess }: DeleteUserModalPro
         showError(response.message || 'Failed to delete user')
       }
     } catch (error: any) {
-      console.error('Error deleting user:', error)
       showError(error?.message || 'Failed to delete user')
     } finally {
       setDeleting(false)

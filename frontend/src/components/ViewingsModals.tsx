@@ -80,7 +80,7 @@ export function ViewingsModals(props: ViewingsModalsProps) {
             setProperties(response.data || [])
           }
         } catch (error) {
-          console.error('Error fetching properties:', error)
+          // Error handled silently - properties list will remain empty
         }
       }
       fetchProperties()
@@ -156,7 +156,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // Prevent double submission using ref for immediate check
       if (isSubmittingRef.current || saving) {
-        console.log('🚫 Double submission prevented', { isSubmitting: isSubmittingRef.current, saving })
         return
       }
       
@@ -202,7 +201,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // Additional security check for agents
       if (isAgentRole(user?.role) && finalFormData.agent_id !== user?.id) {
-        console.error('Security violation: Agent attempted to set agent_id to different value')
         newErrors.agent_id = 'You can only assign viewings to yourself'
       }
       
@@ -212,14 +210,10 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         return
       }
       
-      console.log('📝 Starting viewing creation...', finalFormData)
-      
       setSaving(true)
       try {
-        console.log('📤 Creating viewing with data:', finalFormData)
         // Create the main viewing
         const result = await props.onSaveAdd(finalFormData)
-        console.log('✅ Viewing creation result:', result)
         
         // If sub-viewing is included, create it with parent_viewing_id
         if (includeSubViewing && subViewingData.viewing_date && subViewingData.viewing_time) {
@@ -239,7 +233,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
             }
             await props.onSaveAdd(subViewingFormData)
           } catch (subError) {
-            console.error('Error creating sub-viewing:', subError)
             showError('Main viewing created but sub-viewing failed: ' + (subError instanceof Error ? subError.message : 'Unknown error'))
           }
         }
@@ -264,7 +257,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         })
         setErrors({})
       } catch (error) {
-        console.error('Error creating viewing:', error)
         // Error is already shown by handleAddViewing, so we don't need to show it again
         // Just re-throw so the caller knows it failed
         throw error
@@ -606,7 +598,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       // Otherwise assume HH:mm:ss or HH:mm format
       return timeString.slice(0, 5)
     } catch (error) {
-      console.warn('Error formatting time for input:', timeString, error)
       return ''
     }
   }
@@ -701,7 +692,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
         setAddingFollowUp(false)
       } catch (error) {
-        console.error('Error adding follow-up viewing:', error)
         showError(error instanceof Error ? error.message : 'Failed to add follow-up viewing')
       } finally {
         setSavingFollowUp(false)
@@ -725,7 +715,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         await props.onSaveEdit(finalFormData)
         props.setShowEditModal(false)
       } catch (error) {
-        console.error('Error updating viewing:', error)
       } finally {
         setSaving(false)
       }
@@ -1150,7 +1139,6 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setFollowUpData({ viewing_date: '', viewing_time: '', status: 'Scheduled', notes: '' })
         setAddingFollowUp(false)
       } catch (error) {
-        console.error('Error adding follow-up viewing:', error)
         showError(error instanceof Error ? error.message : 'Failed to add follow-up viewing')
       } finally {
         setSavingFollowUp(false)

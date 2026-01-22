@@ -1,5 +1,6 @@
 // controllers/analyticsController.js
 const pool = require('../config/db');
+const logger = require('../utils/logger');
 
 // Get analytics data with role-based filtering
 const getAnalytics = async (req, res) => {
@@ -36,7 +37,7 @@ const getAnalytics = async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error('Error getting analytics:', error);
+    logger.error('Error getting analytics', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -228,8 +229,13 @@ const getDashboardStats = async (req, res) => {
         ((parseInt(revenueResult.rows[0].sold_count) / parseInt(propertiesResult.rows[0].count)) * 100).toFixed(1) : 0;
     }
 
-    // Client stats (simplified for demo)
-    stats.activeClients = Math.floor(Math.random() * 200) + 100; // Mock data
+    // Client stats - count unique leads as active clients
+    const clientsResult = await pool.query(`
+      SELECT COUNT(DISTINCT customer_name) as active_clients
+      FROM leads
+      WHERE created_at >= DATE_TRUNC('month', NOW())
+    `);
+    stats.activeClients = parseInt(clientsResult.rows[0]?.active_clients || 0);
 
     res.json({
       success: true,
@@ -237,7 +243,7 @@ const getDashboardStats = async (req, res) => {
       role: roleFilters.role
     });
   } catch (error) {
-    console.error('Error getting dashboard stats:', error);
+    logger.error('Error getting dashboard stats', error);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -299,7 +305,7 @@ const getImageAnalytics = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error getting image analytics:', error);
+    logger.error('Error getting image analytics', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

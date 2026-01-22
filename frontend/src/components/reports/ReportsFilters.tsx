@@ -72,7 +72,7 @@ export default function ReportsFilters({
         }
       }
     } catch (error) {
-      console.error('Error loading agents:', error)
+      // Error handled silently - agents list will remain empty
     }
   }
 

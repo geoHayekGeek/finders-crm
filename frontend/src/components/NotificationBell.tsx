@@ -31,7 +31,6 @@ const NotificationBell = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-      console.log('🔔 Fetching notifications with token:', token ? 'present' : 'missing')
       const response = await notificationsApi.getAll()
 
       if (response.success) {
@@ -39,7 +38,7 @@ const NotificationBell = () => {
         setUnreadCount(response.unreadCount)
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error)
+      // Error handled silently - notifications will remain empty
     } finally {
       setLoading(false)
     }
@@ -68,66 +67,36 @@ const NotificationBell = () => {
   }, []) // Empty dependency array means this runs once on mount
 
   const markAsRead = async (id: number) => {
+    if (!token) return
+    
     try {
-      console.log('🔔 Marking notification as read:', id, 'with token:', token ? 'present' : 'missing')
-      
-      // Use direct API call with explicit token
-      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/${id}/read`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-        }
-      })
-      
-      const data = await response.json()
-      console.log('📤 Mark as read response:', data)
+      await notificationsApi.markAsRead(id)
 
-      if (data.success) {
-        setNotifications(prev => 
-          prev.map(notification => 
-            notification.id === id 
-              ? { ...notification, is_read: true }
-              : notification
-          )
+      setNotifications(prev => 
+        prev.map(notification => 
+          notification.id === id 
+            ? { ...notification, is_read: true }
+            : notification
         )
-        setUnreadCount(prev => Math.max(0, prev - 1))
-        console.log('✅ Notification marked as read successfully')
-      } else {
-        console.error('❌ Mark as read failed:', data.message)
-      }
+      )
+      setUnreadCount(prev => Math.max(0, prev - 1))
     } catch (error) {
-      console.error('❌ Error marking notification as read:', error)
+      // Error handled silently - notification will remain unread
     }
   }
 
   const markAllAsRead = async () => {
+    if (!token) return
+    
     try {
-      console.log('🔔 Marking all notifications as read with token:', token ? 'present' : 'missing')
-      
-      // Use direct API call with explicit token
-      const response = await fetch(`${(process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000')}/api/notifications/mark-all-read`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token || localStorage.getItem('token')}`
-        }
-      })
-      
-      const data = await response.json()
-      console.log('📤 Mark all as read response:', data)
+      await notificationsApi.markAllAsRead()
 
-      if (data.success) {
-        setNotifications(prev => 
-          prev.map(notification => ({ ...notification, is_read: true }))
-        )
-        setUnreadCount(0)
-        console.log('✅ All notifications marked as read successfully')
-      } else {
-        console.error('❌ Mark all as read failed:', data.message)
-      }
+      setNotifications(prev => 
+        prev.map(notification => ({ ...notification, is_read: true }))
+      )
+      setUnreadCount(0)
     } catch (error) {
-      console.error('❌ Error marking all notifications as read:', error)
+      // Error handled silently - notifications will remain unread
     }
   }
 

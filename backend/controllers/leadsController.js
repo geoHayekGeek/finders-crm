@@ -5,17 +5,17 @@ const Notification = require('../models/notificationModel');
 const LeadNote = require('../models/leadNotesModel');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
-
-// Normalize role to handle both 'operations_manager' and 'operations manager' formats
-// Converts to space format for consistent comparisons
-const normalizeRole = (role) =>
-  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+const logger = require('../utils/logger');
+const { normalizeRole } = require('../utils/roleUtils');
 
 class LeadsController {
   // Get all leads (with role-based filtering applied by middleware)
   static async getAllLeads(req, res) {
     try {
-      console.log('📋 Getting all leads for user:', req.user?.name, 'Role:', req.user?.role);
+      logger.debug('Getting all leads', {
+        userId: req.user?.id,
+        userRole: req.user?.role
+      });
       
       const normalizedRole = normalizeRole(req.user.role);
 
@@ -50,11 +50,10 @@ class LeadsController {
         userRole: req.user.role // Include role so frontend knows permission level
       });
     } catch (error) {
-      console.error('❌ Error getting leads:', error);
+      logger.error('Error getting leads', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve leads',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve leads'
       });
     }
   }
@@ -62,13 +61,10 @@ class LeadsController {
   // Get leads with filters (with role-based filtering applied by middleware)
   static async getLeadsWithFilters(req, res) {
     try {
-      console.log('🔍 Getting filtered leads for user:', req.user?.name, 'Filters:', req.query);
-      console.log('🔍 User role:', req.user?.role, 'User ID:', req.user?.id);
-      console.log('🔍 Date filters from query:', { 
-        date_from: req.query.date_from, 
-        date_to: req.query.date_to,
-        date_from_type: typeof req.query.date_from,
-        date_to_type: typeof req.query.date_to
+      logger.debug('Getting filtered leads', {
+        userId: req.user?.id,
+        userRole: req.user?.role,
+        filterCount: Object.keys(req.query).length
       });
       
       let leads;
@@ -77,27 +73,27 @@ class LeadsController {
       const userId = req.user.id;
       
       if (normalizedRole === 'agent') {
-        console.log('🔍 Agent user - complex filtering logic');
+        logger.debug('Agent user - complex filtering logic', { userId });
         // Agents see leads assigned to them or that they referred, with filters
         leads = await Lead.getLeadsAssignedOrReferredByAgent(userId);
-        console.log('🔍 Agent leads before filtering:', leads.length);
+        logger.debug('Agent leads before filtering', { count: leads.length });
         // Apply additional filters if provided
         if (Object.keys(req.query).length > 0) {
           const filteredLeads = await Lead.getLeadsWithFilters(req.query);
-          console.log('🔍 Filtered leads from query:', filteredLeads.length);
+          logger.debug('Filtered leads from query', { count: filteredLeads.length });
           // Filter the agent's leads by the query results
           leads = leads.filter(lead => 
             filteredLeads.some(filtered => filtered.id === lead.id)
           );
-          console.log('🔍 Final agent leads after filtering:', leads.length);
+          logger.debug('Final agent leads after filtering', { count: leads.length });
         }
       } else {
-        console.log('🔍 Admin/Manager/Operations user - direct filtering');
+        logger.debug('Admin/Manager/Operations user - direct filtering');
         // Admins, operations managers, operations, and agent managers see all leads with filters
         leads = await Lead.getLeadsWithFilters(req.query);
       }
       
-      console.log('🔍 Final leads count:', leads.length);
+      logger.debug('Final leads count', { count: leads.length });
       
       // Filter data for agents and team leaders
       if (['agent', 'team leader'].includes(normalizedRole)) {
@@ -128,11 +124,10 @@ class LeadsController {
         userRole: req.user.role
       });
     } catch (error) {
-      console.error('❌ Error getting filtered leads:', error);
+      logger.error('Error getting filtered leads', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve filtered leads',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve filtered leads'
       });
     }
   }
@@ -203,11 +198,10 @@ class LeadsController {
         userRole: userRole
       });
     } catch (error) {
-      console.error('❌ Error getting lead by ID:', error);
+      logger.error('Error getting lead by ID', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve lead',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve lead'
       });
     }
   }
@@ -215,8 +209,6 @@ class LeadsController {
   // Create new lead
   static async createLead(req, res) {
     try {
-      console.log('➕ Creating new lead:', req.body);
-      
       // All validation is now handled by middleware
       // Set added_by_id to the current user (person who added the lead)
       let leadData = { ...req.body };
@@ -231,35 +223,59 @@ class LeadsController {
 
       const newLead = await Lead.createLead(leadData);
       
-      console.log('✅ Lead created successfully:', newLead.id);
+      // Audit log: Lead created
+      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      logger.security('Lead created', {
+        leadId: newLead.id,
+        customerName: newLead.customer_name,
+        phoneNumber: newLead.phone_number ? '***' : null, // Mask sensitive data
+        agentId: newLead.agent_id,
+        status: newLead.status,
+        price: newLead.price,
+        createdBy: req.user.id,
+        createdByName: req.user.name,
+        referralCount: req.body.referrals?.length || 0,
+        ip: clientIP
+      });
 
       // Process manual referrals from the form
       if (req.body.referrals && Array.isArray(req.body.referrals) && req.body.referrals.length > 0) {
         try {
-          console.log(`📊 Processing ${req.body.referrals.length} manual referrals for lead ${newLead.id}`);
+          logger.debug('Processing manual referrals', {
+            leadId: newLead.id,
+            referralCount: req.body.referrals.length
+          });
           for (const referral of req.body.referrals) {
             if (referral.type === 'employee' && referral.employee_id && referral.date) {
               // Get agent name for employee referral
               const agentResult = await pool.query('SELECT name FROM users WHERE id = $1', [referral.employee_id]);
               const agentName = agentResult.rows[0]?.name || referral.name || 'Unknown Agent';
               await LeadReferral.createReferral(newLead.id, referral.employee_id, agentName, 'employee', new Date(referral.date));
-              console.log(`✅ Added employee referral: lead ${newLead.id} -> agent ${referral.employee_id}`);
+              logger.debug('Added employee referral', {
+                leadId: newLead.id,
+                agentId: referral.employee_id
+              });
             } else if (referral.type === 'custom' && referral.name && referral.date) {
               // Custom referrals don't have agent_id
               await LeadReferral.createReferral(newLead.id, null, referral.name, 'custom', new Date(referral.date));
-              console.log(`✅ Added custom referral: lead ${newLead.id} -> custom "${referral.name}"`);
+              logger.debug('Added custom referral', {
+                leadId: newLead.id,
+                referralName: referral.name
+              });
             }
           }
           
           // Apply the 30-day external rule to all referrals for this lead
-          console.log(`🔄 Applying 30-day external rule to lead ${newLead.id} referrals...`);
+          logger.debug('Applying 30-day external rule to lead referrals', {
+            leadId: newLead.id
+          });
           const ruleResult = await LeadReferral.applyExternalRuleToLeadReferrals(newLead.id);
-          console.log(`✅ External rule applied: ${ruleResult.message}`);
-          if (ruleResult.markedExternalReferrals.length > 0) {
-            console.log(`   Marked ${ruleResult.markedExternalReferrals.length} referral(s) as external`);
-          }
+          logger.debug('External rule applied', {
+            leadId: newLead.id,
+            markedExternal: ruleResult.markedExternalReferrals.length
+          });
         } catch (referralError) {
-          console.error('Error creating manual referrals:', referralError);
+          logger.error('Error creating manual referrals', referralError);
           // Don't fail the lead creation if referral tracking fails
         }
       }
@@ -289,13 +305,12 @@ class LeadsController {
           );
         }
       } catch (notificationError) {
-        console.error('Error creating lead notifications:', notificationError);
+        logger.error('Error creating lead notifications', notificationError);
         // Don't fail the lead creation if notifications fail
       }
       
       // Fetch the complete lead with all relationships including referrals
       const completeLeadData = await Lead.getLeadById(newLead.id);
-      console.log('📊 Complete lead data with referrals:', JSON.stringify(completeLeadData, null, 2));
       
       res.status(201).json({
         success: true,
@@ -303,7 +318,7 @@ class LeadsController {
         message: 'Lead created successfully'
       });
     } catch (error) {
-      console.error('❌ Error creating lead:', error);
+      logger.error('Error creating lead', error);
       res.status(500).json({
         success: false,
         message: 'Failed to create lead',
@@ -316,7 +331,6 @@ class LeadsController {
   static async updateLead(req, res) {
     try {
       const { id } = req.params;
-      console.log('📝 Updating lead:', id, req.body);
       
       // Check if lead exists and user has permission
       const existingLead = await Lead.getLeadById(id);
@@ -372,9 +386,11 @@ class LeadsController {
       // Handle referral tracking when agent assignment changes
       if (req.body.agent_id && req.body.agent_id !== existingLead.agent_id) {
         try {
-          console.log(`📊 Lead ${id} - Agent reassignment detected`);
-          console.log(`   Previous agent: ${existingLead.agent_id}`);
-          console.log(`   New agent: ${req.body.agent_id}`);
+          logger.debug('Lead agent reassignment detected', {
+            leadId: id,
+            previousAgentId: existingLead.agent_id,
+            newAgentId: req.body.agent_id
+          });
           
           // Process the referral reassignment with the 1-month external logic
           const referralResult = await LeadReferral.processLeadReassignment(
@@ -383,12 +399,12 @@ class LeadsController {
             existingLead.agent_id
           );
           
-          console.log(`✅ Referral processing result:`, referralResult.message);
-          if (referralResult.markedExternalReferrals.length > 0) {
-            console.log(`   Marked ${referralResult.markedExternalReferrals.length} referral(s) as external`);
-          }
+          logger.debug('Referral processing result', {
+            leadId: id,
+            markedExternal: referralResult.markedExternalReferrals.length
+          });
         } catch (referralError) {
-          console.error('❌ Error processing lead referral reassignment:', referralError);
+          logger.error('Error processing lead referral reassignment', referralError);
           // Don't fail the lead update if referral tracking fails
         }
       }
@@ -396,58 +412,57 @@ class LeadsController {
       // Handle manual referrals from the form (if provided)
       if (req.body.referrals && Array.isArray(req.body.referrals)) {
         try {
-          console.log(`📊 Processing ${req.body.referrals.length} manual referrals for lead ${id}`);
-          console.log(`📊 Referral data:`, JSON.stringify(req.body.referrals, null, 2));
+          logger.debug('Processing manual referrals for lead update', {
+            leadId: id,
+            referralCount: req.body.referrals.length
+          });
           
           // Get existing referrals
           const existingReferrals = await LeadReferral.getReferralsByLeadId(parseInt(id));
-          console.log(`📊 Found ${existingReferrals.length} existing referrals to delete`);
+          logger.debug('Found existing referrals to delete', {
+            leadId: id,
+            count: existingReferrals.length
+          });
           
           // Delete all existing manual referrals (we'll recreate from the form data)
           for (const existingRef of existingReferrals) {
-            console.log(`🗑️ Deleting referral ${existingRef.id}`);
             await LeadReferral.deleteReferral(existingRef.id);
           }
           
           // Create new referrals from form data
           for (const referral of req.body.referrals) {
-            console.log(`🔍 Processing referral:`, referral);
-            console.log(`  - type: ${referral.type}`);
-            console.log(`  - employee_id: ${referral.employee_id}`);
-            console.log(`  - name: ${referral.name}`);
-            console.log(`  - date: ${referral.date}`);
-            
             if (referral.type === 'employee' && referral.employee_id && referral.date) {
               // Get agent name for employee referral
               const agentResult = await pool.query('SELECT name FROM users WHERE id = $1', [referral.employee_id]);
               const agentName = agentResult.rows[0]?.name || referral.name || 'Unknown Agent';
-              console.log(`  - Fetched agent name: ${agentName}`);
-              const created = await LeadReferral.createReferral(parseInt(id), referral.employee_id, agentName, 'employee', new Date(referral.date));
-              console.log(`✅ Added employee referral: lead ${id} -> agent ${referral.employee_id}, referral_id: ${created.id}`);
+              await LeadReferral.createReferral(parseInt(id), referral.employee_id, agentName, 'employee', new Date(referral.date));
+              logger.debug('Added employee referral', {
+                leadId: id,
+                agentId: referral.employee_id
+              });
             } else if (referral.type === 'custom' && referral.name && referral.date) {
               // Custom referrals don't have agent_id
-              const created = await LeadReferral.createReferral(parseInt(id), null, referral.name, 'custom', new Date(referral.date));
-              console.log(`✅ Added custom referral: lead ${id} -> custom "${referral.name}", referral_id: ${created.id}`);
-            } else {
-              console.log(`⚠️ Referral skipped - didn't pass validation checks`);
+              await LeadReferral.createReferral(parseInt(id), null, referral.name, 'custom', new Date(referral.date));
+              logger.debug('Added custom referral', {
+                leadId: id,
+                referralName: referral.name
+              });
             }
           }
-          console.log(`✅ Finished processing referrals for lead ${id}`);
           
           // Apply the 30-day external rule to all referrals for this lead
-          console.log(`🔄 Applying 30-day external rule to lead ${id} referrals...`);
+          logger.debug('Applying 30-day external rule to lead referrals', {
+            leadId: id
+          });
           const ruleResult = await LeadReferral.applyExternalRuleToLeadReferrals(parseInt(id));
-          console.log(`✅ External rule applied: ${ruleResult.message}`);
-          if (ruleResult.markedExternalReferrals.length > 0) {
-            console.log(`   Marked ${ruleResult.markedExternalReferrals.length} referral(s) as external`);
-          }
+          logger.debug('External rule applied', {
+            leadId: id,
+            markedExternal: ruleResult.markedExternalReferrals.length
+          });
         } catch (referralError) {
-          console.error('❌ Error updating manual referrals:', referralError);
-          console.error('❌ Error stack:', referralError.stack);
+          logger.error('Error updating manual referrals', referralError);
           // Don't fail the lead update if referral tracking fails
         }
-      } else {
-        console.log(`📊 No referrals to process (referrals: ${req.body.referrals})`);
       }
 
       // Create notifications for relevant users
@@ -487,15 +502,34 @@ class LeadsController {
           );
         }
       } catch (notificationError) {
-        console.error('Error creating lead update notifications:', notificationError);
+        logger.error('Error creating lead update notifications', notificationError);
         // Don't fail the lead update if notifications fail
       }
       
-      console.log('✅ Lead updated successfully:', updatedLead.id);
+      // Audit log: Lead updated
+      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const changes = {};
+      if (req.body.agent_id !== undefined && req.body.agent_id !== existingLead.agent_id) {
+        changes.agent_id = { from: existingLead.agent_id, to: req.body.agent_id };
+      }
+      if (req.body.status !== undefined && req.body.status !== existingLead.status) {
+        changes.status = { from: existingLead.status, to: req.body.status };
+      }
+      if (req.body.price !== undefined && req.body.price !== existingLead.price) {
+        changes.price = { from: existingLead.price, to: req.body.price };
+      }
+      
+      logger.security('Lead updated', {
+        leadId: id,
+        customerName: updatedLead.customer_name,
+        updatedBy: req.user.id,
+        updatedByName: req.user.name,
+        changes: Object.keys(changes).length > 0 ? changes : null,
+        ip: clientIP
+      });
       
       // Fetch the complete lead with all relationships including referrals
       const completeLeadData = await Lead.getLeadById(id);
-      console.log('📊 Complete lead data with referrals:', JSON.stringify(completeLeadData, null, 2));
       
       res.json({
         success: true,
@@ -503,11 +537,10 @@ class LeadsController {
         message: 'Lead updated successfully'
       });
     } catch (error) {
-      console.error('❌ Error updating lead:', error);
+      logger.error('Error updating lead', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to update lead',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to update lead'
       });
     }
   }
@@ -516,7 +549,6 @@ class LeadsController {
   static async deleteLead(req, res) {
     try {
       const { id } = req.params;
-      console.log('🗑️ Deleting lead:', id);
       
       // Check if lead exists and user has permission
       const existingLead = await Lead.getLeadById(id);
@@ -551,7 +583,7 @@ class LeadsController {
           req.user.id
         );
       } catch (notificationError) {
-        console.error('Error creating lead deletion notifications:', notificationError);
+        logger.error('Error creating lead deletion notifications', notificationError);
         // Don't fail the lead deletion if notifications fail
       }
 
@@ -564,7 +596,15 @@ class LeadsController {
         });
       }
       
-      console.log('✅ Lead deleted successfully:', deletedLead.id);
+      // Audit log: Lead deleted
+      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      logger.security('Lead deleted', {
+        leadId: id,
+        customerName: deletedLead.customer_name,
+        deletedBy: req.user.id,
+        deletedByName: req.user.name,
+        ip: clientIP
+      });
       
       res.json({
         success: true,
@@ -572,11 +612,10 @@ class LeadsController {
         message: 'Lead deleted successfully'
       });
     } catch (error) {
-      console.error('❌ Error deleting lead:', error);
+      logger.error('Error deleting lead', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to delete lead',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to delete lead'
       });
     }
   }
@@ -585,7 +624,7 @@ class LeadsController {
   static async getLeadsByAgent(req, res) {
     try {
       const { agentId } = req.params;
-      console.log('👤 Getting leads for agent:', agentId);
+      logger.debug('Getting leads for agent', { agentId });
       
       const leads = await Lead.getLeadsByAgent(agentId);
       
@@ -595,7 +634,7 @@ class LeadsController {
         message: `Retrieved ${leads.length} leads for agent`
       });
     } catch (error) {
-      console.error('❌ Error getting leads by agent:', error);
+      logger.error('Error getting leads by agent', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve leads by agent',
@@ -607,7 +646,7 @@ class LeadsController {
   // Get lead statistics
   static async getLeadStats(req, res) {
     try {
-      console.log('📊 Getting lead statistics');
+      logger.debug('Getting lead statistics');
       
       const [
         stats,
@@ -631,11 +670,10 @@ class LeadsController {
         }
       });
     } catch (error) {
-      console.error('❌ Error getting lead statistics:', error);
+      logger.error('Error getting lead statistics', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve lead statistics',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve lead statistics'
       });
     }
   }
@@ -643,7 +681,7 @@ class LeadsController {
   // Get reference sources
   static async getReferenceSources(req, res) {
     try {
-      console.log('📋 Getting reference sources');
+      logger.debug('Getting reference sources');
       
       const sources = await Lead.getReferenceSources();
       
@@ -653,11 +691,10 @@ class LeadsController {
         message: 'Reference sources retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting reference sources:', error);
+      logger.error('Error getting reference sources', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve reference sources',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve reference sources'
       });
     }
   }
@@ -665,7 +702,7 @@ class LeadsController {
   // Get users who can add leads (for backward compatibility, keeping endpoint name)
   static async getOperationsUsers(req, res) {
     try {
-      console.log('👥 Getting users who can add leads');
+      logger.debug('Getting users who can add leads');
       
       const users = await Lead.getUsersWhoCanAddLeads();
       
@@ -675,11 +712,10 @@ class LeadsController {
         message: 'Users who can add leads retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting users who can add leads:', error);
+      logger.error('Error getting users who can add leads', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve users who can add leads',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        message: 'Failed to retrieve users who can add leads'
       });
     }
   }
@@ -757,7 +793,7 @@ class LeadsController {
         message: 'Lead referrals retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting lead referrals:', error);
+      logger.error('Error getting lead referrals', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve lead referrals',
@@ -783,7 +819,7 @@ class LeadsController {
         message: 'Agent referral statistics retrieved successfully'
       });
     } catch (error) {
-      console.error('❌ Error getting agent referral stats:', error);
+      logger.error('Error getting agent referral stats', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve agent referral statistics',
@@ -912,7 +948,7 @@ class LeadsController {
         message: `Retrieved ${filtered.length} notes for lead`,
       });
     } catch (error) {
-      console.error('❌ Error getting lead notes:', error);
+      logger.error('Error getting lead notes', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve lead notes',
@@ -1000,7 +1036,7 @@ class LeadsController {
         message: 'Note added successfully',
       });
     } catch (error) {
-      console.error('❌ Error adding lead note:', error);
+      logger.error('Error adding lead note', error);
       res.status(500).json({
         success: false,
         message: 'Failed to add lead note',
@@ -1072,7 +1108,7 @@ class LeadsController {
         message: 'Referral added successfully'
       });
     } catch (error) {
-      console.error('❌ Error adding lead referral:', error);
+      logger.error('Error adding lead referral', error);
       res.status(500).json({
         success: false,
         message: 'Failed to add referral',
@@ -1119,7 +1155,7 @@ class LeadsController {
         message: 'Referral deleted successfully'
       });
     } catch (error) {
-      console.error('❌ Error deleting lead referral:', error);
+      logger.error('Error deleting lead referral', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete referral',
@@ -1185,7 +1221,7 @@ class LeadsController {
         message: 'Note updated successfully',
       });
     } catch (error) {
-      console.error('❌ Error updating lead note:', error);
+      logger.error('Error updating lead note', error);
       res.status(500).json({
         success: false,
         message: 'Failed to update lead note',
@@ -1236,7 +1272,7 @@ class LeadsController {
         message: 'Note deleted successfully',
       });
     } catch (error) {
-      console.error('❌ Error deleting lead note:', error);
+      logger.error('Error deleting lead note', error);
       res.status(500).json({
         success: false,
         message: 'Failed to delete lead note',
@@ -1314,7 +1350,7 @@ class LeadsController {
           is_read: false
         });
       } catch (notifError) {
-        console.error('Error creating notification:', notifError);
+        logger.error('Error creating notification', notifError);
         // Don't fail the request if notification fails
       }
 
@@ -1324,7 +1360,7 @@ class LeadsController {
         message: 'Lead referred successfully'
       });
     } catch (error) {
-      console.error('Error referring lead:', error);
+      logger.error('Error referring lead', error);
       res.status(500).json({ 
         message: error.message || 'Server error' 
       });
@@ -1352,7 +1388,7 @@ class LeadsController {
         count: pendingReferrals.length
       });
     } catch (error) {
-      console.error('Error getting pending referrals:', error);
+      logger.error('Error getting pending referrals', error);
       res.status(500).json({ message: 'Server error' });
     }
   }
@@ -1378,7 +1414,7 @@ class LeadsController {
         count
       });
     } catch (error) {
-      console.error('Error getting pending referrals count:', error);
+      logger.error('Error getting pending referrals count', error);
       res.status(500).json({ message: 'Server error' });
     }
   }
@@ -1412,7 +1448,7 @@ class LeadsController {
           });
         }
       } catch (notifError) {
-        console.error('Error creating notification:', notifError);
+        logger.error('Error creating notification', notifError);
         // Don't fail the request if notification fails
       }
 
@@ -1422,7 +1458,7 @@ class LeadsController {
         message: 'Referral confirmed and lead assigned successfully'
       });
     } catch (error) {
-      console.error('Error confirming referral:', error);
+      logger.error('Error confirming referral', error);
       res.status(500).json({ 
         message: error.message || 'Server error' 
       });
@@ -1459,7 +1495,7 @@ class LeadsController {
           });
         }
       } catch (notifError) {
-        console.error('Error creating notification:', notifError);
+        logger.error('Error creating notification', notifError);
         // Don't fail the request if notification fails
       }
 
@@ -1469,7 +1505,7 @@ class LeadsController {
         message: 'Referral rejected successfully'
       });
     } catch (error) {
-      console.error('Error rejecting referral:', error);
+      logger.error('Error rejecting referral', error);
       res.status(500).json({ 
         message: error.message || 'Server error' 
       });
@@ -1498,7 +1534,7 @@ class LeadsController {
         data: viewings
       });
     } catch (error) {
-      console.error('Error getting lead viewings:', error);
+      logger.error('Error getting lead viewings', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve lead viewings',
@@ -1529,7 +1565,7 @@ class LeadsController {
         data: properties
       });
     } catch (error) {
-      console.error('Error getting lead owned properties:', error);
+      logger.error('Error getting lead owned properties', error);
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve lead owned properties',

@@ -7,12 +7,20 @@
  * @returns Formatted currency string
  */
 export function formatCurrency(value: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(value)
+  if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+    return '$0'
+  }
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(value)
+  } catch (error) {
+    // Fallback to simple formatting if Intl.NumberFormat fails
+    return `$${value.toFixed(2)}`
+  }
 }
 
 /**
@@ -31,7 +39,14 @@ export function formatNumber(value: number): string {
  * @returns Formatted percentage string
  */
 export function formatPercentage(value: number, decimals: number = 2): string {
-  return `${(value * 100).toFixed(decimals)}%`
+  if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+    return '0%'
+  }
+  try {
+    return `${(value * 100).toFixed(decimals)}%`
+  } catch (error) {
+    return '0%'
+  }
 }
 
 /**
@@ -40,13 +55,21 @@ export function formatPercentage(value: number, decimals: number = 2): string {
  * @returns Formatted size string (e.g., "1.5 MB")
  */
 export function formatBytes(bytes: number): string {
+  if (typeof bytes !== 'number' || isNaN(bytes) || !isFinite(bytes) || bytes < 0) {
+    return '0 Bytes'
+  }
+  
   if (bytes === 0) return '0 Bytes'
 
-  const k = 1024
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  try {
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
 
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
+  } catch (error) {
+    return '0 Bytes'
+  }
 }
 
 /**
@@ -56,6 +79,7 @@ export function formatBytes(bytes: number): string {
  * @returns Truncated string with ellipsis if needed
  */
 export function truncateString(str: string, maxLength: number = 50): string {
+  if (typeof str !== 'string') return ''
   if (str.length <= maxLength) return str
   return str.slice(0, maxLength) + '...'
 }

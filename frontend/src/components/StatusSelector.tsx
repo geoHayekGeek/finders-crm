@@ -29,25 +29,15 @@ export function StatusSelector({
     setIsLoading(true)
     setError('')
     try {
-      console.log('🔍 [StatusSelector] Fetching lead statuses...')
       const data = await leadStatusesApi.getAll()
-      console.log('🏳️ [StatusSelector] Lead statuses API response:', data)
       
       if (data.success) {
         const statusList = data.data || []
         setStatuses(statusList)
-        console.log('✅ [StatusSelector] Lead statuses loaded:', statusList.length)
-        console.log('📋 [StatusSelector] All loaded statuses:', statusList.map(s => ({ id: s.id, name: s.status_name, code: s.code })))
-        
-        // Check if 'test' status exists
-        const testStatus = statusList.find(s => s.status_name.toLowerCase() === 'test')
-        console.log('🎯 [StatusSelector] Test status found:', testStatus)
       } else {
-        console.error('❌ [StatusSelector] Failed to load statuses:', data.message)
         setError(data.message || 'Failed to load lead statuses')
       }
     } catch (error) {
-      console.error('❌ [StatusSelector] Error fetching lead statuses:', error)
       if (error instanceof Error) {
         setError(error.message)
       } else {
@@ -81,16 +71,9 @@ export function StatusSelector({
   })
 
   const handleStatusSelect = (status: string) => {
-    console.log('🎯 [StatusSelector] Status selected:', status)
-    console.log('🎯 [StatusSelector] Available statuses:', statuses.map(s => s.status_name))
-    console.log('🎯 [StatusSelector] Selected status object:', statuses.find(s => s.status_name === status))
-    console.log('🎯 [StatusSelector] Calling onStatusChange with:', status)
-    
     onStatusChange(status)
     setIsDropdownOpen(false)
     setSearchTerm('')
-    
-    console.log('✅ [StatusSelector] Status selection completed')
   }
 
   const handleClearStatus = () => {

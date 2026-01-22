@@ -35,17 +35,10 @@ export function OperationsSelector({
       let data
       if (onlyOperations) {
         // For operations daily reports: only operations and operations_manager
-        console.log('✅ Using operations-daily endpoint (only operations & operations_manager)')
         data = await operationsDailyApi.getOperationsUsers()
-        console.log('⚙️ Operations users data received:', data)
-        if (data.success && data.data) {
-          console.log('📋 Users returned:', data.data.map((u: OperationsUser) => `${u.name} (${u.role})`))
-        }
       } else {
         // For leads: all users who can add leads (admin, operations_manager, operations, agent, team_leader)
-        console.log('⚠️ Using leads endpoint (all users who can add leads)')
         data = await leadsApi.getOperationsUsers()
-        console.log('⚙️ Users data received:', data)
       }
       
       if (data.success) {
@@ -56,12 +49,10 @@ export function OperationsSelector({
           // Use all users from the leads endpoint
           setOperationsUsers(data.data)
         }
-        console.log('✅ Operations users loaded:', data.data.length)
       } else {
         setError(data.message || 'Failed to load operations users')
       }
     } catch (error) {
-      console.error('❌ Error fetching operations users:', error)
       if (error instanceof Error) {
         setError(error.message)
       } else {
@@ -73,7 +64,6 @@ export function OperationsSelector({
   }
 
   useEffect(() => {
-    console.log('🔄 OperationsSelector: onlyOperations =', onlyOperations)
     fetchOperationsUsers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onlyOperations])

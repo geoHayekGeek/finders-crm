@@ -15,5 +15,9 @@ const createRateLimiter = (maxRequests, windowMs) => {
 const authLimiter = createRateLimiter(10, 15 * 60 * 1000); // 10 requests per 15 minutes
 
 // Export both the function and the default limiter
-module.exports = createRateLimiter;
-module.exports.authLimiter = authLimiter;
+// Maintain backward compatibility: default export is the function
+const rateLimiter = createRateLimiter;
+rateLimiter.createRateLimiter = createRateLimiter;
+rateLimiter.authLimiter = authLimiter;
+
+module.exports = rateLimiter;

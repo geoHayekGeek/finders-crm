@@ -61,7 +61,6 @@ export default function CreateOperationsDailyModal({
         onSuccess()
       }
     } catch (error: any) {
-      console.error('Error creating operations daily report:', error)
       showError(error.message || 'Failed to create operations daily report')
     } finally {
       setLoading(false)

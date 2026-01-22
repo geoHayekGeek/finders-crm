@@ -11,6 +11,8 @@ import {
   UserGroupIcon,
   TagIcon
 } from '@heroicons/react/24/outline'
+import { useAuth } from '@/contexts/AuthContext'
+import { usersApi, calendarApi } from '@/utils/api'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
@@ -44,8 +46,7 @@ const EVENT_TYPES = [
 ]
 
 export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminCalendarFiltersProps) {
-  console.log('🎨 AdminCalendarFilters component rendering')
-  
+  const { token } = useAuth()
   const [filters, setFilters] = useState<CalendarFilters>({})
   const [users, setUsers] = useState<User[]>([])
   const [attendees, setAttendees] = useState<string[]>([])
@@ -54,17 +55,17 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
 
   // Load users when component mounts
   useEffect(() => {
-    console.log('🔄 AdminCalendarFilters: Component mounted, loading users')
-    loadUsers()
-  }, [])
+    if (token) {
+      loadUsers()
+    }
+  }, [token])
 
   // Load attendees when filters are shown (to avoid circular dependency)
   useEffect(() => {
-    if (showFilters && attendees.length === 0) {
-      console.log('🔄 AdminCalendarFilters: Loading attendees when filters shown')
+    if (showFilters && attendees.length === 0 && token) {
       loadAttendees()
     }
-  }, [showFilters, attendees.length])
+  }, [showFilters, attendees.length, token])
 
   // Track if this is the initial render
   const isInitialRender = useRef(true)
@@ -73,50 +74,32 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
   useEffect(() => {
     if (isInitialRender.current) {
       isInitialRender.current = false
-      console.log('🔄 AdminCalendarFilters: Skipping initial empty filters')
       return
     }
     
-    console.log('🔄 AdminCalendarFilters: Filters changed, calling onFiltersChange with:', filters)
     onFiltersChange(filters)
   }, [filters]) // Removed onFiltersChange from dependencies to prevent infinite loop
 
   const loadUsers = async () => {
-    console.log('👥 Loading users...')
+    if (!token) return
+    
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE_URL}/users/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('👥 Loaded users:', data.users?.length || 0)
+      const data = await usersApi.getAll(token)
+      if (data.success) {
         setUsers(data.users || [])
-      } else {
-        console.error('Failed to load users:', response.status)
       }
     } catch (error) {
-      console.error('Error loading users:', error)
+      // Error handled silently - users list will remain empty
     }
   }
 
   const loadAttendees = async () => {
-    console.log('👥 Loading attendees...')
+    if (!token) return
+    
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE_URL}/calendar`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
+      const data = await calendarApi.getAll(token)
+      
+      if (data.success) {
         const allAttendees = new Set<string>()
         
         data.events?.forEach((event: any) => {
@@ -129,24 +112,18 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
           }
         })
         
-        console.log('👥 Loaded attendees:', allAttendees.size)
         setAttendees(Array.from(allAttendees).sort())
       }
     } catch (error) {
-      console.error('Error loading attendees:', error)
+      // Error handled silently - attendees list will remain empty
     }
   }
 
   const handleFilterChange = (key: keyof CalendarFilters, value: string | undefined) => {
-    console.log(`🔧 Filter changed: ${key} = ${value}`)
-    setFilters(prev => {
-      const newFilters = {
-        ...prev,
-        [key]: value || undefined
-      }
-      console.log('📝 New filters:', newFilters)
-      return newFilters
-    })
+    setFilters(prev => ({
+      ...prev,
+      [key]: value || undefined
+    }))
   }
 
   const handleClearFilters = () => {
