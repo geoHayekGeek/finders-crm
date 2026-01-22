@@ -7,6 +7,44 @@ const indexRoutes = require('./routes/index');
 const securityHeaders = require('./middlewares/securityHeaders');
 const { errorLoggingMiddleware, errorHandler } = require('./middlewares/errorLogging');
 const reminderScheduler = require('./scheduler/reminderScheduler');
+const logger = require('./utils/logger');
+
+// Validate critical environment variables
+function validateEnvironment() {
+  const errors = [];
+  
+  // JWT_SECRET validation
+  if (!process.env.JWT_SECRET) {
+    errors.push('JWT_SECRET is not set');
+  } else if (process.env.JWT_SECRET.length < 32) {
+    // In production, enforce strict requirements
+    if (process.env.NODE_ENV === 'production') {
+      errors.push('JWT_SECRET must be at least 32 characters long for security');
+    } else {
+      // In development, warn but allow shorter secrets
+      logger.warn('⚠️  JWT_SECRET is less than 32 characters. This is acceptable for development but NOT for production!');
+      logger.warn('   Please use a strong, random secret of at least 32 characters in production.');
+    }
+  }
+  
+  // Database validation
+  if (!process.env.DATABASE_URL && !process.env.DB_HOST) {
+    errors.push('Database configuration is missing (DATABASE_URL or DB_HOST must be set)');
+  }
+  
+  if (errors.length > 0) {
+    logger.error('Environment validation failed', new Error(errors.join('; ')));
+    console.error('❌ Environment Validation Errors:');
+    errors.forEach(error => console.error(`   - ${error}`));
+    console.error('\n⚠️  Server will not start until these issues are resolved.');
+    process.exit(1);
+  }
+  
+  logger.info('Environment validation passed');
+}
+
+// Validate environment before starting server
+validateEnvironment();
 
 const app = express();
 const PORT = process.env.PORT || 10000;

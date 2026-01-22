@@ -48,25 +48,12 @@ const CSRF_TOKEN_CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 // Handle automatic logout when token expires
 function handleTokenExpiration() {
   if (typeof window !== 'undefined') {
-    console.log('🔐 JWT token expired, logging out user...')
-    console.log('🔐 Current URL:', window.location.href)
-    console.log('🔐 Clearing token from localStorage...')
-    
     // Clear all auth data
-    const hadToken = !!localStorage.getItem('token')
-    const hadUser = !!localStorage.getItem('user')
-    
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     
-    console.log('🔐 Token cleared. Had token:', hadToken, 'Now:', localStorage.getItem('token'))
-    console.log('🔐 User cleared. Had user:', hadUser, 'Now:', localStorage.getItem('user'))
-    
     // Clear CSRF token cache
     clearCSRFToken()
-    
-    console.log('🔐 Redirecting to login page...')
-    console.log('🔐 Current pathname:', window.location.pathname)
     
     // Redirect to login page - use replace to prevent back button issues
     if (window.location.pathname !== '/') {
@@ -95,7 +82,6 @@ async function getCSRFToken(forceRefresh = false): Promise<string | null> {
       return null
     }
 
-    console.log('🔐 Fetching fresh CSRF token...')
     const response = await fetch(`${API_BASE_URL}/properties`, {
       method: 'GET',
       headers: {
@@ -108,14 +94,11 @@ async function getCSRFToken(forceRefresh = false): Promise<string | null> {
       if (newToken) {
         csrfToken = newToken
         csrfTokenTimestamp = now
-        console.log('🔐 CSRF token refreshed successfully')
         return csrfToken
       }
-    } else {
-      console.error('🔐 Failed to get CSRF token, response status:', response.status)
     }
   } catch (error) {
-    console.error('🔐 Failed to get CSRF token:', error)
+    // Silently fail - CSRF token fetch errors shouldn't break the app
   }
   
   return null
@@ -125,7 +108,6 @@ async function getCSRFToken(forceRefresh = false): Promise<string | null> {
 function clearCSRFToken() {
   csrfToken = null
   csrfTokenTimestamp = 0
-  console.log('🔐 CSRF token cache cleared')
 }
 
 async function apiRequest<T>(
@@ -135,25 +117,8 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`
   
-  // Add debugging for notification requests
-  if (endpoint.includes('/notifications/')) {
-    console.log('🔔 [API] Notification request:', {
-      url,
-      method: options.method,
-      endpoint,
-      hasToken: !!token
-    })
-  }
-  
-  // Add debugging for lead updates
-  if (endpoint.includes('/leads/') && options.method === 'PUT') {
-    console.log('🌐 [API] Lead update request:', {
-      url,
-      method: options.method,
-      body: options.body,
-      hasToken: !!token
-    })
-  }
+    // Debug logging removed for production security
+    // Only log in development if needed
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -164,16 +129,9 @@ async function apiRequest<T>(
   // Convert null to undefined for consistency (localStorage.getItem returns null, but we prefer undefined)
   const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
   const authToken = token ?? storedToken ?? undefined
-  console.log('🔑 Token check:', { 
-    hasToken: !!token, 
-    hasLocalStorageToken: !!storedToken, 
-    authToken: authToken ? 'present' : 'missing',
-    tokenLength: authToken ? authToken.length : 0
-  })
   
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`
-    console.log('✅ Authorization header set')
   }
   
   // Add CSRF token for non-GET requests
@@ -190,38 +148,10 @@ async function apiRequest<T>(
     ...options,
   }
 
-  // Add debugging for notification requests
-  if (endpoint.includes('/notifications/')) {
-    console.log('🔔 [API] Final request config:', {
-      url,
-      method: options.method,
-      headers: Object.keys(headers),
-      hasAuth: !!headers['Authorization']
-    })
-  }
+  // Debug logging removed for production security
 
   try {
     const response = await fetch(url, config)
-    
-    // Add debugging for notification requests
-    if (endpoint.includes('/notifications/')) {
-      console.log('🔔 [API] Notification response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      })
-    }
-    
-    // Add debugging for lead updates
-    if (endpoint.includes('/leads/') && options.method === 'PUT') {
-      console.log('🌐 [API] Lead update response:', {
-        status: response.status,
-        ok: response.ok,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      })
-    }
     
     if (!response.ok) {
       // Try to extract error message from response body
@@ -232,11 +162,8 @@ async function apiRequest<T>(
       // Check for token expiration - if we have a token and get a 403, it's likely an auth issue
       const hasToken = authToken || (typeof window !== 'undefined' && localStorage.getItem('token'))
       
-      console.log('🔍 [API Error] Status:', response.status, 'Has Token:', !!hasToken, 'Endpoint:', endpoint)
-      
       try {
         errorData = await response.json()
-        console.log('🔍 [API Error] Response data:', errorData)
         
         if (errorData.message) {
           errorMessage = errorData.message
@@ -270,35 +197,19 @@ async function apiRequest<T>(
             response.status === 401 || (response.status === 403 && !isCSRFError && isInvalidOrExpiredToken)
 
           if (shouldLogout) {
-            console.log('🔐 Auth failure detected, logging out...', {
-              status: response.status,
-              message
-            })
             handleTokenExpiration()
             // Use setTimeout to ensure redirect happens even if error is caught
             setTimeout(() => {
               if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-                console.log('🔐 Forcing redirect via setTimeout...')
                 window.location.replace('/')
               }
             }, 100)
             throw new ApiError(response.status, 'Your session has expired. Please log in again.')
           }
-
-          // Otherwise it's a normal forbidden/authorization error; do NOT logout.
-          if (response.status === 403 && !isCSRFError) {
-            console.log('⛔ 403 Forbidden (permission), NOT logging out:', { message, endpoint })
-          }
-        }
-        
-        // Add debugging for lead update errors
-        if (endpoint.includes('/leads/') && options.method === 'PUT') {
-          console.log('🌐 [API] Lead update validation errors:', validationErrors.length, 'errors')
         }
         
         // If CSRF token is invalid, try to get a new one and retry once
         if ((errorData.message === 'Invalid CSRF token' || errorData.message.includes('CSRF')) && options.method && options.method !== 'GET') {
-          console.log('🔐 CSRF token invalid, getting new token and retrying...')
           clearCSRFToken() // Clear cached token
           const newCsrf = await getCSRFToken(true) // Force refresh
           if (newCsrf) {
@@ -308,10 +219,7 @@ async function apiRequest<T>(
             
             if (retryResponse.ok) {
               const retryData = await retryResponse.json()
-              console.log('🔐 Retry successful with new CSRF token')
               return retryData
-            } else {
-              console.log('🔐 Retry failed with new CSRF token, status:', retryResponse.status)
             }
           }
         }
@@ -336,12 +244,6 @@ async function apiRequest<T>(
     }
     
     const data = await response.json()
-    
-    // Add debugging for successful lead updates
-    if (endpoint.includes('/leads/') && options.method === 'PUT') {
-      console.log('🌐 [API] Lead update success response:', data)
-    }
-    
     return data
   } catch (error) {
     if (error instanceof ApiError) {

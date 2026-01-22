@@ -29,15 +29,9 @@ export default function ProtectedRoute({
   const [isAuthorized, setIsAuthorized] = useState(false)
 
   useEffect(() => {
-    console.log('ProtectedRoute - Loading:', loading)
-    console.log('ProtectedRoute - User:', user)
-    console.log('ProtectedRoute - Required permissions:', requiredPermissions)
-    console.log('ProtectedRoute - Allowed roles:', allowedRoles)
-    
     if (loading) return
 
     if (!user) {
-      console.log('ProtectedRoute - No user, redirecting to login')
       router.push('/')
       return
     }
@@ -47,7 +41,6 @@ export default function ProtectedRoute({
       const normalizedUserRole = normalizeRole(user.role);
       const normalizedAllowedRoles = allowedRoles.map(role => normalizeRole(role));
       if (!normalizedAllowedRoles.includes(normalizedUserRole)) {
-        console.log('ProtectedRoute - Role not allowed, redirecting to default page')
         const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
         router.push(defaultPage)
         return
@@ -57,30 +50,24 @@ export default function ProtectedRoute({
     // Check permission-based access
     let hasRequiredPermissions = true
     if (requiredPermissions.canManageProperties && !canManageProperties) {
-      console.log('ProtectedRoute - Missing canManageProperties permission')
       hasRequiredPermissions = false
     }
     if (requiredPermissions.canManageUsers && !canManageUsers) {
-      console.log('ProtectedRoute - Missing canManageUsers permission')
       hasRequiredPermissions = false
     }
     if (requiredPermissions.canViewFinancial && !canViewFinancial) {
-      console.log('ProtectedRoute - Missing canViewFinancial permission')
       hasRequiredPermissions = false
     }
     if (requiredPermissions.canViewAgentPerformance && !canViewAgentPerformance) {
-      console.log('ProtectedRoute - Missing canViewAgentPerformance permission')
       hasRequiredPermissions = false
     }
 
     if (!hasRequiredPermissions) {
-      console.log('ProtectedRoute - Missing required permissions, redirecting to default page')
       const defaultPage = getDefaultPage(user, { canViewProperties, canViewLeads, canAccessHR })
       router.push(defaultPage)
       return
     }
 
-    console.log('ProtectedRoute - Access granted')
     setIsAuthorized(true)
   }, [user, loading, router, allowedRoles, requiredPermissions, canManageProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewProperties, canViewLeads, canAccessHR])
 

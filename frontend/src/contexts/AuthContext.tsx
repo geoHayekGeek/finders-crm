@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
+import { createContext, useContext, useEffect, useState, ReactNode, useRef, useMemo } from 'react'
 
 interface User {
   id: number
@@ -37,7 +37,7 @@ function decodeJWT(token: string): { exp?: number; id?: number; role?: string } 
     )
     return JSON.parse(jsonPayload)
   } catch (error) {
-    console.error('🔐 Error decoding JWT:', error)
+    // Silently fail - invalid token will be caught by validateToken
     return null
   }
 }
@@ -50,7 +50,6 @@ async function validateToken(token: string): Promise<boolean> {
     // Decode JWT to check expiration locally
     const decoded = decodeJWT(token)
     if (!decoded) {
-      console.log('🔐 Token decode failed, treating as invalid')
       return false
     }
     
@@ -61,11 +60,6 @@ async function validateToken(token: string): Promise<boolean> {
       
       // If token is expired, return false
       if (now >= expiresAt) {
-        console.log('🔐 Token expired locally:', {
-          now,
-          expiresAt,
-          expiredSeconds: now - expiresAt
-        })
         return false
       }
       
@@ -77,11 +71,9 @@ async function validateToken(token: string): Promise<boolean> {
     }
     
     // If no expiration claim, treat as invalid (shouldn't happen with our tokens)
-    console.warn('🔐 Token has no expiration claim, treating as invalid')
     return false
   } catch (error) {
     // If we can't decode the token, it's invalid
-    console.error('🔐 Token validation error:', error)
     return false
   }
 }
@@ -121,32 +113,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = JSON.parse(storedUser)
         setToken(storedToken)
         setUser(userData)
+        lastTokenRef.current = storedToken
         
         // Validate token on app load
-        console.log('🔐 Validating token on app load...')
         validateToken(storedToken).then((isValid) => {
           if (!isValid) {
-            console.log('🔐 Token invalid on app load, logging out...')
             logout()
           } else {
-            console.log('🔐 Token valid on app load')
             setIsLoading(false)
-            
-            // Set up periodic token validation (every 5 minutes)
-            validationIntervalRef.current = setInterval(async () => {
-              const currentToken = localStorage.getItem('token')
-              if (currentToken) {
-                console.log('🔐 Periodic token validation...')
-                const isValid = await validateToken(currentToken)
-                if (!isValid) {
-                  console.log('🔐 Token invalid during periodic check, logging out...')
-                  logout()
-                }
-              }
-            }, 5 * 60 * 1000) // Check every 5 minutes
           }
         }).catch((error) => {
-          console.error('🔐 Token validation failed:', error)
+          console.error('Token validation failed:', error)
           logout()
         })
       } catch (error) {
@@ -159,90 +136,70 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     }
 
-    // Listen for localStorage changes (when token is manually modified)
+    // Consolidated token validation - single interval that checks both expiration and changes
+    // Check every 60 seconds (1 minute) - more efficient than multiple intervals
+    const tokenValidationInterval = setInterval(async () => {
+      const currentToken = localStorage.getItem('token')
+      
+      // Check if token was removed
+      if (!currentToken && lastTokenRef.current) {
+        logout()
+        return
+      }
+      
+      // Check if token changed
+      if (currentToken && currentToken !== lastTokenRef.current) {
+        lastTokenRef.current = currentToken
+        setToken(currentToken)
+        
+        // Try to get user data
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          try {
+            const userData = JSON.parse(storedUser)
+            setUser(userData)
+          } catch (e) {
+            console.error('Error parsing user data:', e)
+          }
+        }
+      }
+      
+      // Validate token expiration
+      if (currentToken) {
+        const isValid = await validateToken(currentToken)
+        if (!isValid) {
+          logout()
+        }
+      }
+    }, 60000) // Check every 60 seconds
+
+    validationIntervalRef.current = tokenValidationInterval
+
+    // Listen for localStorage changes from other tabs/windows
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'token' && e.newValue !== e.oldValue) {
-        console.log('🔐 Token changed in localStorage, validating...')
         const newToken = e.newValue
         if (newToken) {
           validateToken(newToken).then((isValid) => {
             if (!isValid) {
-              console.log('🔐 Changed token is invalid, logging out...')
               logout()
             } else {
-              console.log('🔐 Changed token is valid')
               setToken(newToken)
             }
           })
         } else {
-          // Token was removed
           logout()
         }
       }
     }
-
-    // Also check for token changes via direct localStorage manipulation (same-origin)
-    // This is mainly for detecting if token was removed externally (e.g., from another tab)
-    const checkTokenChange = () => {
-      const currentToken = localStorage.getItem('token')
-      if (lastTokenRef.current !== currentToken) {
-        // Token was removed (null) - logout
-        if (!currentToken && lastTokenRef.current) {
-          console.log('🔐 Token removed externally, logging out...')
-          logout()
-          return
-        }
-        // Token was added or changed
-        // Update ref to prevent repeated checks
-        // If token was set via login(), it will be handled there
-        // If token was added externally, we'll validate it
-        if (currentToken) {
-          // Only validate if token actually changed (not just initialized)
-          if (lastTokenRef.current && currentToken !== lastTokenRef.current) {
-            console.log('🔐 Token changed externally, validating...')
-            validateToken(currentToken).then((isValid) => {
-              if (!isValid) {
-                console.log('🔐 Changed token is invalid, logging out...')
-                logout()
-              } else {
-                lastTokenRef.current = currentToken
-                setToken(currentToken)
-                // Try to get user data from localStorage
-                const storedUser = localStorage.getItem('user')
-                if (storedUser) {
-                  try {
-                    const userData = JSON.parse(storedUser)
-                    setUser(userData)
-                  } catch (e) {
-                    console.error('Error parsing user data:', e)
-                  }
-                }
-              }
-            })
-          } else {
-            // Just update the ref if token was initialized
-            lastTokenRef.current = currentToken
-          }
-        }
-      }
-    }
-
-    // Initialize the ref
-    lastTokenRef.current = storedToken
-
-    // Poll for token changes less frequently (every 10 seconds) to avoid unnecessary checks
-    // This is mainly to detect if token was removed by another tab/window
-    tokenCheckIntervalRef.current = setInterval(checkTokenChange, 10000)
 
     window.addEventListener('storage', handleStorageChange)
 
-    // Cleanup interval on unmount
+    // Cleanup on unmount
     return () => {
       if (validationIntervalRef.current) {
         clearInterval(validationIntervalRef.current)
-      }
-      if (tokenCheckIntervalRef.current) {
-        clearInterval(tokenCheckIntervalRef.current)
+        validationIntervalRef.current = null
       }
       window.removeEventListener('storage', handleStorageChange)
     }
@@ -257,24 +214,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Update the last token ref to prevent false change detection
     lastTokenRef.current = newToken
     
-    // Set up periodic token validation after login
+    // Clear existing interval if any (should already be set by useEffect)
     if (validationIntervalRef.current) {
       clearInterval(validationIntervalRef.current)
     }
+    
+    // Set up consolidated token validation (same as in useEffect)
     validationIntervalRef.current = setInterval(async () => {
       const currentToken = localStorage.getItem('token')
       if (currentToken) {
-        console.log('🔐 Periodic token validation...')
         const isValid = await validateToken(currentToken)
         if (!isValid) {
-          console.log('🔐 Token invalid during periodic check, logging out...')
           logout()
         }
       }
-    }, 5 * 60 * 1000) // Check every 5 minutes
+    }, 60000) // Check every 60 seconds
   }
 
-  const value = {
+  // Memoize context value to prevent unnecessary re-renders
+  const value = useMemo(() => ({
     user,
     token,
     login,
@@ -282,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: !!token && !!user,
     isLoading,
     loading: isLoading // Add this for compatibility
-  }
+  }), [user, token, isLoading])
 
   return (
     <AuthContext.Provider value={value}>

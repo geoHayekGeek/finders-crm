@@ -2,6 +2,7 @@
 const bcrypt = require('bcryptjs');
 const userModel = require('../models/userModel');
 const jwtUtil = require('../utils/jwt');
+const logger = require('../utils/logger');
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 // Converts to space format for consistent comparisons
@@ -45,8 +46,9 @@ const registerUser = async (req, res) => {
     // Generate unique user code from name initials
     const userCode = await userModel.generateUniqueUserCode(name);
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password with explicit rounds (10-12 recommended, using 12 for better security)
+    const SALT_ROUNDS = 12;
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
 
     // Get the current user's ID (the user creating this account)
     const addedBy = req.user.id;
@@ -83,26 +85,125 @@ const registerUser = async (req, res) => {
 };
 
 const loginUser = async (req, res) => {
+  const startTime = Date.now();
+  const MAX_LOGIN_ATTEMPTS = 5;
+  const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+  
   try {
     const { email, password } = req.body;
+    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
-    // Check if user exists
+    // Always perform both user lookup and password check to prevent timing attacks
+    // Use a consistent delay to prevent user enumeration
     const user = await userModel.findByEmail(email);
-    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
+    let isMatch = false;
+    
+    if (user) {
+      // Check if account is locked
+      if (user.lockout_until) {
+        const lockoutUntil = new Date(user.lockout_until);
+        const now = new Date();
+        
+        if (lockoutUntil > now) {
+          const remainingMinutes = Math.ceil((lockoutUntil - now) / (60 * 1000));
+          logger.security('Login attempt on locked account', {
+            email,
+            ip: clientIP,
+            lockoutUntil: lockoutUntil.toISOString(),
+            remainingMinutes
+          });
+          
+          // Add artificial delay to prevent timing attacks
+          const elapsed = Date.now() - startTime;
+          const minDelay = 100; // Minimum 100ms delay
+          if (elapsed < minDelay) {
+            await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+          }
+          
+          return res.status(423).json({ 
+            message: `Account temporarily locked. Please try again in ${remainingMinutes} minute(s).` 
+          });
+        } else {
+          // Lockout expired, reset attempts
+          await userModel.resetLoginAttempts(user.id);
+        }
+      }
 
-    // Check if user account is active
-    if (user.is_active === false) {
-      return res.status(403).json({ 
-        message: 'Your account has been disabled. Please contact an administrator.' 
-      });
+      // Check if user account is active
+      if (user.is_active === false) {
+        logger.security('Login attempt on inactive account', { email, ip: clientIP });
+        
+        // Add artificial delay
+        const elapsed = Date.now() - startTime;
+        const minDelay = 100;
+        if (elapsed < minDelay) {
+          await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+        }
+        
+        return res.status(403).json({ 
+          message: 'Your account has been disabled. Please contact an administrator.' 
+        });
+      }
+
+      // Check password
+      isMatch = await bcrypt.compare(password, user.password);
     }
 
-    // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
+    // Add artificial delay to prevent timing attacks and user enumeration
+    // Always take at least 100ms regardless of whether user exists or password matches
+    const elapsed = Date.now() - startTime;
+    const minDelay = 100;
+    if (elapsed < minDelay) {
+      await new Promise(resolve => setTimeout(resolve, minDelay - elapsed));
+    }
+
+    // Use generic error message for both "user not found" and "wrong password"
+    // This prevents user enumeration
+    if (!user || !isMatch) {
+      if (user) {
+        // Increment failed login attempts
+        const failedAttempts = await userModel.incrementFailedLoginAttempts(user.id);
+        
+        logger.security('Failed login attempt', {
+          email,
+          ip: clientIP,
+          failedAttempts,
+          userId: user.id
+        });
+
+        // Lock account if max attempts reached
+        if (failedAttempts >= MAX_LOGIN_ATTEMPTS) {
+          await userModel.lockAccount(user.id, LOCKOUT_DURATION_MS);
+          logger.security('Account locked due to failed login attempts', {
+            email,
+            ip: clientIP,
+            userId: user.id,
+            failedAttempts
+          });
+        }
+      } else {
+        // Log failed attempt even if user doesn't exist (for security monitoring)
+        logger.security('Failed login attempt - user not found', {
+          email,
+          ip: clientIP
+        });
+      }
+      
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Successful login - reset failed attempts
+    await userModel.resetLoginAttempts(user.id);
 
     // Generate token
     const token = jwtUtil.generateToken(user);
+
+    logger.security('Successful login', {
+      email,
+      ip: clientIP,
+      userId: user.id,
+      role: user.role
+    });
 
     res.json({
       message: 'Login successful',
@@ -115,7 +216,7 @@ const loginUser = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error(err);
+    logger.error('Login error', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -315,7 +416,8 @@ const updateUser = async (req, res) => {
 
     // If password is provided, hash it and include in update
     if (password && password.trim() !== '') {
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const SALT_ROUNDS = 12;
+      const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
       updateData.password = hashedPassword;
     }
 

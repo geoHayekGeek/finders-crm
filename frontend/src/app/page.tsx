@@ -56,27 +56,21 @@ export default function HomePage() {
     setError('')
 
     try {
-      console.log('Attempting login...')
       const response = await apiClient.login(email, password)
-      console.log('Login response:', response)
 
       // Backend returns: { message, token, user }
       if (response.token && response.user) {
         const loginData = response as LoginResponse
-        console.log('Login data:', loginData)
         
         // Use the login function from auth context
         login(loginData.token, loginData.user)
-        console.log('User logged in, state will be updated and useEffect will handle redirect...')
         
         // Don't manually redirect here - let the useEffect handle it
         // This prevents double redirects and ensures state is properly synchronized
       } else {
-        console.log('Login failed:', response.message)
         setError(response.message || 'Login failed')
       }
     } catch (err) {
-      console.error('Login error:', err)
       // Check if it's an ApiError with a specific message
       if (err instanceof ApiError) {
         setError(err.message)

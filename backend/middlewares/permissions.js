@@ -1,5 +1,32 @@
 // middlewares/permissions.js
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
+
+// Role constants - use normalized format (space-separated, lowercase)
+const ROLES = {
+  ADMIN: 'admin',
+  OPERATIONS_MANAGER: 'operations manager',
+  OPERATIONS: 'operations',
+  AGENT_MANAGER: 'agent manager',
+  TEAM_LEADER: 'team leader',
+  AGENT: 'agent',
+  ACCOUNTANT: 'accountant',
+  HR: 'hr'
+};
+
+// Role groups for common permission checks
+const ADMIN_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER];
+const MANAGEMENT_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
+const PROPERTY_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER, ROLES.AGENT];
+const PROPERTY_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
+const USER_MANAGE_ROLES = [ROLES.ADMIN, ROLES.HR, ROLES.OPERATIONS_MANAGER];
+const LEAD_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.AGENT, ROLES.TEAM_LEADER];
+const LEAD_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT, ROLES.TEAM_LEADER];
+const VIEWING_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.AGENT, ROLES.TEAM_LEADER];
+const VIEWING_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
+const AGENT_PERFORMANCE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER];
+const CATEGORY_STATUS_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.AGENT, ROLES.TEAM_LEADER];
+const CATEGORY_STATUS_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 const normalizeRole = (role) => {
@@ -137,27 +164,39 @@ const hasPermission = (userRole, resource, action) => {
 
 // Middleware to verify JWT token and extract user info
 const authenticateToken = (req, res, next) => {
-  console.log('🔐 authenticateToken middleware called');
-  console.log('📊 Request URL:', req.url);
-  console.log('📊 Request method:', req.method);
-  console.log('📊 Authorization header:', req.headers['authorization']);
+  logger.debug('authenticateToken middleware called', {
+    url: req.url,
+    method: req.method,
+    hasAuthHeader: !!req.headers['authorization']
+  });
   
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    console.log('❌ No token provided');
+    logger.security('Authentication attempt without token', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(401).json({ message: 'Access token required' });
   }
 
   try {
-    console.log('🔍 Verifying token...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('✅ Token verified, user:', decoded);
+    logger.debug('Token verified successfully', {
+      userId: decoded.id,
+      role: decoded.role
+    });
     req.user = decoded;
     next();
   } catch (error) {
-    console.log('❌ Token verification failed:', error.message);
+    logger.security('Token verification failed', {
+      error: error.message,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'Invalid or expired token' });
   }
 };
@@ -166,6 +205,13 @@ const authenticateToken = (req, res, next) => {
 const checkPermission = (resource, action) => {
   return (req, res, next) => {
     if (!req.user || !req.user.role) {
+      logger.security('checkPermission called without user role', {
+        resource,
+        action,
+        url: req.url,
+        method: req.method,
+        ip: req.ip
+      });
       return res.status(403).json({ message: 'User role not found' });
     }
 
@@ -173,6 +219,15 @@ const checkPermission = (resource, action) => {
     if (hasPermission(req.user.role, resource, action)) {
       next();
     } else {
+      logger.security('Permission denied', {
+        userId: req.user.id,
+        role: req.user.role,
+        resource,
+        action,
+        url: req.url,
+        method: req.method,
+        ip: req.ip
+      });
       return res.status(403).json({ 
         message: `Access denied. ${req.user.role} cannot ${action} ${resource}` 
       });
@@ -183,13 +238,26 @@ const checkPermission = (resource, action) => {
 // Middleware to check if user can view financial data
 const canViewFinancialData = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewFinancialData called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'operations manager') {
+  if (ADMIN_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Financial data access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Financial data restricted to admin and operations manager only.' 
     });
@@ -199,13 +267,26 @@ const canViewFinancialData = (req, res, next) => {
 // Middleware to check if user can view agent performance data
 const canViewAgentPerformance = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewAgentPerformance called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'operations manager' || role === 'agent manager' || role === 'team leader') {
+  if (AGENT_PERFORMANCE_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Agent performance access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Agent performance data restricted to admin, operations manager, agent manager, and team leader only.' 
     });
@@ -215,13 +296,26 @@ const canViewAgentPerformance = (req, res, next) => {
 // Middleware to check if user can manage properties
 const canManageProperties = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageProperties called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
+  if (PROPERTY_MANAGE_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Property management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Property management restricted to admin, operations manager, operations, and agent manager only.' 
     });
@@ -231,20 +325,41 @@ const canManageProperties = (req, res, next) => {
 // Middleware to check if user can view properties
 const canViewProperties = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewProperties called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
   // Accountant and HR roles should not have access to properties
-  if (role === 'accountant' || role === 'hr') {
+  if (role === ROLES.ACCOUNTANT || role === ROLES.HR) {
+    logger.security('Property viewing access denied (accountant/hr)', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Accountant and HR roles do not have access to properties.' 
     });
   }
   
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'team leader' || role === 'agent') {
+  if (PROPERTY_VIEW_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Property viewing access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Property viewing restricted to admin, operations manager, operations, agent manager, team leader, and agent only.' 
     });
@@ -254,13 +369,26 @@ const canViewProperties = (req, res, next) => {
 // Middleware to check if user can manage users
 const canManageUsers = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageUsers called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'hr' || role === 'operations manager') {
+  if (USER_MANAGE_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('User management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. User management restricted to admin, HR, and operations manager only.' 
     });
@@ -270,13 +398,26 @@ const canManageUsers = (req, res, next) => {
 // Middleware to check if user can view all users (not just themselves)
 const canViewAllUsers = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewAllUsers called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'hr' || role === 'operations manager') {
+  if (USER_MANAGE_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('View all users access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Viewing all users restricted to admin, HR, and operations manager only.' 
     });
@@ -286,13 +427,26 @@ const canViewAllUsers = (req, res, next) => {
 // Middleware to check if user can manage categories and statuses
 const canManageCategoriesAndStatuses = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageCategoriesAndStatuses called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
+  if (CATEGORY_STATUS_MANAGE_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Category/status management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Category and status management restricted to admin, operations manager, operations, and agent manager only.' 
     });
@@ -302,13 +456,26 @@ const canManageCategoriesAndStatuses = (req, res, next) => {
 // Middleware to check if user can view categories and statuses
 const canViewCategoriesAndStatuses = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewCategoriesAndStatuses called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team leader') {
+  if (CATEGORY_STATUS_VIEW_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Category/status viewing access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Category and status viewing restricted to roles with property access.' 
     });
@@ -318,13 +485,26 @@ const canViewCategoriesAndStatuses = (req, res, next) => {
 // Middleware to check if user can view all data (not just assigned)
 const canViewAllData = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewAllData called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager') {
+  if (MANAGEMENT_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('View all data access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Viewing all data restricted to admin, operations manager, operations, and agent manager only.' 
     });
@@ -334,14 +514,27 @@ const canViewAllData = (req, res, next) => {
 // Middleware to check if user can manage leads
 const canManageLeads = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageLeads called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
   // Allow admin, operations manager, operations, agents, and team leaders to add leads
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent' || role === 'team leader') {
+  if (LEAD_MANAGE_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Lead management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Lead management restricted to admin, operations manager, operations, agents, and team leaders only.' 
     });
@@ -351,14 +544,27 @@ const canManageLeads = (req, res, next) => {
 // Middleware to check if user can delete leads
 const canDeleteLeads = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canDeleteLeads called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
   // Only admin and operations manager can delete leads
-  if (role === 'admin' || role === 'operations manager') {
+  if (ADMIN_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Lead deletion access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Only admin and operations manager can delete leads.' 
     });
@@ -368,14 +574,27 @@ const canDeleteLeads = (req, res, next) => {
 // Middleware to check if user can delete properties
 const canDeleteProperties = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canDeleteProperties called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
   // Only admin and operations manager can delete properties
-  if (role === 'admin' || role === 'operations manager') {
+  if (ADMIN_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Property deletion access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Only admin and operations manager can delete properties.' 
     });
@@ -385,21 +604,42 @@ const canDeleteProperties = (req, res, next) => {
 // Middleware to check if user can view leads
 const canViewLeads = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewLeads called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
   // HR and Accountant do not have access to leads
-  if (role === 'hr' || role === 'accountant') {
+  if (role === ROLES.HR || role === ROLES.ACCOUNTANT) {
+    logger.security('Lead viewing access denied (hr/accountant)', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. HR and Accountant roles do not have access to leads.' 
     });
   }
   
   // Agents and team leaders can view their own leads, others can view all leads
-  if (role === 'admin' || role === 'operations manager' || role === 'operations' || role === 'agent manager' || role === 'agent' || role === 'team leader') {
+  if (LEAD_VIEW_ROLES.includes(role)) {
     next();
   } else {
+    logger.security('Lead viewing access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to view leads.' 
     });
@@ -409,20 +649,41 @@ const canViewLeads = (req, res, next) => {
 // Middleware to check if user can access reports
 const canViewReports = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewReports called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
   // Block agents from accessing reports entirely
-  if (role === 'agent') {
+  if (role === ROLES.AGENT) {
+    logger.security('Reports access denied (agent)', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. Agents cannot access reports.' 
     });
   }
 
   // Allow admin, operations manager, operations, agent manager, team leader, accountant, and hr
-  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'team leader', 'accountant', 'hr'];
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER, ROLES.ACCOUNTANT, ROLES.HR];
   if (!allowedRoles.includes(role)) {
+    logger.security('Reports access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to view reports.' 
     });
@@ -433,53 +694,70 @@ const canViewReports = (req, res, next) => {
 
 // Middleware to filter data based on user role
 const filterDataByRole = (req, res, next) => {
-  console.log('🎭 filterDataByRole middleware called');
-  console.log('👤 User from request:', req.user);
+  logger.debug('filterDataByRole middleware called', {
+    userId: req.user?.id,
+    role: req.user?.role
+  });
   
   if (!req.user || !req.user.role) {
-    console.log('❌ No user or role found');
+    logger.security('filterDataByRole called without user role', {
+      url: req.url,
+      method: req.method
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
   const role = normalizeRole(req.user.role);
-  console.log('🔑 User role:', role);
   
   // Add role-based filters to request
   req.roleFilters = {
     role: role,
-    canViewAll: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewFinancial: ['admin', 'operations manager'].includes(role),
-    canViewAgentPerformance: ['admin', 'operations manager', 'agent manager', 'team leader'].includes(role),
-    canManageProperties: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewProperties: ['admin', 'operations manager', 'operations', 'agent manager', 'team leader', 'agent'].includes(role) && !['accountant', 'hr'].includes(role),
-    canManageUsers: ['admin', 'hr', 'operations manager'].includes(role),
-    canViewAllUsers: ['admin', 'hr', 'operations manager'].includes(role),
-    canManageCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewCategoriesAndStatuses: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role),
-    canManageLeads: ['admin', 'operations manager', 'operations'].includes(role),
-    canDeleteLeads: ['admin', 'operations manager'].includes(role),
-    canViewLeads: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role) && !['hr', 'accountant'].includes(role),
-    canViewClients: ['admin', 'operations manager', 'operations', 'agent manager', 'team leader'].includes(role),
-    canManageViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role),
-    canViewViewings: ['admin', 'operations manager', 'operations', 'agent manager', 'agent', 'team leader'].includes(role),
-    canManageAllViewings: ['admin', 'operations manager', 'operations', 'agent manager'].includes(role)
+    canViewAll: MANAGEMENT_ROLES.includes(role),
+    canViewFinancial: ADMIN_ROLES.includes(role),
+    canViewAgentPerformance: AGENT_PERFORMANCE_ROLES.includes(role),
+    canManageProperties: PROPERTY_MANAGE_ROLES.includes(role),
+    canViewProperties: PROPERTY_VIEW_ROLES.includes(role) && ![ROLES.ACCOUNTANT, ROLES.HR].includes(role),
+    canManageUsers: USER_MANAGE_ROLES.includes(role),
+    canViewAllUsers: USER_MANAGE_ROLES.includes(role),
+    canManageCategoriesAndStatuses: CATEGORY_STATUS_MANAGE_ROLES.includes(role),
+    canViewCategoriesAndStatuses: CATEGORY_STATUS_VIEW_ROLES.includes(role),
+    canManageLeads: [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS].includes(role),
+    canDeleteLeads: ADMIN_ROLES.includes(role),
+    canViewLeads: LEAD_VIEW_ROLES.includes(role) && ![ROLES.HR, ROLES.ACCOUNTANT].includes(role),
+    canViewClients: [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER].includes(role),
+    canManageViewings: VIEWING_MANAGE_ROLES.includes(role),
+    canViewViewings: VIEWING_VIEW_ROLES.includes(role),
+    canManageAllViewings: VIEWING_MANAGE_ROLES.includes(role)
   };
 
-  console.log('✅ Role filters set:', req.roleFilters);
+  logger.debug('Role filters set', { role, userId: req.user.id });
   next();
 };
 
 // Middleware to check if user can access DCSR reports
 const canViewDCSR = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewDCSR called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   
-  // Allow admin, operations manager, operations, agent manager, and team_leader
-  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'team_leader'];
+  // Allow admin, operations manager, operations, agent manager, and team leader
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER];
   if (!allowedRoles.includes(role)) {
+    logger.security('DCSR access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to view DCSR reports.' 
     });
@@ -491,14 +769,27 @@ const canViewDCSR = (req, res, next) => {
 // Middleware to check if user can create/edit/delete DCSR reports
 const canManageDCSR = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageDCSR called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   
   // Only admin, operations manager, and operations can create/edit/delete
-  const allowedRoles = ['admin', 'operations manager', 'operations'];
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS];
   if (!allowedRoles.includes(role)) {
+    logger.security('DCSR management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to manage DCSR reports.' 
     });
@@ -510,14 +801,27 @@ const canManageDCSR = (req, res, next) => {
 // Middleware to check if user can access Sale & Rent Source reports
 const canViewSaleRentSource = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewSaleRentSource called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   
   // Allow admin, operations manager, operations, and agent manager
-  const allowedRoles = ['admin', 'operations manager', 'operations', 'agent manager'];
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
   if (!allowedRoles.includes(role)) {
+    logger.security('Sale & Rent Source access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to view Sale & Rent Source reports.' 
     });
@@ -529,14 +833,27 @@ const canViewSaleRentSource = (req, res, next) => {
 // Middleware to check if user can manage Sale & Rent Source reports (create/edit/delete)
 const canManageSaleRentSource = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageSaleRentSource called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   
   // Only admin, operations manager, and operations can manage
   const allowedRoles = ['admin', 'operations manager', 'operations'];
   if (!allowedRoles.includes(role)) {
+    logger.security('Sale & Rent Source management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to manage Sale & Rent Source reports.' 
     });
@@ -548,14 +865,27 @@ const canManageSaleRentSource = (req, res, next) => {
 // Middleware to check if user can access Operations Commission reports
 const canViewOperationsCommission = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canViewOperationsCommission called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   
   // Allow admin, operations manager, hr, and operations
-  const allowedRoles = ['admin', 'operations manager', 'hr', 'operations'];
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.HR, ROLES.OPERATIONS];
   if (!allowedRoles.includes(role)) {
+    logger.security('Operations Commission access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to view Operations Commission reports.' 
     });
@@ -567,14 +897,27 @@ const canViewOperationsCommission = (req, res, next) => {
 // Middleware to check if user can manage Operations Commission reports (create/edit/delete)
 const canManageOperationsCommission = (req, res, next) => {
   if (!req.user || !req.user.role) {
+    logger.security('canManageOperationsCommission called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ message: 'User role not found' });
   }
 
-  const role = req.user.role;
+  const role = normalizeRole(req.user.role);
   
   // Only admin, operations manager, and hr can manage
-  const allowedRoles = ['admin', 'operations manager', 'hr'];
+  const allowedRoles = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.HR];
   if (!allowedRoles.includes(role)) {
+    logger.security('Operations Commission management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
     return res.status(403).json({ 
       message: 'Access denied. You do not have permission to manage Operations Commission reports.' 
     });

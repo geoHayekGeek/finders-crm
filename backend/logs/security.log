@@ -129,3 +129,11 @@
 [2026-01-15T20:39:22.476Z] VALIDATION_FAILURE: {"endpoint":"/","method":"POST","errors":[{"field":"main_image","message":"Main image is required"},{"field":"main_image","message":"Main image must be a string"},{"field":"main_image","message":"Main image cannot be empty"}],"ip":"127.0.0.1","userId":51}
 [2026-01-15T20:39:36.550Z] VALIDATION_FAILURE: {"endpoint":"/","method":"POST","errors":[{"field":"main_image","message":"Main image is required"},{"field":"main_image","message":"Main image must be a string"},{"field":"main_image","message":"Main image cannot be empty"}],"ip":"127.0.0.1","userId":51}
 [2026-01-16T21:44:22.356Z] VALIDATION_FAILURE: {"endpoint":"/","method":"POST","errors":[{"field":"phone_number","message":"Phone number must be between 7 and 20 characters","value":"324234","location":"body"},{"field":"phone_number","message":"Invalid phone number format. Use international format (+1234567890)","value":"324234","location":"body"}],"ip":"127.0.0.1","userId":1093}
+[2026-01-22T20:04:46.448Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:46.911Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:47.343Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:47.459Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:47.739Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:47.899Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:48.057Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}
+[2026-01-22T20:04:48.253Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/login","method":"POST","ip":"127.0.0.1","userId":"anonymous"}

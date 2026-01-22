@@ -29,17 +29,16 @@ class User {
   }
 
   static async updatePassword(email, hashedPassword) {
-    console.log('🔄 Updating password for email:', email);
-    console.log('🔐 New hash length:', hashedPassword.length);
+    const logger = require('../utils/logger');
+    logger.debug('Updating password', { email, hashLength: hashedPassword.length });
     
     const result = await pool.query(
       `UPDATE users SET password = $1, updated_at = NOW() WHERE email = $2 RETURNING *`,
       [hashedPassword, email]
     );
     
-    console.log('📊 Update query result:', {
+    logger.debug('Password update result', {
       rowCount: result.rowCount,
-      returnedRows: result.rows.length,
       email: result.rows[0]?.email
     });
     
@@ -382,6 +381,47 @@ class User {
     } finally {
       client.release();
     }
+  }
+
+  // Login security methods
+  static async incrementFailedLoginAttempts(userId) {
+    const result = await pool.query(
+      `UPDATE users 
+       SET failed_login_attempts = failed_login_attempts + 1,
+           last_login_attempt = NOW(),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING failed_login_attempts`,
+      [userId]
+    );
+    return result.rows[0]?.failed_login_attempts || 0;
+  }
+
+  static async lockAccount(userId, lockoutDurationMs) {
+    const lockoutUntil = new Date(Date.now() + lockoutDurationMs);
+    const result = await pool.query(
+      `UPDATE users 
+       SET lockout_until = $1,
+           updated_at = NOW()
+       WHERE id = $2
+       RETURNING lockout_until`,
+      [lockoutUntil, userId]
+    );
+    return result.rows[0]?.lockout_until;
+  }
+
+  static async resetLoginAttempts(userId) {
+    const result = await pool.query(
+      `UPDATE users 
+       SET failed_login_attempts = 0,
+           lockout_until = NULL,
+           last_login_attempt = NOW(),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *`,
+      [userId]
+    );
+    return result.rows[0];
   }
 }
 
