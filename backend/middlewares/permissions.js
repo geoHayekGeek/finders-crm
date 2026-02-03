@@ -541,6 +541,25 @@ const canManageLeads = (req, res, next) => {
   }
 };
 
+// Roles allowed to use lead import (admin, operations manager, operations, agent manager - NOT agents/team leaders)
+const LEAD_IMPORT_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
+
+const canImportLeads = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    logger.security('canImportLeads called without user role', { url: req.url, method: req.method, ip: req.ip });
+    return res.status(403).json({ message: 'User role not found' });
+  }
+  const role = normalizeRole(req.user.role);
+  if (LEAD_IMPORT_ROLES.includes(role)) {
+    next();
+  } else {
+    logger.security('Lead import access denied', { userId: req.user.id, role: req.user.role, url: req.url });
+    return res.status(403).json({
+      message: 'Access denied. Lead import is restricted to admin, operations manager, operations, and agent manager.'
+    });
+  }
+};
+
 // Middleware to check if user can delete leads
 const canDeleteLeads = (req, res, next) => {
   if (!req.user || !req.user.role) {
@@ -972,6 +991,7 @@ module.exports = {
   canViewCategoriesAndStatuses,
   canViewAllData,
   canManageLeads,
+  canImportLeads,
   canDeleteLeads,
   canViewLeads,
   canViewReports,

@@ -1,5 +1,5 @@
 import { Property, Category, Status } from '@/types/property'
-import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote } from '@/types/leads'
+import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote, LeadsImportResponse } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
@@ -540,6 +540,32 @@ export const propertiesApi = {
     apiRequest<{ success: boolean; message: string }>(`/properties/referrals/${referralId}/reject`, {
       method: 'PUT',
     }, token),
+
+  // Import properties from Excel/CSV (FormData with file; dryRun or commit)
+  async importProperties(
+    formData: FormData,
+    options: { dryRun?: boolean; mode?: 'skip' | 'upsert' } = {},
+    token?: AuthToken
+  ): Promise<import('@/types/property').PropertyImportResponse> {
+    const authToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem('token') : null) ?? undefined
+    const url = new URL(`${API_BASE_URL}/properties/import`)
+    if (options.dryRun) url.searchParams.set('dryRun', 'true')
+    const headers: Record<string, string> = {}
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+    if (options.mode) formData.append('mode', options.mode)
+    const csrf = await getCSRFToken()
+    if (csrf) headers['X-CSRF-Token'] = csrf
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      throw new ApiError(response.status, errData.message || 'Import failed', errData.errors)
+    }
+    return response.json()
+  },
 }
 
 // Leads API
@@ -644,7 +670,33 @@ export const leadsApi = {
     apiRequest<{ success: boolean; message: string }>(`/leads/referrals/${referralId}/reject`, {
       method: 'PUT',
     }, token),
-  
+
+  // Import leads from Excel/CSV (FormData with file; dryRun or commit)
+  async importLeads(
+    formData: FormData,
+    options: { dryRun?: boolean; mode?: 'skip' | 'upsert' } = {},
+    token?: AuthToken
+  ): Promise<LeadsImportResponse> {
+    const authToken = token ?? (typeof window !== 'undefined' ? localStorage.getItem('token') : null) ?? undefined
+    const url = new URL(`${API_BASE_URL}/leads/import`)
+    if (options.dryRun) url.searchParams.set('dryRun', 'true')
+    const headers: Record<string, string> = {}
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+    if (options.mode) formData.append('mode', options.mode)
+    const csrf = await getCSRFToken()
+    if (csrf) headers['X-CSRF-Token'] = csrf
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      throw new ApiError(response.status, errData.message || 'Import failed', errData.errors)
+    }
+    return response.json()
+  },
+
   // Get viewings for a lead
   getViewings: (leadId: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/leads/${leadId}/viewings`, {}, token),
   

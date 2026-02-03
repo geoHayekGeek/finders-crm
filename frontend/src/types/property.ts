@@ -78,7 +78,38 @@ export interface Property {
   onView?: (property: Property) => void
   onEdit?: (property: Property) => void
   onDelete?: (property: Property) => void
-  onRefer?: (property: Property) => void
+}
+
+// Property import (Excel/CSV) API response types
+export interface PropertyImportSummary {
+  totalRows: number
+  validRows: number
+  invalidRows: number
+  duplicatesCount: number
+  willImportCount: number
+}
+
+export interface PropertyImportRowPreview {
+  rowNumber: number
+  original: { reference?: string; location?: string; owner_name?: string; phone_number?: string; surface?: number; price?: number }
+  normalized: Record<string, unknown>
+  resolved: Record<string, unknown>
+  warnings: string[]
+  errors: string[]
+}
+
+export interface PropertyImportResponse {
+  success: boolean
+  dryRun: boolean
+  sheetWarning?: string | null
+  summary?: PropertyImportSummary
+  rowsPreview?: PropertyImportRowPreview[]
+  errors?: Array<{ rowNumber: number; errors: string[]; warnings?: string[]; reference?: string; owner_name?: string; phone_number?: string }>
+  importedCount?: number
+  skippedDuplicatesCount?: number
+  errorCount?: number
+  imported?: Array<{ rowNumber: number; message: string; propertyId?: number; reference_number?: string }>
+  skipped_duplicates?: Array<{ rowNumber: number; message: string; propertyId?: number; reference_number?: string }>
 }
 
 export interface EditFormData {

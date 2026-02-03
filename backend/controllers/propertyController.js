@@ -8,6 +8,7 @@ const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 const logger = require('../utils/logger');
 const { normalizeRole } = require('../utils/roleUtils');
+const propertyImportService = require('../services/propertyImport');
 
 // Helper function to filter created_by info based on user role
 // Only admin, operations manager, agent manager, and operations can see who created the property
@@ -1642,6 +1643,60 @@ const rejectReferral = async (req, res) => {
   }
 };
 
+// Import properties from Excel/CSV (dry-run or commit)
+const importProperties = async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file || !file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded. Use field name "file" and upload .xlsx or .csv',
+      });
+    }
+    const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
+    const mode = (req.body && (req.body.mode === 'skip' || req.body.mode === 'upsert')) ? req.body.mode : 'skip';
+    const importerUserId = req.user.id;
+    const importerRole = req.user.role || '';
+
+    if (dryRun) {
+      const result = await propertyImportService.dryRun(
+        file.buffer,
+        file.mimetype,
+        importerUserId
+      );
+      logger.debug('Property import dry-run', {
+        userId: importerUserId,
+        total: result.summary?.totalRows,
+        valid: result.summary?.validRows,
+        invalid: result.summary?.invalidRows,
+      });
+      return res.json(result);
+    }
+
+    const result = await propertyImportService.commitImport(
+      file.buffer,
+      file.mimetype,
+      importerUserId,
+      importerRole,
+      mode
+    );
+    logger.security('Property import completed', {
+      userId: importerUserId,
+      importedCount: result.importedCount,
+      skippedCount: result.skippedDuplicatesCount,
+      errorCount: result.errorCount,
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error('Error in property import', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Import failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   getAllProperties,
   getPropertiesWithFilters,
@@ -1661,5 +1716,6 @@ module.exports = {
   getPendingReferrals,
   getPendingReferralsCount,
   confirmReferral,
-  rejectReferral
+  rejectReferral,
+  importProperties,
 };

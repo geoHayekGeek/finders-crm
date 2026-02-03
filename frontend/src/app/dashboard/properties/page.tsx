@@ -20,6 +20,7 @@ import { DataTable } from '@/components/DataTable'
 import { PropertyCard } from '@/components/PropertyCard'
 import { PropertyFilters } from '@/components/PropertyFilters'
 import { PropertyModals } from '@/components/PropertyModals'
+import { ImportPropertiesModal } from '@/components/ImportPropertiesModal'
 import { PropertyPagination } from '@/components/PropertyPagination'
 import { ReferPropertyModal } from '@/components/ReferPropertyModal'
 import { getPropertyColumns, getPropertyDetailedColumns } from '@/components/PropertyTableColumns'
@@ -113,6 +114,8 @@ export default function PropertiesPage() {
   
   // Export dropdown state
   const [showExportDropdown, setShowExportDropdown] = useState(false)
+  // Import properties modal
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Close export dropdown when clicking outside
   useEffect(() => {
@@ -1365,11 +1368,24 @@ export default function PropertiesPage() {
             )}
           </div>
           
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
-            <Upload className="h-4 w-4" />
-          </button>
+          {canManageProperties && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Import</span>
+            </button>
+          )}
         </div>
       </div>
+
+      <ImportPropertiesModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => { loadData(); setShowImportModal(false); }}
+        token={token ?? undefined}
+      />
 
       {/* Content */}
       {propertiesLoading ? (
@@ -1436,8 +1452,6 @@ export default function PropertiesPage() {
         setShowViewPropertyModal={setShowViewModal}
         showDeletePropertyModal={showDeleteModal}
         setShowDeletePropertyModal={setShowDeleteModal}
-        showImportModal={false}
-        setShowImportModal={() => {}}
         showImageModal={showImageModal}
         setShowImageModal={setShowImageModal}
         editingProperty={selectedProperty}

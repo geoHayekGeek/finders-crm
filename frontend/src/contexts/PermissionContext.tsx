@@ -11,6 +11,7 @@ interface PermissionContextType {
   canDeleteProperties: boolean
   canViewProperties: boolean
   canManageLeads: boolean
+  canImportLeads: boolean
   canDeleteLeads: boolean
   canViewLeads: boolean
   canManageViewings: boolean
@@ -45,6 +46,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     const canViewProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'team leader' || normalizedRole === 'agent'
     // Agents and team leaders can add leads, but only admin/operations can edit/delete
     const canManageLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent' || normalizedRole === 'team leader'
+    const canImportLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
     const canDeleteLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager'
     // HR and Accountant do not have access to leads
     const canViewLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'agent' || normalizedRole === 'team leader'
@@ -65,6 +67,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       canDeleteProperties,
       canViewProperties,
       canManageLeads,
+      canImportLeads,
       canDeleteLeads,
       canViewLeads,
       canManageViewings,
@@ -92,6 +95,8 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
           return permissions.canViewProperties
         case 'canManageLeads':
           return permissions.canManageLeads
+        case 'canImportLeads':
+          return permissions.canImportLeads
         case 'canDeleteLeads':
           return permissions.canDeleteLeads
         case 'canViewLeads':
