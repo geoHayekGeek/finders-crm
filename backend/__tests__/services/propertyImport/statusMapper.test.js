@@ -9,6 +9,8 @@ describe('propertyImport statusMapper', () => {
     { id: 1, name: 'Active', code: 'active' },
     { id: 2, name: 'Inactive', code: 'inactive' },
     { id: 3, name: 'Archived', code: 'archived' },
+    { id: 4, name: 'Rented', code: 'rented' },
+    { id: 5, name: 'Sold', code: 'sold' },
   ];
 
   it('maps "Active" to Active status', () => {
@@ -52,5 +54,14 @@ describe('propertyImport statusMapper', () => {
     expect(STATUS_SYNONYMS.active).toContain('active');
     expect(STATUS_SYNONYMS.inactive).toContain('inactive');
     expect(STATUS_SYNONYMS.inactive).toContain('archived');
+  });
+
+  it('is case-insensitive: "rented" resolves to Rented, "SOLD" to Sold', () => {
+    const r1 = resolveStatus(statuses, 'rented');
+    expect(r1.statusId).toBe(4);
+    expect(r1.statusName).toBe('Rented');
+    const r2 = resolveStatus(statuses, 'SOLD');
+    expect(r2.statusId).toBe(5);
+    expect(r2.statusName).toBe('Sold');
   });
 });

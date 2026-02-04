@@ -181,7 +181,8 @@ describe('ReminderScheduler', () => {
       expect(status).toEqual({
         isRunning: false,
         jobsCount: 0,
-        nextRun: 'Not scheduled'
+        reminderSchedule: expect.any(String),
+        cleanupSchedule: '0 2 * * *'
       });
     });
 
@@ -192,7 +193,8 @@ describe('ReminderScheduler', () => {
       expect(status).toEqual({
         isRunning: true,
         jobsCount: 2,
-        nextRun: 'Every 1 minute'
+        reminderSchedule: expect.any(String),
+        cleanupSchedule: '0 2 * * *'
       });
     });
   });

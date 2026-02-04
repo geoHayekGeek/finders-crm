@@ -137,7 +137,7 @@ describe('Property Controller', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Server error',
-        error: 'Database error'
+        error: expect.any(String)
       });
     });
   });
@@ -879,7 +879,10 @@ describe('Property Controller', () => {
       await propertyController.getDemoProperties(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Server error',
+        error: expect.any(String)
+      });
     });
   });
 

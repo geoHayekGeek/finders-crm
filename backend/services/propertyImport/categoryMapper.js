@@ -52,7 +52,10 @@ function normalizeCategoryInput(value) {
  */
 function resolveCategory(categories, value) {
   if (!value || !String(value).trim()) {
-    return { categoryId: null, categoryName: null, error: 'Category is required' };
+    const other = categories.find(x => (x.name || '').toLowerCase() === 'other');
+    if (other) return { categoryId: other.id, categoryName: other.name, warning: 'Category missing; used Other' };
+    if (categories.length > 0) return { categoryId: categories[0].id, categoryName: categories[0].name, warning: 'Category missing; used first available' };
+    return { categoryId: null, categoryName: null, error: 'No categories in system' };
   }
   const raw = normalizeCategoryInput(value);
   const canonical = CATEGORY_SYNONYMS[raw];
@@ -67,7 +70,8 @@ function resolveCategory(categories, value) {
   }
   const other = categories.find(x => (x.name || '').toLowerCase() === 'other');
   if (other) return { categoryId: other.id, categoryName: other.name, warning: `No match for "${value}"; used Other` };
-  return { categoryId: null, categoryName: null, error: `Unknown category "${value}" and no Other category` };
+  if (categories.length > 0) return { categoryId: categories[0].id, categoryName: categories[0].name, warning: `Unknown category "${value}"; used first available` };
+  return { categoryId: null, categoryName: null, error: `Unknown category "${value}" and no fallback` };
 }
 
 module.exports = { resolveCategory, CATEGORY_SYNONYMS, similarity };

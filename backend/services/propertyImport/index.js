@@ -10,7 +10,7 @@ const { normalizeRole } = require('../../utils/roleUtils');
 const { parseFile } = require('./parser');
 const {
   isEmpty,
-  normalizeDate,
+  normalizeDateWithFallbackAndReference,
   normalizeCustomerName,
   normalizePhone,
   normalizePrice,
@@ -50,7 +50,7 @@ function getRowValue(row, ...possibleKeys) {
 
 async function loadLookups() {
   const [statusesResult, categoriesResult, usersResult, assignableResult, refSourcesResult] = await Promise.all([
-    pool.query('SELECT id, name, code FROM statuses WHERE is_active = true ORDER BY name'),
+    pool.query('SELECT id, name, code FROM statuses ORDER BY name'),
     pool.query('SELECT id, name, code FROM categories WHERE is_active = true ORDER BY name'),
     pool.query(`
       SELECT id, name, role, user_code, updated_at
@@ -148,54 +148,80 @@ async function generateReferenceNumber(client, categoryId, propertyType) {
 
 /**
  * Process one raw row into normalized payload + warnings + errors.
+ * fallbackDate: when provided, used as date when current row date is missing or invalid (e.g. previous row's date).
  */
-function processRow(row, rowNumber, lookups, importerUserId) {
+function processRow(row, rowNumber, lookups, importerUserId, fallbackDate) {
   const warnings = [];
   const errors = [];
-
-  const dateRaw = getRowValue(row, 'date');
-  const dateResult = normalizeDate(dateRaw);
-  if (dateResult.warning) warnings.push(dateResult.warning);
-  const date = dateResult.value;
 
   const referenceRaw = getRowValue(row, 'reference');
   const reference = referenceRaw ? String(referenceRaw).trim() : '';
 
-  const activeRaw = getRowValue(row, 'active');
+  const dateRaw = getRowValue(row, 'date');
+  const dateResult = normalizeDateWithFallbackAndReference(dateRaw, fallbackDate, reference);
+  if (dateResult.warning) warnings.push(dateResult.warning);
+  const date = dateResult.value;
+
+  const activeRaw = getRowValue(row, 'active', 'status');
   const statusRes = resolveStatus(lookups.statuses, activeRaw);
-  if (statusRes.error) errors.push(statusRes.error);
-  const status_id = statusRes.statusId;
-  const status_name = statusRes.statusName;
+  let status_id = statusRes.statusId;
+  let status_name = statusRes.statusName;
+  if (statusRes.error) {
+    warnings.push(statusRes.error);
+    const active = lookups.statuses.find(s => (s.code || '').toLowerCase() === 'active' || (s.name || '').toLowerCase() === 'active');
+    if (active) {
+      status_id = active.id;
+      status_name = active.name;
+    }
+  }
 
   const locationRaw = getRowValue(row, 'location');
-  const location = locationRaw ? String(locationRaw).trim().replace(/\s+/g, ' ') : '';
-  if (!location) errors.push('Location is required');
+  let location = locationRaw ? String(locationRaw).trim().replace(/\s+/g, ' ') : '';
+  if (!location) {
+    warnings.push('Location missing; using "—"');
+    location = '—';
+  }
 
   const categoryRaw = getRowValue(row, 'category');
   const categoryRes = resolveCategory(lookups.categories, categoryRaw);
-  if (categoryRes.error) errors.push(categoryRes.error);
+  let category_id = categoryRes.categoryId;
+  let category_name = categoryRes.categoryName;
+  if (categoryRes.error) {
+    warnings.push(categoryRes.error);
+    if (lookups.categories.length > 0) {
+      category_id = lookups.categories[0].id;
+      category_name = lookups.categories[0].name;
+    }
+  }
   if (categoryRes.warning) warnings.push(categoryRes.warning);
-  const category_id = categoryRes.categoryId;
-  const category_name = categoryRes.categoryName;
 
   const building_name = getRowValue(row, 'bldg name', 'bldg name', 'building name', 'building') || null;
 
   const ownerNameRaw = getRowValue(row, 'owner name', 'owner name', 'owner');
   const ownerResult = normalizeCustomerName(ownerNameRaw);
-  if (ownerResult.error) errors.push(ownerResult.error);
-  const owner_name = ownerResult.value;
+  let owner_name = ownerResult.value;
+  if (ownerResult.error) {
+    warnings.push(ownerResult.error);
+    owner_name = null;
+  }
 
   const phoneRaw = getRowValue(row, 'phone number', 'phone number', 'phone');
   const phoneResult = normalizePhone(phoneRaw);
-  if (phoneResult.error) errors.push(phoneResult.error);
+  let phone_number = phoneResult.value;
+  if (phoneResult.error) {
+    warnings.push(phoneResult.error);
+    phone_number = null;
+  }
   if (phoneResult.warning) warnings.push(phoneResult.warning);
-  const phone_number = phoneResult.value;
 
   const surfaceRaw = getRowValue(row, 'surface');
   const surfaceResult = normalizeSurface(surfaceRaw);
-  if (surfaceResult.error) errors.push(surfaceResult.error);
+  let surface = surfaceResult.value;
+  if (surfaceResult.error) {
+    warnings.push(surfaceResult.error);
+    surface = null;
+  }
   if (surfaceResult.warning) warnings.push(surfaceResult.warning);
-  const surface = surfaceResult.value;
 
   const detailsRaw = getRowValue(row, 'details');
   const detailsJsonb = detailsToJsonb(detailsRaw);
@@ -237,7 +263,9 @@ function processRow(row, rowNumber, lookups, importerUserId) {
   const created_by_name = opsMatch.userName || null;
   if (opsMatch.warning) warnings.push(opsMatch.warning);
 
-  const isError = errors.length > 0 || status_id == null || category_id == null || !owner_name || !phone_number || surface == null;
+  const finalCategoryId = category_id ?? (lookups.categories.length > 0 ? lookups.categories[0].id : null);
+  const finalCategoryName = category_name ?? (lookups.categories.length > 0 ? lookups.categories[0].name : null);
+  const isError = errors.length > 0 || status_id == null || finalCategoryId == null;
 
   return {
     rowNumber,
@@ -246,8 +274,8 @@ function processRow(row, rowNumber, lookups, importerUserId) {
     status_id,
     status_name,
     location,
-    category_id,
-    category_name,
+    category_id: finalCategoryId,
+    category_name: finalCategoryName,
     building_name,
     owner_name,
     phone_number,
@@ -276,12 +304,14 @@ async function dryRun(buffer, mimeType, importerUserId) {
   const { rows, sheetWarning } = await parseFile(buffer, mimeType);
   const allProcessed = [];
   const summary = { total: rows.length, valid: 0, invalid: 0, duplicate: 0, willImportCount: 0 };
+  let lastValidDate = undefined;
 
   for (let i = 0; i < rows.length; i++) {
-    const processed = processRow(rows[i], i + 2, lookups, importerUserId);
+    const processed = processRow(rows[i], i + 2, lookups, importerUserId, lastValidDate);
     allProcessed.push(processed);
     if (processed.isError) summary.invalid++;
     else summary.valid++;
+    if (processed.date) lastValidDate = processed.date;
   }
 
   const client = await pool.connect();
@@ -364,7 +394,13 @@ async function dryRun(buffer, mimeType, importerUserId) {
 async function commitImport(buffer, mimeType, importerUserId, importerRole, mode = 'skip') {
   const lookups = await loadLookups();
   const { rows, sheetWarning } = await parseFile(buffer, mimeType);
-  const processed = rows.map((row, i) => processRow(row, i + 2, lookups, importerUserId));
+  const processed = [];
+  let lastValidDate = undefined;
+  for (let i = 0; i < rows.length; i++) {
+    const p = processRow(rows[i], i + 2, lookups, importerUserId, lastValidDate);
+    processed.push(p);
+    if (p.date) lastValidDate = p.date;
+  }
   const validRows = processed.filter(p => !p.isError);
   const errors = processed.filter(p => p.isError);
 
@@ -382,22 +418,24 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
       await client.query(`SAVEPOINT ${savepoint}`);
       try {
         let owner_id = null;
-        const existingLead = await findLeadByPhone(client, row.phone_number);
-        if (existingLead) {
-          owner_id = existingLead.id;
-        } else {
-          owner_id = await createOwnerLead(client, {
-            date: row.date,
-            owner_name: row.owner_name,
-            phone_number: row.phone_number,
-            reference_source_id: propertyImportSourceId,
-            added_by_id: row.created_by_id,
-            agent_id: row.agent_id,
-            agent_name: row.agent_name,
-            agentUserName: row.agentUserName,
-            importerUserId,
-            importerRole,
-          });
+        if (row.phone_number) {
+          const existingLead = await findLeadByPhone(client, row.phone_number);
+          if (existingLead) {
+            owner_id = existingLead.id;
+          } else {
+            owner_id = await createOwnerLead(client, {
+              date: row.date,
+              owner_name: row.owner_name || '—',
+              phone_number: row.phone_number,
+              reference_source_id: propertyImportSourceId,
+              added_by_id: row.created_by_id,
+              agent_id: row.agent_id,
+              agent_name: row.agent_name,
+              agentUserName: row.agentUserName,
+              importerUserId,
+              importerRole,
+            });
+          }
         }
 
         let reference_number = (row.reference || '').trim();
@@ -417,6 +455,8 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
           const updateFields = [];
           const values = [];
           let vi = 1;
+          if (row.status_id != null) { updateFields.push(`status_id = $${vi++}`); values.push(row.status_id); }
+          if (row.date) { updateFields.push(`created_at = $${vi++}::timestamptz`); values.push(`${row.date}T12:00:00.000Z`); }
           if (row.location) { updateFields.push(`location = $${vi++}`); values.push(row.location); }
           if (row.surface != null) { updateFields.push(`surface = $${vi++}`); values.push(row.surface); }
           if (row.price != null) { updateFields.push(`price = $${vi++}`); values.push(row.price); }
@@ -445,14 +485,15 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
           if (!reference_number) throw new Error('Could not generate reference number');
         }
 
+        const listedDate = row.date ? `${row.date}T12:00:00.000Z` : null;
         await client.query(
           `INSERT INTO properties (
             reference_number, status_id, property_type, location, category_id, building_name,
             owner_id, owner_name, phone_number, surface, details, interior_details,
             payment_facilities, payment_facilities_specification,
             built_year, view_type, concierge, agent_id, price, notes, property_url,
-            closed_date, sold_amount, buyer_id, commission, platform_id, main_image, image_gallery, created_by
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, FALSE, NULL, $13, $14, $15, $16, $17, $18, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, $19)
+            closed_date, sold_amount, buyer_id, commission, platform_id, main_image, image_gallery, created_at, created_by
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, FALSE, NULL, $13, $14, $15, $16, $17, $18, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, COALESCE($19::timestamptz, NOW()), $20)
           RETURNING id`,
           [
             reference_number,
@@ -462,9 +503,9 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
             row.category_id,
             row.building_name,
             owner_id,
-            row.owner_name,
-            row.phone_number,
-            row.surface,
+            row.owner_name ?? '—',
+            row.phone_number ?? null,
+            row.surface ?? null,
             row.detailsJsonb,
             row.interiorDetailsJsonb,
             row.built_year,
@@ -473,6 +514,7 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
             row.agent_id,
             row.price,
             row.notes,
+            listedDate,
             row.created_by_id,
           ]
         );
@@ -480,10 +522,11 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
 
         const referralDate = row.date;
         const referralName = row.agent_id ? (row.agentUserName || row.owner_name) : (row.agent_name || row.owner_name || 'Import');
+        const safeReferralName = referralName || 'Import';
         const referralType = row.agent_id ? 'employee' : 'custom';
         await client.query(
           `INSERT INTO referrals (property_id, employee_id, name, type, date, external) VALUES ($1, $2, $3, $4, $5, FALSE)`,
-          [propertyId, row.agent_id, referralName, referralType, referralDate]
+          [propertyId, row.agent_id, safeReferralName, referralType, referralDate]
         );
         await client.query('UPDATE properties SET referrals_count = 1 WHERE id = $1', [propertyId]);
 

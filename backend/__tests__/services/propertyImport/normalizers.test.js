@@ -7,6 +7,8 @@ const {
   normalizeYesNo,
   normalizeBuiltYear,
   normalizeViewType,
+  normalizeDateWithFallback,
+  normalizeDateWithFallbackAndReference,
   detailsToJsonb,
   interiorDetailsToJsonb,
   isEmpty,
@@ -148,6 +150,54 @@ describe('propertyImport normalizers', () => {
       const j = interiorDetailsToJsonb('2BR, 2 Bath');
       const o = JSON.parse(j);
       expect(o.maid_room).toBe('2BR, 2 Bath');
+    });
+  });
+
+  describe('normalizeDateWithFallback', () => {
+    it('uses Excel date when valid', () => {
+      const r = normalizeDateWithFallback('2024-03-15', '2023-01-01');
+      expect(r.value).toBe('2024-03-15');
+      expect(r.warning).toBeUndefined();
+    });
+    it('uses fallback when value is empty', () => {
+      const r = normalizeDateWithFallback('', '2023-06-10');
+      expect(r.value).toBe('2023-06-10');
+      expect(r.warning).toContain('previous row');
+    });
+    it('uses fallback when value is invalid', () => {
+      const r = normalizeDateWithFallback('not-a-date', '2023-01-15');
+      expect(r.value).toBe('2023-01-15');
+      expect(r.warning).toContain('previous row');
+    });
+    it('ignores invalid fallback', () => {
+      const r = normalizeDateWithFallback('', 'invalid');
+      expect(r.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(r.warning).toBeDefined();
+    });
+  });
+
+  describe('normalizeDateWithFallbackAndReference', () => {
+    it('keeps date when not suspicious', () => {
+      const r = normalizeDateWithFallbackAndReference('2024-10-01', '2023-01-01', 'FSA24141');
+      expect(r.value).toBe('2024-10-01');
+      expect(r.warning).toBeUndefined();
+    });
+
+    it('corrects future year based on reference year when far off', () => {
+      const r = normalizeDateWithFallbackAndReference('2028-10-01', '2023-01-01', 'FSA23141');
+      expect(r.value).toBe('2023-10-01');
+      expect(r.warning).toContain('Corrected year');
+    });
+
+    it('corrects past year based on reference year when far off', () => {
+      const r = normalizeDateWithFallbackAndReference('2002-12-01', '2023-01-01', 'FSA23152');
+      expect(r.value).toBe('2023-12-01');
+      expect(r.warning).toContain('Corrected year');
+    });
+
+    it('does not correct without reference year', () => {
+      const r = normalizeDateWithFallbackAndReference('2028-10-01', '2023-01-01', 'ABC');
+      expect(r.value).toBe('2028-10-01');
     });
   });
 

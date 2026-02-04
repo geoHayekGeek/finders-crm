@@ -1,5 +1,7 @@
 const {
   normalizeDate,
+  normalizeDateWithFallback,
+  normalizeDateWithFallbackAndReference,
   normalizeCustomerName,
   normalizePhone,
   normalizePrice,
@@ -27,6 +29,37 @@ describe('leadsImport normalizers', () => {
     it('parses DD/MM/YYYY', () => {
       const r = normalizeDate('15/03/2024');
       expect(r.value).toBe('2024-03-15');
+    });
+    it('parses MM/DD/YYYY when second part > 12', () => {
+      const r = normalizeDate('3/20/2024');
+      expect(r.value).toBe('2024-03-20');
+    });
+  });
+
+  describe('normalizeDateWithFallback', () => {
+    it('uses fallback when date is empty', () => {
+      const r = normalizeDateWithFallback('', '2023-06-10');
+      expect(r.value).toBe('2023-06-10');
+      expect(r.warning).toContain('previous row');
+    });
+  });
+
+  describe('normalizeDateWithFallbackAndReference', () => {
+    it('corrects future year based on reference year', () => {
+      const r = normalizeDateWithFallbackAndReference('2028-10-01', '2023-01-01', 'FSA23141');
+      expect(r.value).toBe('2023-10-01');
+      expect(r.warning).toContain('Corrected year');
+    });
+
+    it('corrects past year based on reference year', () => {
+      const r = normalizeDateWithFallbackAndReference('2002-12-01', '2023-01-01', 'FSA23152');
+      expect(r.value).toBe('2023-12-01');
+      expect(r.warning).toContain('Corrected year');
+    });
+
+    it('does not correct when no reference present', () => {
+      const r = normalizeDateWithFallbackAndReference('2002-12-01', '2023-01-01', '');
+      expect(r.value).toBe('2002-12-01');
     });
   });
 

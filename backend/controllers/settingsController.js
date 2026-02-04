@@ -152,7 +152,7 @@ const updateSetting = async (req, res) => {
     const setting = await Settings.update(sanitizedKey, value);
 
     // Audit log: Setting updated
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Setting updated', {
       settingKey: sanitizedKey,
       oldValue: sanitizedKey.includes('pass') || sanitizedKey.includes('password') ? '[REDACTED]' : oldValue,
@@ -229,7 +229,7 @@ const updateMultipleSettings = async (req, res) => {
     const updated = await Settings.updateMultiple(sanitizedSettings);
 
     // Audit log: Multiple settings updated
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Multiple settings updated', {
       settingsCount: sanitizedSettings.length,
       changes: changes,
@@ -278,7 +278,7 @@ const uploadLogo = async (req, res) => {
       await Settings.update('company_logo', filePath);
 
       // Audit log: Logo uploaded
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Company logo uploaded', {
         filename: req.file.filename,
         filePath,
@@ -329,7 +329,7 @@ const uploadFavicon = async (req, res) => {
       await Settings.update('company_favicon', filePath);
 
       // Audit log: Favicon uploaded
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Company favicon uploaded', {
         filename: req.file.filename,
         filePath,
@@ -371,7 +371,7 @@ const deleteLogo = async (req, res) => {
     await Settings.update('company_logo', null);
 
     // Audit log: Logo deleted
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Company logo deleted', {
       oldFilePath,
       deletedBy: req.user.id,
@@ -409,7 +409,7 @@ const deleteFavicon = async (req, res) => {
     await Settings.update('company_favicon', null);
 
     // Audit log: Favicon deleted
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Company favicon deleted', {
       oldFilePath,
       deletedBy: req.user.id,
@@ -492,7 +492,7 @@ const testEmailConfiguration = async (req, res) => {
     
     if (!isValid) {
       // Audit log: Email test failed
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Email configuration test failed', {
         host,
         port: portNum,
@@ -513,7 +513,7 @@ const testEmailConfiguration = async (req, res) => {
     await emailService.sendTestEmail(user, testConfig);
 
     // Audit log: Email test successful
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Email configuration tested successfully', {
       host,
       port: portNum,

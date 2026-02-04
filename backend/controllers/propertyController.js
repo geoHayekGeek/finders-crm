@@ -41,7 +41,10 @@ const getDemoProperties = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error getting demo properties', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
 
@@ -120,8 +123,9 @@ const getAllProperties = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error getting properties', error);
-    res.status(500).json({ 
-      message: 'Server error'
+    res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
@@ -703,7 +707,7 @@ const createProperty = async (req, res) => {
     });
 
     // Audit log: Property created
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Property created', {
       propertyId: newProperty.id,
       referenceNumber: newProperty.reference_number,
@@ -862,7 +866,7 @@ const updateProperty = async (req, res) => {
     }
 
     const updates = req.body;
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     // Track what changed for audit logging
     const changes = {};
@@ -1047,14 +1051,25 @@ const deleteProperty = async (req, res) => {
     if (isNaN(propertyId)) {
       return res.status(400).json({ message: 'Invalid property ID' });
     }
-    
-    // Permission is already checked by canDeleteProperties middleware
-    // Only admin and operations manager can reach this point
+
+    // Defensive check when controller is used without middleware (e.g. in tests)
+    if (roleFilters && roleFilters.canManageProperties === false) {
+      return res.status(403).json({
+        message: 'Access denied. You do not have permission to delete properties.'
+      });
+    }
 
     const property = await Property.getPropertyById(propertyId);
     
     if (!property) {
       return res.status(404).json({ message: 'Property not found' });
+    }
+
+    // Agents can only delete properties assigned to them
+    if (roleFilters && roleFilters.role === 'agent' && property.agent_id !== req.user?.id) {
+      return res.status(403).json({
+        message: 'Access denied. You can only delete properties assigned to you.'
+      });
     }
 
     // Create notifications for relevant users before deleting
@@ -1077,7 +1092,7 @@ const deleteProperty = async (req, res) => {
     await Property.deleteProperty(id);
 
     // Audit log: Property deleted
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Property deleted', {
       propertyId: propertyId,
       referenceNumber: property.reference_number,

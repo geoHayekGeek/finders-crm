@@ -1,7 +1,7 @@
 /**
  * Parse .xlsx or .csv buffer; read sheet "Customers" or first sheet.
  * Expected headers: Date, Customer Name, Phone Number, Agent Name, Price, Source, Operations.
- * Ignore columns: "Code ", "Reference", and empty spacer columns.
+ * Ignore columns: empty spacer columns.
  */
 
 const ExcelJS = require('exceljs');
@@ -17,7 +17,7 @@ const EXPECTED_HEADERS = [
   'operations',
 ];
 
-const IGNORE_COLUMNS = new Set(['code ', 'code', 'reference', '']);
+const IGNORE_COLUMNS = new Set(['']);
 
 /** Get plain text from a cell value (string, { text }, { richText: [{ text }] }, or formula result). */
 function cellToText(val) {

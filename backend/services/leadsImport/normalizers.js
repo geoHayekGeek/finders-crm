@@ -50,18 +50,105 @@ function normalizeDate(value) {
     const date = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
     if (!Number.isNaN(date.getTime())) return { value: `${y}-${m}-${d}` };
   }
-  // DD/MM/YYYY or DD-MM-YYYY
+  // Slash / dash formats: support both DD/MM/YYYY and MM/DD/YYYY (e.g. 3/20/2024).
+  // Disambiguation rules:
+  // - if first > 12 and second <= 12 => DD/MM
+  // - if second > 12 and first <= 12 => MM/DD
+  // - if both <= 12 => assume DD/MM (legacy behavior)
   const parts = raw.split(/[/\-.]/).map(p => parseInt(p, 10)).filter(n => !Number.isNaN(n));
   if (parts.length === 3) {
-    const [d, m, y] = parts;
+    let a = parts[0], b = parts[1], y = parts[2];
     const year = y < 100 ? 2000 + y : y;
-    const month = String(m).padStart(2, '0');
-    const day = String(d).padStart(2, '0');
-    const date = new Date(year, month - 1, day);
-    if (!Number.isNaN(date.getTime())) return { value: `${year}-${month}-${day}` };
+    let dayNum;
+    let monthNum;
+    if (a > 12 && b <= 12) {
+      // DD/MM
+      dayNum = a;
+      monthNum = b;
+    } else if (b > 12 && a <= 12) {
+      // MM/DD
+      monthNum = a;
+      dayNum = b;
+    } else {
+      // ambiguous => DD/MM (legacy)
+      dayNum = a;
+      monthNum = b;
+    }
+    if (monthNum >= 1 && monthNum <= 12 && dayNum >= 1 && dayNum <= 31) {
+      const date = new Date(year, monthNum - 1, dayNum);
+      // Validate that JS didn't roll the date (e.g. 31/02)
+      if (
+        !Number.isNaN(date.getTime()) &&
+        date.getFullYear() === year &&
+        date.getMonth() === monthNum - 1 &&
+        date.getDate() === dayNum
+      ) {
+        const mm = String(monthNum).padStart(2, '0');
+        const dd = String(dayNum).padStart(2, '0');
+        return { value: `${year}-${mm}-${dd}` };
+      }
+    }
   }
   const today = new Date().toISOString().split('T')[0];
   return { value: today, warning: `Invalid date "${raw}"; defaulted to today` };
+}
+
+/**
+ * Like normalizeDate, but when the value is empty or invalid use fallbackDate (previous row's date) if provided.
+ * fallbackDate should be YYYY-MM-DD. Returns { value: string, warning?: string }.
+ */
+function normalizeDateWithFallback(value, fallbackDate) {
+  const result = normalizeDate(value);
+  if (result.warning && fallbackDate && /^\d{4}-\d{2}-\d{2}$/.test(String(fallbackDate).trim())) {
+    return { value: String(fallbackDate).trim(), warning: 'Date missing or invalid; used previous row date' };
+  }
+  return result;
+}
+
+function inferYearFromReference(reference) {
+  if (isEmpty(reference)) return null;
+  const ref = String(reference).trim();
+  // Common patterns: FSA23152, LEAD23001, etc. Grab the first 2-digit year after a letter prefix.
+  const m = ref.match(/[A-Za-z]{1,10}(\d{2})/);
+  if (!m) return null;
+  const yy = parseInt(m[1], 10);
+  if (Number.isNaN(yy)) return null;
+  const year = 2000 + yy;
+  if (year < 2000 || year > 2099) return null;
+  return year;
+}
+
+/**
+ * Like normalizeDateWithFallback, but also corrects clearly-wrong years using the reference/code year (e.g. ...23... => 2023).
+ * Handles Excel "mmm-yy" mis-entry (Dec-02 vs Dec-23) and weird 1899/1900 dates.
+ */
+function normalizeDateWithFallbackAndReference(value, fallbackDate, reference) {
+  const base = normalizeDateWithFallback(value, fallbackDate);
+  const inferredYear = inferYearFromReference(reference);
+  if (!inferredYear) return base;
+
+  const s = String(base.value || '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return base;
+
+  const year = parseInt(m[1], 10);
+  const month = m[2];
+  const day = m[3];
+  const currentMaxYear = new Date().getFullYear() + 1;
+
+  const farFromReference = Math.abs(year - inferredYear) >= 2;
+  const obviouslyWrongRange = year < 2000 || year > currentMaxYear;
+
+  if (farFromReference || (obviouslyWrongRange && year !== inferredYear)) {
+    return {
+      value: `${inferredYear}-${month}-${day}`,
+      warning: base.warning
+        ? `${base.warning}; corrected year from ${year} to ${inferredYear} based on reference`
+        : `Corrected year from ${year} to ${inferredYear} based on reference`,
+    };
+  }
+
+  return base;
 }
 
 /**
@@ -144,6 +231,8 @@ module.exports = {
   isEmpty,
   EMPTY_VALUES,
   normalizeDate,
+  normalizeDateWithFallback,
+  normalizeDateWithFallbackAndReference,
   normalizeCustomerName,
   normalizePhone,
   normalizePrice,

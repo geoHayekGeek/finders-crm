@@ -62,7 +62,8 @@ class ViewingsController {
       logger.error('Error getting viewings', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve viewings'
+        message: 'Failed to retrieve viewings',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -293,7 +294,8 @@ class ViewingsController {
       logger.error('Error getting viewing by ID', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve viewing'
+        message: 'Failed to retrieve viewing',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -508,7 +510,7 @@ class ViewingsController {
       };
       const viewing = await Viewing.createViewing(viewingData);
       // Audit log: Viewing created
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Viewing created', {
         viewingId: viewing.id,
         propertyId: finalPropertyId,
@@ -818,7 +820,7 @@ class ViewingsController {
       const viewing = await Viewing.updateViewing(id, updatesToApply);
       
       // Audit log: Viewing updated
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       const changes = {};
       if (req.body.agent_id !== undefined && req.body.agent_id !== existingViewing.agent_id) {
         changes.agent_id = { from: existingViewing.agent_id, to: req.body.agent_id };
@@ -963,7 +965,8 @@ class ViewingsController {
       logger.error('Error updating viewing', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to update viewing'
+        message: 'Failed to update viewing',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -1009,16 +1012,16 @@ class ViewingsController {
       }
       
       // Audit log: Viewing deleted
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Viewing deleted', {
         viewingId: id,
-        propertyId: existingViewing.property_id,
-        leadId: existingViewing.lead_id,
+        propertyId: viewing.property_id,
+        leadId: viewing.lead_id,
         deletedBy: req.user.id,
         deletedByName: req.user.name,
         ip: clientIP
       });
-      
+
       res.json({
         success: true,
         message: 'Viewing deleted successfully'
@@ -1027,7 +1030,8 @@ class ViewingsController {
       logger.error('Error deleting viewing', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to delete viewing'
+        message: 'Failed to delete viewing',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }

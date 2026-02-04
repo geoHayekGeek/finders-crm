@@ -148,6 +148,7 @@ describe('Viewings Controller', () => {
       ];
       const mockFilteredViewings = [{ id: 1, agent_id: 2, property_id: 10, status: 'Scheduled' }];
 
+      pool.query.mockResolvedValue({ rows: [{ agent_id: 2 }] });
       Viewing.getViewingsByAgent.mockResolvedValue(mockAgentViewings);
       Viewing.getViewingsWithFilters.mockResolvedValue(mockFilteredViewings);
 
@@ -175,6 +176,7 @@ describe('Viewings Controller', () => {
         { id: 3, agent_id: 3, property_id: 10, status: 'Scheduled' } // Other agent's viewing
       ];
 
+      pool.query.mockResolvedValue({ rows: [{ agent_id: 2 }] });
       Viewing.getViewingsByAgent.mockResolvedValue(mockAgentViewings);
       Viewing.getViewingsWithFilters.mockResolvedValue(mockFilteredViewings);
 
@@ -225,6 +227,7 @@ describe('Viewings Controller', () => {
         { id: 3, agent_id: 99, property_id: 10, status: 'Scheduled' } // Outside team
       ];
 
+      pool.query.mockResolvedValue({ rows: [{ agent_id: 10 }] });
       const User = require('../../models/userModel');
       User.getTeamLeaderAgents = jest.fn().mockResolvedValue([{ id: 20 }, { id: 21 }]);
       Viewing.getViewingsForTeamLeader.mockResolvedValue(mockTeamViewings);
@@ -785,10 +788,10 @@ describe('Viewings Controller', () => {
 
   describe('deleteViewing', () => {
     it('should delete viewing successfully for admin', async () => {
-      req.user = { id: 1, role: 'admin' };
+      req.user = { id: 1, name: 'Admin User', role: 'admin' };
       req.params = { id: '1' };
 
-      const mockViewing = { id: 1 };
+      const mockViewing = { id: 1, property_id: 10, lead_id: 20 };
       pool.query.mockResolvedValue({ rows: [] });
       Viewing.deleteViewing.mockResolvedValue(mockViewing);
 

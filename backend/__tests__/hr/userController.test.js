@@ -57,7 +57,7 @@ describe('User Controller', () => {
 
       expect(userModel.findByEmail).toHaveBeenCalledWith('john@example.com');
       expect(userModel.generateUniqueUserCode).toHaveBeenCalledWith('John Doe');
-      expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10);
+      expect(bcrypt.hash).toHaveBeenCalledWith('password123', 12);
       expect(userModel.createUser).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
@@ -140,7 +140,7 @@ describe('User Controller', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Access denied. Only admin and HR can create users.'
+        message: 'Access denied. Only admin, HR, and operations manager can create users.'
       });
     });
 
@@ -514,14 +514,15 @@ describe('User Controller', () => {
 
   describe('updateUser', () => {
     it('should update user successfully as admin', async () => {
-      req.user = { id: 1, role: 'admin' };
+      req.user = { id: 1, name: 'Admin User', role: 'admin' };
       req.params.id = '2';
       req.body = { name: 'John Updated', email: 'john@example.com', role: 'agent' };
 
-      const mockUser = { id: 2, name: 'John Doe', user_code: 'JD001', role: 'agent' };
+      const mockUser = { id: 2, name: 'John Doe', email: 'john@example.com', user_code: 'JD001', role: 'agent' };
       const mockUpdatedUser = { id: 2, name: 'John Updated', email: 'john@example.com' };
 
       userModel.findById.mockResolvedValue(mockUser);
+      userModel.findByEmail.mockResolvedValue(mockUser);
       userModel.updateUser.mockResolvedValue(mockUpdatedUser);
 
       await userController.updateUser(req, res);
@@ -536,14 +537,15 @@ describe('User Controller', () => {
     });
 
     it('should update user successfully as HR', async () => {
-      req.user = { id: 1, role: 'hr' };
+      req.user = { id: 1, name: 'Admin User', role: 'hr' };
       req.params.id = '2';
       req.body = { name: 'John Updated', email: 'john@example.com', role: 'agent' };
 
-      const mockUser = { id: 2, name: 'John Doe', user_code: 'JD001', role: 'agent' };
+      const mockUser = { id: 2, name: 'John Doe', email: 'john@example.com', user_code: 'JD001', role: 'agent' };
       const mockUpdatedUser = { id: 2, name: 'John Updated', email: 'john@example.com' };
 
       userModel.findById.mockResolvedValue(mockUser);
+      userModel.findByEmail.mockResolvedValue(mockUser);
       userModel.updateUser.mockResolvedValue(mockUpdatedUser);
 
       await userController.updateUser(req, res);
@@ -556,14 +558,15 @@ describe('User Controller', () => {
     });
 
     it('should allow user to update themselves (restricted fields)', async () => {
-      req.user = { id: 2, role: 'agent' };
+      req.user = { id: 2, name: 'John Doe', role: 'agent' };
       req.params.id = '2';
       req.body = { name: 'John Updated', email: 'john@example.com' };
 
-      const mockUser = { id: 2, name: 'John Doe', user_code: 'JD001', role: 'agent', is_active: true };
+      const mockUser = { id: 2, name: 'John Doe', email: 'john@example.com', user_code: 'JD001', role: 'agent', is_active: true };
       const mockUpdatedUser = { id: 2, name: 'John Updated', email: 'john@example.com' };
 
       userModel.findById.mockResolvedValue(mockUser);
+      userModel.findByEmail.mockResolvedValue(mockUser);
       userModel.updateUser.mockResolvedValue(mockUpdatedUser);
 
       await userController.updateUser(req, res);
@@ -589,7 +592,7 @@ describe('User Controller', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Access denied. Only admin and HR can update other users.'
+        message: 'Access denied. Only admin, HR, and operations manager can update other users.'
       });
     });
 
@@ -674,7 +677,7 @@ describe('User Controller', () => {
 
       await userController.updateUser(req, res);
 
-      expect(bcrypt.hash).toHaveBeenCalledWith('newpassword123', 10);
+      expect(bcrypt.hash).toHaveBeenCalledWith('newpassword123', 12);
       expect(userModel.updateUser).toHaveBeenCalledWith('1', expect.objectContaining({
         password: 'hashedNewPassword'
       }));
@@ -756,7 +759,7 @@ describe('User Controller', () => {
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Access denied. Only admin and HR can delete users.'
+        message: 'Access denied. Only admin, HR, and operations manager can delete users.'
       });
     });
 

@@ -72,10 +72,21 @@ describe('EmailService (services/emailService.js)', () => {
     it('should fallback to environment variables on database error', async () => {
       SettingsModel.getByKeys.mockRejectedValue(new Error('Database error'));
 
-      const settings = await emailService.getEmailSettings();
-
-      expect(settings.smtp_host).toBe(process.env.EMAIL_HOST || 'smtp.gmail.com');
-      expect(settings.email_from_name).toBe('Finders CRM');
+      const origHost = process.env.EMAIL_HOST;
+      const origUser = process.env.EMAIL_USER;
+      const origPass = process.env.EMAIL_PASS;
+      process.env.EMAIL_HOST = 'smtp.gmail.com';
+      process.env.EMAIL_USER = 'test@example.com';
+      process.env.EMAIL_PASS = 'secret';
+      try {
+        const settings = await emailService.getEmailSettings();
+        expect(settings.smtp_host).toBe('smtp.gmail.com');
+        expect(settings.email_from_name).toBe('Finders CRM');
+      } finally {
+        if (origHost !== undefined) process.env.EMAIL_HOST = origHost; else delete process.env.EMAIL_HOST;
+        if (origUser !== undefined) process.env.EMAIL_USER = origUser; else delete process.env.EMAIL_USER;
+        if (origPass !== undefined) process.env.EMAIL_PASS = origPass; else delete process.env.EMAIL_PASS;
+      }
     });
   });
 
@@ -102,7 +113,10 @@ describe('EmailService (services/emailService.js)', () => {
         auth: {
           user: 'test@example.com',
           pass: 'password123'
-        }
+        },
+        connectionTimeout: 30000,
+        greetingTimeout: 30000,
+        socketTimeout: 30000
       });
       expect(transporter).toBe(mockTransporter);
     });

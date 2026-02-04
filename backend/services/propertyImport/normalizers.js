@@ -58,6 +58,68 @@ function normalizeViewType(value) {
   return { value: 'no view', warning: `Unknown view "${value}"; defaulted to no view` };
 }
 
+/**
+ * Like normalizeDate, but when the value is empty or invalid use fallbackDate (previous row's date) if provided.
+ * fallbackDate should be YYYY-MM-DD. Returns { value: string, warning?: string }.
+ */
+function normalizeDateWithFallback(value, fallbackDate) {
+  const result = normalizeDate(value);
+  if (result.warning && fallbackDate && /^\d{4}-\d{2}-\d{2}$/.test(String(fallbackDate).trim())) {
+    return { value: String(fallbackDate).trim(), warning: 'Date missing or invalid; used previous row date' };
+  }
+  return result;
+}
+
+function inferYearFromReference(reference) {
+  if (isEmpty(reference)) return null;
+  const ref = String(reference).trim();
+  // Most references are like FSA23002 (letters + 2-digit year + sequence).
+  const m = ref.match(/[A-Za-z]{2,6}(\d{2})/);
+  if (!m) return null;
+  const yy = parseInt(m[1], 10);
+  if (Number.isNaN(yy)) return null;
+  const year = 2000 + yy;
+  if (year < 2000 || year > 2099) return null;
+  return year;
+}
+
+/**
+ * Property import dates are often entered as "d-mmm" (no year shown in Excel),
+ * which can accidentally preserve a wrong underlying year (e.g. 2028-10-01).
+ * When the reference embeds the intended year (e.g. FSA23xxxx), correct the year
+ * if the parsed date is suspiciously in the future.
+ */
+function normalizeDateWithFallbackAndReference(value, fallbackDate, reference) {
+  const base = normalizeDateWithFallback(value, fallbackDate);
+  const inferredYear = inferYearFromReference(reference);
+  if (!inferredYear) return base;
+
+  const s = String(base.value || '').trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return base;
+
+  const year = parseInt(m[1], 10);
+  const month = m[2];
+  const day = m[3];
+  const currentMaxYear = new Date().getFullYear() + 1;
+
+  // Auto-correct when the normalized year is clearly wrong and far from the reference year.
+  // This happens often when Excel displays "mmm-yy" and a 2-digit year was mis-entered (e.g. Dec-02 instead of Dec-23),
+  // or when Excel serial/date formatting glitches produce years like 1899/1900.
+  const farFromReference = Math.abs(year - inferredYear) >= 2;
+  const obviouslyWrongRange = year < 2000 || year > currentMaxYear;
+  if (farFromReference || (obviouslyWrongRange && year !== inferredYear)) {
+    return {
+      value: `${inferredYear}-${month}-${day}`,
+      warning: base.warning
+        ? `${base.warning}; corrected year from ${year} to ${inferredYear} based on reference`
+        : `Corrected year from ${year} to ${inferredYear} based on reference`,
+    };
+  }
+
+  return base;
+}
+
 /** Build details JSONB from raw text. */
 function detailsToJsonb(raw) {
   if (!raw || !String(raw).trim()) {
@@ -91,6 +153,8 @@ module.exports = {
   isEmpty,
   stripInvisible,
   normalizeDate,
+  normalizeDateWithFallback,
+  normalizeDateWithFallbackAndReference,
   normalizeCustomerName,
   normalizePhone,
   normalizePrice,

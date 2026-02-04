@@ -11,7 +11,7 @@ const LeadReferral = require('../../models/leadReferralModel');
 const LeadNote = require('../../models/leadNotesModel');
 const { parseFile } = require('./parser');
 const {
-  normalizeDate,
+  normalizeDateWithFallbackAndReference,
   normalizeCustomerName,
   normalizePhone,
   normalizePrice,
@@ -102,11 +102,15 @@ async function resolveReferenceSourceId(client, sourceNameRaw, canCreate) {
 }
 
 /**
- * Check if lead already exists by normalized phone + customer_name (and optionally date).
+ * Check if lead already exists by normalized phone + customer_name.
+ * When phone is null, matches leads with null phone and same customer_name (case-insensitive).
  */
-async function findDuplicateLead(client, normalizedPhone, normalizedCustomerName, date) {
+async function findDuplicateLead(client, normalizedPhone, normalizedCustomerName) {
   const result = await client.query(
-    `SELECT id FROM leads WHERE phone_number = $1 AND TRIM(LOWER(customer_name)) = TRIM(LOWER($2)) LIMIT 1`,
+    `SELECT id FROM leads
+     WHERE TRIM(LOWER(customer_name)) = TRIM(LOWER($2))
+       AND ((($1::text IS NULL) AND (phone_number IS NULL)) OR (phone_number = $1))
+     LIMIT 1`,
     [normalizedPhone, normalizedCustomerName]
   );
   return result.rows[0] || null;
@@ -116,8 +120,10 @@ async function findDuplicateLead(client, normalizedPhone, normalizedCustomerName
  * Process one raw row into normalized payload + warnings + error.
  * Lookups: referenceSources (array), users (array), assignableUsers (array).
  */
-function processRow(row, rowNumber, lookups, importerUserId, canCreateSource) {
+function processRow(row, rowNumber, lookups, importerUserId, canCreateSource, fallbackDate) {
   const dateRaw = getRowValue(row, 'date');
+  const referenceRaw = getRowValue(row, 'reference', 'code', 'lead code');
+  const reference = referenceRaw ? String(referenceRaw).trim() : '';
   const customerRaw = getRowValue(row, 'customer name', 'customername', 'customer_name');
   const phoneRaw = getRowValue(row, 'phone number', 'phonenumber', 'phone_number');
   const agentRaw = getRowValue(row, 'agent name', 'agentname', 'agent_name');
@@ -133,7 +139,7 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource) {
   let agent_id = null;
   let agent_name = null;
 
-  const dateResult = normalizeDate(dateRaw);
+  const dateResult = normalizeDateWithFallbackAndReference(dateRaw, fallbackDate, reference);
   if (dateResult.warning) warnings.push(dateResult.warning);
   const date = dateResult.value;
 
@@ -145,9 +151,12 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource) {
   const customer_name = nameResult.value;
 
   const phoneResult = normalizePhone(phoneRaw);
-  if (phoneResult.error) errors.push(phoneResult.error);
+  let phone_number = phoneResult.value;
+  if (phoneResult.error) {
+    warnings.push(phoneResult.error);
+    phone_number = null;
+  }
   if (phoneResult.warning) warnings.push(phoneResult.warning);
-  const phone_number = phoneResult.value;
 
   const priceResult = normalizePrice(priceRaw);
   if (priceResult.warning) warnings.push(priceResult.warning);
@@ -178,7 +187,7 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource) {
   agent_name = agentMatch.fallbackName;
   if (agentMatch.warning) warnings.push(agentMatch.warning);
 
-  const isError = errors.length > 0 || !phone_number || !customer_name;
+  const isError = errors.length > 0;
   const refSourceId = reference_source_id === 'CREATE' ? null : reference_source_id;
   const reference_source_name = refSourceId && lookups.referenceSources
     ? (lookups.referenceSources.find(s => s.id === refSourceId)?.source_name) || (canonicalSource || null)
@@ -186,6 +195,7 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource) {
   return {
     rowNumber,
     date,
+    reference: reference || null,
     customer_name,
     phone_number,
     price,
@@ -213,12 +223,14 @@ async function dryRun(buffer, mimeType, importerUserId, importerRole) {
   const { rows, sheetWarning } = await parseFile(buffer, mimeType);
   const allProcessed = [];
   const summary = { valid: 0, invalid: 0, duplicate: 0, total: rows.length };
+  let lastValidDate = undefined;
 
   for (let i = 0; i < rows.length; i++) {
-    const processed = processRow(rows[i], i + 2, lookups, importerUserId, canCreateSource); // row 2 = first data in 1-based + header
+    const processed = processRow(rows[i], i + 2, lookups, importerUserId, canCreateSource, lastValidDate); // row 2 = first data in 1-based + header
     allProcessed.push(processed);
     if (processed.isError) summary.invalid++;
     else summary.valid++;
+    if (processed.date) lastValidDate = processed.date;
   }
 
   const preview = allProcessed.slice(0, PREVIEW_ROW_LIMIT);
@@ -251,9 +263,11 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
   const { rows, sheetWarning } = await parseFile(buffer, mimeType);
 
   const processed = [];
+  let lastValidDate = undefined;
   for (let i = 0; i < rows.length; i++) {
-    const p = processRow(rows[i], i + 2, lookups, importerUserId, canCreateSource);
+    const p = processRow(rows[i], i + 2, lookups, importerUserId, canCreateSource, lastValidDate);
     processed.push(p);
+    if (p.date) lastValidDate = p.date;
   }
 
   const validRows = processed.filter(p => !p.isError);
@@ -285,6 +299,7 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
         const values = [];
         let vi = 1;
         if (row.date) { updateFields.push(`date = $${vi++}`); values.push(row.date); }
+        if (row.date) { updateFields.push(`created_at = $${vi++}::timestamptz`); values.push(`${row.date}T12:00:00.000Z`); }
         if (row.price != null) { updateFields.push(`price = $${vi++}`); values.push(row.price); }
         if (row.reference_source_id) { updateFields.push(`reference_source_id = $${vi++}`); values.push(reference_source_id); }
         if (row.agent_id != null) { updateFields.push(`agent_id = $${vi++}`); values.push(row.agent_id); }
@@ -307,9 +322,10 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
         continue;
       }
 
+      const listedDate = row.date ? `${row.date}T12:00:00.000Z` : null;
       const ins = await client.query(
-        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, added_by_id, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, added_by_id, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW())) RETURNING id`,
         [
           row.date,
           customer_name,
@@ -320,6 +336,7 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
           reference_source_id,
           row.added_by_id,
           row.status,
+          listedDate,
         ]
       );
       const leadId = ins.rows[0].id;

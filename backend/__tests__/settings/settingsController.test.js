@@ -20,7 +20,11 @@ describe('Settings Controller', () => {
       params: {},
       query: {},
       body: {},
-      file: null
+      file: null,
+      user: { id: 1, name: 'Test User' },
+      headers: {},
+      ip: null,
+      connection: null
     };
 
     res = {

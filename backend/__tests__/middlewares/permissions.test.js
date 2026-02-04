@@ -275,7 +275,7 @@ describe('Permissions Middleware', () => {
       permissions.canManageUsers(req, res, next);
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Access denied. User management restricted to admin and HR only.'
+        message: 'Access denied. User management restricted to admin, HR, and operations manager only.'
       });
     });
 
@@ -304,7 +304,7 @@ describe('Permissions Middleware', () => {
       permissions.canViewAllUsers(req, res, next);
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Access denied. Viewing all users restricted to admin and HR only.'
+        message: 'Access denied. Viewing all users restricted to admin, HR, and operations manager only.'
       });
     });
 

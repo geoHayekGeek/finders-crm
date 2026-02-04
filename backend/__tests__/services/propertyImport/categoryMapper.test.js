@@ -13,10 +13,11 @@ describe('propertyImport categoryMapper', () => {
     { id: 5, name: 'Other' },
   ];
 
-  it('returns error when category value is empty', () => {
+  it('uses Other when category value is empty (nothing required)', () => {
     const r = resolveCategory(categories, '');
-    expect(r.categoryId).toBeNull();
-    expect(r.error).toContain('Category is required');
+    expect(r.categoryId).toBe(5);
+    expect(r.categoryName).toBe('Other');
+    expect(r.warning).toContain('missing');
   });
 
   it('resolves exact name match (case-insensitive)', () => {
@@ -49,12 +50,12 @@ describe('propertyImport categoryMapper', () => {
     expect(r.warning).toContain('Other');
   });
 
-  it('returns error when no match and no Other category', () => {
+  it('uses first category when no match and no Other category', () => {
     const noOther = categories.filter(c => c.name !== 'Other');
     const r = resolveCategory(noOther, 'Unknown Type');
-    expect(r.categoryId).toBeNull();
-    expect(r.error).toContain('Unknown category');
-    expect(r.error).toContain('Other');
+    expect(r.categoryId).toBe(1);
+    expect(r.categoryName).toBe('Apartment');
+    expect(r.warning).toContain('first available');
   });
 
   describe('similarity', () => {

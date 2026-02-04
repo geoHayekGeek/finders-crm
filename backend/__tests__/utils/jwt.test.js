@@ -11,7 +11,7 @@ describe('JWT Utils', () => {
     role: 'admin'
   };
 
-  const mockToken = 'mock-jwt-token';
+  const mockToken = 'header.payload.signature';
   const mockSecret = 'test-secret';
 
   beforeEach(() => {
@@ -75,23 +75,30 @@ describe('JWT Utils', () => {
       expect(result).toEqual(mockDecoded);
     });
 
-    it('should throw error for invalid token', () => {
+    it('should throw error for invalid token format (non-JWT shape)', () => {
+      expect(() => jwtUtils.verifyToken('invalid-token')).toThrow('Invalid token format');
+      expect(jwt.verify).not.toHaveBeenCalled();
+    });
+
+    it('should throw error for invalid token (bad signature)', () => {
       jwt.verify.mockImplementation(() => {
-        throw new Error('Invalid token');
+        const error = new Error('invalid signature');
+        error.name = 'JsonWebTokenError';
+        throw error;
       });
 
-      expect(() => jwtUtils.verifyToken('invalid-token')).toThrow('Invalid token');
-      expect(jwt.verify).toHaveBeenCalledWith('invalid-token', mockSecret);
+      expect(() => jwtUtils.verifyToken('a.b.c')).toThrow('Invalid token');
+      expect(jwt.verify).toHaveBeenCalledWith('a.b.c', mockSecret);
     });
 
     it('should throw error for expired token', () => {
       jwt.verify.mockImplementation(() => {
-        const error = new Error('Token expired');
+        const error = new Error('jwt expired');
         error.name = 'TokenExpiredError';
         throw error;
       });
 
-      expect(() => jwtUtils.verifyToken('expired-token')).toThrow('Token expired');
+      expect(() => jwtUtils.verifyToken('eyJhbGci.eyJzdWIi.SflKxw')).toThrow('Token expired');
     });
 
     it('should use correct secret for verification', () => {
