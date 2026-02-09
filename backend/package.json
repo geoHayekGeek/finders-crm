@@ -13,6 +13,7 @@
     "migrate:users-table": "node run-users-table-migration.js",
     "migrate:verify-users": "node verify-users-migration.js",
     "migrate:added-by": "node run-added-by-migration.js",
+    "seed:agents": "node scripts/seed-agents-from-excel.js",
     "setup:calendar": "node setup-calendar-db.js",
     "setup:properties": "node setup-properties-db.js",
     "dev:add-demo-properties": "node add-demo-properties.js",
