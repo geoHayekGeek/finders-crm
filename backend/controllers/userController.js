@@ -27,7 +27,7 @@ const registerUser = async (req, res) => {
 
     const currentUserRole = req.user.role;
     const normalizedRole = normalizeRole(currentUserRole);
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     // Only admin, HR, and operations manager can create users
     if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
@@ -122,7 +122,7 @@ const loginUser = async (req, res) => {
   
   try {
     const { email, password } = req.body;
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
     // Always perform both user lookup and password check to prevent timing attacks
     // Use a consistent delay to prevent user enumeration
@@ -387,7 +387,7 @@ const updateUser = async (req, res) => {
     const { name, email, role, phone, dob, work_location, user_code, is_active, password, address } = sanitizeObject(req.body);
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
     // Check if user exists
     const existingUser = await userModel.findById(id);
@@ -532,7 +532,7 @@ const deleteUser = async (req, res) => {
     const { id } = req.params;
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
 
     // Check if user exists
     const existingUser = await userModel.findById(id);
@@ -851,7 +851,7 @@ const assignAgentToTeamLeader = async (req, res) => {
   try {
     const { teamLeaderId, agentId } = req.body;
     const assignedBy = req.user?.id; // From JWT token
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     if (!teamLeaderId || !agentId) {
       return res.status(400).json({
@@ -946,7 +946,7 @@ const transferAgent = async (req, res) => {
   try {
     const { currentTeamLeaderId, agentId, newTeamLeaderId } = req.body;
     const assignedBy = req.user?.id; // From JWT token
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     if (!currentTeamLeaderId || !agentId || !newTeamLeaderId) {
       return res.status(400).json({

@@ -7,6 +7,7 @@ const {
   authenticateToken, 
   filterDataByRole,
   canManageLeads,
+  canImportLeads,
   canDeleteLeads,
   canViewLeads,
   canViewAllData,
@@ -23,6 +24,7 @@ const {
   leadsRateLimit,
   validateLeadBusinessRules
 } = require('../middlewares/leadsValidation');
+const leadsImportUpload = require('../middlewares/leadsImportUpload');
 
 // Apply authentication and role filtering to all routes
 router.use(authenticateToken);
@@ -39,6 +41,14 @@ router.get('/reference-sources', LeadsController.getReferenceSources);
 
 // Get operations users - MUST come before /:id route
 router.get('/operations-users', LeadsController.getOperationsUsers);
+
+// POST /api/leads/import - Import leads from Excel/CSV (dry-run or commit)
+router.post('/import',
+  canImportLeads,
+  leadsRateLimit,
+  leadsImportUpload,
+  LeadsController.importLeads
+);
 
 // GET /api/leads/stats - Get leads statistics (users who can view leads)
 router.get('/stats', canViewLeads, LeadsStatsController.getLeadsStats);

@@ -13,6 +13,7 @@ const {
   canViewAgentPerformance
 } = require('../middlewares/permissions');
 const { handleUploadError, uploadSingle, uploadMultiple } = require('../middlewares/fileUpload');
+const propertyImportUpload = require('../middlewares/propertyImportUpload');
 const { 
   validateProperty,
   validatePropertyUpdate, 
@@ -76,6 +77,9 @@ router.put('/referrals/:id/reject', canViewProperties, propertyController.reject
 
 // POST /api/properties/:id/refer - Refer a property to an agent (must be before /:id route)
 router.post('/:id/refer', canViewProperties, propertyController.referPropertyToAgent);
+
+// POST /api/properties/import - Import properties from Excel/CSV (dry-run or commit)
+router.post('/import', canManageProperties, propertyImportUpload, propertyController.importProperties);
 
 // GET /api/properties/:id - Get single property (filtered by role) - MUST BE LAST
 router.get('/:id', canViewProperties, propertyReadLimiter, csrfProtection, propertyController.getPropertyById);

@@ -8,6 +8,7 @@ const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 const logger = require('../utils/logger');
 const { normalizeRole } = require('../utils/roleUtils');
+const propertyImportService = require('../services/propertyImport');
 
 // Helper function to filter created_by info based on user role
 // Only admin, operations manager, agent manager, and operations can see who created the property
@@ -40,7 +41,10 @@ const getDemoProperties = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error getting demo properties', error);
-    res.status(500).json({ message: 'Server error' });
+    res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 };
 
@@ -119,8 +123,9 @@ const getAllProperties = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error getting properties', error);
-    res.status(500).json({ 
-      message: 'Server error'
+    res.status(500).json({
+      message: 'Server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 };
@@ -702,7 +707,7 @@ const createProperty = async (req, res) => {
     });
 
     // Audit log: Property created
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Property created', {
       propertyId: newProperty.id,
       referenceNumber: newProperty.reference_number,
@@ -861,7 +866,7 @@ const updateProperty = async (req, res) => {
     }
 
     const updates = req.body;
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     
     // Track what changed for audit logging
     const changes = {};
@@ -1046,14 +1051,25 @@ const deleteProperty = async (req, res) => {
     if (isNaN(propertyId)) {
       return res.status(400).json({ message: 'Invalid property ID' });
     }
-    
-    // Permission is already checked by canDeleteProperties middleware
-    // Only admin and operations manager can reach this point
+
+    // Defensive check when controller is used without middleware (e.g. in tests)
+    if (roleFilters && roleFilters.canManageProperties === false) {
+      return res.status(403).json({
+        message: 'Access denied. You do not have permission to delete properties.'
+      });
+    }
 
     const property = await Property.getPropertyById(propertyId);
     
     if (!property) {
       return res.status(404).json({ message: 'Property not found' });
+    }
+
+    // Agents can only delete properties assigned to them
+    if (roleFilters && roleFilters.role === 'agent' && property.agent_id !== req.user?.id) {
+      return res.status(403).json({
+        message: 'Access denied. You can only delete properties assigned to you.'
+      });
     }
 
     // Create notifications for relevant users before deleting
@@ -1076,7 +1092,7 @@ const deleteProperty = async (req, res) => {
     await Property.deleteProperty(id);
 
     // Audit log: Property deleted
-    const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
     logger.security('Property deleted', {
       propertyId: propertyId,
       referenceNumber: property.reference_number,
@@ -1642,6 +1658,60 @@ const rejectReferral = async (req, res) => {
   }
 };
 
+// Import properties from Excel/CSV (dry-run or commit)
+const importProperties = async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file || !file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded. Use field name "file" and upload .xlsx or .csv',
+      });
+    }
+    const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
+    const mode = (req.body && (req.body.mode === 'skip' || req.body.mode === 'upsert')) ? req.body.mode : 'skip';
+    const importerUserId = req.user.id;
+    const importerRole = req.user.role || '';
+
+    if (dryRun) {
+      const result = await propertyImportService.dryRun(
+        file.buffer,
+        file.mimetype,
+        importerUserId
+      );
+      logger.debug('Property import dry-run', {
+        userId: importerUserId,
+        total: result.summary?.totalRows,
+        valid: result.summary?.validRows,
+        invalid: result.summary?.invalidRows,
+      });
+      return res.json(result);
+    }
+
+    const result = await propertyImportService.commitImport(
+      file.buffer,
+      file.mimetype,
+      importerUserId,
+      importerRole,
+      mode
+    );
+    logger.security('Property import completed', {
+      userId: importerUserId,
+      importedCount: result.importedCount,
+      skippedCount: result.skippedDuplicatesCount,
+      errorCount: result.errorCount,
+    });
+    return res.json(result);
+  } catch (error) {
+    logger.error('Error in property import', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Import failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   getAllProperties,
   getPropertiesWithFilters,
@@ -1661,5 +1731,6 @@ module.exports = {
   getPendingReferrals,
   getPendingReferralsCount,
   confirmReferral,
-  rejectReferral
+  rejectReferral,
+  importProperties,
 };

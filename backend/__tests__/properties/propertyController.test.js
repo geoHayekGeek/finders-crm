@@ -14,6 +14,9 @@ jest.mock('../../models/statusModel');
 jest.mock('../../models/userModel');
 jest.mock('../../models/notificationModel');
 jest.mock('../../models/calendarEventModel');
+jest.mock('../../services/propertyImport');
+
+const propertyImportService = require('../../services/propertyImport');
 
 describe('Property Controller', () => {
   let req, res;
@@ -134,7 +137,7 @@ describe('Property Controller', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Server error',
-        error: 'Database error'
+        error: expect.any(String)
       });
     });
   });
@@ -876,7 +879,10 @@ describe('Property Controller', () => {
       await propertyController.getDemoProperties(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: 'Server error' });
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Server error',
+        error: expect.any(String)
+      });
     });
   });
 
@@ -1466,6 +1472,86 @@ describe('Property Controller', () => {
 
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({ message: 'Referral not found' });
+    });
+  });
+
+  describe('importProperties', () => {
+    it('returns 400 when no file', async () => {
+      req.file = null;
+      await propertyController.importProperties(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          message: expect.stringContaining('file'),
+        })
+      );
+      expect(propertyImportService.dryRun).not.toHaveBeenCalled();
+      expect(propertyImportService.commitImport).not.toHaveBeenCalled();
+    });
+
+    it('calls dryRun when dryRun=true', async () => {
+      req.query.dryRun = 'true';
+      req.file = { buffer: Buffer.from('x'), mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+      propertyImportService.dryRun.mockResolvedValue({
+        success: true,
+        dryRun: true,
+        summary: { totalRows: 2, validRows: 2, invalidRows: 0, duplicatesCount: 0 },
+      });
+      await propertyController.importProperties(req, res);
+      expect(propertyImportService.dryRun).toHaveBeenCalledWith(
+        req.file.buffer,
+        req.file.mimetype,
+        1
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, dryRun: true })
+      );
+      expect(propertyImportService.commitImport).not.toHaveBeenCalled();
+    });
+
+    it('calls commitImport when dryRun is false', async () => {
+      req.query.dryRun = 'false';
+      req.file = { buffer: Buffer.from('x'), mimetype: 'text/csv' };
+      req.body = { mode: 'skip' };
+      propertyImportService.commitImport.mockResolvedValue({
+        success: true,
+        dryRun: false,
+        importedCount: 1,
+        skippedDuplicatesCount: 0,
+        errorCount: 0,
+      });
+      await propertyController.importProperties(req, res);
+      expect(propertyImportService.commitImport).toHaveBeenCalledWith(
+        req.file.buffer,
+        req.file.mimetype,
+        1,
+        'admin',
+        'skip'
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, importedCount: 1 })
+      );
+    });
+
+    it('passes mode upsert when body.mode is upsert', async () => {
+      req.query.dryRun = 'false';
+      req.body = { mode: 'upsert' };
+      req.file = { buffer: Buffer.from('x'), mimetype: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' };
+      propertyImportService.commitImport.mockResolvedValue({
+        success: true,
+        importedCount: 0,
+        skippedDuplicatesCount: 1,
+        errorCount: 0,
+      });
+      await propertyController.importProperties(req, res);
+      expect(propertyImportService.commitImport).toHaveBeenCalledWith(
+        req.file.buffer,
+        req.file.mimetype,
+        1,
+        'admin',
+        'upsert'
+      );
     });
   });
 });

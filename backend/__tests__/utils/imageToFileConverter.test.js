@@ -70,7 +70,7 @@ describe('Image To File Converter', () => {
     });
 
     it('should handle errors', async () => {
-      const base64String = 'invalid';
+      const base64String = 'data:image/jpeg;base64,/9j/4AAQSkZJRg==';
       const filename = 'test.jpg';
       const directory = '/test/dir';
 
@@ -79,7 +79,7 @@ describe('Image To File Converter', () => {
         throw new Error('Write error');
       });
 
-      await expect(imageConverter.base64ToFile(base64String, filename, directory)).rejects.toThrow('Write error');
+      await expect(imageConverter.base64ToFile(base64String, filename, directory)).rejects.toThrow(/Failed to write file:/);
     });
   });
 
@@ -252,7 +252,7 @@ describe('Image To File Converter', () => {
         throw new Error('Conversion error');
       });
 
-      await expect(imageConverter.convertPropertyImages(property, outputDirectory)).rejects.toThrow('Conversion error');
+      await expect(imageConverter.convertPropertyImages(property, outputDirectory)).rejects.toThrow(/Failed to write file:/);
     });
   });
 });

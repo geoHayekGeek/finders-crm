@@ -201,8 +201,6 @@ interface PropertyModalsProps {
   setShowViewPropertyModal: (show: boolean) => void
   showDeletePropertyModal: boolean
   setShowDeletePropertyModal: (show: boolean) => void
-  showImportModal: boolean
-  setShowImportModal: (show: boolean) => void
   showImageModal: boolean
   setShowImageModal: (show: boolean) => void
   editingProperty: Property | null
@@ -235,8 +233,6 @@ export function PropertyModals({
   setShowViewPropertyModal,
   showDeletePropertyModal,
   setShowDeletePropertyModal,
-  showImportModal,
-  setShowImportModal,
   showImageModal,
   setShowImageModal,
   editingProperty,
@@ -262,7 +258,6 @@ export function PropertyModals({
   const { showSuccess, showError, showWarning } = useToast()
   const { user, token } = useAuth()
   const { canViewViewings } = usePermissions()
-  const [skipDuplicates, setSkipDuplicates] = useState(true)
   const [teamAgentIds, setTeamAgentIds] = useState<number[]>([])
   
   // Viewing modal state
@@ -325,7 +320,6 @@ export function PropertyModals({
   const [selectedImageState, setSelectedImageState] = useState<string>('')
   const [allImagesState, setAllImagesState] = useState<string[]>([])
   const [currentImageIndexState, setCurrentImageIndexState] = useState<number>(0)
-  const [updateExisting, setUpdateExisting] = useState(false)
   const [employees, setEmployees] = useState<Agent[]>([])
 
   // Validation error state for form fields
@@ -1228,117 +1222,6 @@ export function PropertyModals({
         onChange={handleEditGalleryImageUpload}
         className="hidden"
       />
-
-      {/* Import Properties Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 transform transition-all">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Upload className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Import Properties</h3>
-                  <p className="text-sm text-gray-500">Upload your property data file</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6">
-              {/* File Upload Area */}
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 cursor-pointer group">
-                <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4 group-hover:bg-blue-100 transition-colors">
-                  <Upload className="h-8 w-8 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                </div>
-                <h4 className="text-lg font-medium text-gray-900 mb-2">Drop your file here</h4>
-                <p className="text-sm text-gray-500 mb-4">or click to browse</p>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium">
-                  Choose File
-                </button>
-                <p className="text-xs text-gray-400 mt-3">
-                  Supports CSV, Excel (.xlsx, .xls) files up to 10MB
-                </p>
-              </div>
-
-              {/* Import Options */}
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Import Options</label>
-                  <div className="space-y-2">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        checked={skipDuplicates}
-                        onChange={(e) => {
-                          setSkipDuplicates(e.target.checked)
-                          if (e.target.checked) {
-                            setUpdateExisting(false)
-                          }
-                        }}
-                        disabled={updateExisting}
-                      />
-                      <span className={`ml-2 text-sm ${updateExisting ? 'text-gray-400' : 'text-gray-700'}`}>
-                        Skip duplicate properties
-                      </span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                        checked={updateExisting}
-                        onChange={(e) => {
-                          setUpdateExisting(e.target.checked)
-                          if (e.target.checked) {
-                            setSkipDuplicates(false)
-                          }
-                        }}
-                        disabled={skipDuplicates}
-                      />
-                      <span className={`ml-2 text-sm ${skipDuplicates ? 'text-gray-400' : 'text-gray-700'}`}>
-                        Update existing properties
-                      </span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        defaultChecked
-                      />
-                      <span className="ml-2 text-sm text-gray-700">Send notification email</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50 rounded-b-xl">
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled
-              >
-                Import Properties
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Property Modal */}
       {showAddPropertyModal && (

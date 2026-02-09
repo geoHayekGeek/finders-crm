@@ -246,3 +246,42 @@ export interface AgentReferralStatsResponse {
   }
   message?: string
 }
+
+// Lead import (dry-run or commit)
+export interface LeadsImportRowPreview {
+  rowNumber: number
+  date: string
+  customer_name: string | null
+  phone_number: string | null
+  price: number | null
+  reference_source_id: number | null
+  reference_source_name?: string | null
+  added_by_id: number
+  added_by_name: string | null
+  agent_id: number | null
+  agent_name: string | null
+  status: string
+  warnings: string[]
+  errors: string[]
+  isError?: boolean
+}
+
+export interface LeadsImportResponse {
+  success: boolean
+  dryRun: boolean
+  sheetWarning?: string | null
+  summary?: {
+    total: number
+    valid: number
+    invalid: number
+    duplicate: number
+  }
+  parsedRows?: LeadsImportRowPreview[]
+  errors?: Array<{ rowNumber: number; errors: string[]; warnings: string[]; customer_name?: string; phone_number?: string }>
+  duplicateKeys?: unknown[]
+  importedCount?: number
+  skippedDuplicatesCount?: number
+  errorCount?: number
+  imported?: Array<{ rowNumber: number; message: string; leadId?: number; customer_name?: string; phone_number?: string }>
+  skipped_duplicates?: Array<{ rowNumber: number; message: string; leadId?: number; customer_name?: string; phone_number?: string }>
+}

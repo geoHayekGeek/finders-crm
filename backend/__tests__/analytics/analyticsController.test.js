@@ -145,7 +145,8 @@ describe('Analytics Controller', () => {
       pool.query
         .mockResolvedValueOnce({ rows: [{ count: '100' }] })
         .mockResolvedValueOnce({ rows: [{ with_images: '80', without_images: '20' }] })
-        .mockResolvedValueOnce({ rows: [{ sold_count: '15', total_revenue: '500000' }] });
+        .mockResolvedValueOnce({ rows: [{ sold_count: '15', total_revenue: '500000' }] })
+        .mockResolvedValueOnce({ rows: [{ active_clients: '25' }] });
 
       await analyticsController.getDashboardStats(req, res);
 
@@ -173,7 +174,8 @@ describe('Analytics Controller', () => {
 
       pool.query
         .mockResolvedValueOnce({ rows: [{ count: '100' }] })
-        .mockResolvedValueOnce({ rows: [{ with_images: '80', without_images: '20' }] });
+        .mockResolvedValueOnce({ rows: [{ with_images: '80', without_images: '20' }] })
+        .mockResolvedValueOnce({ rows: [{ active_clients: '10' }] });
 
       await analyticsController.getDashboardStats(req, res);
 

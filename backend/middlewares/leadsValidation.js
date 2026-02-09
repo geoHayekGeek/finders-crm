@@ -348,17 +348,7 @@ const validateLeadsFilters = [
   query('date_from')
     .optional()
     .isISO8601({ strict: true })
-    .withMessage('Date from must be in valid ISO 8601 format (YYYY-MM-DD)')
-    .custom((value) => {
-      const inputDate = new Date(value);
-      const twoYearsAgo = new Date();
-      twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-      
-      if (inputDate < twoYearsAgo) {
-        throw new Error('Date from cannot be more than 2 years ago');
-      }
-      return true;
-    }),
+    .withMessage('Date from must be in valid ISO 8601 format (YYYY-MM-DD)'),
     
   query('date_to')
     .optional()
@@ -366,12 +356,7 @@ const validateLeadsFilters = [
     .withMessage('Date to must be in valid ISO 8601 format (YYYY-MM-DD)')
     .custom((value, { req }) => {
       const inputDate = new Date(value);
-      const today = new Date();
-      
-      if (inputDate > today) {
-        throw new Error('Date to cannot be in the future');
-      }
-      
+
       // If date_from is also provided, ensure date_to is after date_from
       if (req.query.date_from) {
         const dateFrom = new Date(req.query.date_from);

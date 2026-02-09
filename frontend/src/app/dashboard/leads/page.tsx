@@ -20,6 +20,7 @@ import { DataTable } from '@/components/DataTable'
 import { LeadsCard } from '@/components/LeadsCard'
 import { LeadsFilters } from '@/components/LeadsFilters'
 import { LeadsModals } from '@/components/LeadsModals'
+import { ImportLeadsModal } from '@/components/ImportLeadsModal'
 import { PropertyPagination } from '@/components/PropertyPagination'
 import { getLeadsColumns } from '@/components/LeadsTableColumns'
 import { ReferLeadModal } from '@/components/ReferLeadModal'
@@ -32,7 +33,7 @@ import { isAgentRole, isTeamLeaderRole, normalizeRole } from '@/utils/roleUtils'
 
 export default function LeadsPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageLeads, canDeleteLeads, canViewLeads } = usePermissions()
+  const { canManageLeads, canImportLeads, canDeleteLeads, canViewLeads } = usePermissions()
   const limitedLeadAccess = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
   const normalizedUserRole = normalizeRole(user?.role)
   
@@ -103,6 +104,7 @@ useEffect(() => {
   // Statistics state
   // Export dropdown state
   const [showExportDropdown, setShowExportDropdown] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   // Close export dropdown when clicking outside
   useEffect(() => {
@@ -1196,11 +1198,25 @@ useEffect(() => {
             )}
           </div>
           
-          <button className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600">
-            <Upload className="h-4 w-4" />
-          </button>
+          {canImportLeads && (
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600"
+              title="Import leads from Excel/CSV"
+            >
+              <Upload className="h-4 w-4" />
+              <span>Import</span>
+            </button>
+          )}
         </div>
       </div>
+
+      <ImportLeadsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onSuccess={() => { loadLeads(); loadStats(); }}
+        token={token}
+      />
 
       {/* Content */}
       {leadsLoading ? (

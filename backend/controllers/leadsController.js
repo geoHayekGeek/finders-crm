@@ -7,6 +7,7 @@ const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const logger = require('../utils/logger');
 const { normalizeRole } = require('../utils/roleUtils');
+const leadsImportService = require('../services/leadsImport');
 
 class LeadsController {
   // Get all leads (with role-based filtering applied by middleware)
@@ -53,7 +54,8 @@ class LeadsController {
       logger.error('Error getting leads', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve leads'
+        message: 'Failed to retrieve leads',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -127,7 +129,8 @@ class LeadsController {
       logger.error('Error getting filtered leads', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve filtered leads'
+        message: 'Failed to retrieve filtered leads',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -201,7 +204,8 @@ class LeadsController {
       logger.error('Error getting lead by ID', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve lead'
+        message: 'Failed to retrieve lead',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -224,7 +228,7 @@ class LeadsController {
       const newLead = await Lead.createLead(leadData);
       
       // Audit log: Lead created
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Lead created', {
         leadId: newLead.id,
         customerName: newLead.customer_name,
@@ -507,7 +511,7 @@ class LeadsController {
       }
       
       // Audit log: Lead updated
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       const changes = {};
       if (req.body.agent_id !== undefined && req.body.agent_id !== existingLead.agent_id) {
         changes.agent_id = { from: existingLead.agent_id, to: req.body.agent_id };
@@ -540,7 +544,8 @@ class LeadsController {
       logger.error('Error updating lead', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to update lead'
+        message: 'Failed to update lead',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -597,7 +602,7 @@ class LeadsController {
       }
       
       // Audit log: Lead deleted
-      const clientIP = req.ip || req.headers['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
       logger.security('Lead deleted', {
         leadId: id,
         customerName: deletedLead.customer_name,
@@ -615,7 +620,8 @@ class LeadsController {
       logger.error('Error deleting lead', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to delete lead'
+        message: 'Failed to delete lead',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -673,7 +679,8 @@ class LeadsController {
       logger.error('Error getting lead statistics', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve lead statistics'
+        message: 'Failed to retrieve lead statistics',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -694,7 +701,8 @@ class LeadsController {
       logger.error('Error getting reference sources', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve reference sources'
+        message: 'Failed to retrieve reference sources',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -715,7 +723,8 @@ class LeadsController {
       logger.error('Error getting users who can add leads', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to retrieve users who can add leads'
+        message: 'Failed to retrieve users who can add leads',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
       });
     }
   }
@@ -1539,6 +1548,61 @@ class LeadsController {
         success: false,
         message: 'Failed to retrieve lead viewings',
         error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  // Import leads from Excel/CSV (dry-run or commit)
+  static async importLeads(req, res) {
+    try {
+      const file = req.file;
+      if (!file || !file.buffer) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded. Use field name "file" and upload .xlsx or .csv',
+        });
+      }
+      const dryRun = req.query.dryRun === 'true' || req.query.dryRun === '1';
+      const mode = (req.body && (req.body.mode === 'skip' || req.body.mode === 'upsert')) ? req.body.mode : 'skip';
+      const importerUserId = req.user.id;
+      const importerRole = req.user.role || '';
+
+      if (dryRun) {
+        const result = await leadsImportService.dryRun(
+          file.buffer,
+          file.mimetype,
+          importerUserId,
+          importerRole
+        );
+        logger.debug('Leads import dry-run', {
+          userId: importerUserId,
+          total: result.summary.total,
+          valid: result.summary.valid,
+          invalid: result.summary.invalid,
+        });
+        return res.json(result);
+      }
+
+      const result = await leadsImportService.commitImport(
+        file.buffer,
+        file.mimetype,
+        importerUserId,
+        importerRole,
+        mode
+      );
+      logger.security('Leads import completed', {
+        userId: importerUserId,
+        importedCount: result.importedCount,
+        skippedCount: result.skippedDuplicatesCount,
+        errorCount: result.errorCount,
+      });
+      return res.json(result);
+    } catch (error) {
+      logger.error('Error in lead import', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Import failed',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }
   }
