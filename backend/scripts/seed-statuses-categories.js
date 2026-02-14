@@ -48,8 +48,8 @@ async function seedStatuses() {
   for (const [name, code, description, color, can_be_referred] of STATUSES) {
     const r = await pool.query(
       `INSERT INTO statuses (name, code, description, color, can_be_referred)
-       SELECT $1, $2, $3, $4, $5
-       WHERE NOT EXISTS (SELECT 1 FROM statuses WHERE LOWER(name) = LOWER($1) OR LOWER(code) = LOWER($2))`,
+       SELECT $1::text, $2::text, $3::text, $4::text, $5::boolean
+       WHERE NOT EXISTS (SELECT 1 FROM statuses WHERE LOWER(name) = LOWER($1::text) OR LOWER(code) = LOWER($2::text))`,
       [name, code, description, color, can_be_referred]
     );
     if (r.rowCount > 0) added++;
@@ -63,8 +63,8 @@ async function seedCategories() {
   for (const [name, code, description] of CATEGORIES) {
     const r = await pool.query(
       `INSERT INTO categories (name, code, description)
-       SELECT $1, $2, $3
-       WHERE NOT EXISTS (SELECT 1 FROM categories WHERE LOWER(name) = LOWER($1) OR LOWER(code) = LOWER($2))`,
+       SELECT $1::text, $2::text, $3::text
+       WHERE NOT EXISTS (SELECT 1 FROM categories WHERE LOWER(name) = LOWER($1::text) OR LOWER(code) = LOWER($2::text))`,
       [name, code, description]
     );
     if (r.rowCount > 0) added++;
