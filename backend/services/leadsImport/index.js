@@ -24,6 +24,31 @@ const DEFAULT_LEAD_STATUS = 'Active';
 const DUPLICATE_KEY_PHONE_NAME = true; // use normalized phone + normalized customer_name
 const PREVIEW_ROW_LIMIT = 50;
 
+/**
+ * Resolve effective importer user ID. If the given ID does not exist in users (e.g. stale JWT after DB reset),
+ * fall back to the first admin so the import can proceed and added_by_id FK is satisfied.
+ */
+async function resolveImporterUserId(clientOrPool, importerUserId) {
+  const poolInstance = clientOrPool || pool;
+  const check = await poolInstance.query(
+    'SELECT id FROM users WHERE id = $1 LIMIT 1',
+    [importerUserId]
+  );
+  if (check.rows.length > 0) return importerUserId;
+  const adminResult = await poolInstance.query(
+    `SELECT id FROM users WHERE LOWER(TRIM(REPLACE(role, '_', ' '))) = 'admin' LIMIT 1`
+  );
+  const fallbackId = adminResult.rows[0]?.id;
+  if (!fallbackId) {
+    throw new Error('No admin user found in database. Lead import requires at least one admin.');
+  }
+  logger.warn('Importer user not found in database; using admin as added_by fallback', {
+    importerUserId,
+    fallbackId,
+  });
+  return fallbackId;
+}
+
 /** Normalize a header/key for matching: lowercase, collapse spaces, strip non-breaking space. */
 function normalizeKeyForMatch(key) {
   if (key == null) return '';
@@ -218,6 +243,7 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource, fa
  * Dry-run: parse file, process each row (no DB writes), return preview + summary.
  */
 async function dryRun(buffer, mimeType, importerUserId, importerRole) {
+  const effectiveUserId = await resolveImporterUserId(pool, importerUserId);
   const canCreateSource = ['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizeRole(importerRole));
   const lookups = await loadLookups();
   const { rows, sheetWarning } = await parseFile(buffer, mimeType);
@@ -226,7 +252,7 @@ async function dryRun(buffer, mimeType, importerUserId, importerRole) {
   let lastValidDate = undefined;
 
   for (let i = 0; i < rows.length; i++) {
-    const processed = processRow(rows[i], i + 2, lookups, importerUserId, canCreateSource, lastValidDate); // row 2 = first data in 1-based + header
+    const processed = processRow(rows[i], i + 2, lookups, effectiveUserId, canCreateSource, lastValidDate); // row 2 = first data in 1-based + header
     allProcessed.push(processed);
     if (processed.isError) summary.invalid++;
     else summary.valid++;
@@ -258,6 +284,7 @@ async function dryRun(buffer, mimeType, importerUserId, importerRole) {
  * mode: 'skip' | 'upsert'
  */
 async function commitImport(buffer, mimeType, importerUserId, importerRole, mode = 'skip') {
+  const effectiveUserId = await resolveImporterUserId(pool, importerUserId);
   const canCreateSource = ['admin', 'operations manager', 'operations', 'agent manager'].includes(normalizeRole(importerRole));
   const lookups = await loadLookups();
   const { rows, sheetWarning } = await parseFile(buffer, mimeType);
@@ -265,7 +292,7 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
   const processed = [];
   let lastValidDate = undefined;
   for (let i = 0; i < rows.length; i++) {
-    const p = processRow(rows[i], i + 2, lookups, importerUserId, canCreateSource, lastValidDate);
+    const p = processRow(rows[i], i + 2, lookups, effectiveUserId, canCreateSource, lastValidDate);
     processed.push(p);
     if (p.date) lastValidDate = p.date;
   }
@@ -316,7 +343,7 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
         );
         await client.query(
           `INSERT INTO lead_notes (lead_id, created_by, created_by_role, note_text) VALUES ($1, $2, $3, $4)`,
-          [existing.id, importerUserId, importerRole, `Updated via import ${new Date().toISOString()}`]
+          [existing.id, effectiveUserId, importerRole, `Updated via import ${new Date().toISOString()}`]
         );
         imported.push({ rowNumber: row.rowNumber, message: 'Updated', leadId: existing.id, customer_name, phone_number });
         continue;
@@ -354,14 +381,14 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
       if (row.warnings && row.warnings.length > 0) {
         noteParts.push(`Import: ${row.warnings.join('; ')}`);
       }
-      if (row._raw && row._raw.operationsRaw && !row.added_by_name && row.added_by_id === importerUserId) {
+      if (row._raw && row._raw.operationsRaw && !row.added_by_name && row.added_by_id === effectiveUserId) {
         noteParts.push(`Ops: ${row._raw.operationsRaw} (not in system)`);
       }
       if (noteParts.length > 0) {
         const noteText = noteParts.join(' ');
         await client.query(
           `INSERT INTO lead_notes (lead_id, created_by, created_by_role, note_text) VALUES ($1, $2, $3, $4)`,
-          [leadId, importerUserId, importerRole, noteText]
+          [leadId, effectiveUserId, importerRole, noteText]
         );
       }
 
@@ -371,7 +398,7 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
-    logger.error('Lead import commit failed', { userId: importerUserId, error: err.message });
+    logger.error('Lead import commit failed', { importerUserId, error: err.message });
     throw err;
   } finally {
     client.release();
