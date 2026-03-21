@@ -67,34 +67,65 @@ console.log(`  - NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
 app.set('trust proxy', 1);
 
 // CORS MUST be first - before any other middleware that might interfere
-// CORS configuration - explicitly allow frontend origin
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-// Comma-separated extra origins (e.g. production + preview Railway URLs)
-const extraOrigins = (process.env.ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((s) => s.trim())
-  .filter(Boolean);
-const allowedOrigins = [
-  FRONTEND_URL,
-  ...extraOrigins,
-  'http://localhost:3000',
-  'http://localhost:3001',
-];
+// Allowlist: FRONTEND_URL, comma-separated ALLOWED_ORIGINS (custom domains, previews).
+// Origins are normalized (scheme + host + port) so trailing slashes don't break matches.
+// On Railway, https://*.up.railway.app is allowed when RAILWAY_ENVIRONMENT is set (no extra env needed).
+function normalizeCorsOrigin(url) {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  try {
+    const u = new URL(trimmed);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return null;
+  }
+}
+
+function buildCorsAllowlist() {
+  const set = new Set();
+  const add = (raw) => {
+    const n = normalizeCorsOrigin(raw);
+    if (n) set.add(n);
+  };
+  add(process.env.FRONTEND_URL || 'http://localhost:3000');
+  for (const part of (process.env.ALLOWED_ORIGINS || '').split(',')) {
+    add(part.trim());
+  }
+  add('http://localhost:3000');
+  add('http://localhost:3001');
+  return set;
+}
+
+const corsAllowlist = buildCorsAllowlist();
+
+function isRailwayAppOrigin(origin) {
+  if (!origin) return false;
+  try {
+    const u = new URL(origin);
+    return u.protocol === 'https:' && u.hostname.endsWith('.up.railway.app');
+  } catch {
+    return false;
+  }
+}
+
+const allowRailwayPublicAppHosts = Boolean(process.env.RAILWAY_ENVIRONMENT);
 
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
-    const allowed = allowedOrigins.some(
-      (a) => origin === a || origin.startsWith(a)
-    );
-    if (allowed) {
+    const normalized = normalizeCorsOrigin(origin);
+    const onAllowlist = normalized && corsAllowlist.has(normalized);
+    const railwayOk = allowRailwayPublicAppHosts && isRailwayAppOrigin(origin);
+
+    if (onAllowlist || railwayOk) {
       callback(null, true);
     } else {
       // Still allow (avoids breaking misconfigured deploys); set FRONTEND_URL / ALLOWED_ORIGINS to clear this warning
-      console.log(
-        `⚠️ CORS: origin not in allowlist (${origin}). Allowing anyway — set FRONTEND_URL or ALLOWED_ORIGINS in production.`
+      logger.warn(
+        `CORS: origin not in allowlist (${origin}). Allowing anyway — set FRONTEND_URL or ALLOWED_ORIGINS in production.`
       );
       callback(null, true);
     }
