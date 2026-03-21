@@ -6,7 +6,7 @@
  * Usage:
  *   node scripts/remove-non-admin-users.js
  *
- * Ensure DB env vars are set (see backend/env.example).
+ * Ensure DB env vars are set (see backend/.env.example).
  */
 
 const pool = require('../config/db');

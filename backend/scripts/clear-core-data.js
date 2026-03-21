@@ -10,7 +10,7 @@
  *   node scripts/clear-core-data.js
  *
  * Ensure the environment variables for database connection are set
- * before running this script (see backend/env.example).
+ * before running this script (see backend/.env.example).
  */
 
 const pool = require('../config/db');

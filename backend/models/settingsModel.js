@@ -1,6 +1,12 @@
 // models/settingsModel.js
 const pool = require('../config/db');
 
+/** Store value in system_settings.setting_value (TEXT); coerces non-null values to string. */
+function toDbValue(value) {
+  if (value === null || value === undefined) return null;
+  return String(value);
+}
+
 class SettingsModel {
   /**
    * Get all settings
@@ -55,21 +61,23 @@ class SettingsModel {
   }
 
   /**
-   * Update a single setting
+   * Update a single setting (upsert: creates the row if missing — plain UPDATE is silent when no row exists)
    */
   static async update(key, value) {
     const result = await pool.query(
-      `UPDATE system_settings
-       SET setting_value = $1, updated_at = NOW()
-       WHERE setting_key = $2
+      `INSERT INTO system_settings (setting_key, setting_value)
+       VALUES ($1, $2)
+       ON CONFLICT (setting_key) DO UPDATE SET
+         setting_value = EXCLUDED.setting_value,
+         updated_at = NOW()
        RETURNING setting_key, setting_value, setting_type, description, category`,
-      [value, key]
+      [key, toDbValue(value)]
     );
     return result.rows[0];
   }
 
   /**
-   * Update multiple settings
+   * Update multiple settings (upsert each key so empty/partial migrations cannot leave updates as no-ops)
    */
   static async updateMultiple(settings) {
     const client = await pool.connect();
@@ -79,11 +87,13 @@ class SettingsModel {
       const updated = [];
       for (const { key, value } of settings) {
         const result = await client.query(
-          `UPDATE system_settings
-           SET setting_value = $1, updated_at = NOW()
-           WHERE setting_key = $2
+          `INSERT INTO system_settings (setting_key, setting_value)
+           VALUES ($1, $2)
+           ON CONFLICT (setting_key) DO UPDATE SET
+             setting_value = EXCLUDED.setting_value,
+             updated_at = NOW()
            RETURNING setting_key, setting_value, setting_type, description, category`,
-          [value, key]
+          [key, toDbValue(value)]
         );
         if (result.rows.length > 0) {
           updated.push(result.rows[0]);

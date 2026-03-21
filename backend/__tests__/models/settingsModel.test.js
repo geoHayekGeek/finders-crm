@@ -120,7 +120,7 @@ describe('Settings Model', () => {
   });
 
   describe('update', () => {
-    it('should update a single setting', async () => {
+    it('should upsert a single setting', async () => {
       const mockUpdated = {
         rows: [{
           setting_key: 'email_notifications_enabled',
@@ -135,14 +135,14 @@ describe('Settings Model', () => {
 
       expect(result.setting_value).toBe('false');
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE system_settings'),
-        ['false', 'email_notifications_enabled']
+        expect.stringContaining('ON CONFLICT (setting_key)'),
+        ['email_notifications_enabled', 'false']
       );
     });
   });
 
   describe('updateMultiple', () => {
-    it('should update multiple settings in transaction', async () => {
+    it('should upsert multiple settings in transaction', async () => {
       const settings = [
         { key: 'setting1', value: 'value1' },
         { key: 'setting2', value: 'value2' }
@@ -153,8 +153,8 @@ describe('Settings Model', () => {
 
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
-        .mockResolvedValueOnce(mockUpdated1) // UPDATE setting1
-        .mockResolvedValueOnce(mockUpdated2) // UPDATE setting2
+        .mockResolvedValueOnce(mockUpdated1) // upsert setting1
+        .mockResolvedValueOnce(mockUpdated2) // upsert setting2
         .mockResolvedValueOnce({}); // COMMIT
 
       const result = await SettingsModel.updateMultiple(settings);
@@ -162,6 +162,7 @@ describe('Settings Model', () => {
       expect(result).toHaveLength(2);
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
       expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+      expect(mockClient.query.mock.calls[1][0]).toContain('ON CONFLICT (setting_key)');
     });
 
     it('should rollback on error', async () => {
@@ -169,7 +170,7 @@ describe('Settings Model', () => {
 
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
-        .mockRejectedValueOnce(new Error('Database error')); // UPDATE fails
+        .mockRejectedValueOnce(new Error('Database error')); // upsert fails
 
       await expect(SettingsModel.updateMultiple(settings)).rejects.toThrow('Database error');
       expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
