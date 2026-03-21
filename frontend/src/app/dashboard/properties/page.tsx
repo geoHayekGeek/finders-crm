@@ -568,11 +568,11 @@ export default function PropertiesPage() {
       // Note: Required field validation is now handled by HTML required attributes
 
       // Prepare update data (EXCLUDE file objects - they should only be uploaded via file upload endpoints)
-      const updateData = {
+      const updateData: Record<string, unknown> = {
         ...editFormData,
         id: selectedProperty.id,
         // Remove file objects from regular property update - they should only be uploaded via dedicated endpoints
-        main_image: editFormData.main_image, // Keep main_image to allow clearing it
+        main_image: editFormData.main_image,
         main_image_file: undefined,
         main_image_preview: undefined,
         // Keep image_gallery to allow removal of gallery images
@@ -581,6 +581,14 @@ export default function PropertiesPage() {
         referrals: editFormData.referrals || []
       }
 
+      // Backend rejects main_image: "" (validator: "use null if not provided"). Add flow never sends
+      // empty string — it uses null and uploads the file after create. In edit, the form uses ""
+      // when there is no image, and choosing a new file only sets main_image_file / preview, not
+      // main_image — so PUT must not include main_image when it is still empty (upload runs after).
+      const mainImg = updateData.main_image
+      if (typeof mainImg === 'string' && mainImg.trim() === '') {
+        delete updateData.main_image
+      }
 
       // Use the handleUpdateProperty function which handles CSRF tokens
       const result = await handleUpdateProperty(selectedProperty.id, updateData)
