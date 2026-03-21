@@ -2,16 +2,15 @@
 // Run this to migrate existing properties with Base64 images
 
 const pool = require('../config/db');
-const path = require('path');
 const { convertPropertyImages } = require('../utils/imageToFileConverter');
+const { paths: storagePaths, ensureStorageDirs } = require('../config/storage');
 require('dotenv').config();
 
 async function migrateBase64Images() {
   try {
     console.log('🚀 Starting Base64 image migration...');
-    
-    // Define output directory
-    const outputDirectory = path.join(__dirname, '../public/assets/properties');
+    ensureStorageDirs();
+    const outputDirectory = storagePaths.assetsProperties;
     
     // Get all properties with Base64 images
     console.log('📊 Fetching properties with Base64 images...');

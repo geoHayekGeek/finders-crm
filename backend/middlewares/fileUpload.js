@@ -1,9 +1,9 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { paths } = require('../config/storage');
 
-// Ensure the upload directory exists
-const uploadDir = path.join(__dirname, '../public/assets/properties');
+const uploadDir = paths.assetsProperties;
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

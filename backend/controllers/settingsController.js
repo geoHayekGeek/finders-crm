@@ -7,12 +7,12 @@ const fs = require('fs');
 const logger = require('../utils/logger');
 const { sanitizeInput, sanitizeObject } = require('../utils/sanitize');
 const pool = require('../config/db');
+const { paths: storagePaths, resolveFilePathForDeletion } = require('../config/storage');
 
 // Configure multer for file uploads (logos, favicons)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = path.join(__dirname, '..', 'public', 'uploads', 'branding');
-    // Create directory if it doesn't exist
+    const uploadPath = storagePaths.uploadsBranding;
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -362,8 +362,8 @@ const deleteLogo = async (req, res) => {
     const oldFilePath = setting ? setting.setting_value : null;
     
     if (setting && setting.setting_value) {
-      const filePath = path.join(__dirname, '..', 'public', setting.setting_value);
-      if (fs.existsSync(filePath)) {
+      const filePath = resolveFilePathForDeletion(setting.setting_value);
+      if (filePath) {
         fs.unlinkSync(filePath);
       }
     }
@@ -400,8 +400,8 @@ const deleteFavicon = async (req, res) => {
     const oldFilePath = setting ? setting.setting_value : null;
     
     if (setting && setting.setting_value) {
-      const filePath = path.join(__dirname, '..', 'public', setting.setting_value);
-      if (fs.existsSync(filePath)) {
+      const filePath = resolveFilePathForDeletion(setting.setting_value);
+      if (filePath) {
         fs.unlinkSync(filePath);
       }
     }

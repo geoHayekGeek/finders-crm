@@ -4,6 +4,7 @@
 const pool = require('./config/db');
 const fs = require('fs');
 const path = require('path');
+const { paths: storagePaths, ensureStorageDirs } = require('./config/storage');
 
 async function setupHRSystem() {
   console.log('🚀 Starting HR System setup...\n');
@@ -27,9 +28,10 @@ async function setupHRSystem() {
     await pool.query(createDocumentsTableSQL);
     console.log('✅ user_documents table created successfully\n');
     
-    // 3. Create documents directory if it doesn't exist
+    // 3. Create documents directory if it doesn't exist (persistent storage)
     console.log('📋 Step 3: Creating documents directory...');
-    const documentsDir = path.join(__dirname, 'public', 'documents', 'users');
+    ensureStorageDirs();
+    const documentsDir = storagePaths.documentsUsers;
     if (!fs.existsSync(documentsDir)) {
       fs.mkdirSync(documentsDir, { recursive: true });
       console.log('✅ Documents directory created successfully\n');

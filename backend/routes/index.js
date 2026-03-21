@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require('../config/db');
 const path = require('path');
 const fs = require('fs');
+const { paths: storagePaths } = require('../config/storage');
 const userRoutes = require('./userRoutes');
 const userDocumentRoutes = require('./userDocumentRoutes');
 const passwordResetRoutes = require('./passwordResetRoutes');
@@ -52,7 +53,7 @@ router.get('/uploads/branding/:filename', (req, res) => {
       });
     }
 
-    const filePath = path.join(__dirname, '..', 'public', 'uploads', 'branding', filename);
+    const filePath = path.join(storagePaths.uploadsBranding, filename);
     
     // Check if file exists
     if (!fs.existsSync(filePath)) {

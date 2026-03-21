@@ -6,17 +6,15 @@ const { authenticateToken } = require('../middlewares/permissions');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { paths: storagePaths } = require('../config/storage');
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../public/documents/users');
-    
-    // Create directory if it doesn't exist
+    const uploadDir = storagePaths.documentsUsers;
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
-    
     cb(null, uploadDir);
   },
   filename: function (req, file, cb) {

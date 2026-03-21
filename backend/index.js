@@ -1,13 +1,15 @@
 // index.js
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 require('dotenv').config();
 
-const indexRoutes = require('./routes/index');
+const logger = require('./utils/logger');
+const { ensureStorageDirs, paths: storagePaths, DATA_ROOT } = require('./config/storage');
+
 const securityHeaders = require('./middlewares/securityHeaders');
 const { errorLoggingMiddleware, errorHandler } = require('./middlewares/errorLogging');
 const reminderScheduler = require('./scheduler/reminderScheduler');
-const logger = require('./utils/logger');
 
 // Validate critical environment variables
 function validateEnvironment() {
@@ -46,6 +48,11 @@ function validateEnvironment() {
 // Validate environment before starting server
 validateEnvironment();
 
+ensureStorageDirs();
+logger.info('Persistent storage ready', { DATA_ROOT });
+
+const indexRoutes = require('./routes/index');
+
 const app = express();
 const PORT = process.env.PORT || 10000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -62,25 +69,34 @@ app.set('trust proxy', 1);
 // CORS MUST be first - before any other middleware that might interfere
 // CORS configuration - explicitly allow frontend origin
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+// Comma-separated extra origins (e.g. production + preview Railway URLs)
+const extraOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 const allowedOrigins = [
   FRONTEND_URL,
+  ...extraOrigins,
   'http://localhost:3000',
   'http://localhost:3001',
-  'https://vibrant-energy-production-5483.up.railway.app'
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    // Allow if origin is in the allowed list
-    if (allowedOrigins.some(allowed => origin === allowed || origin.startsWith(allowed))) {
+
+    const allowed = allowedOrigins.some(
+      (a) => origin === a || origin.startsWith(a)
+    );
+    if (allowed) {
       callback(null, true);
     } else {
-      // Log for debugging
-      console.log(`🚫 CORS blocked origin: ${origin}`);
-      callback(null, true); // Temporarily allow all for debugging
+      // Still allow (avoids breaking misconfigured deploys); set FRONTEND_URL / ALLOWED_ORIGINS to clear this warning
+      console.log(
+        `⚠️ CORS: origin not in allowlist (${origin}). Allowing anyway — set FRONTEND_URL or ALLOWED_ORIGINS in production.`
+      );
+      callback(null, true);
     }
   },
   credentials: true,
@@ -105,10 +121,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Serve static files from the public directory
-app.use('/assets', express.static('public/assets'));
-app.use('/images', express.static('public/images'));
-app.use('/uploads', express.static('public/uploads'));
+// Dynamic uploads (Railway volume under DATA_ROOT) — URLs unchanged: /assets/properties/*, /uploads/*
+app.use('/assets/properties', express.static(storagePaths.assetsProperties));
+app.use('/uploads', express.static(storagePaths.uploadsRoot));
+// Built-in static assets only (no runtime writes)
+app.use('/images', express.static(path.join(__dirname, 'public', 'images')));
 
 // Health check endpoints for Railway and monitoring
 app.get('/', (req, res) => {
