@@ -1,4 +1,4 @@
-// controllers/analyticsController.js
+// controllers/analyticsController.JS
 const pool = require('../config/db');
 const logger = require('../utils/logger');
 
