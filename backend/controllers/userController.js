@@ -367,6 +367,39 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+/**
+ * Active users (id, name, email, role, phone) for calendar event attendees.
+ * Available to any authenticated role — not restricted to user-management roles.
+ */
+const getUsersForCalendarAttendees = async (req, res) => {
+  try {
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required'
+      });
+    }
+
+    const rows = await userModel.getUsersForCalendarAttendees();
+    res.json({
+      success: true,
+      users: rows.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        phone: u.phone ?? undefined
+      }))
+    });
+  } catch (error) {
+    logger.error('Error fetching users for calendar attendees', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users'
+    });
+  }
+};
+
 const updateUser = async (req, res) => {
   try {
     // Check if user is authenticated
@@ -624,27 +657,61 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const mapAgentOption = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  phone: user.phone,
+  user_code: user.user_code,
+  address: user.address
+});
+
 const getAgents = async (req, res) => {
   try {
-    // Get both agents and team leaders for property assignment
+    const normalizedRole = normalizeRole(req.user?.role);
+    const userId = req.user?.id;
+
+    // Agent: only themselves (lead/property filters scoped to own row)
+    if (normalizedRole === 'agent' && userId) {
+      const row = await userModel.findById(userId);
+      if (!row) {
+        return res.json({ success: true, agents: [] });
+      }
+      return res.json({
+        success: true,
+        agents: [mapAgentOption(row)]
+      });
+    }
+
+    // Team leader: agents on their team + themselves (can hold assignments)
+    if (normalizedRole === 'team leader' && userId) {
+      const [teamAgents, tlUser] = await Promise.all([
+        userModel.getTeamLeaderAgents(userId),
+        userModel.findById(userId)
+      ]);
+      const byId = new Map();
+      if (tlUser) byId.set(tlUser.id, tlUser);
+      (teamAgents || []).forEach((a) => byId.set(a.id, a));
+      const merged = Array.from(byId.values());
+      merged.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }));
+      return res.json({
+        success: true,
+        agents: merged.map(mapAgentOption)
+      });
+    }
+
+    // Management and other roles: all agents + team leaders (assignment / global filters)
     const [agents, teamLeaders] = await Promise.all([
       userModel.getUsersByRole('agent'),
       userModel.getUsersByRole('team_leader')
     ]);
-    
+
     const allUsers = [...agents, ...teamLeaders];
-    
+
     res.json({
       success: true,
-      agents: allUsers.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        user_code: user.user_code,
-        address: user.address
-      }))
+      agents: allUsers.map(mapAgentOption)
     });
   } catch (error) {
     logger.error('Error fetching agents', error);
@@ -1015,6 +1082,7 @@ module.exports = {
   loginUser,
   checkUserExists,
   getAllUsers,
+  getUsersForCalendarAttendees,
   updateUser,
   deleteUser,
   getAgents,

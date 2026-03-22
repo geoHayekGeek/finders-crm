@@ -1,5 +1,6 @@
 // models/calendarEventModel.js
 const pool = require('../config/db');
+const User = require('./userModel');
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 // Converts to space format for consistent comparisons
@@ -324,6 +325,67 @@ class CalendarEvent {
     return result.rows[0];
   }
 
+  /**
+   * Team leader calendar scope: myself | full team | single agent (must be in team scope).
+   */
+  static async resolveTeamLeaderCalendarScopeIds(teamLeaderId, teamScope, teamAgentId) {
+    const full = await User.getTeamPropertyAgentScopeIds(teamLeaderId, 'team leader');
+    const scope = (teamScope || 'team').toLowerCase();
+    if (scope === 'myself') return [teamLeaderId];
+    if (scope === 'agent') {
+      const aid = parseInt(teamAgentId, 10);
+      if (Number.isFinite(aid) && full.includes(aid)) return [aid];
+      return [teamLeaderId];
+    }
+    return full;
+  }
+
+  static async getNonAdminScopeUserIds(userId, userRole, calendarOptions = {}) {
+    const normalizedRole = normalizeRole(userRole);
+    if (normalizedRole === 'team leader') {
+      return CalendarEvent.resolveTeamLeaderCalendarScopeIds(
+        userId,
+        calendarOptions.teamScope,
+        calendarOptions.teamAgentId
+      );
+    }
+    return [userId];
+  }
+
+  static async isEventVisibleToUser(eventRow, viewerId, viewerRole) {
+    const nr = normalizeRole(viewerRole);
+    if (nr === 'admin') return true;
+    if (eventRow.created_by === viewerId || eventRow.assigned_to === viewerId) return true;
+
+    const viewerRes = await pool.query('SELECT name FROM users WHERE id = $1', [viewerId]);
+    const viewerName = viewerRes.rows[0]?.name;
+    if (
+      viewerName &&
+      eventRow.attendees &&
+      Array.isArray(eventRow.attendees) &&
+      eventRow.attendees.includes(viewerName)
+    ) {
+      return true;
+    }
+
+    if (nr === 'team leader') {
+      const scopeIds = await User.getTeamPropertyAgentScopeIds(viewerId, 'team leader');
+      if (scopeIds.includes(eventRow.created_by) || scopeIds.includes(eventRow.assigned_to)) {
+        return true;
+      }
+      if (!eventRow.attendees || !Array.isArray(eventRow.attendees) || eventRow.attendees.length === 0) {
+        return false;
+      }
+      const r = await pool.query(
+        `SELECT 1 FROM users u WHERE u.id = ANY($1::int[]) AND u.name = ANY($2::text[])`,
+        [scopeIds, eventRow.attendees]
+      );
+      return r.rows.length > 0;
+    }
+
+    return false;
+  }
+
   // Check if an agent is under a specific team leader
   static async isAgentUnderTeamLeader(teamLeaderId, agentId) {
     if (!agentId) return false;
@@ -336,8 +398,8 @@ class CalendarEvent {
     return result.rows.length > 0;
   }
 
-  // Get events for a user - admin sees all, others see only their own
-  static async getEventsForUserWithHierarchy(userId, userRole) {
+  // Get events for a user - admin sees all; team leaders can scope to team / self / one agent (calendarOptions)
+  static async getEventsForUserWithHierarchy(userId, userRole, calendarOptions = {}) {
     let query = `
       SELECT 
         ce.*,
@@ -358,22 +420,21 @@ class CalendarEvent {
 
     const params = [];
 
-    // Normalize role for comparison
     const normalizedRole = normalizeRole(userRole);
-    
-    // Admin can see all events - no WHERE clause needed
+
     if (normalizedRole === 'admin') {
       // No restrictions for admin
     } else {
-      // All other roles can only see their own events
+      const scopeUserIds = await CalendarEvent.getNonAdminScopeUserIds(userId, userRole, calendarOptions);
+      const idx = params.length + 1;
+      params.push(scopeUserIds);
       query += ` WHERE (
-        ce.assigned_to = $1 
-        OR ce.created_by = $1 
+        ce.assigned_to = ANY($${idx}::int[])
+        OR ce.created_by = ANY($${idx}::int[])
         OR (ce.attendees IS NOT NULL AND EXISTS (
-          SELECT 1 FROM users u WHERE u.id = $1 AND u.name = ANY(ce.attendees)
+          SELECT 1 FROM users u WHERE u.id = ANY($${idx}::int[]) AND u.name = ANY(ce.attendees)
         ))
       )`;
-      params.push(userId);
     }
 
     query += ` ORDER BY ce.start_time ASC`;
@@ -382,8 +443,8 @@ class CalendarEvent {
     return result.rows;
   }
 
-  // Get events for a user within a date range - admin sees all, others see only their own
-  static async getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate) {
+  // Get events for a user within a date range - admin sees all; others scoped (team leader options via calendarOptions)
+  static async getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate, calendarOptions = {}) {
     let query = `
       SELECT 
         ce.*,
@@ -403,28 +464,29 @@ class CalendarEvent {
     `;
 
     const params = [];
-    let paramCount = 0;
+    const normalizedRole = normalizeRole(userRole);
 
-    // Admin can see all events - only date range filter
-    if (userRole === 'admin') {
-      paramCount++;
-      query += ` WHERE ((ce.start_time >= $${paramCount} AND ce.start_time <= $${paramCount + 1})
-               OR (ce.end_time >= $${paramCount} AND ce.end_time <= $${paramCount + 1})
-               OR (ce.start_time <= $${paramCount} AND ce.end_time >= $${paramCount + 1}))`;
+    if (normalizedRole === 'admin') {
+      query += ` WHERE ((ce.start_time >= $1 AND ce.start_time <= $2)
+               OR (ce.end_time >= $1 AND ce.end_time <= $2)
+               OR (ce.start_time <= $1 AND ce.end_time >= $2))`;
       params.push(startDate, endDate);
     } else {
-      // All other roles can only see their own events within date range
-      paramCount++;
+      const scopeUserIds = await CalendarEvent.getNonAdminScopeUserIds(userId, userRole, calendarOptions);
+      const idx = params.length + 1;
+      params.push(scopeUserIds);
+      const d1 = idx + 1;
+      const d2 = idx + 2;
+      params.push(startDate, endDate);
       query += ` WHERE (
-        ce.assigned_to = $${paramCount} 
-        OR ce.created_by = $${paramCount} 
+        ce.assigned_to = ANY($${idx}::int[])
+        OR ce.created_by = ANY($${idx}::int[])
         OR (ce.attendees IS NOT NULL AND EXISTS (
-          SELECT 1 FROM users u WHERE u.id = $${paramCount} AND u.name = ANY(ce.attendees)
+          SELECT 1 FROM users u WHERE u.id = ANY($${idx}::int[]) AND u.name = ANY(ce.attendees)
         ))
-      ) AND ((ce.start_time >= $${paramCount + 1} AND ce.start_time <= $${paramCount + 2})
-               OR (ce.end_time >= $${paramCount + 1} AND ce.end_time <= $${paramCount + 2})
-               OR (ce.start_time <= $${paramCount + 1} AND ce.end_time >= $${paramCount + 2}))`;
-      params.push(userId, startDate, endDate);
+      ) AND ((ce.start_time >= $${d1} AND ce.start_time <= $${d2})
+               OR (ce.end_time >= $${d1} AND ce.end_time <= $${d2})
+               OR (ce.start_time <= $${d1} AND ce.end_time >= $${d2}))`;
     }
 
     query += ` ORDER BY ce.start_time ASC`;
@@ -433,8 +495,8 @@ class CalendarEvent {
     return result.rows;
   }
 
-  // Search events for a user - admin sees all, others see only their own
-  static async searchEventsForUserWithHierarchy(userId, userRole, searchQuery) {
+  // Search events for a user - admin sees all; others scoped (team leader options via calendarOptions)
+  static async searchEventsForUserWithHierarchy(userId, userRole, searchQuery, calendarOptions = {}) {
     let query = `
       SELECT 
         ce.*,
@@ -465,17 +527,17 @@ class CalendarEvent {
 
     const params = [`%${searchQuery}%`];
 
-    // Normalize role for comparison
     const normalizedRole = normalizeRole(userRole);
-    
-    // Admin can see all events matching search, others only their own
+
     if (normalizedRole !== 'admin') {
-      params.push(userId);
+      const scopeUserIds = await CalendarEvent.getNonAdminScopeUserIds(userId, userRole, calendarOptions);
+      const idx = params.length + 1;
+      params.push(scopeUserIds);
       query += ` AND (
-        ce.assigned_to = $2 
-        OR ce.created_by = $2 
+        ce.assigned_to = ANY($${idx}::int[])
+        OR ce.created_by = ANY($${idx}::int[])
         OR (ce.attendees IS NOT NULL AND EXISTS (
-          SELECT 1 FROM users u WHERE u.id = $2 AND u.name = ANY(ce.attendees)
+          SELECT 1 FROM users u WHERE u.id = ANY($${idx}::int[]) AND u.name = ANY(ce.attendees)
         ))
       )`;
     }

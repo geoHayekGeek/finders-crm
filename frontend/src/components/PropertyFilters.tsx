@@ -19,6 +19,8 @@ interface PropertyFiltersProps {
   showAdvancedFilters: boolean
   setShowAdvancedFilters: (show: boolean) => void
   onClearFilters: () => void
+  /** When true, show the “My Team” scope control (agents and team leaders only). */
+  showMyTeamFilter?: boolean
 }
 
 export function PropertyFilters({
@@ -29,7 +31,8 @@ export function PropertyFilters({
   agents = [],
   showAdvancedFilters,
   setShowAdvancedFilters,
-  onClearFilters
+  onClearFilters,
+  showMyTeamFilter = false
 }: PropertyFiltersProps) {
   const handleFilterChange = (key: keyof PropertyFiltersType, value: any) => {
     setFilters({ ...filters, [key]: value })
@@ -125,6 +128,25 @@ export function PropertyFilters({
             )}
           </div>
         </div>
+
+        {showMyTeamFilter && (
+          <div className="pt-4 mt-4 border-t border-gray-100">
+            <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={!!filters.my_team}
+                onChange={(e) =>
+                  handleFilterChange('my_team', e.target.checked ? true : undefined)
+                }
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span className="font-medium">My Team</span>
+              <span className="text-gray-500 font-normal">
+                Show properties assigned to your team
+              </span>
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Advanced Filters */}

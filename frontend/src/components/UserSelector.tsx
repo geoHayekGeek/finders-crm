@@ -48,7 +48,7 @@ export function UserSelector({
       setIsLoading(true)
       setError('')
       try {
-        const data = await usersApi.getAll(token)
+        const data = await usersApi.getCalendarAttendees(token)
         if (data.success) {
           setUsers(data.users)
         } else {

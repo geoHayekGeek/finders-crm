@@ -1,6 +1,7 @@
 // __tests__/leads/leadsController.test.js
 const LeadsController = require('../../controllers/leadsController');
 const Lead = require('../../models/leadsModel');
+const User = require('../../models/userModel');
 const LeadReferral = require('../../models/leadReferralModel');
 const Notification = require('../../models/notificationModel');
 const LeadNote = require('../../models/leadNotesModel');
@@ -45,11 +46,11 @@ describe('Leads Controller', () => {
         { id: 2, customer_name: 'Customer 2', phone_number: '456', agent_id: 2 }
       ];
 
-      Lead.getLeadsForAgent.mockResolvedValue(mockLeads);
+      Lead.getAllLeads.mockResolvedValue(mockLeads);
 
       await LeadsController.getAllLeads(req, res);
 
-      expect(Lead.getLeadsForAgent).toHaveBeenCalledWith(1, 'admin');
+      expect(Lead.getAllLeads).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockLeads,
@@ -75,16 +76,18 @@ describe('Leads Controller', () => {
           contact_source: 'phone',
           price: 100000,
           status: 'active',
+          status_can_be_referred: true,
           created_at: '2024-01-01',
           updated_at: '2024-01-01',
           date: '2024-01-01'
         }
       ];
 
-      Lead.getLeadsForAgent.mockResolvedValue(mockLeads);
+      Lead.getAllLeads.mockResolvedValue(mockLeads);
 
       await LeadsController.getAllLeads(req, res);
 
+      expect(Lead.getAllLeads).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: [{
@@ -101,6 +104,7 @@ describe('Leads Controller', () => {
           reference_source_name: 'Source',
           price: 100000,
           status: 'active',
+          status_can_be_referred: true,
           created_at: '2024-01-01',
           updated_at: '2024-01-01'
         }],
@@ -110,7 +114,7 @@ describe('Leads Controller', () => {
     });
 
     it('should handle errors', async () => {
-      Lead.getLeadsForAgent.mockRejectedValue(new Error('Database error'));
+      Lead.getAllLeads.mockRejectedValue(new Error('Database error'));
 
       await LeadsController.getAllLeads(req, res);
 
@@ -134,7 +138,7 @@ describe('Leads Controller', () => {
 
       await LeadsController.getLeadsWithFilters(req, res);
 
-      expect(Lead.getLeadsWithFilters).toHaveBeenCalledWith(req.query);
+      expect(Lead.getLeadsWithFilters).toHaveBeenCalledWith({ status: 'active' });
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         data: mockLeads,
@@ -146,19 +150,32 @@ describe('Leads Controller', () => {
     it('should filter leads for agents', async () => {
       req.user = { id: 1, name: 'Agent', role: 'agent' };
       req.query = { status: 'active' };
-      const mockLeads = [
-        { id: 1, customer_name: 'Customer 1', status: 'active', agent_id: 1 }
-      ];
       const mockFilteredLeads = [
-        { id: 1, customer_name: 'Customer 1', status: 'active' }
+        {
+          id: 1,
+          customer_name: 'Customer 1',
+          status: 'active',
+          agent_id: 1,
+          phone_number: '123',
+          assigned_agent_name: 'Agent',
+          added_by_id: 1,
+          added_by_name: 'Ops',
+          added_by_role: 'operations',
+          reference_source_id: 1,
+          reference_source_name: 'Source',
+          price: 100000,
+          status_can_be_referred: true,
+          created_at: '2024-01-01',
+          updated_at: '2024-01-01',
+          date: '2024-01-01'
+        }
       ];
 
-      Lead.getLeadsAssignedOrReferredByAgent.mockResolvedValue(mockLeads);
       Lead.getLeadsWithFilters.mockResolvedValue(mockFilteredLeads);
 
       await LeadsController.getLeadsWithFilters(req, res);
 
-      expect(Lead.getLeadsAssignedOrReferredByAgent).toHaveBeenCalledWith(1);
+      expect(Lead.getLeadsWithFilters).toHaveBeenCalledWith({ status: 'active' });
       expect(res.json).toHaveBeenCalled();
     });
 
@@ -212,21 +229,36 @@ describe('Leads Controller', () => {
       });
     });
 
-    it('should prevent agent from viewing other agent\'s lead', async () => {
+    it('should mask sensitive fields when agent views another agent\'s lead', async () => {
       req.user = { id: 1, role: 'agent' };
       req.params.id = '1';
-      Lead.getLeadById.mockResolvedValue({ id: 1, agent_id: 2 });
+      Lead.getLeadById.mockResolvedValue({
+        id: 1,
+        agent_id: 2,
+        phone_number: '999',
+        price: 500,
+        agent_name: 'Other',
+        assigned_agent_name: 'Other Agent',
+        referrals: []
+      });
 
       await LeadsController.getLeadById(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'You do not have permission to view this lead'
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            phone_number: 'Hidden',
+            price: null,
+            agent_id: null,
+            agent_name: 'Hidden',
+            assigned_agent_name: 'Hidden'
+          })
+        })
+      );
     });
 
-    it('should filter data for agents', async () => {
+    it('should return full lead data for agents assigned to the lead', async () => {
       req.user = { id: 1, role: 'agent' };
       req.params.id = '1';
       const mockLead = {
@@ -240,7 +272,7 @@ describe('Leads Controller', () => {
         status: 'active',
         created_at: '2024-01-01',
         updated_at: '2024-01-01',
-        extra_field: 'should be filtered'
+        referrals: []
       };
 
       Lead.getLeadById.mockResolvedValue(mockLead);
@@ -249,19 +281,7 @@ describe('Leads Controller', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: {
-          id: 1,
-          date: '2024-01-01',
-          customer_name: 'Customer 1',
-          phone_number: '123',
-          agent_id: 1,
-          assigned_agent_name: 'Agent',
-          price: 100000,
-          status: 'active',
-          created_at: '2024-01-01',
-          updated_at: '2024-01-01',
-          referrals: []
-        },
+        data: mockLead,
         userRole: 'agent'
       });
     });
@@ -1289,9 +1309,10 @@ describe('Leads Controller', () => {
 
   describe('Team Leader Lead Permissions', () => {
     it('should allow team leader to view their own lead', async () => {
+      const spy = jest.spyOn(User, 'getTeamPropertyAgentScopeIds').mockResolvedValue([10, 20]);
       req.user = { id: 10, role: 'team_leader' };
       req.params.id = '1';
-      const mockLead = { id: 1, agent_id: 10, customer_name: 'Customer 1' };
+      const mockLead = { id: 1, agent_id: 10, customer_name: 'Customer 1', referrals: [] };
 
       Lead.getLeadById.mockResolvedValue(mockLead);
 
@@ -1299,46 +1320,68 @@ describe('Leads Controller', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: expect.objectContaining({
-          id: 1,
-          customer_name: 'Customer 1'
-        }),
+        data: mockLead,
         userRole: 'team_leader'
       });
+      spy.mockRestore();
     });
 
     it('should allow team leader to view their team agent\'s lead', async () => {
+      const spy = jest.spyOn(User, 'getTeamPropertyAgentScopeIds').mockResolvedValue([10, 20]);
       req.user = { id: 10, role: 'team_leader' };
       req.params.id = '1';
-      const mockLead = { id: 1, agent_id: 20, customer_name: 'Customer 1' };
+      const mockLead = {
+        id: 1,
+        agent_id: 20,
+        customer_name: 'Customer 1',
+        phone_number: '555',
+        price: 100,
+        assigned_agent_name: 'Agent 20',
+        referrals: []
+      };
 
       Lead.getLeadById.mockResolvedValue(mockLead);
-      pool.query.mockResolvedValue({ rows: [{ 1: 1 }] }); // Team agent check returns result
 
       await LeadsController.getLeadById(req, res);
 
-      expect(pool.query).toHaveBeenCalledWith(
-        expect.stringContaining('team_agents'),
-        [10, 20]
-      );
-      expect(res.json).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockLead,
+        userRole: 'team_leader'
+      });
+      spy.mockRestore();
     });
 
-    it('should prevent team leader from viewing lead outside their team', async () => {
+    it('should mask sensitive fields when team leader views lead outside their team', async () => {
+      const spy = jest.spyOn(User, 'getTeamPropertyAgentScopeIds').mockResolvedValue([10, 21]);
       req.user = { id: 10, role: 'team_leader' };
       req.params.id = '1';
-      const mockLead = { id: 1, agent_id: 99, customer_name: 'Customer 1' };
+      const mockLead = {
+        id: 1,
+        agent_id: 99,
+        customer_name: 'Customer 1',
+        phone_number: '555',
+        price: 100,
+        assigned_agent_name: 'Other',
+        referrals: []
+      };
 
       Lead.getLeadById.mockResolvedValue(mockLead);
-      pool.query.mockResolvedValue({ rows: [] }); // Team agent check returns empty
 
       await LeadsController.getLeadById(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'You do not have permission to view this lead'
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({
+            phone_number: 'Hidden',
+            price: null,
+            agent_id: null,
+            assigned_agent_name: 'Hidden'
+          })
+        })
+      );
+      spy.mockRestore();
     });
 
     it('should allow team leader to update their own lead', async () => {

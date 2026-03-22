@@ -1,5 +1,7 @@
 // leadsStatsController.js - Controller for leads statistics
 const pool = require('../config/db');
+const User = require('../models/userModel');
+const { sanitizeAgentIdFilterQuery } = require('../utils/leadAccessUtils');
 
 class LeadsStatsController {
   // Get comprehensive leads statistics
@@ -12,23 +14,27 @@ class LeadsStatsController {
       const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      // Determine if we need to filter by agent
       const isAgentOrTeamLeader = ['agent', 'team leader'].includes(userRole);
+      const wantsMyTeamStats = req.query.my_team === 'true' || req.query.my_team === true;
       
       // Build WHERE clause and params from filters
       let whereConditions = [];
       let params = [];
       let paramIndex = 1;
 
-      // Role-based filtering
-      if (isAgentOrTeamLeader) {
-        whereConditions.push(`l.agent_id = $${paramIndex}`);
-        params.push(userId);
+      // Optional: restrict to "my team" assignments (agents & team leaders)
+      if (wantsMyTeamStats && isAgentOrTeamLeader) {
+        const scopeIds = await User.getTeamPropertyAgentScopeIds(userId, userRole);
+        whereConditions.push(`l.agent_id = ANY($${paramIndex}::int[])`);
+        params.push(scopeIds);
         paramIndex++;
       }
 
-      // Apply additional filters from query parameters
-      const filters = req.query;
+      // Apply additional filters from query parameters (exclude my_team — not a column)
+      const filters = { ...req.query };
+      delete filters.my_team;
+
+      await sanitizeAgentIdFilterQuery(filters, userId, userRole);
       
       if (filters.status && filters.status !== 'All') {
         whereConditions.push(`l.status = $${paramIndex}`);

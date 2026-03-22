@@ -99,6 +99,20 @@ class User {
     return result.rows;
   }
 
+  /**
+   * Minimal user list for calendar attendee picker — any authenticated user may call.
+   * Excludes inactive accounts.
+   */
+  static async getUsersForCalendarAttendees() {
+    const result = await pool.query(
+      `SELECT id, name, email, role, phone
+       FROM users
+       WHERE COALESCE(is_active, true) = true
+       ORDER BY name ASC`
+    );
+    return result.rows;
+  }
+
   static async getUsersByRole(role) {
     const result = await pool.query(
       `SELECT id, name, email, role, phone, dob, user_code, address, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
@@ -287,6 +301,32 @@ class User {
       [teamLeaderId]
     );
     return result.rows;
+  }
+
+  /**
+   * User IDs whose listings belong to the current user's "team" (properties.agent_id).
+   * Team leader: self + active agents in team_agents.
+   * Agent: self + assigned team leader + peers under that leader.
+   */
+  static async getTeamPropertyAgentScopeIds(userId, normalizedRole) {
+    if (normalizedRole === 'team leader') {
+      const agents = await User.getTeamLeaderAgents(userId);
+      return [userId, ...agents.map((a) => a.id)];
+    }
+    if (normalizedRole === 'agent') {
+      const assigned = await pool.query(
+        `SELECT assigned_to FROM users WHERE id = $1`,
+        [userId]
+      );
+      const teamLeaderId = assigned.rows[0]?.assigned_to;
+      if (!teamLeaderId) {
+        return [userId];
+      }
+      const peers = await User.getTeamLeaderAgents(teamLeaderId);
+      const ids = new Set([userId, teamLeaderId, ...peers.map((p) => p.id)]);
+      return [...ids];
+    }
+    return [userId];
   }
 
   static async getAgentTeamLeader(agentId) {

@@ -169,6 +169,8 @@ export interface Status {
 }
 
 export interface PropertyFilters {
+  /** When true, only properties assigned to the user's team (agents and team leaders; server-enforced). */
+  my_team?: boolean
   status_id?: number
   category_id?: number
   agent_id?: number

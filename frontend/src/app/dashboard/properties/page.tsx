@@ -37,7 +37,9 @@ const API_BASE_URL = `${BACKEND_URL}/api`
 
 export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
-  const { canManageProperties, canDeleteProperties, canViewProperties, canViewLeads, canAccessHR } = usePermissions()
+  const { canManageProperties, canDeleteProperties, canViewProperties, canViewLeads, canAccessHR, role } = usePermissions()
+  const showMyTeamFilter =
+    normalizeRole(role) === 'agent' || normalizeRole(role) === 'team leader'
   const { showSuccess, showError, showWarning } = useToast()
   const router = useRouter()
   
@@ -1303,6 +1305,7 @@ export default function PropertiesPage() {
         showAdvancedFilters={showAdvancedFilters}
         setShowAdvancedFilters={setShowAdvancedFilters}
         onClearFilters={clearFilters}
+        showMyTeamFilter={showMyTeamFilter}
       />
 
       {/* View Toggle and Actions */}

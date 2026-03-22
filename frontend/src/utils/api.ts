@@ -147,9 +147,13 @@ async function apiRequest<T>(
     }
   }
   
+  // Spread options first, then set headers last. Callers often pass `headers` in options
+  // (e.g. Content-Type only); if we did `{ headers, ...options }`, options.headers would
+  // overwrite the merged Authorization / CSRF headers and the server returns 401 — which
+  // triggers automatic logout in the error handler below.
   const config: RequestInit = {
-    headers,
     ...options,
+    headers,
   }
 
   // Debug logging removed for production security
@@ -373,6 +377,13 @@ export const usersApi = {
   // Get all users (new - with token)
   async getAll(token: string): Promise<UsersResponse> {
     return apiRequest<UsersResponse>('/users/all', {
+      method: 'GET',
+    }, token)
+  },
+
+  /** Active users for calendar attendee selection — allowed for all authenticated roles */
+  async getCalendarAttendees(token: string): Promise<UsersResponse> {
+    return apiRequest<UsersResponse>('/users/calendar-attendees', {
       method: 'GET',
     }, token)
   },

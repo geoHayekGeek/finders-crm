@@ -10,6 +10,13 @@ import { PlusIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRole } from '@/utils/roleFormatter'
+import { usersApi } from '@/utils/api'
+
+function normalizeRole(role?: string) {
+  return role ? role.toLowerCase().replace(/_/g, ' ').trim() : ''
+}
+
+type TeamLeaderViewMode = 'team' | 'myself' | 'agent'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
@@ -103,6 +110,9 @@ export default function CalendarPage() {
   const [eventPermissions, setEventPermissions] = useState<Record<string, EventPermissions>>({})
   const [adminFilters, setAdminFilters] = useState<CalendarFilters>({})
   const [users, setUsers] = useState<BackendUser[]>([])
+  const [teamLeaderViewMode, setTeamLeaderViewMode] = useState<TeamLeaderViewMode>('team')
+  const [teamLeaderAgentId, setTeamLeaderAgentId] = useState<string>('')
+  const [teamAgents, setTeamAgents] = useState<BackendUser[]>([])
   const loadingRef = useRef(false)
   const { showSuccess, showError, showWarning } = useToast()
   const { user } = useAuth()
@@ -164,7 +174,6 @@ export default function CalendarPage() {
         return
       }
 
-      // Build query parameters for admin filters only
       const queryParams = new URLSearchParams()
       if (filters && user?.role === 'admin') {
         Object.entries(filters).forEach(([key, value]) => {
@@ -172,6 +181,19 @@ export default function CalendarPage() {
             queryParams.append(key, value)
           }
         })
+      }
+
+      if (normalizeRole(user?.role) === 'team leader') {
+        if (teamLeaderViewMode === 'team') {
+          queryParams.append('teamScope', 'team')
+        } else if (teamLeaderViewMode === 'myself') {
+          queryParams.append('teamScope', 'myself')
+        } else {
+          queryParams.append('teamScope', 'agent')
+          if (teamLeaderAgentId) {
+            queryParams.append('teamAgentId', teamLeaderAgentId)
+          }
+        }
       }
 
       const url = queryParams.toString() 
@@ -239,7 +261,7 @@ export default function CalendarPage() {
     if (!user) return
     loadEvents()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.role])
+  }, [user?.id, user?.role, teamLeaderViewMode, teamLeaderAgentId])
 
   // Load users for admin filters
   useEffect(() => {
@@ -247,6 +269,23 @@ export default function CalendarPage() {
       loadUsers()
     }
   }, [user?.role])
+
+  // Team leader: load agents for "By agent" filter (scoped to their team on the API)
+  useEffect(() => {
+    if (normalizeRole(user?.role) !== 'team leader') return
+    const token = localStorage.getItem('token')
+    if (!token) return
+    ;(async () => {
+      try {
+        const data = await usersApi.getAgents(token)
+        if (data.success && Array.isArray(data.agents)) {
+          setTeamAgents(data.agents)
+        }
+      } catch (e) {
+        console.error('Error loading team agents for calendar:', e)
+      }
+    })()
+  }, [user?.id, user?.role])
 
   // Track if this is the initial load
   const isInitialLoad = useRef(true)
@@ -491,6 +530,13 @@ export default function CalendarPage() {
     setAdminFilters({})
   }, [])
 
+  const handleTeamLeaderModeChange = (mode: TeamLeaderViewMode) => {
+    setTeamLeaderViewMode(mode)
+    if (mode === 'agent' && teamAgents.length > 0) {
+      setTeamLeaderAgentId((prev) => prev || String(teamAgents[0].id))
+    }
+  }
+
   // Load users for the filter dropdown
   const loadUsers = async () => {
     try {
@@ -589,6 +635,50 @@ export default function CalendarPage() {
       )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Team leader: scope calendar to self / full team / one agent */}
+        {normalizeRole(user?.role) === 'team leader' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Team calendar</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                View appointments and events for yourself, your whole team, or a specific agent.
+              </p>
+            </div>
+            <div className="p-4 flex flex-col sm:flex-row gap-4 sm:items-end">
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-sm font-medium text-gray-700 mb-1">View</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={teamLeaderViewMode}
+                  onChange={(e) => handleTeamLeaderModeChange(e.target.value as TeamLeaderViewMode)}
+                >
+                  <option value="team">Full team</option>
+                  <option value="myself">Myself</option>
+                  <option value="agent">By agent</option>
+                </select>
+              </div>
+              {teamLeaderViewMode === 'agent' && (
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Agent</label>
+                  <select
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    value={teamLeaderAgentId}
+                    onChange={(e) => setTeamLeaderAgentId(e.target.value)}
+                  >
+                    <option value="">Select agent…</option>
+                    {teamAgents.map((a) => (
+                      <option key={a.id} value={String(a.id)}>
+                        {a.name}
+                        {a.role ? ` (${formatRole(a.role)})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Admin Filters */}
         {user?.role === 'admin' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">

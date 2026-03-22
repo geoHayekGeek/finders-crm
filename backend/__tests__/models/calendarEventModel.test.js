@@ -1,7 +1,11 @@
 const CalendarEvent = require('../../models/calendarEventModel');
 const pool = require('../../config/db');
+const User = require('../../models/userModel');
 
 jest.mock('../../config/db');
+jest.mock('../../models/userModel', () => ({
+  getTeamPropertyAgentScopeIds: jest.fn(async (userId) => [userId, 99, 100])
+}));
 
 describe('CalendarEvent Model', () => {
   let mockQuery;
@@ -376,17 +380,15 @@ describe('CalendarEvent Model', () => {
 
       const result = await CalendarEvent.getEventsForUserWithHierarchy(userId, userRole);
 
-      // Non-admin should have WHERE clause with user restrictions
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('WHERE'),
-        [userId]
+        [[userId]]
       );
-      expect(mockQuery.mock.calls[0][0]).toContain('ce.assigned_to = $1');
-      expect(mockQuery.mock.calls[0][0]).toContain('ce.created_by = $1');
+      expect(mockQuery.mock.calls[0][0]).toContain('ANY($1::int[])');
       expect(result).toEqual(mockEvents);
     });
 
-    it('should include attendee check for non-admin users', async () => {
+    it('should scope team leader to full team by default', async () => {
       const userId = 3;
       const userRole = 'team_leader';
       const mockEvents = [{ id: 1, attendees: ['User Name'] }];
@@ -395,9 +397,10 @@ describe('CalendarEvent Model', () => {
 
       const result = await CalendarEvent.getEventsForUserWithHierarchy(userId, userRole);
 
+      expect(User.getTeamPropertyAgentScopeIds).toHaveBeenCalledWith(3, 'team leader');
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('attendees'),
-        [userId]
+        [[3, 99, 100]]
       );
       expect(result).toEqual(mockEvents);
     });
@@ -438,12 +441,11 @@ describe('CalendarEvent Model', () => {
 
       const result = await CalendarEvent.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
 
-      // Non-admin should have both user and date restrictions
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('WHERE'),
-        [userId, startDate, endDate]
+        [[userId], startDate, endDate]
       );
-      expect(mockQuery.mock.calls[0][0]).toContain('ce.assigned_to =');
+      expect(mockQuery.mock.calls[0][0]).toContain('ANY($1::int[])');
       expect(result).toEqual(mockEvents);
     });
   });
@@ -481,12 +483,11 @@ describe('CalendarEvent Model', () => {
 
       const result = await CalendarEvent.searchEventsForUserWithHierarchy(userId, userRole, searchQuery);
 
-      // Non-admin should have user restrictions in search
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('AND'),
-        [`%${searchQuery}%`, userId]
+        [`%${searchQuery}%`, [userId]]
       );
-      expect(mockQuery.mock.calls[0][0]).toContain('ce.assigned_to =');
+      expect(mockQuery.mock.calls[0][0]).toContain('ANY($2::int[])');
       expect(result).toEqual(mockEvents);
     });
   });

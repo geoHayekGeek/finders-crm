@@ -1,6 +1,7 @@
 // controllers/calendarController.js
 const calendarEventModel = require('../models/calendarEventModel');
 const Notification = require('../models/notificationModel');
+const User = require('../models/userModel');
 const pool = require('../config/db');
 const ReminderService = require('../services/reminderService');
 
@@ -8,6 +9,28 @@ const ReminderService = require('../services/reminderService');
 // Converts to space format for consistent comparisons
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+
+/**
+ * Team leaders can pass teamScope=myself|team|agent and teamAgentId (when agent) to filter calendar lists.
+ * Invalid agent IDs are ignored (falls back to myself).
+ */
+async function buildTeamLeaderCalendarOptions(req) {
+  const role = normalizeRole(req.user.role);
+  if (role !== 'team leader') return {};
+  const raw = req.query.teamScope || req.query.team_scope || 'team';
+  const teamScope = ['myself', 'team', 'agent'].includes(String(raw).toLowerCase())
+    ? String(raw).toLowerCase()
+    : 'team';
+  const teamAgentId = req.query.teamAgentId || req.query.team_agent_id;
+  if (teamScope === 'agent' && teamAgentId) {
+    const full = await User.getTeamPropertyAgentScopeIds(req.user.id, 'team leader');
+    const aid = parseInt(teamAgentId, 10);
+    if (!Number.isFinite(aid) || !full.includes(aid)) {
+      return { teamScope: 'myself', teamAgentId: undefined };
+    }
+  }
+  return { teamScope, teamAgentId };
+}
 
 // Role hierarchy levels (higher number = higher authority)
 const ROLE_HIERARCHY = {
@@ -86,9 +109,10 @@ const getAllEvents = async (req, res) => {
     const userId = req.user.id;
     const userRole = normalizeRole(req.user.role);
     const query = req.query;
-    
+    const calendarOptions = await buildTeamLeaderCalendarOptions(req);
+
     let events;
-    
+
     // Admins: return all events when no filters are provided; otherwise use advanced filters
     if (userRole === 'admin') {
       if (query.createdBy || query.attendee || query.type || query.dateFrom || query.dateTo || query.search) {
@@ -97,8 +121,7 @@ const getAllEvents = async (req, res) => {
         events = await calendarEventModel.getAllEvents();
       }
     } else {
-      // Non-admins use hierarchy-based filtering
-      events = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
+      events = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole, calendarOptions);
     }
     
     res.json({
@@ -162,10 +185,15 @@ const getEventsByDateRange = async (req, res) => {
       });
     }
 
-    let events;
-    
-    // Use hierarchy-based filtering for all roles
-    events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
+    const calendarOptions = await buildTeamLeaderCalendarOptions(req);
+
+    const events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(
+      userId,
+      userRole,
+      startDate,
+      endDate,
+      calendarOptions
+    );
     res.json({
       success: true,
       events: events.map(event => ({
@@ -225,11 +253,10 @@ const getEventsByMonth = async (req, res) => {
       });
     }
 
-    let events;
-    
-    // Use hierarchy-based filtering for all roles
-    const allUserEvents = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole);
-    events = allUserEvents.filter(event => {
+    const calendarOptions = await buildTeamLeaderCalendarOptions(req);
+
+    const allUserEvents = await calendarEventModel.getEventsForUserWithHierarchy(userId, userRole, calendarOptions);
+    const events = allUserEvents.filter(event => {
       const eventDate = new Date(event.start_time);
       return eventDate.getFullYear() === yearNum && eventDate.getMonth() + 1 === monthNum;
     });
@@ -291,13 +318,17 @@ const getEventsByWeek = async (req, res) => {
       });
     }
 
-    let events;
-    
-    // Use hierarchy-based filtering for all roles
-    // Calculate end of week (7 days later)
+    const calendarOptions = await buildTeamLeaderCalendarOptions(req);
+
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 7);
-    events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(userId, userRole, startDate, endDate);
+    const events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(
+      userId,
+      userRole,
+      startDate,
+      endDate,
+      calendarOptions
+    );
     res.json({
       success: true,
       events: events.map(event => ({
@@ -356,15 +387,19 @@ const getEventsByDay = async (req, res) => {
       });
     }
 
-    let events;
-    
-    // Use hierarchy-based filtering for all roles
-    // Get events for the entire day (start to end of day)
+    const calendarOptions = await buildTeamLeaderCalendarOptions(req);
+
     const startOfDay = new Date(targetDate);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
-    events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(userId, userRole, startOfDay, endOfDay);
+    const events = await calendarEventModel.getEventsForUserWithHierarchyByDateRange(
+      userId,
+      userRole,
+      startOfDay,
+      endOfDay,
+      calendarOptions
+    );
     res.json({
       success: true,
       events: events.map(event => ({
@@ -422,17 +457,12 @@ const getEventById = async (req, res) => {
       });
     }
 
-    // Check permissions: admin can see all events, others can only see their own
     if (userRole !== 'admin') {
-      const isOwnEvent = event.created_by === userId || 
-                        event.assigned_to === userId ||
-                        (event.attendees && Array.isArray(event.attendees) && 
-                         event.attendees.includes(req.user.name));
-      
-      if (!isOwnEvent) {
+      const visible = await calendarEventModel.isEventVisibleToUser(event, userId, req.user.role);
+      if (!visible) {
         return res.status(403).json({
           success: false,
-          message: 'Access denied: You can only view your own events'
+          message: 'Access denied: You cannot view this event'
         });
       }
     }
@@ -932,10 +962,14 @@ const searchEvents = async (req, res) => {
       });
     }
 
-    let events;
-    
-    // Use hierarchy-based filtering for all roles
-    events = await calendarEventModel.searchEventsForUserWithHierarchy(userId, userRole, q);
+    const calendarOptions = await buildTeamLeaderCalendarOptions(req);
+
+    const events = await calendarEventModel.searchEventsForUserWithHierarchy(
+      userId,
+      userRole,
+      q,
+      calendarOptions
+    );
     res.json({
       success: true,
       events: events.map(event => ({

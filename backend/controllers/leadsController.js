@@ -3,6 +3,12 @@ const Lead = require('../models/leadsModel');
 const LeadReferral = require('../models/leadReferralModel');
 const Notification = require('../models/notificationModel');
 const LeadNote = require('../models/leadNotesModel');
+const User = require('../models/userModel');
+const {
+  applySensitiveMaskingForLeadsList,
+  applySensitiveMaskingForLeadDetail,
+  sanitizeAgentIdFilterQuery
+} = require('../utils/leadAccessUtils');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const logger = require('../utils/logger');
@@ -20,28 +26,14 @@ class LeadsController {
       
       const normalizedRole = normalizeRole(req.user.role);
 
-      let leads = await Lead.getLeadsForAgent(req.user.id, normalizedRole);
-      
-      // Filter data for agents and team leaders
-      if (['agent', 'team leader'].includes(normalizedRole)) {
-        leads = leads.map(lead => ({
-          id: lead.id,
-          date: lead.date,
-          customer_name: lead.customer_name,
-          phone_number: lead.phone_number,
-          agent_id: lead.agent_id,
-          assigned_agent_name: lead.assigned_agent_name,
-          added_by_id: lead.added_by_id,
-          added_by_name: lead.added_by_name,
-          added_by_role: lead.added_by_role,
-          reference_source_id: lead.reference_source_id,
-          reference_source_name: lead.reference_source_name,
-          price: lead.price,
-          status: lead.status,
-          status_can_be_referred: lead.status_can_be_referred,
-          created_at: lead.created_at,
-          updated_at: lead.updated_at
-        }));
+      let leads;
+      if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
+        leads = await Lead.getAllLeads();
+      } else if (['agent', 'team leader'].includes(normalizedRole)) {
+        leads = await Lead.getAllLeads();
+        leads = await applySensitiveMaskingForLeadsList(leads, req.user.id, normalizedRole);
+      } else {
+        leads = await Lead.getLeadsForAgent(req.user.id, normalizedRole);
       }
       
       res.json({
@@ -69,55 +61,35 @@ class LeadsController {
         filterCount: Object.keys(req.query).length
       });
       
+      const filterQuery = { ...req.query };
+      delete filterQuery.my_team;
+      const wantsMyTeam = req.query.my_team === 'true' || req.query.my_team === true;
+      
       let leads;
       const userRole = req.user.role;
       const normalizedRole = normalizeRole(userRole);
       const userId = req.user.id;
+
+      await sanitizeAgentIdFilterQuery(filterQuery, userId, normalizedRole);
       
-      if (normalizedRole === 'agent') {
-        logger.debug('Agent user - complex filtering logic', { userId });
-        // Agents see leads assigned to them or that they referred, with filters
-        leads = await Lead.getLeadsAssignedOrReferredByAgent(userId);
-        logger.debug('Agent leads before filtering', { count: leads.length });
-        // Apply additional filters if provided
-        if (Object.keys(req.query).length > 0) {
-          const filteredLeads = await Lead.getLeadsWithFilters(req.query);
-          logger.debug('Filtered leads from query', { count: filteredLeads.length });
-          // Filter the agent's leads by the query results
-          leads = leads.filter(lead => 
-            filteredLeads.some(filtered => filtered.id === lead.id)
+      if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
+        logger.debug('Agent or team leader — all leads with filters + sensitive masking', { userId });
+        leads = await Lead.getLeadsWithFilters(filterQuery);
+        if (wantsMyTeam) {
+          const scopeIds = await User.getTeamPropertyAgentScopeIds(userId, normalizedRole);
+          leads = leads.filter(
+            (lead) =>
+              lead.agent_id != null &&
+              scopeIds.includes(Number(lead.agent_id))
           );
-          logger.debug('Final agent leads after filtering', { count: leads.length });
         }
+        leads = await applySensitiveMaskingForLeadsList(leads, userId, normalizedRole);
       } else {
         logger.debug('Admin/Manager/Operations user - direct filtering');
-        // Admins, operations managers, operations, and agent managers see all leads with filters
-        leads = await Lead.getLeadsWithFilters(req.query);
+        leads = await Lead.getLeadsWithFilters(filterQuery);
       }
       
       logger.debug('Final leads count', { count: leads.length });
-      
-      // Filter data for agents and team leaders
-      if (['agent', 'team leader'].includes(normalizedRole)) {
-        leads = leads.map(lead => ({
-          id: lead.id,
-          date: lead.date,
-          customer_name: lead.customer_name,
-          phone_number: lead.phone_number,
-          agent_id: lead.agent_id,
-          assigned_agent_name: lead.assigned_agent_name,
-          added_by_id: lead.added_by_id,
-          added_by_name: lead.added_by_name,
-          added_by_role: lead.added_by_role,
-          reference_source_id: lead.reference_source_id,
-          reference_source_name: lead.reference_source_name,
-          price: lead.price,
-          status: lead.status,
-          status_can_be_referred: lead.status_can_be_referred,
-          created_at: lead.created_at,
-          updated_at: lead.updated_at
-        }));
-      }
       
       res.json({
         success: true,
@@ -156,43 +128,14 @@ class LeadsController {
       // Admin, operations, operations manager, and agent manager have full access to lead data
       if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
         // Full access
-      } else if (normalizedRole === 'agent' && lead.agent_id !== userId) {
-        // Agents can only view leads they're assigned to
+      } else if (['agent', 'team leader'].includes(normalizedRole)) {
+        // All leads are visible; sensitive fields masked unless assigned to them / their team
+        lead = await applySensitiveMaskingForLeadDetail(lead, userId, normalizedRole);
+      } else {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to view this lead'
         });
-      } else if (normalizedRole === 'team leader') {
-        // Team leaders can view their own leads and their team's leads
-        if (lead.agent_id !== userId) {
-          // Check if the lead belongs to an agent under this team leader
-          const teamAgentCheck = await pool.query(
-            `SELECT 1 FROM team_agents 
-             WHERE team_leader_id = $1 AND agent_id = $2 AND is_active = TRUE`,
-            [userId, lead.agent_id]
-          );
-          
-          if (teamAgentCheck.rows.length === 0) {
-            return res.status(403).json({
-              success: false,
-              message: 'You do not have permission to view this lead'
-            });
-          }
-        }
-      } else if (['agent', 'team_leader'].includes(normalizedRole)) {
-        lead = {
-          id: lead.id,
-          date: lead.date,
-          customer_name: lead.customer_name,
-          phone_number: lead.phone_number,
-          agent_id: lead.agent_id,
-          assigned_agent_name: lead.assigned_agent_name,
-          price: lead.price,
-          status: lead.status,
-          created_at: lead.created_at,
-          updated_at: lead.updated_at,
-          referrals: lead.referrals || [] // Include referrals so agents and team leaders can see referral history
-        };
       }
       
       res.json({

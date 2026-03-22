@@ -34,6 +34,7 @@ describe('Calendar Controller', () => {
     };
 
     jest.clearAllMocks();
+    calendarEventModel.isEventVisibleToUser = jest.fn().mockResolvedValue(true);
   });
 
   describe('getAllEvents', () => {
@@ -86,7 +87,7 @@ describe('Calendar Controller', () => {
 
       await calendarController.getAllEvents(req, res);
 
-      expect(calendarEventModel.getEventsForUserWithHierarchy).toHaveBeenCalledWith(2, 'agent');
+      expect(calendarEventModel.getEventsForUserWithHierarchy).toHaveBeenCalledWith(2, 'agent', {});
     });
 
     it('should handle errors', async () => {
@@ -426,13 +427,14 @@ describe('Calendar Controller', () => {
       };
 
       calendarEventModel.findById.mockResolvedValue(mockEvent);
+      calendarEventModel.isEventVisibleToUser.mockResolvedValue(false);
 
       await calendarController.getEventById(req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
         success: false,
-        message: 'Access denied: You can only view your own events'
+        message: 'Access denied: You cannot view this event'
       });
     });
 
@@ -1012,7 +1014,7 @@ describe('Calendar Controller', () => {
 
       await calendarController.searchEvents(req, res);
 
-      expect(calendarEventModel.searchEventsForUserWithHierarchy).toHaveBeenCalledWith(1, 'admin', 'meeting');
+      expect(calendarEventModel.searchEventsForUserWithHierarchy).toHaveBeenCalledWith(1, 'admin', 'meeting', {});
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         events: []

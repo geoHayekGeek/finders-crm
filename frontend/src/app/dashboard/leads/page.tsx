@@ -1125,6 +1125,7 @@ useEffect(() => {
         setShowAdvancedFilters={setShowAdvancedFilters}
         onClearFilters={handleClearFilters}
         limitedAccess={limitedLeadAccess}
+        showMyTeamFilter={isTeamLeaderRole(user?.role)}
       />
 
       {/* View Toggle and Actions */}

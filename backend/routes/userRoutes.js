@@ -32,6 +32,8 @@ router.post('/register', authenticateToken, canManageUsers, userManagementLimite
 
 // Protected routes (authentication required)
 router.get('/all', authenticateToken, canViewAllUsers, userController.getAllUsers);
+// Calendar attendee picker: any authenticated user (not limited to HR/admin)
+router.get('/calendar-attendees', authenticateToken, userController.getUsersForCalendarAttendees);
 router.get('/agents', authenticateToken, userController.getAgents);
 router.get('/role/:role', authenticateToken, userController.getUsersByRole);
 router.put('/:id', authenticateToken, userManagementLimiter, userController.updateUser);

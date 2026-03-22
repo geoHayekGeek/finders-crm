@@ -62,7 +62,7 @@ describe('Leads Stats Controller', () => {
       });
     });
 
-    it('should get leads statistics for agent (filtered by agent)', async () => {
+    it('should get leads statistics for agent (all leads — same aggregates as management)', async () => {
       req.user = { id: 2, name: 'Agent User', role: 'agent' };
 
       const mockTotal = { rows: [{ total: '25' }] };
@@ -86,12 +86,11 @@ describe('Leads Stats Controller', () => {
 
       await LeadsStatsController.getLeadsStats(req, res);
 
-      // Verify that queries use agent_id filter (check at least one call has the filter)
       const queryCalls = pool.query.mock.calls;
-      const hasAgentFilter = queryCalls.some(call => 
+      const hasLegacySoloAgentFilter = queryCalls.some(call => 
         call[0] && call[0].includes('agent_id = $1') && call[1] && call[1][0] === 2
       );
-      expect(hasAgentFilter).toBe(true);
+      expect(hasLegacySoloAgentFilter).toBe(false);
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -102,7 +101,7 @@ describe('Leads Stats Controller', () => {
       });
     });
 
-    it('should get leads statistics for team leader (filtered by team)', async () => {
+    it('should get leads statistics for team leader (all leads — same aggregates as management)', async () => {
       req.user = { id: 3, name: 'Team Leader', role: 'team_leader' };
 
       const mockTotal = { rows: [{ total: '50' }] };

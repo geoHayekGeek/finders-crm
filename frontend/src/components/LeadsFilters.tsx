@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { formatRole } from '@/utils/roleFormatter'
-import { Search, Filter, X, ChevronDown, Calendar, Users, Tag } from 'lucide-react'
+import { Search, Filter, X, ChevronDown, Calendar, Tag } from 'lucide-react'
 import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
 import { usersApi, leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -23,6 +23,8 @@ interface LeadsFiltersProps {
   setShowAdvancedFilters: (show: boolean) => void
   onClearFilters: () => void
   limitedAccess?: boolean
+  /** When true, show the "My Team" scope control (team leaders only). */
+  showMyTeamFilter?: boolean
 }
 
 export function LeadsFilters({
@@ -31,7 +33,8 @@ export function LeadsFilters({
   showAdvancedFilters,
   setShowAdvancedFilters,
   onClearFilters,
-  limitedAccess = false
+  limitedAccess = false,
+  showMyTeamFilter = false
 }: LeadsFiltersProps) {
   const { token } = useAuth()
   const [users, setUsers] = useState<User[]>([])
@@ -40,14 +43,14 @@ export function LeadsFilters({
   const [loadingRefSources, setLoadingRefSources] = useState(false)
   const filtersRef = useRef<HTMLDivElement>(null)
 
-  // Load agents for agent filter
+  // Load agents for agent filter (scoped by role on the server)
   useEffect(() => {
-    if (limitedAccess) return
+    if (!token) return
 
     const fetchAgents = async () => {
       setLoading(true)
       try {
-        const data = await usersApi.getAgents()
+        const data = await usersApi.getAgents(token)
         if (data.success) {
           setUsers(data.agents)
         }
@@ -59,7 +62,7 @@ export function LeadsFilters({
     }
 
     fetchAgents()
-  }, [limitedAccess])
+  }, [token])
 
   // Load reference sources for reference source filter
   useEffect(() => {
@@ -86,7 +89,7 @@ export function LeadsFilters({
     }
   }, [limitedAccess, token])
 
-  const handleFilterChange = (key: keyof LeadFilters, value: string | number | undefined) => {
+  const handleFilterChange = (key: keyof LeadFilters, value: string | number | boolean | undefined) => {
     // For date inputs, ensure we handle empty strings properly
     let newValue = value === '' ? undefined : value
     
@@ -119,8 +122,9 @@ export function LeadsFilters({
     });
   }
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
-    value !== undefined && value !== null && value !== '' && value !== 0
+  const hasActiveFilters = Object.entries(filters).some(
+    ([, value]) =>
+      value !== undefined && value !== null && value !== '' && value !== 0 && value !== false
   )
 
   return (
@@ -159,6 +163,26 @@ export function LeadsFilters({
             </select>
           </div>
 
+          {/* Agent (options scoped: agents = self, team leaders = their team, management = all) */}
+          <div className="flex-1 min-w-0">
+            <label className="sr-only">Agent</label>
+            <select
+              value={filters.agent_id || ''}
+              onChange={(e) =>
+                handleFilterChange('agent_id', e.target.value ? parseInt(e.target.value, 10) : undefined)
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+              disabled={loading}
+            >
+              <option value="">All Agents</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({formatRole(u.role)})
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Advanced Filters Toggle */}
           <div className="flex items-center gap-2">
             {!limitedAccess && (
@@ -189,6 +213,119 @@ export function LeadsFilters({
           </div>
         </div>
       </div>
+
+      {showMyTeamFilter && (
+        <div className="pt-4 mt-4 border-t border-gray-200">
+          <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={!!filters.my_team}
+              onChange={(e) =>
+                handleFilterChange('my_team', e.target.checked ? true : undefined)
+              }
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="font-medium">My Team</span>
+            <span className="text-gray-500 font-normal">
+              Show leads assigned to you or your team agents
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* Active filter chips (visible for all roles, including agent / team leader) */}
+      {hasActiveFilters && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="flex flex-wrap gap-2">
+            <span className="text-sm text-gray-600">Active filters:</span>
+            {filters.search && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                Search: &quot;{filters.search}&quot;
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('search', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.status && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                Status: {LEAD_STATUSES.find((s) => s.value === filters.status)?.label}
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('status', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.agent_id && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                Agent: {users.find((u) => u.id === filters.agent_id)?.name ?? filters.agent_id}
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('agent_id', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.date_from && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                From: {filters.date_from}
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('date_from', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.date_to && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                To: {filters.date_to}
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('date_to', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.reference_source_id && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                Reference Source:{' '}
+                {referenceSources.find((rs) => rs.id === filters.reference_source_id)?.source_name}
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('reference_source_id', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.my_team && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                My Team
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('my_team', undefined)}
+                  className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Advanced Filters */}
       {showAdvancedFilters && !limitedAccess && (
@@ -229,27 +366,6 @@ export function LeadsFilters({
               />
             </div>
 
-            {/* Agent Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Users className="inline h-4 w-4 mr-1" />
-                Agent
-              </label>
-              <select
-                value={filters.agent_id || ''}
-                onChange={(e) => handleFilterChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                disabled={loading}
-              >
-                <option value="">All Agents</option>
-                    {users.map(user => (
-                      <option key={user.id} value={user.id}>
-                        {user.name} ({formatRole(user.role)})
-                      </option>
-                    ))}
-              </select>
-            </div>
-
             {/* Reference Source Filter */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -271,81 +387,6 @@ export function LeadsFilters({
               </select>
             </div>
           </div>
-
-          {/* Filter Summary */}
-          {hasActiveFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="flex flex-wrap gap-2">
-                <span className="text-sm text-gray-600">Active filters:</span>
-                {filters.search && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    Search: &quot;{filters.search}&quot;
-                    <button
-                      onClick={() => handleFilterChange('search', undefined)}
-                      className="hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {filters.status && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    Status: {LEAD_STATUSES.find(s => s.value === filters.status)?.label}
-                    <button
-                      onClick={() => handleFilterChange('status', undefined)}
-                      className="hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {filters.agent_id && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    Agent: {users.find(u => u.id === filters.agent_id)?.name}
-                    <button
-                      onClick={() => handleFilterChange('agent_id', undefined)}
-                      className="hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {filters.date_from && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    From: {filters.date_from}
-                    <button
-                      onClick={() => handleFilterChange('date_from', undefined)}
-                      className="hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {filters.date_to && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    To: {filters.date_to}
-                    <button
-                      onClick={() => handleFilterChange('date_to', undefined)}
-                      className="hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-                {filters.reference_source_id && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                    Reference Source: {referenceSources.find(rs => rs.id === filters.reference_source_id)?.source_name}
-                    <button
-                      onClick={() => handleFilterChange('reference_source_id', undefined)}
-                      className="hover:text-blue-900"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
     </div>

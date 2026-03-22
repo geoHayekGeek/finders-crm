@@ -195,6 +195,16 @@ const getPropertiesWithFilters = async (req, res) => {
     // Filter created_by info based on role
     properties = filterCreatedByInfo(properties, roleFilters.role);
 
+    const wantsMyTeam = filters.my_team === 'true' || filters.my_team === true;
+    if (
+      wantsMyTeam &&
+      !roleFilters.canViewAll &&
+      (roleFilters.role === 'agent' || roleFilters.role === 'team leader')
+    ) {
+      const teamScopeIds = await User.getTeamPropertyAgentScopeIds(req.user.id, roleFilters.role);
+      properties = properties.filter((p) => teamScopeIds.includes(p.agent_id));
+    }
+
     // Apply additional filters manually if provided
     if (Object.keys(filters).length > 0) {
       logger.debug('Applying filters to properties', { filterCount: Object.keys(filters).length });

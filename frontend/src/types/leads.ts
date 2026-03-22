@@ -74,6 +74,8 @@ export interface LeadStatusOption {
 }
 
 export interface LeadFilters {
+  /** Team leaders only: restrict to leads assigned to you or your team agents (server-enforced). */
+  my_team?: boolean
   status?: string
   agent_id?: number
   reference_source_id?: number
