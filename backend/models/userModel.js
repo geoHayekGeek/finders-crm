@@ -2,12 +2,40 @@
 const pool = require('../config/db');
 
 class User {
-  static async createUser({ name, email, password, role, phone, dob, work_location, user_code, is_assigned = false, assigned_to = null, address = null, added_by = null }) {
+  static async createUser({
+    name,
+    email,
+    password,
+    role,
+    phone,
+    dob,
+    work_location,
+    user_code,
+    is_assigned = false,
+    assigned_to = null,
+    address = null,
+    added_by = null,
+    employment_start_date = null
+  }) {
     const result = await pool.query(
-      `INSERT INTO users (name, email, password, role, phone, dob, work_location, user_code, is_assigned, assigned_to, address, added_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `INSERT INTO users (name, email, password, role, phone, dob, work_location, user_code, is_assigned, assigned_to, address, added_by, employment_start_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
-      [name, email, password, role, phone, dob, work_location, user_code, is_assigned, assigned_to, address, added_by]
+      [
+        name,
+        email,
+        password,
+        role,
+        phone,
+        dob,
+        work_location,
+        user_code,
+        is_assigned,
+        assigned_to,
+        address,
+        added_by,
+        employment_start_date
+      ]
     );
     return result.rows[0];
   }
@@ -50,7 +78,7 @@ class User {
       `SELECT 
         u.id, u.name, u.email, u.role, u.phone, u.dob, 
         u.work_location, u.user_code, u.is_assigned, u.assigned_to, 
-        u.is_active, u.address, u.created_at, u.updated_at, u.added_by,
+        u.is_active, u.address, u.employment_start_date, u.created_at, u.updated_at, u.added_by,
         CASE 
           WHEN u.role = 'team_leader' THEN (
             SELECT COUNT(*)::integer 
@@ -127,10 +155,10 @@ class User {
     
     const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
     const query = `
-      UPDATE users 
+      UPDATE users
       SET ${setClause}, updated_at = NOW()
       WHERE id = $1
-      RETURNING id, name, email, role, phone, dob, work_location, user_code, is_active, address, created_at, updated_at
+      RETURNING *
     `;
     
     const result = await pool.query(query, [id, ...values]);

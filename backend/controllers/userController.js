@@ -46,7 +46,7 @@ const registerUser = async (req, res) => {
     }
 
     // Sanitize input to prevent XSS and SQL injection
-    const { name, email, password, role, phone, dob, work_location, address } = sanitizeObject(req.body);
+    const { name, email, password, role, phone, dob, work_location, address, employment_start_date } = sanitizeObject(req.body);
 
     // Basic validation
     if (!name || !email || !password || !role) {
@@ -86,6 +86,7 @@ const registerUser = async (req, res) => {
       user_code: userCode,
       address: address ? sanitizeInput(address) : null,
       added_by: addedBy,
+      employment_start_date: employment_start_date && String(employment_start_date).trim() !== '' ? employment_start_date : null
     });
 
     // Audit log: User created
@@ -340,6 +341,7 @@ const getAllUsers = async (req, res) => {
         role: user.role,
         phone: user.phone,
         dob: user.dob,
+        employment_start_date: user.employment_start_date ?? null,
         work_location: user.work_location,
         user_code: user.user_code,
         address: user.address,
@@ -417,7 +419,7 @@ const updateUser = async (req, res) => {
 
     const { id } = req.params;
     // Sanitize input to prevent XSS and SQL injection
-    const { name, email, role, phone, dob, work_location, user_code, is_active, password, address } = sanitizeObject(req.body);
+    const { name, email, role, phone, dob, work_location, user_code, is_active, password, address, employment_start_date } = sanitizeObject(req.body);
     const currentUserRole = req.user.role;
     const currentUserId = req.user.id;
     const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
@@ -512,6 +514,11 @@ const updateUser = async (req, res) => {
       is_active: is_active !== undefined ? is_active : undefined,
       address: address ? sanitizeInput(address) : null
     };
+
+    if (employment_start_date !== undefined) {
+      updateData.employment_start_date =
+        employment_start_date && String(employment_start_date).trim() !== '' ? employment_start_date : null;
+    }
 
     // If password is provided, hash it and include in update
     if (password && password.trim() !== '') {

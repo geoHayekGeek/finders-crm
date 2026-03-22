@@ -29,7 +29,12 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
   
   const formatDateForInput = (dateString?: string | null) => {
     if (!dateString) return ''
-    const date = new Date(dateString)
+    const s = String(dateString)
+    // Prefer calendar date from API (DATE columns often serialize as ISO); avoids TZ shifting the day
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+      return s.slice(0, 10)
+    }
+    const date = new Date(s)
     if (Number.isNaN(date.getTime())) {
       return ''
     }
@@ -42,6 +47,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
     role: user.role,
     phone: user.phone || '',
     dob: formatDateForInput(user.dob),
+    employment_start_date: formatDateForInput(user.employment_start_date ?? undefined),
     work_location: user.work_location || '',
     address: user.address || '',
     user_code: user.user_code,
@@ -56,6 +62,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
       role: user.role,
       phone: user.phone || '',
       dob: formatDateForInput(user.dob),
+      employment_start_date: formatDateForInput(user.employment_start_date ?? undefined),
       work_location: user.work_location || '',
       address: user.address || '',
       user_code: user.user_code,
@@ -138,6 +145,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
         role: formData.role,
         phone: formData.phone?.trim() || null,
         dob: formData.dob || null,
+        employment_start_date: formData.employment_start_date?.trim() || null,
         work_location: formData.work_location?.trim() || null,
         address: formData.address?.trim() || null,
         user_code: formData.user_code,
@@ -333,6 +341,21 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Starting date (employment / role)
+              </label>
+              <input
+                type="date"
+                value={formData.employment_start_date}
+                onChange={(e) => setFormData({ ...formData, employment_start_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Optional. Not auto-filled, set when you know their start date; leave blank if the account is only prepared in advance.
+              </p>
             </div>
 
             {/* Address */}

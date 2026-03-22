@@ -32,6 +32,7 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
     role: initialRole,
     phone: '',
     dob: '',
+    employment_start_date: '',
     work_location: '',
     address: ''
   })
@@ -103,6 +104,7 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
         role: formData.role,
         phone: formData.phone?.trim() || undefined,
         dob: formData.dob || undefined,
+        employment_start_date: formData.employment_start_date?.trim() || undefined,
         work_location: formData.work_location?.trim() || undefined,
         address: formData.address?.trim() || undefined
       }
@@ -312,6 +314,22 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
                 onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            {/* Starting date — optional, not automatic */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Starting date (employment / role)
+              </label>
+              <input
+                type="date"
+                value={formData.employment_start_date}
+                onChange={(e) => setFormData({ ...formData, employment_start_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Optional. When they start or will start in this role. Leave blank if you are only pre-provisioning the account and do not want to imply an active CRM start date yet.
+              </p>
             </div>
 
             {/* Address */}

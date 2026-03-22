@@ -182,6 +182,17 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                 </p>
               </div>
 
+              {/* Starting date (HR) */}
+              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                <div className="flex items-center space-x-2 text-gray-600 mb-1">
+                  <Briefcase className="h-4 w-4" />
+                  <span className="text-sm font-medium">Starting date (employment / role)</span>
+                </div>
+                <p className="text-lg font-semibold text-gray-900">
+                  {user.employment_start_date ? formatDate(user.employment_start_date) : <span className="text-gray-400 italic">Not set</span>}
+                </p>
+              </div>
+
             </div>
 
             {/* Agent Assignment Info & Properties/Leads */}
