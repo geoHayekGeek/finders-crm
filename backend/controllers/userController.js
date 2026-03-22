@@ -315,7 +315,7 @@ const getAllUsers = async (req, res) => {
     }
 
     const currentUserRole = req.user.role;
-    const currentUserId = req.user.id;
+    const currentUserId = Number(req.user.id);
     const normalizedRole = normalizeRole(currentUserRole);
 
     // Get all users from database
@@ -328,8 +328,8 @@ const getAllUsers = async (req, res) => {
 
     if (normalizedRole === 'team leader') {
       const agentIds = await userModel.getTeamLeaderScopedUserIds(currentUserId);
-      const allowed = new Set([currentUserId, ...agentIds]);
-      filteredUsers = allUsers.filter((u) => allowed.has(u.id));
+      const allowed = new Set([currentUserId, ...agentIds.map((id) => Number(id))]);
+      filteredUsers = allUsers.filter((u) => allowed.has(Number(u.id)));
     } else if (!canViewAllUsers) {
       filteredUsers = allUsers.filter((user) => user.id === currentUserId);
     }
@@ -364,9 +364,16 @@ const getAllUsers = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error fetching users', error);
+    const raw = error && error.message ? String(error.message) : '';
+    const isPerm =
+      raw.includes('permission denied') || raw.includes('must be owner');
+    const message = isPerm
+      ? 'Database denied access to a table (often operations_team_agents). Deploy the latest SQL (includes GRANT … TO PUBLIC) and re-run: node run-operations-team-agents-migration.js — or run GRANT SELECT, INSERT, UPDATE, DELETE ON operations_team_agents TO PUBLIC; as a superuser.'
+      : raw || 'Failed to fetch users';
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch users'
+      message,
+      detail: raw || undefined
     });
   }
 };

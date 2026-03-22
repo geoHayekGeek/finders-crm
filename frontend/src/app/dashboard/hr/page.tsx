@@ -307,9 +307,11 @@ export default function HRPage() {
         throw new Error(response.message || 'Failed to load users')
       }
       
-    } catch (error) {
-      setError('Failed to load users data')
-      // Error handled by showError toast
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : 'Failed to load users data'
+      setError(msg)
+      showError(msg)
     } finally {
       setLoading(false)
     }

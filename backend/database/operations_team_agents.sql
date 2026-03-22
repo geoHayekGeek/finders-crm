@@ -22,3 +22,6 @@ ON operations_team_agents (agent_id)
 WHERE is_active = TRUE;
 
 COMMENT ON TABLE operations_team_agents IS 'Agents overseen by an operations manager (HR / reporting; separate from team_agents / sales team)';
+
+-- Allow the application DB role to read/write (fixes "permission denied" if migration ran as a different user than the API)
+GRANT SELECT, INSERT, UPDATE, DELETE ON operations_team_agents TO PUBLIC;
