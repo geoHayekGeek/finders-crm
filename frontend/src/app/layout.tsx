@@ -14,9 +14,9 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'Finders CRM',
-  description: 'Real Estate CRM System',
+  description: 'Real Estate CRM System', 
 }
-
+  
 export default function RootLayout({
   children,
 }: {
