@@ -1261,7 +1261,7 @@ export default function HRPage() {
                                 <p className="text-sm text-gray-600">
                                   {roleEquals(user.role, 'team_leader')
                                     ? 'No agents assigned yet'
-                                    : 'No team members yet — use the button above or Team members in Actions'}
+                                    : 'No team members yet, use the button above or Team members in Actions'}
                                 </p>
                               </div>
                             )}
