@@ -450,6 +450,43 @@ export const usersApi = {
       method: 'DELETE',
     }, token)
   },
+
+  async getOperationsManagerAgents(operationsManagerId: number, token: string): Promise<{ success: boolean; agents: any[] }> {
+    return apiRequest(`/users/operations-managers/${operationsManagerId}/agents`, {
+      method: 'GET',
+    }, token)
+  },
+
+  async getAvailableAgentsForOperationsManager(
+    operationsManagerId: number | 'new',
+    token: string
+  ): Promise<{ success: boolean; data: any[] }> {
+    const id = operationsManagerId === 'new' ? 'new' : operationsManagerId
+    return apiRequest(`/users/operations-managers/${id}/available-agents`, {
+      method: 'GET',
+    }, token)
+  },
+
+  async assignAgentToOperationsManager(
+    operationsManagerId: number,
+    agentId: number,
+    token: string
+  ): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/users/assign-agent-operations-manager`, {
+      method: 'POST',
+      body: JSON.stringify({ operationsManagerId, agentId }),
+    }, token)
+  },
+
+  async removeAgentFromOperationsManager(
+    operationsManagerId: number,
+    agentId: number,
+    token: string
+  ): Promise<{ success: boolean; message: string }> {
+    return apiRequest(`/users/operations-managers/${operationsManagerId}/agents/${agentId}`, {
+      method: 'DELETE',
+    }, token)
+  },
 }
 
 // Properties API

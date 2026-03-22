@@ -304,8 +304,14 @@ describe('Permissions Middleware', () => {
       permissions.canViewAllUsers(req, res, next);
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Access denied. Viewing all users restricted to admin, HR, and operations manager only.'
+        message: 'Access denied. HR directory is restricted to admin, HR, operations manager, and team leaders.'
       });
+    });
+
+    it('should allow team leader to access HR user directory route', () => {
+      req.user = { role: 'team_leader' };
+      permissions.canViewAllUsers(req, res, next);
+      expect(next).toHaveBeenCalled();
     });
 
     it('should deny agent access to view all users', () => {

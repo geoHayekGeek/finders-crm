@@ -22,6 +22,7 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [assignedAgentIds, setAssignedAgentIds] = useState<number[]>([])
+  const [assignedOperationsAgentIds, setAssignedOperationsAgentIds] = useState<number[]>([])
 
   const initialRole = allowedRoles[0] ?? 'agent'
   
@@ -123,6 +124,15 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
             showWarning('User created but some agent assignments failed')
           }
         }
+        if (normalizedRole === 'operations manager' && assignedOperationsAgentIds.length > 0 && response.user) {
+          try {
+            for (const agentId of assignedOperationsAgentIds) {
+              await usersApi.assignAgentToOperationsManager(response.user.id, agentId, token)
+            }
+          } catch (assignError) {
+            showWarning('User created but some operations team assignments failed')
+          }
+        }
         
         showSuccess('User created successfully')
         onSuccess()
@@ -144,8 +154,11 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
       return
     }
     setFormData({ ...formData, role: newRole as CreateUserFormData['role'] })
-    if (newRole !== 'team_leader') {
+    if (normalizeRole(newRole) !== 'team leader') {
       setAssignedAgentIds([])
+    }
+    if (normalizeRole(newRole) !== 'operations manager') {
+      setAssignedOperationsAgentIds([])
     }
   }
 
@@ -264,13 +277,31 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
               </p>
             </div>
 
-            {/* Agent Assignment (only for team leaders) */}
+            {/* Agent Assignment (team leaders — sales team) */}
             {normalizeRole(formData.role) === 'team leader' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <AgentMultiSelect
                   selectedAgentIds={assignedAgentIds}
                   onChange={setAssignedAgentIds}
                   label="Assign Agents to Team Leader"
+                />
+              </div>
+            )}
+
+            {/* Operations manager — team members (HR / reporting; not sales team) */}
+            {normalizeRole(formData.role) === 'operations manager' && (
+              <div className="bg-red-50 p-4 rounded-lg border-2 border-red-300 space-y-2">
+                <div>
+                  <h3 className="text-sm font-semibold text-red-900">Team members</h3>
+                  <p className="text-xs text-red-800/90 mt-1">
+                    Choose <span className="font-medium">Operations</span> role users who are not already on another operations manager team. Separate from sales team (team leader).
+                  </p>
+                </div>
+                <AgentMultiSelect
+                  selectedAgentIds={assignedOperationsAgentIds}
+                  onChange={setAssignedOperationsAgentIds}
+                  label="Who is on this operations team?"
+                  operationsManagerId="new"
                 />
               </div>
             )}

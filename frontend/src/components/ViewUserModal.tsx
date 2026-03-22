@@ -18,10 +18,18 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
   const { token } = useAuth()
   const [agents, setAgents] = useState<User[]>([])
   const [loadingAgents, setLoadingAgents] = useState(false)
+  const [operationsAgents, setOperationsAgents] = useState<User[]>([])
+  const [loadingOperationsAgents, setLoadingOperationsAgents] = useState(false)
 
   useEffect(() => {
     if (normalizeRole(user.role) === 'team leader' && token) {
       loadTeamAgents()
+    }
+  }, [user.id, user.role, token])
+
+  useEffect(() => {
+    if (normalizeRole(user.role) === 'operations manager' && token) {
+      loadOperationsTeamAgents()
     }
   }, [user.id, user.role, token])
 
@@ -40,6 +48,22 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
       setLoadingAgents(false)
     }
   }
+
+  const loadOperationsTeamAgents = async () => {
+    if (!token) return
+    try {
+      setLoadingOperationsAgents(true)
+      const response = await usersApi.getOperationsManagerAgents(user.id, token)
+      if (response.success && response.agents) {
+        setOperationsAgents(response.agents as User[])
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingOperationsAgents(false)
+    }
+  }
+
   const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Not set'
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -331,6 +355,56 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
                 ) : (
                   <div className="text-center py-4">
                     <p className="text-sm text-blue-700">No agents assigned yet</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Operations manager — team members */}
+            {normalizeRole(user.role) === 'operations manager' && (
+              <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-sm font-medium text-red-900 flex items-center space-x-2">
+                    <Users className="h-4 w-4" />
+                    <span>Team members</span>
+                  </h4>
+                  <span className="px-2 py-1 bg-red-600 text-white text-xs font-semibold rounded-full">
+                    {operationsAgents.length}{' '}
+                    {operationsAgents.length === 1 ? 'member' : 'members'}
+                  </span>
+                </div>
+
+                {loadingOperationsAgents ? (
+                  <div className="text-center py-4">
+                    <p className="text-sm text-red-800">Loading team members…</p>
+                  </div>
+                ) : operationsAgents.length > 0 ? (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {operationsAgents.map((agent) => (
+                      <div key={agent.id} className="bg-white p-3 rounded-lg border border-red-200 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                            <UserCircle className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{agent.name}</p>
+                            <p className="text-xs text-gray-600">{agent.email}</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full">
+                          {agent.user_code}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4 space-y-1">
+                    <p className="text-sm text-red-800">No team members yet</p>
+                    {onEdit && (
+                      <p className="text-xs text-red-700/90">
+                        Use <span className="font-medium">Edit user</span> on HR to add team members.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

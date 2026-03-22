@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { X, Save, Eye, EyeOff, AlertCircle } from 'lucide-react'
 import { User, EditUserFormData } from '@/types/user'
 import { usersApi } from '@/utils/api'
@@ -14,9 +14,20 @@ interface EditUserModalProps {
   allowedRoles: EditUserFormData['role'][]
   onClose: () => void
   onSuccess: () => void
+  /** Scroll to the operations team section when opening (e.g. from HR "Manage team") */
+  scrollToTeamOnOpen?: boolean
+  /** Team leader editing an agent: profile fields only (no password, status, role) */
+  teamLeaderRestricted?: boolean
 }
 
-export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUserModalProps) {
+export function EditUserModal({
+  user,
+  allowedRoles,
+  onClose,
+  onSuccess,
+  scrollToTeamOnOpen = false,
+  teamLeaderRestricted = false,
+}: EditUserModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError, showWarning } = useToast()
   
@@ -26,7 +37,11 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
   const [assignedAgentIds, setAssignedAgentIds] = useState<number[]>([])
   const [initialAgentIds, setInitialAgentIds] = useState<number[]>([])
   const [loadingAgents, setLoadingAgents] = useState(false)
-  
+  const [assignedOperationsAgentIds, setAssignedOperationsAgentIds] = useState<number[]>([])
+  const [initialOperationsAgentIds, setInitialOperationsAgentIds] = useState<number[]>([])
+  const [loadingOpsAgents, setLoadingOpsAgents] = useState(false)
+  const operationsTeamSectionRef = useRef<HTMLDivElement>(null)
+
   const formatDateForInput = (dateString?: string | null) => {
     if (!dateString) return ''
     const s = String(dateString)
@@ -78,6 +93,12 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
     }
   }, [user.id, user.role, token])
 
+  useEffect(() => {
+    if (normalizeRole(user.role) === 'operations manager' && token) {
+      loadAssignedOperationsAgents()
+    }
+  }, [user.id, user.role, token])
+
   const loadAssignedAgents = async () => {
     if (!token) return
     
@@ -97,6 +118,23 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
     }
   }
 
+  const loadAssignedOperationsAgents = async () => {
+    if (!token) return
+    try {
+      setLoadingOpsAgents(true)
+      const response = await usersApi.getOperationsManagerAgents(user.id, token)
+      if (response.success && response.agents) {
+        const agentIds = response.agents.map((agent: { id: number }) => agent.id)
+        setAssignedOperationsAgentIds(agentIds)
+        setInitialOperationsAgentIds(agentIds)
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingOpsAgents(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!token) return
     
@@ -112,7 +150,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
     }
     
     // Password validation: min 8 chars, uppercase, lowercase, number, special char
-    if (changePassword && formData.password) {
+    if (!teamLeaderRestricted && changePassword && formData.password) {
       if (formData.password.length < 8) {
         showError('Password must be at least 8 characters long')
         return
@@ -138,23 +176,23 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
     try {
       setSaving(true)
       
-      // Prepare data - only include password if changing it
       const updateData: any = {
         name: formData.name.trim(),
         email: formData.email.trim(),
-        role: formData.role,
         phone: formData.phone?.trim() || null,
         dob: formData.dob || null,
         employment_start_date: formData.employment_start_date?.trim() || null,
         work_location: formData.work_location?.trim() || null,
         address: formData.address?.trim() || null,
-        user_code: formData.user_code,
-        is_active: formData.is_active
       }
-      
-      // Only include password if user wants to change it
-      if (changePassword && formData.password && formData.password.trim()) {
-        updateData.password = formData.password.trim()
+
+      if (!teamLeaderRestricted) {
+        updateData.role = formData.role
+        updateData.user_code = formData.user_code
+        updateData.is_active = formData.is_active
+        if (changePassword && formData.password && formData.password.trim()) {
+          updateData.password = formData.password.trim()
+        }
       }
       
       const response = await usersApi.update(user.id, updateData, token)
@@ -163,23 +201,30 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
         // If team leader, update agent assignments
         if (normalizeRole(formData.role) === 'team leader') {
           try {
-            // Find agents to add (in assignedAgentIds but not in initialAgentIds)
             const agentsToAdd = assignedAgentIds.filter(id => !initialAgentIds.includes(id))
-            
-            // Find agents to remove (in initialAgentIds but not in assignedAgentIds)
             const agentsToRemove = initialAgentIds.filter(id => !assignedAgentIds.includes(id))
-            
-            // Add new agents
             for (const agentId of agentsToAdd) {
               await usersApi.assignAgentToTeamLeader(user.id, agentId, token)
             }
-            
-            // Remove old agents
             for (const agentId of agentsToRemove) {
               await usersApi.removeAgentFromTeamLeader(user.id, agentId, token)
             }
           } catch (assignError) {
             showWarning('User updated but some agent assignments failed')
+          }
+        }
+        if (normalizeRole(formData.role) === 'operations manager') {
+          try {
+            const agentsToAdd = assignedOperationsAgentIds.filter(id => !initialOperationsAgentIds.includes(id))
+            const agentsToRemove = initialOperationsAgentIds.filter(id => !assignedOperationsAgentIds.includes(id))
+            for (const agentId of agentsToAdd) {
+              await usersApi.assignAgentToOperationsManager(user.id, agentId, token)
+            }
+            for (const agentId of agentsToRemove) {
+              await usersApi.removeAgentFromOperationsManager(user.id, agentId, token)
+            }
+          } catch (assignError) {
+            showWarning('User updated but some operations team assignments failed')
           }
         }
         
@@ -203,9 +248,17 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
       return
     }
     setFormData({ ...formData, role: newRole as EditUserFormData['role'] })
-    if (newRole !== 'team_leader') {
+    if (normalizeRole(newRole) !== 'team leader') {
       setAssignedAgentIds([])
       setInitialAgentIds([])
+    } else if (normalizeRole(user.role) === 'team leader') {
+      void loadAssignedAgents()
+    }
+    if (normalizeRole(newRole) !== 'operations manager') {
+      setAssignedOperationsAgentIds([])
+      setInitialOperationsAgentIds([])
+    } else if (normalizeRole(user.role) === 'operations manager') {
+      void loadAssignedOperationsAgents()
     }
   }
 
@@ -217,6 +270,14 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
       }))
     }
   }, [allowedRoles, formData.role])
+
+  useEffect(() => {
+    if (!scrollToTeamOnOpen || normalizeRole(formData.role) !== 'operations manager') return
+    const t = window.setTimeout(() => {
+      operationsTeamSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 150)
+    return () => window.clearTimeout(t)
+  }, [scrollToTeamOnOpen, formData.role, user.id])
 
   const canSubmit = allowedRoles.includes(formData.role)
 
@@ -270,22 +331,28 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Role *
               </label>
-              <select
-                value={formData.role}
-                onChange={(e) => handleRoleChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-                disabled={allowedRoles.length === 0}
-              >
-                {allowedRoles.map(roleOption => (
-                  <option key={roleOption} value={roleOption}>
-                    {roleOption.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}
-                  </option>
-                ))}
-              </select>
+              {teamLeaderRestricted ? (
+                <p className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-800 text-sm">
+                  {formData.role.replace(/_/g, ' ')}
+                </p>
+              ) : (
+                <select
+                  value={formData.role}
+                  onChange={(e) => handleRoleChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                  disabled={allowedRoles.length === 0}
+                >
+                  {allowedRoles.map(roleOption => (
+                    <option key={roleOption} value={roleOption}>
+                      {roleOption.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
 
-            {/* Agent Assignment (only for team leaders) */}
+            {/* Agent Assignment (team leaders — sales team) */}
             {normalizeRole(formData.role) === 'team leader' && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 {loadingAgents ? (
@@ -298,6 +365,33 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
                     onChange={setAssignedAgentIds}
                     label="Assign Agents to Team Leader"
                     teamLeaderId={user.id}
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Operations manager — team members (Operations role only; unassigned elsewhere) */}
+            {normalizeRole(formData.role) === 'operations manager' && (
+              <div
+                ref={operationsTeamSectionRef}
+                className="bg-red-50 p-4 rounded-lg border-2 border-red-300 space-y-2 scroll-mt-8"
+              >
+                <div>
+                  <h3 className="text-sm font-semibold text-red-900">Team members</h3>
+                  <p className="text-xs text-red-800/90 mt-1">
+                    Add <span className="font-medium">Operations</span> role users who are not already on another operations manager&apos;s team. This is separate from sales team assignment (team leader).
+                  </p>
+                </div>
+                {loadingOpsAgents ? (
+                  <div className="text-center py-4 text-gray-600">
+                    Loading team members…
+                  </div>
+                ) : (
+                  <AgentMultiSelect
+                    selectedAgentIds={assignedOperationsAgentIds}
+                    onChange={setAssignedOperationsAgentIds}
+                    label="Who is on this operations team?"
+                    operationsManagerId={user.id}
                   />
                 )}
               </div>
@@ -372,7 +466,8 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
               />
             </div>
 
-            {/* Account Status */}
+            {/* Account Status — not for team leader editing agents */}
+            {!teamLeaderRestricted && (
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
@@ -408,8 +503,10 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
                 </div>
               )}
             </div>
+            )}
 
             {/* Change Password Section */}
+            {!teamLeaderRestricted && (
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-medium text-gray-900">
@@ -466,6 +563,7 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
                 </div>
               )}
             </div>
+            )}
 
             {/* User Code (Read-only) */}
             <div>
@@ -480,6 +578,12 @@ export function EditUserModal({ user, allowedRoles, onClose, onSuccess }: EditUs
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-gray-600"
               />
             </div>
+
+            {teamLeaderRestricted && (
+              <p className="text-xs text-gray-500">
+                Password, account status, and documents for this person are managed by HR or an admin.
+              </p>
+            )}
           </div>
         </div>
 

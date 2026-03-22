@@ -85,6 +85,12 @@ class User {
             FROM team_agents ta 
             WHERE ta.team_leader_id = u.id AND ta.is_active = TRUE
           )
+          WHEN u.role = 'operations manager' THEN (
+            SELECT COUNT(*)::integer 
+            FROM operations_team_agents ota 
+            INNER JOIN users om ON om.id = ota.agent_id AND om.role = 'operations'
+            WHERE ota.operations_manager_id = u.id AND ota.is_active = TRUE
+          )
           ELSE NULL
         END as agent_count,
         (
@@ -329,6 +335,135 @@ class User {
       [teamLeaderId]
     );
     return result.rows;
+  }
+
+  /** Active sales agent on this team leader's roster */
+  static async isAgentOnTeamLeader(teamLeaderId, agentUserId) {
+    const result = await pool.query(
+      `SELECT 1 FROM team_agents ta
+       INNER JOIN users u ON u.id = ta.agent_id AND u.role = 'agent'
+       WHERE ta.team_leader_id = $1 AND ta.agent_id = $2 AND ta.is_active = TRUE`,
+      [teamLeaderId, agentUserId]
+    );
+    return result.rows.length > 0;
+  }
+
+  static async getTeamLeaderScopedUserIds(teamLeaderId) {
+    const result = await pool.query(
+      `SELECT ta.agent_id FROM team_agents ta
+       WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE`,
+      [teamLeaderId]
+    );
+    return result.rows.map((r) => r.agent_id);
+  }
+
+  // Operations manager team (parallel to team leader; does not use users.assigned_to)
+  static async getOperationsManagerAgents(operationsManagerId) {
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.address, ota.assigned_at
+       FROM users u
+       INNER JOIN operations_team_agents ota ON u.id = ota.agent_id
+       WHERE ota.operations_manager_id = $1 AND ota.is_active = TRUE AND u.role = 'operations'
+       ORDER BY ota.assigned_at DESC`,
+      [operationsManagerId]
+    );
+    return result.rows;
+  }
+
+  /** Operations staff (role = operations) not already on another OM's team; current OM's members included for editing */
+  static async getAvailableAgentsForOperationsManager(operationsManagerId = null) {
+    let query;
+    let params;
+    if (operationsManagerId) {
+      query = `
+        SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.is_assigned, u.assigned_to, u.address
+        FROM users u
+        WHERE u.role = 'operations'
+          AND (
+            NOT EXISTS (
+              SELECT 1 FROM operations_team_agents ota
+              WHERE ota.agent_id = u.id AND ota.is_active = TRUE
+            )
+            OR EXISTS (
+              SELECT 1 FROM operations_team_agents ota
+              WHERE ota.agent_id = u.id AND ota.is_active = TRUE
+              AND ota.operations_manager_id = $1
+            )
+          )
+        ORDER BY u.name
+      `;
+      params = [operationsManagerId];
+    } else {
+      query = `
+        SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.is_assigned, u.assigned_to, u.address
+        FROM users u
+        WHERE u.role = 'operations'
+          AND NOT EXISTS (
+            SELECT 1 FROM operations_team_agents ota
+            WHERE ota.agent_id = u.id AND ota.is_active = TRUE
+          )
+        ORDER BY u.name
+      `;
+      params = [];
+    }
+    const result = await pool.query(query, params);
+    return result.rows;
+  }
+
+  static async assignAgentToOperationsManager(operationsManagerId, agentId, assignedBy = null) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const memberCheck = await client.query(`SELECT role FROM users WHERE id = $1`, [agentId]);
+      if (!memberCheck.rows[0] || memberCheck.rows[0].role !== 'operations') {
+        throw new Error('Only users with the Operations role can be added as team members');
+      }
+
+      const other = await client.query(
+        `SELECT operations_manager_id FROM operations_team_agents
+         WHERE agent_id = $1 AND is_active = TRUE`,
+        [agentId]
+      );
+      if (other.rows.length > 0 && other.rows[0].operations_manager_id !== operationsManagerId) {
+        throw new Error(
+          'This user is already on another operations manager team. Remove them from that team first.'
+        );
+      }
+
+      const result = await client.query(
+        `INSERT INTO operations_team_agents (operations_manager_id, agent_id, assigned_by, is_active)
+         VALUES ($1, $2, $3, TRUE)
+         ON CONFLICT (operations_manager_id, agent_id)
+         DO UPDATE SET is_active = TRUE, assigned_by = $3, updated_at = NOW()
+         RETURNING *`,
+        [operationsManagerId, agentId, assignedBy]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error.code === '23505' && error.constraint === 'idx_operations_team_agents_single_active_per_agent') {
+        throw new Error(
+          'This user is already on another operations manager team. Remove them from that team first.'
+        );
+      }
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  static async removeAgentFromOperationsManager(operationsManagerId, agentId) {
+    const result = await pool.query(
+      `UPDATE operations_team_agents
+       SET is_active = FALSE, updated_at = NOW()
+       WHERE operations_manager_id = $1 AND agent_id = $2
+       RETURNING *`,
+      [operationsManagerId, agentId]
+    );
+    return result.rows[0];
   }
 
   /**

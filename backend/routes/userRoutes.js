@@ -6,7 +6,7 @@ const { validationResult } = require('express-validator');
 
 const userController = require('../controllers/userController');
 const { authLimiter, createRateLimiter } = require('../middlewares/rateLimiter');
-const { authenticateToken, canManageUsers, canViewAllUsers } = require('../middlewares/permissions');
+const { authenticateToken, canManageUsers, canViewAllUsers, canAssignTeamAgents } = require('../middlewares/permissions');
 
 // Rate limiter for user management operations (stricter than auth limiter)
 const userManagementLimiter = createRateLimiter(20, 15 * 60 * 1000); // 20 requests per 15 minutes
@@ -42,10 +42,34 @@ router.delete('/:id', authenticateToken, canManageUsers, userManagementLimiter, 
 // Team Leader Routes (all require authentication and permission checks)
 router.get('/team-leaders', authenticateToken, userController.getTeamLeaders);
 router.get('/team-leaders/:teamLeaderId/agents', authenticateToken, userController.getTeamLeaderAgents);
+router.get(
+  '/operations-managers/:operationsManagerId/agents',
+  authenticateToken,
+  userController.getOperationsManagerAgents
+);
+router.get(
+  '/operations-managers/:operationsManagerId/available-agents',
+  authenticateToken,
+  userController.getAvailableAgentsForOperationsManagerRoute
+);
 router.get('/agents/:agentId/team-leader', authenticateToken, userController.getAgentTeamLeader);
 router.get('/available-agents', authenticateToken, userController.getAvailableAgents);
 router.post('/assign-agent', authenticateToken, canManageUsers, userManagementLimiter, userController.assignAgentToTeamLeader);
-router.delete('/team-leaders/:teamLeaderId/agents/:agentId', authenticateToken, canManageUsers, userManagementLimiter, userController.removeAgentFromTeamLeader);
+router.post(
+  '/assign-agent-operations-manager',
+  authenticateToken,
+  canManageUsers,
+  userManagementLimiter,
+  userController.assignAgentToOperationsManager
+);
+router.delete('/team-leaders/:teamLeaderId/agents/:agentId', authenticateToken, canAssignTeamAgents, userManagementLimiter, userController.removeAgentFromTeamLeader);
+router.delete(
+  '/operations-managers/:operationsManagerId/agents/:agentId',
+  authenticateToken,
+  canManageUsers,
+  userManagementLimiter,
+  userController.removeAgentFromOperationsManager
+);
 router.post('/transfer-agent', authenticateToken, canManageUsers, userManagementLimiter, userController.transferAgent);
 
 module.exports = router;

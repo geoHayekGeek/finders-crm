@@ -323,13 +323,15 @@ const getAllUsers = async (req, res) => {
     logger.debug('Fetched users from database', { count: allUsers.length });
 
     // Filter users based on role
-    // Only admin, HR, and operations manager can see all users (aligned with permissions middleware)
     let filteredUsers = allUsers;
     const canViewAllUsers = ['admin', 'hr', 'operations manager'].includes(normalizedRole);
-    
-    if (!canViewAllUsers) {
-      // Other users can only see themselves
-      filteredUsers = allUsers.filter(user => user.id === currentUserId);
+
+    if (normalizedRole === 'team leader') {
+      const agentIds = await userModel.getTeamLeaderScopedUserIds(currentUserId);
+      const allowed = new Set([currentUserId, ...agentIds]);
+      filteredUsers = allUsers.filter((u) => allowed.has(u.id));
+    } else if (!canViewAllUsers) {
+      filteredUsers = allUsers.filter((user) => user.id === currentUserId);
     }
 
     res.json({
@@ -433,21 +435,54 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Permission check: Only admin, HR, and operations manager can update other users
-    // Users can only update themselves (read-only fields only)
+    // Permission check: admin/HR/OM can update others; team leaders can update their team agents (limited fields)
+    let isTeamLeaderEditingAgent = false;
     if (parseInt(id) !== currentUserId) {
       const normalizedRole = normalizeRole(currentUserRole);
-      if (normalizedRole !== 'admin' && normalizedRole !== 'hr' && normalizedRole !== 'operations manager') {
+      const canManageAllOthers =
+        normalizedRole === 'admin' || normalizedRole === 'hr' || normalizedRole === 'operations manager';
+      if (!canManageAllOthers && normalizedRole === 'team leader') {
+        isTeamLeaderEditingAgent = await userModel.isAgentOnTeamLeader(currentUserId, parseInt(id));
+      }
+      if (!canManageAllOthers && !isTeamLeaderEditingAgent) {
         logger.security('User update access denied', {
           userId: req.user.id,
           role: req.user.role,
           targetUserId: id,
           ip: clientIP
         });
-        return res.status(403).json({ 
+        return res.status(403).json({
           success: false,
-          message: 'Access denied. Only admin, HR, and operations manager can update other users.' 
+          message:
+            'Access denied. Only admin, HR, operations manager, or the team leader (for their team) can update other users.'
         });
+      }
+
+      if (isTeamLeaderEditingAgent) {
+        if (password && password.trim() !== '') {
+          return res.status(403).json({
+            success: false,
+            message: 'Team leaders cannot change passwords for team members. Ask HR or an admin.'
+          });
+        }
+        if (role !== undefined && role !== existingUser.role) {
+          return res.status(403).json({
+            success: false,
+            message: 'Team leaders cannot change a team member\'s role.'
+          });
+        }
+        if (is_active !== undefined && is_active !== existingUser.is_active) {
+          return res.status(403).json({
+            success: false,
+            message: 'Team leaders cannot enable or disable a team member\'s account.'
+          });
+        }
+        if (user_code !== undefined && user_code !== existingUser.user_code) {
+          return res.status(403).json({
+            success: false,
+            message: 'Team leaders cannot change a team member\'s user code.'
+          });
+        }
       }
     } else {
       // Users updating themselves can only update certain fields (not role, is_active, etc.)
@@ -520,8 +555,14 @@ const updateUser = async (req, res) => {
         employment_start_date && String(employment_start_date).trim() !== '' ? employment_start_date : null;
     }
 
+    if (isTeamLeaderEditingAgent) {
+      delete updateData.role;
+      delete updateData.is_active;
+      delete updateData.user_code;
+    }
+
     // If password is provided, hash it and include in update
-    if (password && password.trim() !== '') {
+    if (password && password.trim() !== '' && !isTeamLeaderEditingAgent) {
       const SALT_ROUNDS = 12;
       const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
       updateData.password = hashedPassword;
@@ -852,6 +893,157 @@ const getTeamLeaderAgents = async (req, res) => {
   }
 };
 
+const getOperationsManagerAgents = async (req, res) => {
+  try {
+    const { operationsManagerId } = req.params;
+
+    if (!operationsManagerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Operations manager ID is required'
+      });
+    }
+
+    const agents = await userModel.getOperationsManagerAgents(operationsManagerId);
+    res.json({
+      success: true,
+      agents: agents.map((agent) => ({
+        id: agent.id,
+        name: agent.name,
+        email: agent.email,
+        role: agent.role,
+        phone: agent.phone,
+        user_code: agent.user_code,
+        address: agent.address,
+        assigned_at: agent.assigned_at
+      }))
+    });
+  } catch (error) {
+    logger.error('Error fetching operations manager agents', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch operations manager agents'
+    });
+  }
+};
+
+const getAvailableAgentsForOperationsManagerRoute = async (req, res) => {
+  try {
+    const { operationsManagerId } = req.params;
+    const omId =
+      operationsManagerId === 'new' || operationsManagerId === 'undefined'
+        ? null
+        : parseInt(operationsManagerId, 10);
+    if (omId !== null && Number.isNaN(omId)) {
+      return res.status(400).json({ success: false, message: 'Invalid operations manager ID' });
+    }
+
+    const agents = await userModel.getAvailableAgentsForOperationsManager(omId);
+    res.json({
+      success: true,
+      data: agents
+    });
+  } catch (error) {
+    logger.error('Error fetching available agents for operations manager', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch available agents'
+    });
+  }
+};
+
+const assignAgentToOperationsManager = async (req, res) => {
+  try {
+    const { operationsManagerId, agentId } = req.body;
+    const assignedBy = req.user?.id;
+    const clientIP = req.ip || req.headers?.['x-forwarded-for'] || req.connection?.remoteAddress || 'unknown';
+
+    if (!operationsManagerId || !agentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Operations manager ID and agent ID are required'
+      });
+    }
+
+    const om = await userModel.findById(operationsManagerId);
+    if (!om || normalizeRole(om.role) !== 'operations manager') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid operations manager'
+      });
+    }
+
+    const agent = await userModel.findById(agentId);
+    if (!agent || normalizeRole(agent.role) !== 'operations') {
+      return res.status(400).json({
+        success: false,
+        message: 'Only Operations (role) users who are not on another team can be assigned as team members'
+      });
+    }
+
+    const assignment = await userModel.assignAgentToOperationsManager(operationsManagerId, agentId, assignedBy);
+
+    logger.security('Operations team member assigned', {
+      operationsManagerId,
+      agentId,
+      assignedBy: req.user?.id,
+      ip: clientIP
+    });
+
+    res.json({
+      success: true,
+      message: 'Agent assigned to operations manager successfully',
+      assignment: {
+        id: assignment.id,
+        operations_manager_id: assignment.operations_manager_id,
+        agent_id: assignment.agent_id,
+        assigned_at: assignment.assigned_at,
+        is_active: assignment.is_active
+      }
+    });
+  } catch (error) {
+    logger.error('Error assigning agent to operations manager', error);
+    const status = error.message && error.message.includes('already assigned') ? 400 : 500;
+    res.status(status).json({
+      success: false,
+      message: error.message || 'Failed to assign agent to operations manager'
+    });
+  }
+};
+
+const removeAgentFromOperationsManager = async (req, res) => {
+  try {
+    const { operationsManagerId, agentId } = req.params;
+
+    if (!operationsManagerId || !agentId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Operations manager ID and agent ID are required'
+      });
+    }
+
+    const result = await userModel.removeAgentFromOperationsManager(operationsManagerId, agentId);
+
+    if (!result) {
+      return res.status(404).json({
+        success: false,
+        message: 'Assignment not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Agent removed from operations manager team successfully'
+    });
+  } catch (error) {
+    logger.error('Error removing agent from operations manager', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to remove agent from operations manager team'
+    });
+  }
+};
+
 const getAgentTeamLeader = async (req, res) => {
   try {
     const { agentId } = req.params;
@@ -943,6 +1135,14 @@ const assignAgentToTeamLeader = async (req, res) => {
       });
     }
 
+    const requesterRole = normalizeRole(req.user?.role);
+    if (requesterRole === 'team leader' && req.user.id !== parseInt(teamLeaderId, 10)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only manage agents on your own team'
+      });
+    }
+
     // Verify agent exists and has correct role
     const agent = await userModel.findById(agentId);
     if (!agent || agent.role !== 'agent') {
@@ -991,6 +1191,14 @@ const removeAgentFromTeamLeader = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Team leader ID and agent ID are required'
+      });
+    }
+
+    const requesterRole = normalizeRole(req.user?.role);
+    if (requesterRole === 'team leader' && req.user.id !== parseInt(teamLeaderId, 10)) {
+      return res.status(403).json({
+        success: false,
+        message: 'You can only remove agents from your own team'
       });
     }
 
@@ -1100,5 +1308,9 @@ module.exports = {
   getAvailableAgents,
   assignAgentToTeamLeader,
   removeAgentFromTeamLeader,
-  transferAgent
+  transferAgent,
+  getOperationsManagerAgents,
+  getAvailableAgentsForOperationsManagerRoute,
+  assignAgentToOperationsManager,
+  removeAgentFromOperationsManager
 };

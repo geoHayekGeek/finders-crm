@@ -19,7 +19,10 @@ interface AgentMultiSelectProps {
   onChange: (agentIds: number[]) => void
   label?: string
   className?: string
-  teamLeaderId?: number // Optional: Filter to show only available agents for this team leader
+  /** Sales team leader: available agents for assignment */
+  teamLeaderId?: number
+  /** Operations manager: parallel team (use "new" when creating a user before an id exists) */
+  operationsManagerId?: number | 'new'
 }
 
 export function AgentMultiSelect({ 
@@ -27,7 +30,8 @@ export function AgentMultiSelect({
   onChange, 
   label = "Assigned Agents",
   className = "",
-  teamLeaderId
+  teamLeaderId,
+  operationsManagerId
 }: AgentMultiSelectProps) {
   const { token } = useAuth()
   const [agents, setAgents] = useState<Agent[]>([])
@@ -36,12 +40,16 @@ export function AgentMultiSelect({
   const [showDropdown, setShowDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  const isOperationsScope = operationsManagerId !== undefined
+  const noun = isOperationsScope ? 'member' : 'agent'
+  const nounPlural = isOperationsScope ? 'members' : 'agents'
+
   // Load agents
   useEffect(() => {
     if (token) {
       loadAgents()
     }
-  }, [token, teamLeaderId])
+  }, [token, teamLeaderId, operationsManagerId])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -64,17 +72,15 @@ export function AgentMultiSelect({
     
     try {
       setLoading(true)
-      console.log('🔍 Loading agents with token...', teamLeaderId ? `for team leader ${teamLeaderId}` : 'for new team leader')
-      const response = await usersApi.getByRole('agent', token, teamLeaderId, true) // forAssignment=true
-      console.log('👥 Agents response:', response)
-      
-      if (response.success && response.data) {
-        setAgents(response.data)
-        console.log('✅ Loaded agents:', response.data.length)
-        if (teamLeaderId) {
-          console.log('✅ Filtered for team leader:', teamLeaderId, '- showing unassigned agents + agents assigned to this team leader')
-        } else {
-          console.log('✅ Showing only unassigned agents (new team leader)')
+      if (isOperationsScope) {
+        const response = await usersApi.getAvailableAgentsForOperationsManager(operationsManagerId!, token)
+        if (response.success && response.data) {
+          setAgents(response.data)
+        }
+      } else {
+        const response = await usersApi.getByRole('agent', token, teamLeaderId, true)
+        if (response.success && response.data) {
+          setAgents(response.data)
         }
       }
     } catch (error) {
@@ -85,9 +91,11 @@ export function AgentMultiSelect({
   }
 
   const filteredAgents = agents.filter(agent => {
-    const isSelectable = !agent.is_assigned || selectedAgentIds.includes(agent.id)
-    if (!isSelectable) {
-      return false
+    if (!isOperationsScope) {
+      const isSelectable = !agent.is_assigned || selectedAgentIds.includes(agent.id)
+      if (!isSelectable) {
+        return false
+      }
     }
     const search = searchTerm.toLowerCase()
     return (
@@ -149,16 +157,28 @@ export function AgentMultiSelect({
           {selectedAgents.map(agent => (
             <div
               key={agent.id}
-              className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded-lg"
+              className={`flex items-center gap-2 p-2 rounded-lg border ${
+                isOperationsScope
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-blue-50 border-blue-200'
+              }`}
             >
               <div className="flex items-center gap-2 flex-1">
-                <Users className="h-4 w-4 text-blue-600" />
+                <Users className={`h-4 w-4 ${isOperationsScope ? 'text-red-700' : 'text-blue-600'}`} />
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium text-blue-800">
+                  <span
+                    className={`text-sm font-medium ${
+                      isOperationsScope ? 'text-red-900' : 'text-blue-800'
+                    }`}
+                  >
                     {agent.name}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-blue-600">{agent.email}</span>
+                    <span
+                      className={`text-xs ${isOperationsScope ? 'text-red-700' : 'text-blue-600'}`}
+                    >
+                      {agent.email}
+                    </span>
                     {agent.role && (
                       <span className={`text-xs px-2 py-0.5 rounded-full ${getRoleColor(agent.role)}`}>
                         {agent.role.replace('_', ' ')}
@@ -170,8 +190,12 @@ export function AgentMultiSelect({
               <button
                 type="button"
                 onClick={() => removeAgent(agent.id)}
-                className="p-1 text-blue-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                title="Remove agent"
+                className={`p-1 rounded transition-colors ${
+                  isOperationsScope
+                    ? 'text-red-700 hover:text-red-900 hover:bg-red-100'
+                    : 'text-blue-600 hover:text-red-600 hover:bg-red-50'
+                }`}
+                title={`Remove ${noun}`}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -193,8 +217,10 @@ export function AgentMultiSelect({
               <span className="text-gray-600">
                 {loading ? 'Loading...' : (
                   selectedAgents.length > 0
-                    ? `${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} selected`
-                    : 'Select agents...'
+                    ? `${selectedAgents.length} ${selectedAgents.length !== 1 ? nounPlural : noun} selected`
+                    : isOperationsScope
+                      ? 'Add team members…'
+                      : 'Select agents…'
                 )}
               </span>
               <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${showDropdown ? 'rotate-180' : ''}`} />
@@ -206,7 +232,7 @@ export function AgentMultiSelect({
             onClick={loadAgents}
             disabled={loading}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
-            title="Refresh agents"
+            title={isOperationsScope ? 'Refresh list' : 'Refresh agents'}
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -219,7 +245,7 @@ export function AgentMultiSelect({
             <div className="p-3 border-b border-gray-200">
               <input
                 type="text"
-                placeholder="Search agents..."
+                placeholder={isOperationsScope ? 'Search team members…' : 'Search agents…'}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
@@ -231,17 +257,21 @@ export function AgentMultiSelect({
               {loading ? (
                 <div className="p-4 text-center text-gray-500">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                  Loading agents...
+                  {isOperationsScope ? 'Loading team members…' : 'Loading agents…'}
                 </div>
               ) : filteredAgents.length === 0 ? (
                 <div className="p-4 text-center text-gray-500 text-sm">
-                  {searchTerm ? 'No agents found matching your search' : 'No agents available'}
+                  {searchTerm
+                    ? `No ${nounPlural} found matching your search`
+                    : isOperationsScope
+                      ? 'No unassigned Operations users — create an Operations account first, or remove them from another manager team'
+                      : 'No agents available'}
                 </div>
               ) : (
                 <div>
                   {filteredAgents.map(agent => {
                     const isSelected = selectedAgentIds.includes(agent.id)
-                    const disabled = agent.is_assigned && !isSelected
+                    const disabled = !isOperationsScope && agent.is_assigned && !isSelected
                     return (
                       <button
                         key={agent.id}
@@ -256,7 +286,7 @@ export function AgentMultiSelect({
                           <div className="flex-1">
                             <div className="font-medium text-gray-900 text-sm">{agent.name}</div>
                             <div className="text-xs text-gray-600">{agent.email}</div>
-                            {agent.is_assigned && !isSelected && (
+                            {!isOperationsScope && agent.is_assigned && !isSelected && (
                               <div className="text-xs text-red-600 mt-1">Already assigned to another team</div>
                             )}
                           </div>
@@ -289,9 +319,13 @@ export function AgentMultiSelect({
 
       {/* Help Text */}
       <p className="text-xs text-gray-500 mt-2">
-        {selectedAgents.length === 0
-          ? 'Select agents to assign to this team leader'
-          : `${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} will be assigned to this team leader`}
+        {isOperationsScope
+          ? selectedAgents.length === 0
+            ? 'Only users with the Operations role appear here. They must not already be on another operations manager team.'
+            : `${selectedAgents.length} team member${selectedAgents.length !== 1 ? 's' : ''} will be linked to this operations manager when you save.`
+          : selectedAgents.length === 0
+            ? 'Select agents to assign to this team leader'
+            : `${selectedAgents.length} agent${selectedAgents.length !== 1 ? 's' : ''} will be assigned to this team leader`}
       </p>
     </div>
   )

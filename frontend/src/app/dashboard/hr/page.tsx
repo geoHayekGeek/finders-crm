@@ -68,62 +68,74 @@ export default function HRPage() {
   const currentUserId = user?.id
   const normalizedCurrentUserRole = normalizeRoleKey(currentUserRole)
 
+  const isFullHrAccess =
+    normalizedCurrentUserRole === 'admin' ||
+    normalizedCurrentUserRole === 'hr' ||
+    normalizedCurrentUserRole === 'operations manager'
+
   const allowedCreateRoles = useMemo<User['role'][]>(() => {
     // Only admin, HR, and operations manager can create users
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
+    if (isFullHrAccess) {
       return ALL_USER_ROLES
     }
     return []
-  }, [normalizedCurrentUserRole])
+  }, [isFullHrAccess])
 
   const filterUsersForCurrentUser = (usersList: User[]): User[] => {
     if (!user || !currentUserRole) return []
     return usersList.filter(candidate => {
-      // Users can always see themselves
       if (candidate.id === currentUserId) {
         return true
       }
-      // Only admin, HR, and operations manager can see all users (aligned with backend)
-      if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
+      if (isFullHrAccess) {
         return true
       }
-      // All other users can only see themselves (already handled above)
+      // Team leader: backend returns only self + team agents
+      if (normalizedCurrentUserRole === 'team leader') {
+        return true
+      }
       return false
     })
   }
 
   const canManageUser = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
-    // Users cannot manage themselves (read-only for their own profile)
-    // Only admin, HR, and operations manager can manage users
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
+    if (isFullHrAccess) {
       return true
+    }
+    // Team leader: edit self (incl. team roster) or team agents — not other roles
+    if (normalizedCurrentUserRole === 'team leader') {
+      if (targetUser.id === currentUserId) return true
+      return roleEquals(targetUser.role, 'agent')
     }
     return false
   }
 
   const canViewUserDetails = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
-    // Users can always view their own details
     if (targetUser.id === currentUserId) return true
-    // Only admin, HR, and operations manager can view other users' details
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
+    if (isFullHrAccess) {
       return true
+    }
+    if (normalizedCurrentUserRole === 'team leader') {
+      return roleEquals(targetUser.role, 'agent')
     }
     return false
   }
 
   const canDeleteUser = (targetUser: User): boolean => {
     if (targetUser.id === currentUserId) return false
+    if (normalizedCurrentUserRole === 'team leader') return false
     return canManageUser(targetUser)
   }
 
   const canManageDocuments = (targetUser: User): boolean => {
     if (!user || !currentUserRole) return false
-    // Users can manage their own documents
     if (targetUser.id === currentUserId) return true
-    // Only admin, HR, and operations manager can manage other users' documents
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
+    if (normalizedCurrentUserRole === 'team leader') {
+      return false
+    }
+    if (isFullHrAccess) {
       return true
     }
     return false
@@ -131,11 +143,17 @@ export default function HRPage() {
 
   const getEditableRolesForUser = (targetUser: User): User['role'][] => {
     if (!currentUserRole) return []
-    // Only admin, HR, and operations manager can edit users and change their roles
-    if (normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager') {
+    if (isFullHrAccess) {
       return ALL_USER_ROLES
     }
-    // Other users cannot edit other users
+    if (normalizedCurrentUserRole === 'team leader') {
+      if (targetUser.id === currentUserId) {
+        return ['team_leader']
+      }
+      if (roleEquals(targetUser.role, 'agent')) {
+        return ['agent']
+      }
+    }
     return []
   }
 
@@ -147,7 +165,8 @@ export default function HRPage() {
   
   // View and display state
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
-  const [expandedTeamLeaders, setExpandedTeamLeaders] = useState<Set<number>>(new Set())
+  /** Team leaders and operations managers: expanded rows showing assigned agents */
+  const [expandedManagerTeams, setExpandedManagerTeams] = useState<Set<number>>(new Set())
   
   // Filters state
   const [filters, setFilters] = useState<UserFiltersType>({})
@@ -155,6 +174,7 @@ export default function HRPage() {
   // Modal state
   const [showAddModal, setShowAddModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [editScrollToOperationsTeam, setEditScrollToOperationsTeam] = useState(false)
   const [showViewModal, setShowViewModal] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showDocumentsModal, setShowDocumentsModal] = useState(false)
@@ -232,26 +252,53 @@ export default function HRPage() {
         // Calculate stats
         calculateStats(usersWithActions)
         
-        // Initialize expandedTeamLeaders with all team leaders (expanded by default)
-        const teamLeaderIds = usersWithActions
-          .filter((u: User) => roleEquals(u.role, 'team_leader'))
+        // Expand team leaders and operations managers by default (same UX)
+        const managerTeamIds = usersWithActions
+          .filter(
+            (u: User) =>
+              roleEquals(u.role, 'team_leader') || roleEquals(u.role, 'operations manager')
+          )
           .map((u: User) => u.id)
-        setExpandedTeamLeaders(new Set(teamLeaderIds))
-        
-        // Load agents for all team leaders (since they start expanded)
-        if (teamLeaderIds.length > 0 && token) {
-          for (const teamLeaderId of teamLeaderIds) {
+        setExpandedManagerTeams(new Set(managerTeamIds))
+
+        if (managerTeamIds.length > 0 && token) {
+          for (const managerId of managerTeamIds) {
+            const row = usersWithActions.find((u: User) => u.id === managerId)
+            if (!row) continue
             try {
-              const agentsResponse = await usersApi.getTeamLeaderAgents(teamLeaderId, token)
-              if (agentsResponse.success && agentsResponse.agents) {
-                setUsers(prevUsers => prevUsers.map(u => 
-                  u.id === teamLeaderId 
-                    ? { ...u, agents: agentsResponse.agents, agent_count: agentsResponse.agents.length }
-                    : u
-                ))
+              if (roleEquals(row.role, 'team_leader')) {
+                const agentsResponse = await usersApi.getTeamLeaderAgents(managerId, token)
+                if (agentsResponse.success && agentsResponse.agents) {
+                  setUsers(prevUsers =>
+                    prevUsers.map(u =>
+                      u.id === managerId
+                        ? {
+                            ...u,
+                            agents: agentsResponse.agents,
+                            agent_count: agentsResponse.agents.length,
+                          }
+                        : u
+                    )
+                  )
+                }
+              } else if (roleEquals(row.role, 'operations manager')) {
+                const agentsResponse = await usersApi.getOperationsManagerAgents(managerId, token)
+                if (agentsResponse.success && agentsResponse.agents) {
+                  setUsers(prevUsers =>
+                    prevUsers.map(u =>
+                      u.id === managerId
+                        ? {
+                            ...u,
+                            agents: agentsResponse.agents,
+                            agent_count: agentsResponse.agents.length,
+                          }
+                        : u
+                    )
+                  )
+                }
               }
-            } catch (error) {
-              // Silently fail - non-critical
+            } catch {
+              // non-critical
             }
           }
         }
@@ -334,34 +381,46 @@ export default function HRPage() {
     return filteredUsers.slice(startIndex, endIndex)
   }, [filteredUsers, currentPage, itemsPerPage])
 
-  // Toggle team leader expansion
-  const toggleTeamLeaderExpansion = async (teamLeaderId: number) => {
-    const newExpanded = new Set(expandedTeamLeaders)
-    
-    if (newExpanded.has(teamLeaderId)) {
-      newExpanded.delete(teamLeaderId)
+  const toggleManagerTeamExpansion = async (managerId: number) => {
+    const newExpanded = new Set(expandedManagerTeams)
+
+    if (newExpanded.has(managerId)) {
+      newExpanded.delete(managerId)
     } else {
-      newExpanded.add(teamLeaderId)
-      // Load agents for this team leader if not already loaded OR force refresh if undefined
-      const teamLeader = users.find(u => u.id === teamLeaderId)
-      if (teamLeader && token) {
+      newExpanded.add(managerId)
+      const row = users.find(u => u.id === managerId)
+      if (row && token) {
         try {
-          console.log('🔍 Loading agents for team leader:', teamLeaderId)
-          const response = await usersApi.getTeamLeaderAgents(teamLeaderId, token)
-          if (response.success && response.agents) {
-            setUsers(prevUsers => prevUsers.map(u => 
-              u.id === teamLeaderId 
-                ? { ...u, agents: response.agents, agent_count: response.agents.length }
-                : u
-            ))
+          if (roleEquals(row.role, 'team_leader')) {
+            const response = await usersApi.getTeamLeaderAgents(managerId, token)
+            if (response.success && response.agents) {
+              setUsers(prevUsers =>
+                prevUsers.map(u =>
+                  u.id === managerId
+                    ? { ...u, agents: response.agents, agent_count: response.agents.length }
+                    : u
+                )
+              )
+            }
+          } else if (roleEquals(row.role, 'operations manager')) {
+            const response = await usersApi.getOperationsManagerAgents(managerId, token)
+            if (response.success && response.agents) {
+              setUsers(prevUsers =>
+                prevUsers.map(u =>
+                  u.id === managerId
+                    ? { ...u, agents: response.agents, agent_count: response.agents.length }
+                    : u
+                )
+              )
+            }
           }
-        } catch (error) {
+        } catch {
           showError('Failed to load team agents')
         }
       }
     }
-    
-    setExpandedTeamLeaders(newExpanded)
+
+    setExpandedManagerTeams(newExpanded)
   }
 
   // Action handlers
@@ -379,6 +438,18 @@ export default function HRPage() {
       showWarning('You do not have permission to edit this user')
       return
     }
+    setEditScrollToOperationsTeam(false)
+    setSelectedUser(user)
+    setShowEditModal(true)
+  }
+
+  const handleEditOperationsTeamMembers = (user: User) => {
+    if (!canManageUser(user)) {
+      showWarning('You do not have permission to edit this user')
+      return
+    }
+    if (!roleEquals(user.role, 'operations manager')) return
+    setEditScrollToOperationsTeam(true)
     setSelectedUser(user)
     setShowEditModal(true)
   }
@@ -402,6 +473,7 @@ export default function HRPage() {
   }
 
   const handleViewModalEdit = () => {
+    setEditScrollToOperationsTeam(false)
     setShowViewModal(false)
     setShowEditModal(true)
   }
@@ -553,16 +625,26 @@ export default function HRPage() {
       cell: ({ row }: any) => {
         const user = row.original
         const isTeamLeader = roleEquals(user.role, 'team_leader')
-        const isExpanded = expandedTeamLeaders.has(user.id)
+        const isOperationsManager = roleEquals(user.role, 'operations manager')
+        const isExpandable = isTeamLeader || isOperationsManager
+        const isExpanded = expandedManagerTeams.has(user.id)
         const agentCount = user.agent_count || 0
-        
+
         return (
           <div className="flex items-center space-x-2">
-            {isTeamLeader && (
+            {isExpandable && (
               <button
-                onClick={() => toggleTeamLeaderExpansion(user.id)}
+                onClick={() => toggleManagerTeamExpansion(user.id)}
                 className="p-1 hover:bg-gray-100 rounded transition-colors"
-                title={isExpanded ? 'Collapse agents' : 'Expand agents'}
+                title={
+                  isExpanded
+                    ? isOperationsManager
+                      ? 'Collapse team members'
+                      : 'Collapse team agents'
+                    : isOperationsManager
+                      ? 'Expand team members'
+                      : 'Expand team agents'
+                }
               >
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 text-gray-600" />
@@ -583,6 +665,11 @@ export default function HRPage() {
                   {isTeamLeader && agentCount > 0 && (
                     <span className="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-semibold rounded-full">
                       {agentCount} {agentCount === 1 ? 'agent' : 'agents'}
+                    </span>
+                  )}
+                  {isOperationsManager && agentCount > 0 && (
+                    <span className="px-2 py-0.5 bg-red-100 text-red-800 text-xs font-semibold rounded-full">
+                      {agentCount} {agentCount === 1 ? 'member' : 'members'}
                     </span>
                   )}
                 </div>
@@ -858,9 +945,11 @@ export default function HRPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Human Resources</h1>
           <p className="text-gray-600 mt-1">
-            {normalizedCurrentUserRole === 'admin' || normalizedCurrentUserRole === 'hr' || normalizedCurrentUserRole === 'operations manager'
+            {isFullHrAccess
               ? `Manage all system users (${filteredUsers.length} users)`
-              : `View your profile (${filteredUsers.length} user)`}
+              : normalizedCurrentUserRole === 'team leader'
+                ? `You and your sales team (${filteredUsers.length} users)`
+                : `View your profile (${filteredUsers.length} user)`}
           </p>
         </div>
         
@@ -880,8 +969,8 @@ export default function HRPage() {
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      {stats && (
+      {/* Statistics Cards — full HR only */}
+      {stats && isFullHrAccess && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center">
@@ -1017,39 +1106,40 @@ export default function HRPage() {
           </button>
         </div>
         
-        <div className="flex items-center space-x-3">
-          {/* Export Dropdown */}
-          <div className="relative export-dropdown">
-            <button
-              onClick={() => setShowExportDropdown(!showExportDropdown)}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600"
-            >
-              <Download className="h-4 w-4" />
-              <ChevronDown className="h-4 w-4" />
-            </button>
-            
-            {showExportDropdown && (
-              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                <div className="py-1">
-                  <button
-                    onClick={exportToCSV}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
-                  >
-                    <FileText className="h-4 w-4" />
-                    <span>Export as CSV</span>
-                  </button>
-                  <button
-                    onClick={exportToExcel}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
-                  >
-                    <FileSpreadsheet className="h-4 w-4" />
-                    <span>Export as Excel</span>
-                  </button>
+        {isFullHrAccess && (
+          <div className="flex items-center space-x-3">
+            <div className="relative export-dropdown">
+              <button
+                onClick={() => setShowExportDropdown(!showExportDropdown)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-2 text-gray-600"
+              >
+                <Download className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4" />
+              </button>
+
+              {showExportDropdown && (
+                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                  <div className="py-1">
+                    <button
+                      onClick={exportToCSV}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Export as CSV</span>
+                    </button>
+                    <button
+                      onClick={exportToExcel}
+                      className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center space-x-2 text-gray-700"
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      <span>Export as Excel</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Table View */}
@@ -1086,21 +1176,69 @@ export default function HRPage() {
                         </td>
                       ))}
                     </tr>
-                    {/* Expanded agents row */}
-                    {roleEquals(user.role, 'team_leader') && expandedTeamLeaders.has(user.id) && (
-                      <tr className="bg-blue-50">
+                    {/* Expanded agents row — team leaders (sales) and operations managers */}
+                    {roleIn(user.role, ['team_leader', 'operations manager']) &&
+                      expandedManagerTeams.has(user.id) && (
+                      <tr
+                        className={
+                          roleEquals(user.role, 'team_leader') ? 'bg-blue-50' : 'bg-red-50'
+                        }
+                      >
                         <td colSpan={columns.length} className="px-6 py-4">
                           <div className="space-y-2">
-                            <h4 className="text-sm font-semibold text-blue-900 flex items-center space-x-2">
-                              <Users className="h-4 w-4" />
-                              <span>Team Agents ({user.agents?.length || 0})</span>
-                            </h4>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <h4
+                                className={`text-sm font-semibold flex items-center space-x-2 ${
+                                  roleEquals(user.role, 'team_leader')
+                                    ? 'text-blue-900'
+                                    : 'text-red-900'
+                                }`}
+                              >
+                                <Users className="h-4 w-4" />
+                                <span>
+                                  {roleEquals(user.role, 'team_leader')
+                                    ? 'Team agents'
+                                    : 'Team members'}{' '}
+                                  ({user.agents?.length || 0})
+                                </span>
+                              </h4>
+                              {roleEquals(user.role, 'operations manager') &&
+                                canManageUser(user) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleEditOperationsTeamMembers(user)
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 rounded-lg shadow-sm"
+                                  >
+                                    Add / remove team members
+                                  </button>
+                                )}
+                            </div>
                             {!user.agents ? (
-                              <p className="text-sm text-blue-700">Loading agents...</p>
+                              <p
+                                className={`text-sm ${
+                                  roleEquals(user.role, 'team_leader')
+                                    ? 'text-blue-700'
+                                    : 'text-red-800'
+                                }`}
+                              >
+                                {roleEquals(user.role, 'team_leader')
+                                  ? 'Loading agents…'
+                                  : 'Loading team members…'}
+                              </p>
                             ) : user.agents.length > 0 ? (
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {user.agents.map((agent) => (
-                                  <div key={agent.id} className="bg-white p-3 rounded-lg border border-blue-200 flex items-center justify-between">
+                                  <div
+                                    key={agent.id}
+                                    className={`bg-white p-3 rounded-lg border flex items-center justify-between ${
+                                      roleEquals(user.role, 'team_leader')
+                                        ? 'border-blue-200'
+                                        : 'border-red-200'
+                                    }`}
+                                  >
                                     <div className="flex items-center space-x-3">
                                       <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
                                         <UserCircle className="h-5 w-5 text-green-600" />
@@ -1118,7 +1256,11 @@ export default function HRPage() {
                               </div>
                             ) : (
                               <div className="text-center py-4">
-                                <p className="text-sm text-gray-600">No agents assigned to this team leader yet</p>
+                                <p className="text-sm text-gray-600">
+                                  {roleEquals(user.role, 'team_leader')
+                                    ? 'No agents assigned yet'
+                                    : 'No team members yet — use the button above or Team members in Actions'}
+                                </p>
                               </div>
                             )}
                           </div>
@@ -1201,8 +1343,13 @@ export default function HRPage() {
         <EditUserModal
           user={selectedUser}
           allowedRoles={getEditableRolesForUser(selectedUser)}
+          scrollToTeamOnOpen={editScrollToOperationsTeam}
+          teamLeaderRestricted={
+            normalizedCurrentUserRole === 'team leader' && roleEquals(selectedUser.role, 'agent')
+          }
           onClose={() => {
             setShowEditModal(false)
+            setEditScrollToOperationsTeam(false)
             setSelectedUser(null)
           }}
           onSuccess={() => {

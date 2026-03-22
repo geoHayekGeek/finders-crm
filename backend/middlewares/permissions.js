@@ -395,6 +395,9 @@ const canManageUsers = (req, res, next) => {
   }
 };
 
+// HR user list: admin, HR, operations manager (full directory), or team leader (self + team agents only — filtered in controller)
+const VIEW_HR_USER_DIRECTORY_ROLES = [...USER_MANAGE_ROLES, ROLES.TEAM_LEADER];
+
 // Middleware to check if user can view all users (not just themselves)
 const canViewAllUsers = (req, res, next) => {
   if (!req.user || !req.user.role) {
@@ -407,7 +410,7 @@ const canViewAllUsers = (req, res, next) => {
   }
 
   const role = normalizeRole(req.user.role);
-  if (USER_MANAGE_ROLES.includes(role)) {
+  if (VIEW_HR_USER_DIRECTORY_ROLES.includes(role)) {
     next();
   } else {
     logger.security('View all users access denied', {
@@ -419,9 +422,39 @@ const canViewAllUsers = (req, res, next) => {
       ip: req.ip
     });
     return res.status(403).json({ 
-      message: 'Access denied. Viewing all users restricted to admin, HR, and operations manager only.' 
+      message: 'Access denied. HR directory is restricted to admin, HR, operations manager, and team leaders.' 
     });
   }
+};
+
+/** Assign/remove sales agents on a team: admin, HR, OM, or the team leader themself */
+const canAssignTeamAgents = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return res.status(403).json({ message: 'User role not found' });
+  }
+  const role = normalizeRole(req.user.role);
+  if (USER_MANAGE_ROLES.includes(role)) {
+    return next();
+  }
+  if (role === ROLES.TEAM_LEADER) {
+    const fromBody = req.body?.teamLeaderId;
+    const fromParams = req.params?.teamLeaderId;
+    const raw = fromBody != null ? fromBody : fromParams;
+    const tlId = raw != null ? parseInt(String(raw), 10) : NaN;
+    if (!Number.isNaN(tlId) && tlId === req.user.id) {
+      return next();
+    }
+  }
+  logger.security('Team agent assignment access denied', {
+    userId: req.user.id,
+    role: req.user.role,
+    url: req.url,
+    method: req.method,
+    ip: req.ip
+  });
+  return res.status(403).json({
+    message: 'Access denied. Only admin, HR, operations manager, or the team leader can manage this team.'
+  });
 };
 
 // Middleware to check if user can manage categories and statuses
@@ -987,6 +1020,7 @@ module.exports = {
   canDeleteProperties,
   canManageUsers,
   canViewAllUsers,
+  canAssignTeamAgents,
   canManageCategoriesAndStatuses,
   canViewCategoriesAndStatuses,
   canViewAllData,
