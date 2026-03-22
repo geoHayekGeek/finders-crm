@@ -547,19 +547,37 @@ export default function HRPage() {
 
   // Export functions
   const exportToCSV = () => {
-    const csvData = filteredUsers.map(user => [
-      user.user_code || '',
-      user.name || '',
-      user.email || '',
-      user.role || '',
-      user.work_location || '',
-      user.phone || '',
-      user.dob || '',
-      user.added_by_name || 'Not available',
-      user.created_at ? new Date(user.created_at).toLocaleDateString() : ''
-    ])
+    const csvData = filteredUsers.map(user => {
+      const tl =
+        user.assigned_to && (user.team_leader_name || user.team_leader_code)
+          ? [user.team_leader_name, user.team_leader_code].filter(Boolean).join(' ')
+          : '(none)'
+      return [
+        user.user_code || '',
+        user.name || '',
+        user.email || '',
+        user.role || '',
+        user.work_location || '',
+        tl,
+        user.phone || '',
+        user.dob || '',
+        user.added_by_name || 'Not available',
+        user.created_at ? new Date(user.created_at).toLocaleDateString() : ''
+      ]
+    })
     
-    const headers = ['User Code', 'Name', 'Email', 'Role', 'Work Location', 'Phone', 'Date of Birth', 'Added By', 'Created Date']
+    const headers = [
+      'User Code',
+      'Name',
+      'Email',
+      'Role',
+      'Work Location',
+      'Team Leader',
+      'Phone',
+      'Date of Birth',
+      'Added By',
+      'Created Date'
+    ]
     
     const csvContent = [
       headers.join(','),
@@ -712,6 +730,37 @@ export default function HRPage() {
           {row.original.work_location || <span className="text-gray-400 italic">Not set</span>}
         </div>
       ),
+    },
+    {
+      header: 'Team Leader',
+      accessorKey: 'team_leader',
+      cell: ({ row }: any) => {
+        const user = row.original
+        const hasTl =
+          user.assigned_to &&
+          (user.team_leader_name || user.team_leader_code)
+        if (!hasTl) {
+          return (
+            <div className="text-sm text-gray-400 italic">(none)</div>
+          )
+        }
+        return (
+          <div
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              window.open(`/dashboard/hr?view=${user.assigned_to}`, '_blank')
+            }}
+            className="text-sm text-gray-900 cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+            title="Open team leader in HR"
+          >
+            <div className="font-medium">{user.team_leader_name || '—'}</div>
+            {user.team_leader_code && (
+              <div className="text-xs text-gray-500">{user.team_leader_code}</div>
+            )}
+          </div>
+        )
+      },
     },
     {
       header: 'Added By',
