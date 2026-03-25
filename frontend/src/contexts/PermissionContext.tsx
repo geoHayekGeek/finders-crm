@@ -39,7 +39,11 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     const normalizedRole = normalizeRole(role)
     
     // Calculate all permissions
-    const canAccessHR = !!role // All authenticated users can access HR page
+    const canAccessHR =
+      normalizedRole === 'admin' ||
+      normalizedRole === 'hr' ||
+      normalizedRole === 'operations manager' ||
+      normalizedRole === 'team leader'
     const canManageProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
     const canDeleteProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager'
     // Accountant and HR should not have access to properties

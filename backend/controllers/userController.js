@@ -10,6 +10,8 @@ const { sanitizeInput, sanitizeObject } = require('../utils/sanitize');
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
+const OPERATIONS_MANAGER_BLOCKED_ROLES = new Set(['admin', 'accountant']);
+
 const registerUser = async (req, res) => {
   try {
     // Check if user is authenticated (for creating new users, only admin and HR can do this)
@@ -51,6 +53,14 @@ const registerUser = async (req, res) => {
     // Basic validation
     if (!name || !email || !password || !role) {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const normalizedTargetRole = normalizeRole(role);
+    if (normalizedRole === 'operations manager' && OPERATIONS_MANAGER_BLOCKED_ROLES.has(normalizedTargetRole)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Operations managers cannot create admin or accountant users.'
+      });
     }
 
     // Check if user already exists
@@ -506,6 +516,20 @@ const updateUser = async (req, res) => {
           message: 'You cannot change your own account status.' 
         });
       }
+    }
+
+    const normalizedCurrentRole = normalizeRole(currentUserRole);
+    const normalizedRequestedRole = role ? normalizeRole(role) : null;
+    if (
+      normalizedCurrentRole === 'operations manager' &&
+      normalizedRequestedRole &&
+      normalizedRequestedRole !== normalizeRole(existingUser.role) &&
+      OPERATIONS_MANAGER_BLOCKED_ROLES.has(normalizedRequestedRole)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: 'Operations managers cannot assign admin or accountant roles.'
+      });
     }
 
     // Check email uniqueness if email is being changed

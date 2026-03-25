@@ -78,7 +78,7 @@ export default function DashboardLayout({
     const baseNavigation: NavigationItem[] = []
     const normalizedRole = normalizeRole(role)
 
-    // For agents: show properties, leads, viewings, calendar, and HR
+    // For agents: show properties, leads, viewings, calendar (+ HR only when allowed)
     if (normalizedRole === 'agent') {
       baseNavigation.push({ 
         name: 'Properties', 
@@ -93,7 +93,9 @@ export default function DashboardLayout({
         alwaysVisible: true
       })
       baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
-      baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
+      if (canAccessHR) {
+        baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
+      }
       return baseNavigation
     }
 
@@ -153,8 +155,10 @@ export default function DashboardLayout({
       baseNavigation.push({ name: 'Reports', href: '/dashboard/reports', icon: BarChart3, alwaysVisible: true })
     }
 
-    // HR - visible to everyone (all authenticated users can see their own profile)
-    baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
+    // HR - visible only to roles with HR access
+    if (canAccessHR) {
+      baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
+    }
 
     // Settings - only visible to admin
     if (normalizedRole === 'admin') {

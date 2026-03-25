@@ -42,6 +42,8 @@ const ALL_USER_ROLES: User['role'][] = [
   'accountant'
 ]
 
+const OPERATIONS_MANAGER_BLOCKED_ROLES: User['role'][] = ['admin', 'accountant']
+
 const normalizeRoleKey = (role?: string | null) =>
   role
     ? role.toLowerCase().replace(/_/g, ' ').replace(/\s+/g, ' ').trim()
@@ -75,11 +77,14 @@ export default function HRPage() {
 
   const allowedCreateRoles = useMemo<User['role'][]>(() => {
     // Only admin, HR, and operations manager can create users
+    if (normalizedCurrentUserRole === 'operations manager') {
+      return ALL_USER_ROLES.filter(role => !OPERATIONS_MANAGER_BLOCKED_ROLES.includes(role))
+    }
     if (isFullHrAccess) {
       return ALL_USER_ROLES
     }
     return []
-  }, [isFullHrAccess])
+  }, [isFullHrAccess, normalizedCurrentUserRole])
 
   const filterUsersForCurrentUser = (usersList: User[]): User[] => {
     if (!user || !currentUserRole) return []
@@ -143,6 +148,16 @@ export default function HRPage() {
 
   const getEditableRolesForUser = (targetUser: User): User['role'][] => {
     if (!currentUserRole) return []
+    if (normalizedCurrentUserRole === 'operations manager') {
+      const allowedRoles = ALL_USER_ROLES.filter(
+        role => !OPERATIONS_MANAGER_BLOCKED_ROLES.includes(role)
+      )
+      // Keep current role visible when editing existing admin/accountant users.
+      if (!allowedRoles.includes(targetUser.role)) {
+        return [targetUser.role, ...allowedRoles]
+      }
+      return allowedRoles
+    }
     if (isFullHrAccess) {
       return ALL_USER_ROLES
     }
