@@ -16,6 +16,22 @@ const { normalizeRole } = require('../utils/roleUtils');
 const leadsImportService = require('../services/leadsImport');
 
 class LeadsController {
+  static parsePagination(query = {}) {
+    const hasPage = query.page !== undefined;
+    const hasLimit = query.limit !== undefined;
+    if (!hasPage && !hasLimit) {
+      return null;
+    }
+
+    const rawPage = parseInt(query.page, 10);
+    const rawLimit = parseInt(query.limit, 10);
+
+    const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 1000) : 10;
+
+    return { page, limit };
+  }
+
   // Get all leads (with role-based filtering applied by middleware)
   static async getAllLeads(req, res) {
     try {
@@ -26,8 +42,29 @@ class LeadsController {
       
       const normalizedRole = normalizeRole(req.user.role);
 
+      const pagination = LeadsController.parsePagination(req.query);
       let leads;
-      if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
+      let paginationPayload = null;
+
+      if (pagination) {
+        const paginatedResult = await Lead.getLeadsWithFiltersPaginated({}, pagination);
+        leads = paginatedResult.rows;
+        paginationPayload = {
+          page: paginatedResult.page,
+          limit: paginatedResult.limit,
+          total: paginatedResult.total,
+          totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
+        };
+
+        if (['agent', 'team leader'].includes(normalizedRole)) {
+          leads = await applySensitiveMaskingForLeadsList(leads, req.user.id, normalizedRole);
+        } else if (!['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
+          return res.status(403).json({
+            success: false,
+            message: 'You do not have permission to view leads'
+          });
+        }
+      } else if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
         leads = await Lead.getAllLeads();
       } else if (['agent', 'team leader'].includes(normalizedRole)) {
         leads = await Lead.getAllLeads();
@@ -40,6 +77,7 @@ class LeadsController {
         success: true,
         data: leads,
         message: `Retrieved ${leads.length} leads`,
+        ...(paginationPayload ? { pagination: paginationPayload } : {}),
         userRole: req.user.role // Include role so frontend knows permission level
       });
     } catch (error) {
@@ -66,17 +104,45 @@ class LeadsController {
       const wantsMyTeam = req.query.my_team === 'true' || req.query.my_team === true;
       
       let leads;
+      let paginationPayload = null;
       const userRole = req.user.role;
       const normalizedRole = normalizeRole(userRole);
       const userId = req.user.id;
+      const pagination = LeadsController.parsePagination(req.query);
 
       await sanitizeAgentIdFilterQuery(filterQuery, userId, normalizedRole);
+
+      let agentScopeIds = null;
+      if (
+        wantsMyTeam &&
+        (normalizedRole === 'agent' || normalizedRole === 'team leader')
+      ) {
+        agentScopeIds = await User.getTeamPropertyAgentScopeIds(userId, normalizedRole);
+      }
       
-      if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
+      if (pagination) {
+        const paginatedFilters = { ...filterQuery };
+        if (Array.isArray(agentScopeIds) && agentScopeIds.length > 0) {
+          paginatedFilters.agent_ids = agentScopeIds;
+        }
+
+        const paginatedResult = await Lead.getLeadsWithFiltersPaginated(paginatedFilters, pagination);
+        leads = paginatedResult.rows;
+        paginationPayload = {
+          page: paginatedResult.page,
+          limit: paginatedResult.limit,
+          total: paginatedResult.total,
+          totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
+        };
+
+        if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
+          leads = await applySensitiveMaskingForLeadsList(leads, userId, normalizedRole);
+        }
+      } else if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
         logger.debug('Agent or team leader — all leads with filters + sensitive masking', { userId });
         leads = await Lead.getLeadsWithFilters(filterQuery);
         if (wantsMyTeam) {
-          const scopeIds = await User.getTeamPropertyAgentScopeIds(userId, normalizedRole);
+          const scopeIds = agentScopeIds || await User.getTeamPropertyAgentScopeIds(userId, normalizedRole);
           leads = leads.filter(
             (lead) =>
               lead.agent_id != null &&
@@ -95,6 +161,7 @@ class LeadsController {
         success: true,
         data: leads,
         message: `Retrieved ${leads.length} filtered leads`,
+        ...(paginationPayload ? { pagination: paginationPayload } : {}),
         userRole: req.user.role
       });
     } catch (error) {

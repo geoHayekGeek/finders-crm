@@ -1382,6 +1382,13 @@ export function LeadsModals({
                 )}
 
                 {!limitedAccess && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Viewings</label>
+                    <p className="text-gray-900">{Number(viewingLead.total_viewings ?? 0)}</p>
+                  </div>
+                )}
+
+                {!limitedAccess && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Reference Source</label>

@@ -153,6 +153,14 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
+      {/* Total Viewings - Operations and above (non-limited access) */}
+      {!limitedAccess && (
+        <div className="mb-3">
+          <div className="text-xs font-medium text-gray-500 mb-1">Total Viewings</div>
+          <div className="text-sm font-medium text-gray-900">{Number(lead.total_viewings ?? 0)}</div>
+        </div>
+      )}
+
       {/* Added By - Only show for admin/operations, not for agents/team leaders */}
       {!limitedAccess && lead.added_by_name && (
         <div className="mb-4">

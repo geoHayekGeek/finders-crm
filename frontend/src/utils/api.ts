@@ -492,20 +492,29 @@ export const usersApi = {
 // Properties API
 export const propertiesApi = {
   // Get all properties (requires authentication)
-  getAll: () => apiRequest<{ success: boolean; data: any[] }>('/properties'),
+  getAll: (params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.page) query.append('page', String(params.page))
+    if (params?.limit) query.append('limit', String(params.limit))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return apiRequest<{ success: boolean; data: any[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(`/properties${suffix}`)
+  },
   
   // Get properties for demo (no authentication required)
   getDemo: () => apiRequest<{ success: boolean; data: any[] }>('/properties/demo'),
   
   // Get properties with filters
-  getWithFilters: (filters: any) => {
-    const params = new URLSearchParams()
+  getWithFilters: (filters: any, pagination?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        params.append(key, String(value))
+        query.append(key, String(value))
       }
     })
-    return apiRequest<{ success: boolean; data: any[] }>(`/properties/filtered?${params.toString()}`)
+    if (pagination?.page) query.append('page', String(pagination.page))
+    if (pagination?.limit) query.append('limit', String(pagination.limit))
+    const queryString = query.toString()
+    return apiRequest<{ success: boolean; data: any[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(`/properties/filtered${queryString ? `?${queryString}` : ''}`)
   },
   
   // Get property by ID
@@ -619,7 +628,13 @@ export const propertiesApi = {
 // Leads API
 export const leadsApi = {
   // Get all leads (requires authentication)
-  getAll: (token?: AuthToken) => apiRequest<LeadsResponse>('/leads', {}, token),
+  getAll: (token?: AuthToken, params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.page) query.append('page', String(params.page))
+    if (params?.limit) query.append('limit', String(params.limit))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return apiRequest<LeadsResponse>(`/leads${suffix}`, {}, token)
+  },
   
   // Get reference sources
   getReferenceSources: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/leads/reference-sources'),
@@ -628,14 +643,16 @@ export const leadsApi = {
   getOperationsUsers: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/leads/operations-users'),
   
   // Get leads with filters
-  getWithFilters: (filters: LeadFilters, token?: AuthToken) => {
-    const params = new URLSearchParams()
+  getWithFilters: (filters: LeadFilters, token?: AuthToken, pagination?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
-        params.append(key, String(value))
+        query.append(key, String(value))
       }
     })
-    return apiRequest<LeadsResponse>(`/leads/filtered?${params.toString()}`, {}, token)
+    if (pagination?.page) query.append('page', String(pagination.page))
+    if (pagination?.limit) query.append('limit', String(pagination.limit))
+    return apiRequest<LeadsResponse>(`/leads/filtered?${query.toString()}`, {}, token)
   },
   
   // Get lead by ID

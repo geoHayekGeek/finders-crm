@@ -34,6 +34,7 @@ export interface Lead {
   referrals?: LeadReferral[] // Lead referral tracking
   status: string
   status_can_be_referred?: boolean // Whether the lead's status allows referrals
+  total_viewings?: number
   created_at: string
   updated_at: string
 
@@ -64,7 +65,7 @@ export interface UserWhoCanAddLeads {
 }
 
 // Backward compatibility alias
-export interface OperationsUser extends UserWhoCanAddLeads {}
+export type OperationsUser = UserWhoCanAddLeads
 
 export interface LeadStatusOption {
   id: number
@@ -159,6 +160,12 @@ export interface LeadsResponse {
   success: boolean
   data: Lead[]
   message?: string
+  pagination?: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
   errors?: Array<{
     field: string
     message: string

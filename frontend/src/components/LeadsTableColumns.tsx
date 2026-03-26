@@ -108,6 +108,19 @@ export const getLeadsColumns = (
     }
   },
   {
+    accessorKey: 'total_viewings',
+    header: 'Total Viewings',
+    cell: ({ row }) => {
+      const lead = row.original
+      const totalViewings = Number(lead.total_viewings ?? 0)
+      return (
+        <div className="text-sm">
+          <span className="font-medium text-gray-900">{totalViewings}</span>
+        </div>
+      )
+    }
+  },
+  {
     accessorKey: 'status',
     header: 'Status',
     cell: ({ row }) => {
@@ -256,6 +269,7 @@ export const getLeadsColumns = (
       'added_by_name',
       'reference_source_name',
       'created_at',
+      'total_viewings',
       // Hide agent column only for agents, not for team leaders
       ...(isTeamLeader ? [] : ['assigned_agent_name'])
     ])

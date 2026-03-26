@@ -28,6 +28,40 @@ const filterCreatedByInfo = (properties, userRole) => {
   });
 };
 
+const parsePagination = (query = {}) => {
+  const hasPage = query.page !== undefined;
+  const hasLimit = query.limit !== undefined;
+  if (!hasPage && !hasLimit) {
+    return null;
+  }
+
+  const rawPage = parseInt(query.page, 10);
+  const rawLimit = parseInt(query.limit, 10);
+
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const limit = Number.isInteger(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, 1000) : 10;
+  return { page, limit };
+};
+
+const hasAdvancedPropertyFilters = (filters = {}) => {
+  const advancedFilterKeys = [
+    'floor_number',
+    'balcony',
+    'covered_parking',
+    'outdoor_parking',
+    'cave',
+    'living_rooms',
+    'bedrooms',
+    'bathrooms',
+    'maid_room',
+  ];
+
+  return advancedFilterKeys.some((key) => {
+    const value = filters[key];
+    return value !== undefined && value !== null && value !== '';
+  });
+};
+
 // Get all properties for demo (no authentication required)
 const getDemoProperties = async (req, res) => {
   try {
@@ -58,9 +92,52 @@ const getAllProperties = async (req, res) => {
       canViewAll: roleFilters?.canViewAll
     });
     
+    const pagination = parsePagination(req.query);
     let properties;
+    let paginationPayload = null;
 
-    if (roleFilters.canViewAll) {
+    if (pagination) {
+      const paginatedResult = await Property.getPropertiesWithFiltersPaginated({}, pagination);
+      properties = paginatedResult.rows;
+      paginationPayload = {
+        page: paginatedResult.page,
+        limit: paginatedResult.limit,
+        total: paginatedResult.total,
+        totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
+      };
+
+      if (roleFilters.role === 'agent') {
+        properties = properties.map(property => {
+          if (property.agent_id !== req.user.id) {
+            return {
+              ...property,
+              owner_name: 'Hidden',
+              phone_number: 'Hidden'
+            };
+          }
+          return property;
+        });
+      } else if (roleFilters.role === 'team leader') {
+        properties = properties.map(async (property) => {
+          const canSeeOwnerDetails = await Property.canUserSeeOwnerDetails(
+            roleFilters.role,
+            req.user.id,
+            property.id
+          );
+
+          if (!canSeeOwnerDetails) {
+            return {
+              ...property,
+              owner_name: 'Hidden',
+              phone_number: 'Hidden'
+            };
+          }
+          return property;
+        });
+
+        properties = await Promise.all(properties);
+      }
+    } else if (roleFilters.canViewAll) {
       // Admin, operations manager, operations, agent manager can see all properties with full owner details
       properties = await Property.getAllProperties();
     } else if (roleFilters.role === 'agent') {
@@ -119,6 +196,7 @@ const getAllProperties = async (req, res) => {
       success: true,
       data: properties,
       total: properties.length,
+      ...(paginationPayload ? { pagination: paginationPayload } : {}),
       role: roleFilters.role
     });
   } catch (error) {
@@ -142,10 +220,73 @@ const getPropertiesWithFilters = async (req, res) => {
       filterCount: Object.keys(filters).length
     });
 
+    const pagination = parsePagination(req.query);
+    const usePaginatedQuery = pagination && !hasAdvancedPropertyFilters(filters);
     // Get all properties first, then apply role-based filtering for owner details
     let properties;
+    let paginationPayload = null;
     
-    if (roleFilters.canViewAll) {
+    const wantsMyTeam = filters.my_team === 'true' || filters.my_team === true;
+    let teamScopeIds = null;
+    if (
+      wantsMyTeam &&
+      !roleFilters.canViewAll &&
+      (roleFilters.role === 'agent' || roleFilters.role === 'team leader')
+    ) {
+      teamScopeIds = await User.getTeamPropertyAgentScopeIds(req.user.id, roleFilters.role);
+    }
+
+    if (usePaginatedQuery) {
+      const sanitizedFilters = { ...filters };
+      delete sanitizedFilters.my_team;
+      if (Array.isArray(teamScopeIds) && teamScopeIds.length > 0) {
+        sanitizedFilters.agent_ids = teamScopeIds;
+      }
+
+      const paginatedResult = await Property.getPropertiesWithFiltersPaginated(
+        sanitizedFilters,
+        pagination
+      );
+      properties = paginatedResult.rows;
+      paginationPayload = {
+        page: paginatedResult.page,
+        limit: paginatedResult.limit,
+        total: paginatedResult.total,
+        totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
+      };
+
+      if (roleFilters.role === 'agent') {
+        properties = properties.map(property => {
+          if (property.agent_id !== req.user.id) {
+            return {
+              ...property,
+              owner_name: 'Hidden',
+              phone_number: 'Hidden'
+            };
+          }
+          return property;
+        });
+      } else if (roleFilters.role === 'team leader') {
+        properties = properties.map(async (property) => {
+          const canSeeOwnerDetails = await Property.canUserSeeOwnerDetails(
+            roleFilters.role,
+            req.user.id,
+            property.id
+          );
+          
+          if (!canSeeOwnerDetails) {
+            return {
+              ...property,
+              owner_name: 'Hidden',
+              phone_number: 'Hidden'
+            };
+          }
+          return property;
+        });
+        
+        properties = await Promise.all(properties);
+      }
+    } else if (roleFilters.canViewAll) {
       // Admin, operations manager, operations, agent manager can see all properties with full owner details
       properties = await Property.getAllProperties();
     } else if (roleFilters.role === 'agent') {
@@ -195,14 +336,13 @@ const getPropertiesWithFilters = async (req, res) => {
     // Filter created_by info based on role
     properties = filterCreatedByInfo(properties, roleFilters.role);
 
-    const wantsMyTeam = filters.my_team === 'true' || filters.my_team === true;
-    if (
+    if (!usePaginatedQuery && (
       wantsMyTeam &&
       !roleFilters.canViewAll &&
       (roleFilters.role === 'agent' || roleFilters.role === 'team leader')
-    ) {
-      const teamScopeIds = await User.getTeamPropertyAgentScopeIds(req.user.id, roleFilters.role);
-      properties = properties.filter((p) => teamScopeIds.includes(p.agent_id));
+    )) {
+      const scopeIds = teamScopeIds || await User.getTeamPropertyAgentScopeIds(req.user.id, roleFilters.role);
+      properties = properties.filter((p) => scopeIds.includes(p.agent_id));
     }
 
     // Apply additional filters manually if provided
@@ -571,6 +711,7 @@ const getPropertiesWithFilters = async (req, res) => {
       success: true,
       data: properties,
       total: properties.length,
+      ...(paginationPayload ? { pagination: paginationPayload } : {}),
       role: roleFilters.role
     });
   } catch (error) {

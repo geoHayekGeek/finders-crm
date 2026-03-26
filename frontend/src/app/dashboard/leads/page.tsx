@@ -39,6 +39,7 @@ export default function LeadsPage() {
   
   // State management
   const [leads, setLeads] = useState<Lead[]>([])
+  const [totalLeads, setTotalLeads] = useState(0)
   const [loading, setLoading] = useState(true)
   const [leadsLoading, setLeadsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -182,10 +183,10 @@ useEffect(() => {
       let response
       if (hasActiveFilters) {
         console.log('🔍 [LeadsPage] Using filtered API call with filters:', effectiveFilters)
-        response = await leadsApi.getWithFilters(effectiveFilters, token)
+        response = await leadsApi.getWithFilters(effectiveFilters, token, { page: currentPage, limit: itemsPerPage })
       } else {
         console.log('🔍 [LeadsPage] Using getAll API call')
-        response = await leadsApi.getAll(token)
+        response = await leadsApi.getAll(token, { page: currentPage, limit: itemsPerPage })
       }
       
       console.log('📡 [DEBUG] API response received', { success: response.success, dataLength: response.data?.length })
@@ -203,8 +204,11 @@ useEffect(() => {
           })
         }
         setLeads(leadsData)
+        setTotalLeads(response.pagination?.total ?? leadsData.length)
         console.log('✅ [DEBUG] Leads updated successfully')
       } else {
+        setLeads([])
+        setTotalLeads(0)
         // Handle validation errors gracefully
         if (response.errors && Array.isArray(response.errors)) {
           // Show validation errors as toast messages instead of crashing
@@ -222,13 +226,15 @@ useEffect(() => {
       
     } catch (error) {
       console.error('❌ [DEBUG] Error loading leads:', error)
+      setLeads([])
+      setTotalLeads(0)
       setError(error instanceof Error ? error.message : 'Failed to load leads')
     } finally {
       setLeadsLoading(false)
       setLoading(false) // Set main loading to false when leads are loaded
       console.log('🏁 [DEBUG] loadLeads completed')
     }
-  }, [isAuthenticated, token, canViewLeads, filters])
+  }, [isAuthenticated, token, canViewLeads, filters, currentPage, itemsPerPage])
 
   // Store the latest loadLeads function in ref
   loadLeadsRef.current = loadLeads
@@ -356,6 +362,14 @@ useEffect(() => {
       console.log('🔄 [DEBUG] No filter change detected, skipping reload')
     }
   }, [isAuthenticated, token, filters, loadStats])
+
+  // Reload leads when page or page size changes (server-side pagination)
+  useEffect(() => {
+    if (!isAuthenticated || !token) return
+    if (loadLeadsRef.current) {
+      loadLeadsRef.current()
+    }
+  }, [currentPage, itemsPerPage, isAuthenticated, token])
 
   // Format currency with K, M, B suffixes
   const formatCurrency = (amount: number): string => {
@@ -579,22 +593,17 @@ useEffect(() => {
 
   // Paginated leads for table view (with action handlers)
   const paginatedLeads = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return leads.slice(startIndex, endIndex).map(lead => ({
+    return leads.map(lead => ({
       ...lead,
       onView: handleViewLead,
       onEdit: handleEditLead,
       onDelete: handleDeleteLead,
       onRefer: handleReferLead
     }))
-  }, [leads, currentPage, itemsPerPage, handleViewLead, handleEditLead, handleDeleteLead, handleReferLead])
+  }, [leads, handleViewLead, handleEditLead, handleDeleteLead, handleReferLead])
 
   // Grid view leads (accumulated for "load more" functionality)
-  const gridViewLeads = useMemo(() => {
-    const endIndex = currentPage * itemsPerPage
-    return leads.slice(0, endIndex)
-  }, [leads, currentPage, itemsPerPage])
+  const gridViewLeads = useMemo(() => leads, [leads])
 
   // Ref to track if we've already processed the URL parameter
   const hasProcessedUrlParam = useRef(false)
@@ -873,6 +882,7 @@ useEffect(() => {
       'Customer Name', 
       'Phone Number',
       'Agent Name',
+      'Total Viewings',
       'Status',
       'Reference Source',
       'Added By',
@@ -886,6 +896,7 @@ useEffect(() => {
       lead.customer_name || '',
       lead.phone_number || '',
       lead.assigned_agent_name || lead.agent_name || '',
+      Number(lead.total_viewings ?? 0),
       lead.status || '',
       lead.reference_source_name || '',
       lead.added_by_name || '',
@@ -928,6 +939,7 @@ useEffect(() => {
       'Customer Name',
       'Phone Number',
       'Agent Name',
+      'Total Viewings',
       'Agent Role',
       'Status',
       'Reference Source',
@@ -944,6 +956,7 @@ useEffect(() => {
       lead.customer_name || '',
       lead.phone_number || '',
       lead.assigned_agent_name || lead.agent_name || '',
+      Number(lead.total_viewings ?? 0),
       lead.agent_role || '',
       lead.status || '',
       lead.reference_source_name || '',
@@ -1022,7 +1035,7 @@ useEffect(() => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <p className="text-gray-600 mt-1">
-            Manage your leads pipeline ({leads.length} leads)
+            Manage your leads pipeline ({totalLeads} leads)
           </p>
         </div>
         
@@ -1249,18 +1262,19 @@ useEffect(() => {
         <DataTable
           columns={getLeadsColumns(canManageLeads, canDeleteLeads, { limitedAccess: limitedLeadAccess, canReferLead, userRole: user?.role })}
           data={paginatedLeads}
+          resultsCount={totalLeads}
         />
       )}
 
       {/* Pagination - Always show for table view, conditional for grid view */}
-      {(viewMode === 'table' || leads.length > itemsPerPage) && (
+      {(viewMode === 'table' || totalLeads > itemsPerPage) && (
         <PropertyPagination
           currentPage={currentPage}
-          totalPages={Math.ceil(leads.length / itemsPerPage)}
+          totalPages={Math.max(1, Math.ceil(totalLeads / itemsPerPage))}
           itemsPerPage={itemsPerPage}
-          totalItems={leads.length}
+          totalItems={totalLeads}
           startIndex={(currentPage - 1) * itemsPerPage}
-          endIndex={Math.min(currentPage * itemsPerPage, leads.length)}
+          endIndex={Math.min(currentPage * itemsPerPage, totalLeads)}
           onPageChange={setCurrentPage}
           onItemsPerPageChange={handleItemsPerPageChange}
           viewMode={viewMode}

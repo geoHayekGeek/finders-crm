@@ -16,11 +16,13 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
   data: TData[]
+  resultsCount?: number
 }
 
 export function DataTable<TData, TValue>({
   columns,
   data,
+  resultsCount,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -38,6 +40,10 @@ export function DataTable<TData, TValue>({
       columnFilters,
     },
   })
+
+  const shownCount = table.getFilteredRowModel().rows.length
+  const hasServerTotal = typeof resultsCount === 'number'
+  const totalCount = hasServerTotal ? resultsCount : shownCount
 
   return (
     <div className="space-y-4">
@@ -90,7 +96,9 @@ export function DataTable<TData, TValue>({
 
       {/* Results count */}
       <div className="text-sm text-gray-600 text-center">
-        {table.getFilteredRowModel().rows.length} result{table.getFilteredRowModel().rows.length !== 1 ? 's' : ''} found
+        {hasServerTotal && totalCount !== shownCount
+          ? `${shownCount} shown (${totalCount} total)`
+          : `${shownCount} result${shownCount !== 1 ? 's' : ''} found`}
       </div>
     </div>
   )

@@ -45,6 +45,7 @@ export default function PropertiesPage() {
   
   // State management
   const [properties, setProperties] = useState<Property[]>([])
+  const [totalProperties, setTotalProperties] = useState(0)
   const [categories, setCategories] = useState<Category[]>([])
   const [statuses, setStatuses] = useState<Status[]>([])
   const [agents, setAgents] = useState<any[]>([])
@@ -111,6 +112,7 @@ export default function PropertiesPage() {
   // Ref to track if we've already processed the URL parameter
   const hasProcessedUrlParam = useRef(false)
   const hasProcessedAgentFilter = useRef(false)
+  const hasInitializedProperties = useRef(false)
 
 
   
@@ -174,11 +176,23 @@ export default function PropertiesPage() {
   // Reload data when filters change (including when set from URL or cleared)
   useEffect(() => {
     if (!isAuthenticated) return
+    if (!hasInitializedProperties.current) return
     
-    // Always reload when filters change, even when cleared (empty object)
+    // Reset to page 1 when filters change; otherwise keep current page.
+    if (currentPage !== 1) {
+      setCurrentPage(1)
+      return
+    }
+
     loadPropertiesOnly()
-    setCurrentPage(1) // Reset to first page when filters change
   }, [filters, isAuthenticated])
+
+  // Reload data when page size/page changes (server-side pagination)
+  useEffect(() => {
+    if (!isAuthenticated) return
+    if (!hasInitializedProperties.current) return
+    loadPropertiesOnly()
+  }, [currentPage, itemsPerPage, isAuthenticated])
 
   // Action handlers
   const handleViewProperty = (property: Property) => {
@@ -241,11 +255,13 @@ export default function PropertiesPage() {
           }
         })
       }
+      queryParams.append('page', String(currentPage))
+      queryParams.append('limit', String(itemsPerPage))
       
       const queryString = queryParams.toString()
       const endpoint = hasFilters 
         ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
-        : `${API_BASE_URL}/properties`
+        : `${API_BASE_URL}/properties${queryString ? `?${queryString}` : ''}`
       
       
       // Load properties from production API with authentication
@@ -267,6 +283,7 @@ export default function PropertiesPage() {
 
       const propertiesResponseData = await propertiesResponse.json()
       const propertiesData: Property[] = propertiesResponseData.data || propertiesResponseData
+      const apiTotal = propertiesResponseData.pagination?.total
       
       // Add action handlers to properties
       const propertiesWithActions = propertiesData.map((property: Property) => ({
@@ -278,9 +295,12 @@ export default function PropertiesPage() {
       }))
       
       setProperties(propertiesWithActions)
+      setTotalProperties(typeof apiTotal === 'number' ? apiTotal : propertiesData.length)
       
     } catch (error) {
       setError('Failed to load properties data')
+      setProperties([])
+      setTotalProperties(0)
       // Error handled by showError toast
     } finally {
       setPropertiesLoading(false)
@@ -358,11 +378,13 @@ export default function PropertiesPage() {
           }
         })
       }
+      queryParams.append('page', String(currentPage))
+      queryParams.append('limit', String(itemsPerPage))
       
       const queryString = queryParams.toString()
       const endpoint = hasFilters 
         ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
-        : `${API_BASE_URL}/properties`
+        : `${API_BASE_URL}/properties${queryString ? `?${queryString}` : ''}`
       
       
       // Load properties from production API with authentication
@@ -384,6 +406,7 @@ export default function PropertiesPage() {
 
       const propertiesResponseData = await propertiesResponse.json()
       const propertiesData: Property[] = propertiesResponseData.data || propertiesResponseData
+      const apiTotal = propertiesResponseData.pagination?.total
       
       // Load categories from production API with authentication
       const categoriesResponse = await fetch(`${API_BASE_URL}/categories`, {
@@ -471,11 +494,16 @@ export default function PropertiesPage() {
       }))
       
       setProperties(propertiesWithActions)
+      setTotalProperties(typeof apiTotal === 'number' ? apiTotal : propertiesData.length)
       setCategories(categoriesData)
       setStatuses(statusesData)
+      hasInitializedProperties.current = true
       
     } catch (error) {
       setError('Failed to load properties data')
+      setProperties([])
+      setTotalProperties(0)
+      hasInitializedProperties.current = true
       // Error handled by showError toast
     } finally {
       setLoading(false)
@@ -534,17 +562,10 @@ export default function PropertiesPage() {
   }, [filteredProperties, isAuthenticated, token])
 
   // Paginate properties
-  const paginatedProperties = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return filteredProperties.slice(startIndex, endIndex)
-  }, [filteredProperties, currentPage, itemsPerPage])
+  const paginatedProperties = useMemo(() => filteredProperties, [filteredProperties])
 
   // Grid view properties (accumulated for "load more" functionality)
-  const gridViewProperties = useMemo(() => {
-    const endIndex = currentPage * itemsPerPage
-    return filteredProperties.slice(0, endIndex)
-  }, [filteredProperties, currentPage, itemsPerPage])
+  const gridViewProperties = useMemo(() => filteredProperties, [filteredProperties])
 
   const handleSaveEdit = async () => {
     try {
@@ -1215,7 +1236,7 @@ export default function PropertiesPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Properties</h1>
           <p className="text-gray-600 mt-1">
-            Manage your property portfolio ({filteredProperties.length} properties)
+            Manage your property portfolio ({totalProperties} properties)
           </p>
         </div>
         
@@ -1435,18 +1456,19 @@ export default function PropertiesPage() {
             }
           )}
           data={paginatedProperties}
+          resultsCount={totalProperties}
         />
       )}
 
       {/* Pagination */}
-      {filteredProperties.length > itemsPerPage && (
+      {(viewMode === 'table' || totalProperties > itemsPerPage) && (
         <PropertyPagination
           currentPage={currentPage}
-          totalPages={Math.ceil(filteredProperties.length / itemsPerPage)}
+          totalPages={Math.max(1, Math.ceil(totalProperties / itemsPerPage))}
           itemsPerPage={itemsPerPage}
-          totalItems={filteredProperties.length}
+          totalItems={totalProperties}
           startIndex={(currentPage - 1) * itemsPerPage}
-          endIndex={currentPage * itemsPerPage}
+          endIndex={Math.min(currentPage * itemsPerPage, totalProperties)}
           onPageChange={setCurrentPage}
           onItemsPerPageChange={handleItemsPerPageChange}
           viewMode={viewMode}

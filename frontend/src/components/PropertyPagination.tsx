@@ -26,32 +26,46 @@ export function PropertyPagination({
   entityName = 'properties'
 }: PropertyPaginationProps) {
   if (viewMode === 'grid') {
+    const start = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1
+    const end = Math.min(currentPage * itemsPerPage, totalItems)
     return (
       <div className="space-y-4">
-        {/* Load More Button for Grid View */}
-        {currentPage < totalPages ? (
+        {/* Next/Previous for server-side paged grid view */}
+        <div className="flex justify-center items-center gap-3">
+          <button
+            onClick={() => onPageChange(Math.max(currentPage - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-medium"
+          >
+            Previous
+          </button>
+
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {Math.max(totalPages, 1)}
+          </span>
+
+          <button
+            onClick={() => onPageChange(Math.min(currentPage + 1, Math.max(totalPages, 1)))}
+            disabled={currentPage >= totalPages}
+            className="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-medium"
+          >
+            Next
+          </button>
+        </div>
+        
+        {currentPage >= totalPages && totalPages > 0 ? (
           <div className="flex justify-center">
-            <button
-              onClick={() => onPageChange(currentPage + 1)}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 font-medium"
-            >
-              <span>Load More {entityName.charAt(0).toUpperCase() + entityName.slice(1)}</span>
-            </button>
-          </div>
-        ) : (
-          <div className="flex justify-center">
-            <div className="text-center text-sm text-gray-500 bg-gray-50 px-6 py-3 rounded-lg border border-gray-200">
-              <span>All {entityName} loaded</span>
+            <div className="text-center text-sm text-green-600 bg-green-50 px-6 py-3 rounded-lg border border-green-200">
+              <span>Last page reached</span>
             </div>
           </div>
+        ) : (
+          <></>
         )}
         
         {/* Pagination Info for Grid View - Always show */}
         <div className="text-center text-sm text-gray-600">
-          Showing {Math.min(totalItems, currentPage * itemsPerPage)} of {totalItems} {entityName}
-          {currentPage >= totalPages && (
-            <span className="block mt-1 text-green-600 font-medium">✓ All {entityName} loaded</span>
-          )}
+          Showing {start} to {end} of {totalItems} {entityName}
         </div>
       </div>
     )

@@ -2,6 +2,54 @@
 const pool = require('../config/db');
 
 class Lead {
+  static buildLeadsFilters(filters = {}, values = [], valueIndex = 1) {
+    let whereClause = '';
+
+    if (filters.status && filters.status !== 'All') {
+      whereClause += ` AND l.status = $${valueIndex}`;
+      values.push(filters.status);
+      valueIndex++;
+    }
+
+    if (filters.agent_id) {
+      whereClause += ` AND l.agent_id = $${valueIndex}`;
+      values.push(filters.agent_id);
+      valueIndex++;
+    }
+
+    if (Array.isArray(filters.agent_ids) && filters.agent_ids.length > 0) {
+      whereClause += ` AND l.agent_id = ANY($${valueIndex}::int[])`;
+      values.push(filters.agent_ids);
+      valueIndex++;
+    }
+
+    if (filters.date_from && String(filters.date_from).trim() !== '') {
+      whereClause += ` AND l.date >= $${valueIndex}::date`;
+      values.push(String(filters.date_from).trim());
+      valueIndex++;
+    }
+
+    if (filters.date_to && String(filters.date_to).trim() !== '') {
+      whereClause += ` AND l.date < ($${valueIndex}::date + interval '1 day')`;
+      values.push(String(filters.date_to).trim());
+      valueIndex++;
+    }
+
+    if (filters.reference_source_id) {
+      whereClause += ` AND l.reference_source_id = $${valueIndex}`;
+      values.push(filters.reference_source_id);
+      valueIndex++;
+    }
+
+    if (filters.search) {
+      whereClause += ` AND (l.customer_name ILIKE $${valueIndex} OR l.phone_number ILIKE $${valueIndex} OR l.agent_name ILIKE $${valueIndex})`;
+      values.push(`%${filters.search}%`);
+      valueIndex++;
+    }
+
+    return { whereClause, values, valueIndex };
+  }
+
   static async createLead(leadData) {
     const {
       date,
@@ -62,6 +110,7 @@ class Lead {
           added_by.role as added_by_role,
           l.status,
           ls.can_be_referred as status_can_be_referred,
+          (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
           l.created_at,
           l.updated_at
         FROM leads l
@@ -104,6 +153,7 @@ class Lead {
         added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
+        (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
         l.created_at,
         l.updated_at
       FROM leads l
@@ -137,6 +187,7 @@ class Lead {
         added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
+        (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
         l.created_at,
         l.updated_at,
         'assigned' as agent_relationship
@@ -170,6 +221,7 @@ class Lead {
         added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
+        (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
         l.created_at,
         l.updated_at,
         COALESCE(
@@ -311,6 +363,7 @@ class Lead {
         added_by.role as added_by_role,
         l.status,
         ls.can_be_referred as status_can_be_referred,
+        (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
         l.created_at,
         l.updated_at,
         COALESCE(
@@ -399,6 +452,67 @@ class Lead {
     }
     
     return result.rows;
+  }
+
+  static async getLeadsWithFiltersPaginated(filters = {}, pagination = {}) {
+    const page = Number.isInteger(pagination.page) && pagination.page > 0 ? pagination.page : 1;
+    const limit = Number.isInteger(pagination.limit) && pagination.limit > 0 ? pagination.limit : 10;
+    const offset = (page - 1) * limit;
+
+    const values = [];
+    const { whereClause } = this.buildLeadsFilters(filters, values, 1);
+
+    const dataQuery = `
+      SELECT 
+        l.id,
+        l.date,
+        l.customer_name,
+        l.phone_number,
+        l.agent_id,
+        l.agent_name,
+        u.name as assigned_agent_name,
+        u.role as agent_role,
+        l.price,
+        l.reference_source_id,
+        rs.source_name as reference_source_name,
+        l.added_by_id,
+        added_by.name as added_by_name,
+        added_by.role as added_by_role,
+        l.status,
+        ls.can_be_referred as status_can_be_referred,
+        (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
+        l.created_at,
+        l.updated_at
+      FROM leads l
+      LEFT JOIN users u ON l.agent_id = u.id
+      LEFT JOIN reference_sources rs ON l.reference_source_id = rs.id
+      LEFT JOIN users added_by ON l.added_by_id = added_by.id
+      LEFT JOIN lead_statuses ls ON LOWER(ls.status_name) = LOWER(l.status)
+      WHERE 1=1
+      ${whereClause}
+      ORDER BY l.created_at DESC
+      LIMIT $${values.length + 1}
+      OFFSET $${values.length + 2}
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM leads l
+      WHERE 1=1
+      ${whereClause}
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [...values, limit, offset]),
+      pool.query(countQuery, values),
+    ]);
+
+    return {
+      rows: dataResult.rows,
+      total: countResult.rows[0]?.total || 0,
+      page,
+      limit,
+    };
   }
 
   // Get viewings for a lead
@@ -540,6 +654,7 @@ class Lead {
         added_by.name as added_by_name,
         added_by.role as added_by_role,
         l.status,
+        (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
         l.created_at,
         l.updated_at
       FROM leads l
@@ -596,6 +711,7 @@ class Lead {
             added_by.role as added_by_role,
             l.status,
             ls.can_be_referred as status_can_be_referred,
+            (SELECT COUNT(*) FROM viewings v WHERE v.lead_id = l.id) as total_viewings,
             l.created_at,
             l.updated_at
           FROM leads l

@@ -3,6 +3,105 @@ const pool = require('../config/db');
 const logger = require('../utils/logger');
 
 class Property {
+  static buildPropertyFilters(filters = {}, values = [], valueIndex = 1) {
+    let whereClause = '';
+
+    if (filters.status_id && filters.status_id !== 'All') {
+      whereClause += ` AND p.status_id = $${valueIndex}`;
+      values.push(filters.status_id);
+      valueIndex++;
+    }
+
+    if (filters.category_id && filters.category_id !== 'All') {
+      whereClause += ` AND p.category_id = $${valueIndex}`;
+      values.push(filters.category_id);
+      valueIndex++;
+    }
+
+    if (filters.agent_id) {
+      whereClause += ` AND p.agent_id = $${valueIndex}`;
+      values.push(filters.agent_id);
+      valueIndex++;
+    }
+
+    if (Array.isArray(filters.agent_ids) && filters.agent_ids.length > 0) {
+      whereClause += ` AND p.agent_id = ANY($${valueIndex}::int[])`;
+      values.push(filters.agent_ids);
+      valueIndex++;
+    }
+
+    if (filters.price_min) {
+      whereClause += ` AND p.price >= $${valueIndex}`;
+      values.push(filters.price_min);
+      valueIndex++;
+    }
+
+    if (filters.price_max) {
+      whereClause += ` AND p.price <= $${valueIndex}`;
+      values.push(filters.price_max);
+      valueIndex++;
+    }
+
+    if (filters.search) {
+      whereClause += ` AND (p.reference_number ILIKE $${valueIndex} OR p.location ILIKE $${valueIndex} OR COALESCE(l.customer_name, p.owner_name) ILIKE $${valueIndex})`;
+      values.push(`%${filters.search}%`);
+      valueIndex++;
+    }
+
+    if (filters.location) {
+      whereClause += ` AND p.location ILIKE $${valueIndex}`;
+      values.push(`%${filters.location}%`);
+      valueIndex++;
+    }
+
+    if (filters.view_type && filters.view_type !== 'All') {
+      whereClause += ` AND p.view_type = $${valueIndex}`;
+      values.push(filters.view_type);
+      valueIndex++;
+    }
+
+    if (filters.surface_min) {
+      whereClause += ` AND p.surface >= $${valueIndex}`;
+      values.push(filters.surface_min);
+      valueIndex++;
+    }
+
+    if (filters.surface_max) {
+      whereClause += ` AND p.surface <= $${valueIndex}`;
+      values.push(filters.surface_max);
+      valueIndex++;
+    }
+
+    if (filters.built_year_min) {
+      whereClause += ` AND p.built_year >= $${valueIndex}`;
+      values.push(filters.built_year_min);
+      valueIndex++;
+    }
+
+    if (filters.built_year_max) {
+      whereClause += ` AND p.built_year <= $${valueIndex}`;
+      values.push(filters.built_year_max);
+      valueIndex++;
+    }
+
+    if (filters.property_type && filters.property_type !== 'All') {
+      whereClause += ` AND p.property_type = $${valueIndex}`;
+      values.push(filters.property_type);
+      valueIndex++;
+    }
+
+    if (filters.concierge !== undefined && filters.concierge !== null && filters.concierge !== '') {
+      whereClause += ` AND p.concierge = $${valueIndex}`;
+      values.push(filters.concierge === true || filters.concierge === 'true');
+      valueIndex++;
+    }
+
+    if (filters.has_serious_viewings === true || filters.has_serious_viewings === 'true') {
+      whereClause += ` AND EXISTS (SELECT 1 FROM viewings v WHERE v.property_id = p.id AND v.is_serious = true)`;
+    }
+
+    return { whereClause, values, valueIndex };
+  }
   static async createProperty(propertyData) {
     const {
       status_id,
@@ -1186,6 +1285,134 @@ class Property {
     });
     
     return propertiesWithReferrals;
+  }
+
+  static async getPropertiesWithFiltersPaginated(filters = {}, pagination = {}) {
+    const page = Number.isInteger(pagination.page) && pagination.page > 0 ? pagination.page : 1;
+    const limit = Number.isInteger(pagination.limit) && pagination.limit > 0 ? pagination.limit : 10;
+    const offset = (page - 1) * limit;
+
+    const values = [];
+    const { whereClause } = this.buildPropertyFilters(filters, values, 1);
+
+    const dataQuery = `
+      SELECT 
+        p.id,
+        p.reference_number,
+        p.status_id,
+        COALESCE(s.name, 'Uncategorized Status') as status_name,
+        COALESCE(s.color, '#6B7280') as status_color,
+        COALESCE(s.can_be_referred, TRUE) as status_can_be_referred,
+        p.property_type,
+        p.location,
+        p.category_id,
+        COALESCE(c.name, 'Uncategorized') as category_name,
+        COALESCE(c.code, 'UNCAT') as category_code,
+        p.building_name,
+        p.owner_id,
+        COALESCE(l.customer_name, p.owner_name) as owner_name,
+        COALESCE(l.phone_number, p.phone_number) as phone_number,
+        p.surface,
+        p.details,
+        p.interior_details,
+        COALESCE(p.payment_facilities, false) as payment_facilities,
+        p.payment_facilities_specification,
+        p.built_year,
+        p.view_type,
+        p.concierge,
+        p.agent_id,
+        u.name as agent_name,
+        u.role as agent_role,
+        p.price,
+        p.notes,
+        p.property_url,
+        p.main_image,
+        p.image_gallery,
+        p.closed_date,
+        p.sold_amount,
+        p.buyer_id,
+        COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
+        COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
+        p.commission,
+        p.platform_id,
+        rs.source_name as platform_name,
+        p.created_by,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
+        p.created_at,
+        p.updated_at
+      FROM properties p
+      LEFT JOIN statuses s ON p.status_id = s.id AND s.is_active = true
+      LEFT JOIN categories c ON p.category_id = c.id AND c.is_active = true
+      LEFT JOIN users u ON p.agent_id = u.id
+      LEFT JOIN leads l ON p.owner_id = l.id
+      LEFT JOIN leads buyer_lead ON p.buyer_id = buyer_lead.id
+      LEFT JOIN reference_sources rs ON p.platform_id = rs.id
+      LEFT JOIN users creator ON p.created_by = creator.id
+      WHERE 1=1
+      ${whereClause}
+      ORDER BY p.created_at DESC
+      LIMIT $${values.length + 1}
+      OFFSET $${values.length + 2}
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*)::int AS total
+      FROM properties p
+      LEFT JOIN leads l ON p.owner_id = l.id
+      WHERE 1=1
+      ${whereClause}
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(dataQuery, [...values, limit, offset]),
+      pool.query(countQuery, values),
+    ]);
+
+    const propertyIds = dataResult.rows.map((p) => p.id);
+    const referralsMap = new Map();
+
+    if (propertyIds.length > 0) {
+      const referralsResult = await pool.query(
+        `SELECT property_id, id, name, type, employee_id, date, external, status, referred_to_agent_id, referred_by_user_id, created_at
+         FROM referrals
+         WHERE property_id = ANY($1::int[])
+         ORDER BY property_id,
+           CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+           date DESC`,
+        [propertyIds]
+      );
+
+      referralsResult.rows.forEach((referral) => {
+        if (!referralsMap.has(referral.property_id)) {
+          referralsMap.set(referral.property_id, []);
+        }
+        referralsMap.get(referral.property_id).push({
+          id: referral.id,
+          name: referral.name,
+          type: referral.type,
+          employee_id: referral.employee_id,
+          date: referral.date,
+          external: referral.external,
+          status: referral.status,
+          referred_to_agent_id: referral.referred_to_agent_id,
+          referred_by_user_id: referral.referred_by_user_id,
+          created_at: referral.created_at
+        });
+      });
+    }
+
+    const rows = dataResult.rows.map((property) => ({
+      ...property,
+      referrals: referralsMap.get(property.id) || []
+    }));
+
+    return {
+      rows,
+      total: countResult.rows[0]?.total || 0,
+      page,
+      limit,
+    };
   }
 
   static async getPropertyStats() {
