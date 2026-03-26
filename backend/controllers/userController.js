@@ -751,18 +751,6 @@ const getAgents = async (req, res) => {
     const normalizedRole = normalizeRole(req.user?.role);
     const userId = req.user?.id;
 
-    // Agent: only themselves (lead/property filters scoped to own row)
-    if (normalizedRole === 'agent' && userId) {
-      const row = await userModel.findById(userId);
-      if (!row) {
-        return res.json({ success: true, agents: [] });
-      }
-      return res.json({
-        success: true,
-        agents: [mapAgentOption(row)]
-      });
-    }
-
     // Team leader: agents on their team + themselves (can hold assignments)
     if (normalizedRole === 'team leader' && userId) {
       const [teamAgents, tlUser] = await Promise.all([
