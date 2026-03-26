@@ -1358,15 +1358,17 @@ class LeadsController {
         userId
       );
 
-      // Create notification for the referred agent
+      // Create notification for the referred agent (JWT has id/role only — load name from DB)
       try {
+        const referrer = await User.findById(userId);
+        const referrerLabel = referrer?.name || 'A colleague';
         await Notification.createNotification({
           user_id: parseInt(referred_to_agent_id),
-          type: 'lead_referral',
+          type: 'info',
           title: 'New Lead Referral',
-          message: `${req.user.name} referred lead ${lead.customer_name} to you`,
-          lead_id: parseInt(id),
-          is_read: false
+          message: `${referrerLabel} referred lead ${lead.customer_name} to you`,
+          entity_type: 'lead',
+          entity_id: parseInt(id)
         });
       } catch (notifError) {
         logger.error('Error creating notification', notifError);
@@ -1454,16 +1456,16 @@ class LeadsController {
 
       const result = await LeadReferral.confirmReferral(parseInt(id), userId);
 
-      // Create notification for the referrer
+      // Create notification for the referrer (accept result)
       try {
         if (result.referral && result.referral.referred_by_user_id) {
           await Notification.createNotification({
             user_id: result.referral.referred_by_user_id,
-            type: 'lead_referral_confirmed',
-            title: 'Lead Referral Confirmed',
-            message: `Your referral for lead ${result.lead.customer_name} has been confirmed`,
-            lead_id: result.lead.id,
-            is_read: false
+            type: 'success',
+            title: 'Lead Referral Accepted',
+            message: `Your referral for lead ${result.lead.customer_name} was accepted`,
+            entity_type: 'lead',
+            entity_id: result.lead.id
           });
         }
       } catch (notifError) {
@@ -1500,17 +1502,17 @@ class LeadsController {
 
       const referral = await LeadReferral.rejectReferral(parseInt(id), userId);
 
-      // Create notification for the referrer
+      // Create notification for the referrer (reject result)
       try {
         if (referral.referred_by_user_id) {
           const lead = await Lead.getLeadById(referral.lead_id);
           await Notification.createNotification({
             user_id: referral.referred_by_user_id,
-            type: 'lead_referral_rejected',
-            title: 'Lead Referral Rejected',
-            message: `Your referral for lead ${lead.customer_name} has been rejected`,
-            lead_id: referral.lead_id,
-            is_read: false
+            type: 'warning',
+            title: 'Lead Referral Declined',
+            message: `Your referral for lead ${lead.customer_name} was declined`,
+            entity_type: 'lead',
+            entity_id: referral.lead_id
           });
         }
       } catch (notifError) {

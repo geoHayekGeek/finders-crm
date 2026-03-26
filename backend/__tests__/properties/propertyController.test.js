@@ -1185,6 +1185,7 @@ describe('Property Controller', () => {
 
       Property.getPropertyById.mockResolvedValue(mockProperty);
       PropertyReferral.referPropertyToAgent.mockResolvedValue(mockReferral);
+      User.findById.mockResolvedValue({ id: 27, name: 'Test User' });
       Notification.createNotification.mockResolvedValue({ id: 1 });
 
       await propertyController.referPropertyToAgent(req, res);
@@ -1401,10 +1402,20 @@ describe('Property Controller', () => {
         property: mockProperty
       });
       Notification.createNotification.mockResolvedValue({ id: 1 });
+      User.findById.mockResolvedValue({ id: 28, name: 'Accepting Agent' });
 
       await propertyController.confirmReferral(req, res);
 
       expect(PropertyReferral.confirmReferral).toHaveBeenCalledWith(1, 28);
+      expect(Notification.createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: 27,
+          type: 'success',
+          title: 'Property Referral Accepted',
+          entity_type: 'property',
+          entity_id: 100
+        })
+      );
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         message: expect.stringContaining('Referral confirmed'),
@@ -1450,10 +1461,20 @@ describe('Property Controller', () => {
       PropertyReferral.rejectReferral.mockResolvedValue(mockReferral);
       Property.getPropertyById.mockResolvedValue(mockProperty);
       Notification.createNotification.mockResolvedValue({ id: 1 });
+      User.findById.mockResolvedValue({ id: 28, name: 'Rejecting Agent' });
 
       await propertyController.rejectReferral(req, res);
 
       expect(PropertyReferral.rejectReferral).toHaveBeenCalledWith(1, 28);
+      expect(Notification.createNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          user_id: 27,
+          type: 'warning',
+          title: 'Property Referral Declined',
+          entity_type: 'property',
+          entity_id: 100
+        })
+      );
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         message: expect.stringContaining('Referral rejected'),

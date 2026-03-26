@@ -1736,6 +1736,7 @@ describe('Leads Controller', () => {
 
       Lead.getLeadById.mockResolvedValue(mockLead);
       LeadReferral.referLeadToAgent.mockResolvedValue(mockReferral);
+      jest.spyOn(User, 'findById').mockResolvedValue({ id: 27, name: 'Test User' });
       Notification.createNotification.mockResolvedValue({ id: 1 });
 
       await LeadsController.referLeadToAgent(req, res);

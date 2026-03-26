@@ -1636,15 +1636,17 @@ const referPropertyToAgent = async (req, res) => {
       userId
     );
 
-    // Create notification for the referred agent
+    // Create notification for the referred agent (JWT has id/role only — load name from DB)
     try {
+      const referrer = await User.findById(userId);
+      const referrerLabel = referrer?.name || 'A colleague';
       await Notification.createNotification({
         user_id: parseInt(referred_to_agent_id),
-        type: 'property_referral',
+        type: 'info',
         title: 'New Property Referral',
-        message: `${req.user.name} referred property ${property.reference_number} to you`,
-        property_id: parseInt(id),
-        is_read: false
+        message: `${referrerLabel} referred property ${property.reference_number} to you`,
+        entity_type: 'property',
+        entity_id: parseInt(id)
       });
     } catch (notifError) {
       logger.error('Error creating notification', notifError);
@@ -1732,16 +1734,26 @@ const confirmReferral = async (req, res) => {
 
     const result = await PropertyReferral.confirmReferral(parseInt(id), userId);
 
-    // Create notification for the referrer
+    // Notify the user who made the referral (accept result)
     try {
-      if (result.referral && result.referral.referred_by_user_id) {
+      const referralRow = result.referral;
+      const referrerId =
+        referralRow?.referred_by_user_id != null
+          ? referralRow.referred_by_user_id
+          : referralRow?.employee_id;
+      if (
+        referrerId != null &&
+        parseInt(String(referrerId), 10) !== parseInt(String(userId), 10)
+      ) {
+        const responder = await User.findById(userId);
+        const responderLabel = responder?.name?.trim() || 'The agent';
         await Notification.createNotification({
-          user_id: result.referral.referred_by_user_id,
-          type: 'property_referral_confirmed',
-          title: 'Property Referral Confirmed',
-          message: `Your referral for property ${result.property.reference_number} has been confirmed`,
-          property_id: result.property.id,
-          is_read: false
+          user_id: parseInt(String(referrerId), 10),
+          type: 'success',
+          title: 'Property Referral Accepted',
+          message: `${responderLabel} accepted your referral for property ${result.property.reference_number}.`,
+          entity_type: 'property',
+          entity_id: result.property.id
         });
       }
     } catch (notifError) {
@@ -1778,17 +1790,27 @@ const rejectReferral = async (req, res) => {
 
     const referral = await PropertyReferral.rejectReferral(parseInt(id), userId);
 
-    // Create notification for the referrer
+    // Notify the user who made the referral (reject result)
     try {
-      if (referral.referred_by_user_id) {
+      const referrerId =
+        referral.referred_by_user_id != null
+          ? referral.referred_by_user_id
+          : referral.employee_id;
+      if (
+        referrerId != null &&
+        parseInt(String(referrerId), 10) !== parseInt(String(userId), 10)
+      ) {
         const property = await Property.getPropertyById(referral.property_id);
+        const refLabel = property?.reference_number?.trim() || 'this property';
+        const responder = await User.findById(userId);
+        const responderLabel = responder?.name?.trim() || 'The agent';
         await Notification.createNotification({
-          user_id: referral.referred_by_user_id,
-          type: 'property_referral_rejected',
-          title: 'Property Referral Rejected',
-          message: `Your referral for property ${property.reference_number} has been rejected`,
-          property_id: referral.property_id,
-          is_read: false
+          user_id: parseInt(String(referrerId), 10),
+          type: 'warning',
+          title: 'Property Referral Declined',
+          message: `${responderLabel} declined your referral for property ${refLabel}.`,
+          entity_type: 'property',
+          entity_id: referral.property_id
         });
       }
     } catch (notifError) {
