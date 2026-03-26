@@ -179,3 +179,5 @@
 [2026-03-26T19:21:48.539Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/?page=5&limit=20","method":"GET","ip":"127.0.0.1","userId":1112}
 [2026-03-26T19:21:49.481Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/?page=5&limit=20","method":"GET","ip":"127.0.0.1","userId":1112}
 [2026-03-26T19:21:49.983Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/?page=5&limit=20","method":"GET","ip":"127.0.0.1","userId":1112}
+[2026-03-26T19:42:17.569Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/?page=1&limit=100","method":"GET","ip":"127.0.0.1","userId":1112}
+[2026-03-26T19:42:19.024Z] RATE_LIMIT_EXCEEDED: {"endpoint":"/?page=1&limit=100","method":"GET","ip":"127.0.0.1","userId":1112}

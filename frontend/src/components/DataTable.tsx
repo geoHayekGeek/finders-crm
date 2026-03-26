@@ -46,12 +46,12 @@ export function DataTable<TData, TValue>({
   const totalCount = hasServerTotal ? resultsCount : shownCount
 
   return (
-    <div className="space-y-4">
-      {/* Table */}
+    <div className="space-y-2">
+      {/* Table — scrollable container fixed to remaining viewport height */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[calc(100vh-20rem)] min-h-[200px]">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (

@@ -113,6 +113,8 @@ export default function PropertiesPage() {
   const hasProcessedUrlParam = useRef(false)
   const hasProcessedAgentFilter = useRef(false)
   const hasInitializedProperties = useRef(false)
+  const propertiesRequestInFlight = useRef(false)
+  const lastPropertiesRequest = useRef<{ key: string; at: number } | null>(null)
 
 
   
@@ -210,6 +212,10 @@ export default function PropertiesPage() {
   // Load only properties (for filtering)
   const loadPropertiesOnly = async () => {
     try {
+      if (propertiesRequestInFlight.current) {
+        return
+      }
+
       setPropertiesLoading(true)
       
       // Check authentication
@@ -262,6 +268,18 @@ export default function PropertiesPage() {
       const endpoint = hasFilters 
         ? `${API_BASE_URL}/properties/filtered${queryString ? `?${queryString}` : ''}`
         : `${API_BASE_URL}/properties${queryString ? `?${queryString}` : ''}`
+
+      const requestKey = endpoint
+      const now = Date.now()
+      if (
+        lastPropertiesRequest.current &&
+        lastPropertiesRequest.current.key === requestKey &&
+        now - lastPropertiesRequest.current.at < 1200
+      ) {
+        return
+      }
+      lastPropertiesRequest.current = { key: requestKey, at: now }
+      propertiesRequestInFlight.current = true
       
       
       // Load properties from production API with authentication
@@ -303,6 +321,7 @@ export default function PropertiesPage() {
       setTotalProperties(0)
       // Error handled by showError toast
     } finally {
+      propertiesRequestInFlight.current = false
       setPropertiesLoading(false)
     }
   }
@@ -1460,19 +1479,21 @@ export default function PropertiesPage() {
         />
       )}
 
-      {/* Pagination */}
+      {/* Pagination - sticky at bottom of viewport */}
       {(viewMode === 'table' || totalProperties > itemsPerPage) && (
-        <PropertyPagination
-          currentPage={currentPage}
-          totalPages={Math.max(1, Math.ceil(totalProperties / itemsPerPage))}
-          itemsPerPage={itemsPerPage}
-          totalItems={totalProperties}
-          startIndex={(currentPage - 1) * itemsPerPage}
-          endIndex={Math.min(currentPage * itemsPerPage, totalProperties)}
-          onPageChange={setCurrentPage}
-          onItemsPerPageChange={handleItemsPerPageChange}
-          viewMode={viewMode}
-        />
+        <div className="sticky bottom-0 z-20 bg-gray-50 pt-1 pb-2">
+          <PropertyPagination
+            currentPage={currentPage}
+            totalPages={Math.max(1, Math.ceil(totalProperties / itemsPerPage))}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalProperties}
+            startIndex={(currentPage - 1) * itemsPerPage}
+            endIndex={Math.min(currentPage * itemsPerPage, totalProperties)}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={handleItemsPerPageChange}
+            viewMode={viewMode}
+          />
+        </div>
       )}
 
       {/* Modals */}

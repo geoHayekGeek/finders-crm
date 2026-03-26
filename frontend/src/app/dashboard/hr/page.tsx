@@ -4,9 +4,7 @@ import { useState, useEffect, useMemo, useRef, Fragment } from 'react'
 import { 
   Users, 
   Plus,
-  List,
   Download,
-  Upload,
   RefreshCw,
   BarChart3,
   ChevronDown,
@@ -20,7 +18,6 @@ import {
   Trash2,
   FolderOpen
 } from 'lucide-react'
-import { DataTable } from '@/components/DataTable'
 import { UserDocuments } from '@/components/UserDocuments'
 import { AddUserModal } from '@/components/AddUserModal'
 import { EditUserModal } from '@/components/EditUserModal'
@@ -178,8 +175,6 @@ export default function HRPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // View and display state
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false)
   /** Team leaders and operations managers: expanded rows showing assigned agents */
   const [expandedManagerTeams, setExpandedManagerTeams] = useState<Set<number>>(new Set())
   
@@ -397,6 +392,7 @@ export default function HRPage() {
     const endIndex = startIndex + itemsPerPage
     return filteredUsers.slice(startIndex, endIndex)
   }, [filteredUsers, currentPage, itemsPerPage])
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / itemsPerPage))
 
   const toggleManagerTeamExpansion = async (managerId: number) => {
     const newExpanded = new Set(expandedManagerTeams)
@@ -1218,9 +1214,9 @@ export default function HRPage() {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-auto max-h-[calc(100vh-24rem)] min-h-[320px]">
+            <table className="min-w-max w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                 <tr>
                   {columns.map((column, index) => (
                     <th
@@ -1343,8 +1339,9 @@ export default function HRPage() {
 
       {/* Pagination */}
       {filteredUsers.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 px-6 gap-4">
+        <div className="sticky bottom-0 z-20 bg-gray-50 pt-1 pb-2">
+          <div className="bg-white rounded-lg shadow">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-4 px-6 gap-4">
             {/* Left side - Items per page */}
             <div className="flex items-center space-x-2">
               <span className="text-sm text-gray-700">Items per page:</span>
@@ -1379,18 +1376,19 @@ export default function HRPage() {
               
               <span className="text-sm text-gray-700">
                 Page <span className="font-semibold">{currentPage}</span> of{' '}
-                <span className="font-semibold">{Math.ceil(filteredUsers.length / itemsPerPage)}</span>
+                <span className="font-semibold">{totalPages}</span>
               </span>
               
               <button
-                onClick={() => setCurrentPage(Math.min(Math.ceil(filteredUsers.length / itemsPerPage), currentPage + 1))}
-                disabled={currentPage >= Math.ceil(filteredUsers.length / itemsPerPage)}
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage >= totalPages}
                 className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 font-medium transition-colors"
               >
                 Next
               </button>
             </div>
           </div>
+        </div>
         </div>
       )}
 

@@ -1266,20 +1266,22 @@ useEffect(() => {
         />
       )}
 
-      {/* Pagination - Always show for table view, conditional for grid view */}
+      {/* Pagination - sticky at bottom of viewport */}
       {(viewMode === 'table' || totalLeads > itemsPerPage) && (
-        <PropertyPagination
-          currentPage={currentPage}
-          totalPages={Math.max(1, Math.ceil(totalLeads / itemsPerPage))}
-          itemsPerPage={itemsPerPage}
-          totalItems={totalLeads}
-          startIndex={(currentPage - 1) * itemsPerPage}
-          endIndex={Math.min(currentPage * itemsPerPage, totalLeads)}
-          onPageChange={setCurrentPage}
-          onItemsPerPageChange={handleItemsPerPageChange}
-          viewMode={viewMode}
-          entityName="leads"
-        />
+        <div className="sticky bottom-0 z-20 bg-gray-50 pt-1 pb-2">
+          <PropertyPagination
+            currentPage={currentPage}
+            totalPages={Math.max(1, Math.ceil(totalLeads / itemsPerPage))}
+            itemsPerPage={itemsPerPage}
+            totalItems={totalLeads}
+            startIndex={(currentPage - 1) * itemsPerPage}
+            endIndex={Math.min(currentPage * itemsPerPage, totalLeads)}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={handleItemsPerPageChange}
+            viewMode={viewMode}
+            entityName="leads"
+          />
+        </div>
       )}
 
       {/* Modals */}
