@@ -20,7 +20,6 @@ const { resolveSourceName } = require('./sourceMapper');
 const { matchOperationsUser } = require('./operationsMatcher');
 const { matchAgent } = require('./agentMatcher');
 
-const DEFAULT_LEAD_STATUS = 'Active';
 const DUPLICATE_KEY_PHONE_NAME = true; // use normalized phone + normalized customer_name
 const PREVIEW_ROW_LIMIT = 50;
 
@@ -171,7 +170,7 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource, fa
   const nameResult = normalizeCustomerName(customerRaw);
   if (nameResult.error) {
     errors.push(nameResult.error);
-    return { rowNumber, date, customer_name: null, phone_number: null, price: null, reference_source_id: null, added_by_id, added_by_name, agent_id, agent_name, status: DEFAULT_LEAD_STATUS, warnings, errors, isError: true };
+    return { rowNumber, date, customer_name: null, phone_number: null, price: null, reference_source_id: null, added_by_id, added_by_name, agent_id, agent_name, warnings, errors, isError: true };
   }
   const customer_name = nameResult.value;
 
@@ -231,7 +230,6 @@ function processRow(row, rowNumber, lookups, importerUserId, canCreateSource, fa
     added_by_name,
     agent_id,
     agent_name,
-    status: DEFAULT_LEAD_STATUS,
     warnings,
     errors,
     isError,
@@ -351,8 +349,8 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
 
       const listedDate = row.date ? `${row.date}T12:00:00.000Z` : null;
       const ins = await client.query(
-        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, added_by_id, status, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::timestamptz, NOW())) RETURNING id`,
+        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, added_by_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, NOW())) RETURNING id`,
         [
           row.date,
           customer_name,
@@ -362,7 +360,6 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
           row.price,
           reference_source_id,
           row.added_by_id,
-          row.status,
           listedDate,
         ]
       );
@@ -435,6 +432,5 @@ module.exports = {
   getRowValue,
   resolveReferenceSourceId,
   findDuplicateLead,
-  DEFAULT_LEAD_STATUS,
   PREVIEW_ROW_LIMIT,
 };

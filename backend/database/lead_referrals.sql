@@ -55,7 +55,6 @@ SELECT
   l.reference_source_id,
   l.operations_id,
   l.notes,
-  l.status,
   l.created_at,
   l.updated_at,
   COALESCE(
@@ -76,5 +75,4 @@ FROM leads l
 LEFT JOIN lead_referrals lr ON l.id = lr.lead_id
 LEFT JOIN users u ON lr.agent_id = u.id
 GROUP BY l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name, 
-         l.price, l.reference_source_id, l.operations_id, l.notes, l.status, l.created_at, l.updated_at;
-
+         l.price, l.reference_source_id, l.operations_id, l.notes, l.created_at, l.updated_at;

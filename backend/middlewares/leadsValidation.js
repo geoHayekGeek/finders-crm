@@ -1,7 +1,6 @@
 // leadsValidation.js - Comprehensive validation middleware for leads operations
 
 const { body, param, query, validationResult } = require('express-validator');
-const pool = require('../config/db');
 
 // Input sanitization function to prevent XSS and SQL injection
 const sanitizeInput = (input) => {
@@ -17,39 +16,6 @@ const sanitizeInput = (input) => {
 
 // Phone number validation regex (international format)
 const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{6,19}$/;
-
-// Function to get valid lead statuses from database
-const getValidStatuses = async () => {
-  try {
-    const result = await pool.query(`
-      SELECT status_name 
-      FROM lead_statuses 
-      WHERE is_active = true 
-      ORDER BY status_name
-    `);
-    return result.rows.map(row => row.status_name);
-  } catch (error) {
-    console.error('❌ Error fetching lead statuses:', error);
-    // Fallback to default statuses if database query fails
-    return ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
-  }
-};
-
-// Valid lead statuses (will be populated from database)
-let validStatuses = ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
-
-// Initialize valid statuses from database
-const initializeValidStatuses = async () => {
-  try {
-    validStatuses = await getValidStatuses();
-    console.log('✅ Lead statuses loaded from database:', validStatuses);
-  } catch (error) {
-    console.error('❌ Failed to load lead statuses from database:', error);
-  }
-};
-
-// Initialize on module load
-initializeValidStatuses();
 
 // Validation rules for creating leads
 const validateCreateLead = [
@@ -130,27 +96,6 @@ const validateCreateLead = [
     .optional({ nullable: true, checkFalsy: true })
     .isInt({ min: 1 })
     .withMessage('Added by ID must be a positive integer'),
-    
-  body('status')
-    .optional({ nullable: true, checkFalsy: true })
-    .custom(async (value) => {
-      if (!value) {
-        return true;
-      }
-      try {
-        const validStatuses = await getValidStatuses();
-        if (!validStatuses.includes(value)) {
-          throw new Error(`Status must be one of: ${validStatuses.join(', ')}`);
-        }
-      } catch (error) {
-        // If database query fails, fall back to default statuses
-        const defaultStatuses = ['Active', 'Contacted', 'Qualified', 'Converted', 'Closed'];
-        if (!defaultStatuses.includes(value)) {
-          throw new Error(`Status must be one of: ${defaultStatuses.join(', ')}`);
-        }
-      }
-      return true;
-    }),
     
   // Required referrals validation - at least one referral is mandatory
   body('referrals')
@@ -250,18 +195,6 @@ const validateUpdateLead = [
     .isInt({ min: 1 })
     .withMessage('Added by ID must be a positive integer'),
     
-  body('status')
-    .optional({ nullable: false, checkFalsy: false })
-    .custom(async (value) => {
-      if (value) {
-        const validStatuses = await getValidStatuses();
-        if (!validStatuses.includes(value)) {
-          throw new Error(`Status must be one of: ${validStatuses.join(', ')}`);
-        }
-      }
-      return true;
-    }),
-    
   // Required referrals validation for updates - at least one referral is mandatory
   body('referrals')
     .notEmpty()
@@ -287,7 +220,7 @@ const validateUpdateLead = [
   
   // Ensure at least one field is being updated
   body().custom((body) => {
-    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'added_by_id', 'status', 'referrals'];
+    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'added_by_id', 'referrals'];
     const hasUpdate = updatableFields.some(field => body.hasOwnProperty(field));
     
     if (!hasUpdate) {
@@ -323,18 +256,6 @@ const validateAgentId = [
 
 // Validation for leads filters (query parameters)
 const validateLeadsFilters = [
-  query('status')
-    .optional()
-    .custom(async (value) => {
-      if (value && value !== 'All') {
-        const validStatuses = await getValidStatuses();
-        if (!validStatuses.includes(value)) {
-          throw new Error(`Status must be one of: ${[...validStatuses, 'All'].join(', ')}`);
-        }
-      }
-      return true;
-    }),
-    
   query('agent_id')
     .optional()
     .isInt({ min: 1 })
@@ -520,8 +441,5 @@ module.exports = {
   sanitizeRequestBody,
   leadsRateLimit,
   validateLeadBusinessRules,
-  sanitizeInput,
-  getValidStatuses,
-  initializeValidStatuses,
-  validStatuses
+  sanitizeInput
 };

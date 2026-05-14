@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS leads (
     referral_dates TEXT,
     referral_sources JSONB, -- For multiple referrals with dates like properties
     notes TEXT,
-    status VARCHAR(50) DEFAULT 'active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -19,7 +18,6 @@ CREATE TABLE IF NOT EXISTS leads (
 CREATE INDEX IF NOT EXISTS idx_leads_date ON leads(date);
 CREATE INDEX IF NOT EXISTS idx_leads_customer_name ON leads(customer_name);
 CREATE INDEX IF NOT EXISTS idx_leads_agent_id ON leads(agent_id);
-CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_leads_created_at ON leads(created_at);
 
 -- Create trigger to update updated_at timestamp

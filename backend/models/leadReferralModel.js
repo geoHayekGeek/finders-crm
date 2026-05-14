@@ -69,7 +69,6 @@ class LeadReferral {
         lr.lead_id,
         l.customer_name,
         l.phone_number,
-        l.status as lead_status,
         lr.agent_id,
         lr.referral_date,
         lr.external,
@@ -623,7 +622,6 @@ class LeadReferral {
         u.role as referred_by_role,
         l.customer_name,
         l.phone_number,
-        l.status as lead_status,
         l.notes
        FROM lead_referrals lr
        LEFT JOIN leads l ON lr.lead_id = l.id
@@ -654,4 +652,3 @@ class LeadReferral {
 }
 
 module.exports = LeadReferral;
-

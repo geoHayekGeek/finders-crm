@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Lead, LEAD_STATUSES } from '@/types/leads'
-import { Eye, Edit3, Trash2, Phone, Calendar, User, Users, Share2, UserPlus } from 'lucide-react'
+import { Lead } from '@/types/leads'
+import { Eye, Edit3, Trash2, Phone, Calendar, User, Users, UserPlus } from 'lucide-react'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { ReferLeadModal } from './ReferLeadModal'
 import { useAuth } from '@/contexts/AuthContext'
@@ -18,57 +18,24 @@ interface LeadsCardProps {
   limitedAccess?: boolean
 }
 
-export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = true, canDeleteLeads = false, limitedAccess = false }: LeadsCardProps) {
+export function LeadsCard({
+  lead,
+  onView,
+  onEdit,
+  onDelete,
+  canManageLeads = true,
+  canDeleteLeads = false,
+  limitedAccess = false
+}: LeadsCardProps) {
   const [showReferModal, setShowReferModal] = useState(false)
   const { user } = useAuth()
-  const statusConfig = LEAD_STATUSES.find(s => s.value === lead.status)
-  const statusColor = statusConfig?.color || '#6B7280'
-  const statusLabel = statusConfig?.label || lead.status
-  
-  // Check if lead is closed
-  // Check if the lead's status allows referrals
-  let canBeReferred = true
-  if (lead.status_can_be_referred === false) {
-    canBeReferred = false
-    console.log('🚫 [LeadsCard] Lead cannot be referred - status_can_be_referred is false', {
-      leadId: lead.id,
-      status: lead.status,
-      status_can_be_referred: lead.status_can_be_referred
-    })
-  } else if (lead.status_can_be_referred === undefined || lead.status_can_be_referred === null) {
-    // For backward compatibility, if status_can_be_referred is undefined, 
-    // fall back to checking status name (for old data)
-    const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
-    if (isClosed) {
-      canBeReferred = false
-      console.log('🚫 [LeadsCard] Lead cannot be referred - status is closed/converted', {
-        leadId: lead.id,
-        status: lead.status
-      })
-    }
-  }
-  
-  // Agents and team leaders can only refer leads that are assigned to them
-  const normalizedUserRole = normalizeRole(user?.role);
-  const canReferLead = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
-                      lead.agent_id === user?.id &&
-                      canBeReferred
-  
-  // Debug logging
-  if (lead.status_can_be_referred === false && canReferLead) {
-    console.warn('⚠️ [LeadsCard] Inconsistency detected - status_can_be_referred is false but canReferLead is true', {
-      leadId: lead.id,
-      status: lead.status,
-      status_can_be_referred: lead.status_can_be_referred,
-      userRole: user?.role,
-      leadAgentId: lead.agent_id,
-      userId: user?.id
-    })
-  }
+
+  const normalizedUserRole = normalizeRole(user?.role)
+  const canReferLead = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') &&
+    lead.agent_id === user?.id
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
-      {/* Header with status, date, and refer button */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           {!limitedAccess && (
@@ -79,14 +46,7 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
               </span>
             </div>
           )}
-          <span 
-            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
-            style={{ backgroundColor: statusColor }}
-          >
-            {statusLabel}
-          </span>
         </div>
-        {/* Refer button in top right */}
         {canReferLead && (
           <button
             onClick={(e) => {
@@ -102,7 +62,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         )}
       </div>
 
-      {/* Customer Name */}
       <div className="mb-3">
         <div className="flex items-center gap-2 mb-1">
           <User className="h-5 w-5 text-blue-600" />
@@ -112,7 +71,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       </div>
 
-      {/* Phone Number */}
       {lead.phone_number && (
         <div className="flex items-center gap-2 mb-3">
           <Phone className="h-4 w-4 text-gray-400" />
@@ -120,7 +78,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Price - shown for all users including agents and team leaders */}
       {lead.price !== null && lead.price !== undefined && lead.price > 0 && (
         <div className="mb-3">
           <div className="text-xs font-medium text-gray-500 mb-1">Price</div>
@@ -128,7 +85,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Agent Information - Show for team leaders, hide for agents */}
       {(!limitedAccess || isTeamLeaderRole(user?.role)) && (
         <div className="mb-3">
           <div className="flex items-center gap-2">
@@ -153,7 +109,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Total Viewings - Operations and above (non-limited access) */}
       {!limitedAccess && (
         <div className="mb-3">
           <div className="text-xs font-medium text-gray-500 mb-1">Total Viewings</div>
@@ -161,7 +116,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Added By - Only show for admin/operations, not for agents/team leaders */}
       {!limitedAccess && lead.added_by_name && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Added By</div>
@@ -176,7 +130,6 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Reference Source */}
       {!limitedAccess && lead.reference_source_name && (
         <div className="mb-4">
           <div className="text-xs font-medium text-gray-500 mb-1">Reference Source</div>
@@ -184,14 +137,12 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         </div>
       )}
 
-      {/* Created Date */}
       {!limitedAccess && (
         <div className="text-xs text-gray-400 mb-4">
           Created {formatDateForDisplay(lead.created_at)}
         </div>
       )}
 
-      {/* Action Buttons */}
       <div className="flex items-center justify-end gap-2 pt-4 border-t border-gray-100">
         <button
           onClick={() => onView(lead)}
@@ -223,13 +174,12 @@ export function LeadsCard({ lead, onView, onEdit, onDelete, canManageLeads = tru
         )}
       </div>
 
-      {/* Refer Lead Modal */}
       <ReferLeadModal
         isOpen={showReferModal}
         onClose={() => setShowReferModal(false)}
         lead={lead}
         onSuccess={() => {
-          // Optionally refresh the lead list
+          // no-op
         }}
       />
     </div>

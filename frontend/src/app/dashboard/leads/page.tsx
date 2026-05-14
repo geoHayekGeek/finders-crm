@@ -93,8 +93,7 @@ useEffect(() => {
     agent_name: '',
     price: undefined,
     reference_source_id: undefined,
-    added_by_id: undefined,
-    status: 'Active'
+    added_by_id: undefined
   })
   const [editValidationErrors, setEditValidationErrors] = useState<Record<string, string>>({})
   
@@ -193,15 +192,9 @@ useEffect(() => {
       
       if (response.success) {
         const leadsData = response.data || []
-        // Debug: Check if status_can_be_referred is present in the data
         if (leadsData.length > 0) {
           const sampleLead = leadsData[0]
-          console.log('📊 [DEBUG] Sample lead data:', {
-            id: sampleLead.id,
-            status: sampleLead.status,
-            status_can_be_referred: sampleLead.status_can_be_referred,
-            hasField: 'status_can_be_referred' in sampleLead
-          })
+          console.log('Sample lead data:', { id: sampleLead.id })
         }
         setLeads(leadsData)
         setTotalLeads(response.pagination?.total ?? leadsData.length)
@@ -511,9 +504,7 @@ useEffect(() => {
           ? parseFloat(refreshedLead.price.toString()) 
           : undefined,
         reference_source_id: safeNumber(refreshedLead.reference_source_id),
-        added_by_id: safeNumber(refreshedLead.added_by_id),
-        status: refreshedLead.status || 'Active',
-        referrals: convertedReferrals
+        added_by_id: safeNumber(refreshedLead.added_by_id),        referrals: convertedReferrals
       }
       
       console.log('📝 Full refreshed lead data:', refreshedLead)
@@ -550,31 +541,6 @@ useEffect(() => {
   // Function to check if a lead can be referred
   const canReferLead = useCallback((lead: Lead) => {
     if (!user) return false
-    
-    // Check if the lead's status allows referrals
-    // Explicitly check for false (not just falsy values)
-    if (lead.status_can_be_referred === false) {
-      console.log('🚫 [canReferLead] Lead cannot be referred - status_can_be_referred is false', {
-        leadId: lead.id,
-        status: lead.status,
-        status_can_be_referred: lead.status_can_be_referred
-      })
-      return false
-    }
-    
-    // For backward compatibility, if status_can_be_referred is undefined or null, 
-    // fall back to checking status name (for old data)
-    if (lead.status_can_be_referred === undefined || lead.status_can_be_referred === null) {
-      const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase())
-      if (isClosed) {
-        console.log('🚫 [canReferLead] Lead cannot be referred - status is closed/converted', {
-          leadId: lead.id,
-          status: lead.status
-        })
-        return false
-      }
-    }
-    
     // Check user role and assignment
     const canRefer = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
                      lead.agent_id === user.id
@@ -698,7 +664,6 @@ useEffect(() => {
 
       console.log('📡 [LeadsPage] Sending update request for lead:', selectedLead.id)
       console.log('📡 [LeadsPage] Raw update data:', editFormData)
-      console.log('📡 [LeadsPage] Status field specifically:', editFormData.status)
 
       // Filter out undefined values and prepare clean update data
       const cleanUpdateData = Object.fromEntries(
@@ -706,7 +671,6 @@ useEffect(() => {
       )
       
       console.log('📡 [LeadsPage] After filtering undefined values:', cleanUpdateData)
-      console.log('📡 [LeadsPage] Status after filtering:', cleanUpdateData.status)
       
       // Handle agent removal - if agent_id is undefined, set it to null
       if (cleanUpdateData.agent_id === undefined) {
@@ -716,7 +680,6 @@ useEffect(() => {
       }
       
       console.log('📡 [LeadsPage] Final clean update data:', cleanUpdateData)
-      console.log('📡 [LeadsPage] Final status value:', cleanUpdateData.status)
       console.log('📡 [LeadsPage] Referrals in update data:', cleanUpdateData.referrals)
       console.log('📡 [LeadsPage] Number of referrals:', cleanUpdateData.referrals?.length || 0)
 
@@ -882,9 +845,7 @@ useEffect(() => {
       'Customer Name', 
       'Phone Number',
       'Agent Name',
-      'Total Viewings',
-      'Status',
-      'Reference Source',
+      'Total Viewings',      'Reference Source',
       'Added By',
       'Referral Sources',
       'Created Date'
@@ -896,9 +857,7 @@ useEffect(() => {
       lead.customer_name || '',
       lead.phone_number || '',
       lead.assigned_agent_name || lead.agent_name || '',
-      Number(lead.total_viewings ?? 0),
-      lead.status || '',
-      lead.reference_source_name || '',
+      Number(lead.total_viewings ?? 0),      lead.reference_source_name || '',
       lead.added_by_name || '',
       lead.reference_source_name || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : ''
@@ -940,9 +899,7 @@ useEffect(() => {
       'Phone Number',
       'Agent Name',
       'Total Viewings',
-      'Agent Role',
-      'Status',
-      'Reference Source',
+      'Agent Role',      'Reference Source',
       'Added By',
       'Added By Role',
       'Referral Sources',
@@ -957,9 +914,7 @@ useEffect(() => {
       lead.phone_number || '',
       lead.assigned_agent_name || lead.agent_name || '',
       Number(lead.total_viewings ?? 0),
-      lead.agent_role || '',
-      lead.status || '',
-      lead.reference_source_name || '',
+      lead.agent_role || '',      lead.reference_source_name || '',
       lead.added_by_name || '',
       lead.added_by_role || '',
       lead.reference_source_name || '',
@@ -1325,3 +1280,4 @@ useEffect(() => {
     </div>
   )
 }
+

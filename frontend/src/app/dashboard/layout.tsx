@@ -69,7 +69,7 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canManageLeads, canViewViewings, role } = usePermissions()
+  const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canViewViewings, role } = usePermissions()
   const { settings } = useSettings()
   const router = useRouter()
 
@@ -126,24 +126,13 @@ export default function DashboardLayout({
 
     // Leads with submenu for management roles only
     if (canViewLeads) {
-      const leadsSubmenuItems = [
-        { name: 'All Leads', href: '/dashboard/leads', icon: FileText }
-      ]
-      
-      // Add lead statuses to submenu only if user can manage leads
-      if (canManageLeads) {
-        leadsSubmenuItems.push(
-          { name: 'Lead Statuses', href: '/dashboard/leads/statuses', icon: Circle }
-        )
-      }
-
       baseNavigation.push({ 
         name: 'Leads', 
         href: '/dashboard/leads', 
         icon: FileText, 
         alwaysVisible: true,
-        hasSubmenu: leadsSubmenuItems.length > 1,
-        submenu: leadsSubmenuItems.length > 1 ? leadsSubmenuItems : undefined
+        hasSubmenu: false,
+        submenu: undefined
       })
     }
 

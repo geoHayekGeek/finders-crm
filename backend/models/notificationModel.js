@@ -295,11 +295,6 @@ class Notification {
           message = `You have been assigned to the lead "${leadData.customer_name}".`;
           type = 'info';
           break;
-        case 'status_changed':
-          title = 'Lead Status Changed';
-          message = `The lead "${leadData.customer_name}" status has been changed to "${leadData.status}".`;
-          type = 'success';
-          break;
         default:
           title = 'Lead Notification';
           message = `There has been an update to the lead "${leadData.customer_name}".`;

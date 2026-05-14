@@ -720,7 +720,7 @@ async function getTeamProperties(teamLeaderId, startDateInput, endDateInput, fil
  * @param {number} teamLeaderId - ID of the team leader
  * @param {Date|string} startDateInput - Inclusive start date
  * @param {Date|string} endDateInput - Inclusive end date
- * @param {object} filters - Optional filters (status, agent_id)
+ * @param {object} filters - Optional filters (agent_id)
  * @returns {array} Array of leads with details
  */
 async function getTeamLeads(teamLeaderId, startDateInput, endDateInput, filters = {}) {
@@ -770,7 +770,6 @@ async function getTeamLeads(teamLeaderId, startDateInput, endDateInput, filters 
         u.name as agent_name,
         u.user_code as agent_code,
         u.role as agent_role,
-        l.status,
         l.notes,
         l.created_at,
         l.updated_at
@@ -785,12 +784,6 @@ async function getTeamLeads(teamLeaderId, startDateInput, endDateInput, filters 
     let paramCount = 3;
 
     // Add filters
-    if (filters.status) {
-      paramCount++;
-      query += ` AND l.status = $${paramCount}`;
-      params.push(filters.status);
-    }
-
     if (filters.agent_id) {
       paramCount++;
       query += ` AND l.agent_id = $${paramCount}`;

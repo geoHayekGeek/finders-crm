@@ -906,46 +906,6 @@ export const statusesApi = {
     }, token),
 }
 
-// Lead Statuses API
-export const leadStatusesApi = {
-  // Get all lead statuses (requires authentication)
-  getAll: () => apiRequest<{ success: boolean; data: any[]; message?: string }>('/lead-statuses'),
-  
-  // Get lead status by ID
-  getById: (id: number) => apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`),
-  
-  // Create new lead status
-  create: (data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: AuthToken) => 
-    apiRequest<{ success: boolean; data: any; message?: string }>('/lead-statuses', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      },
-      body: JSON.stringify(data)
-    }),
-  
-  // Update lead status
-  update: (id: number, data: { status_name: string; code: string; color?: string; description?: string; is_active?: boolean }, token?: AuthToken) => 
-    apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      },
-      body: JSON.stringify(data)
-    }),
-  
-  // Delete lead status
-  delete: (id: number, token?: AuthToken) => 
-    apiRequest<{ success: boolean; data: any; message?: string }>(`/lead-statuses/${id}`, {
-      method: 'DELETE',
-      headers: {
-        ...(token && { 'Authorization': `Bearer ${token}` })
-      }
-    })
-}
-
 // Notifications API
 export const notificationsApi = {
   // Get all notifications for the authenticated user
@@ -1675,13 +1635,11 @@ export const dcsrApi = {
 
   // Get detailed team leads
   getTeamLeads: (teamLeaderId: number, startDate: string, endDate: string, filters?: {
-    status?: string
     agent_id?: number
   }, token?: AuthToken) => {
     const params = new URLSearchParams()
     params.append('start_date', startDate)
     params.append('end_date', endDate)
-    if (filters?.status) params.append('status', filters.status)
     if (filters?.agent_id) params.append('agent_id', String(filters.agent_id))
     return apiRequest<{ 
       success: boolean
@@ -1694,7 +1652,6 @@ export const dcsrApi = {
         agent_name: string | null
         agent_code: string | null
         agent_role: string | null
-        status: string
         notes: string | null
         created_at: string
         updated_at: string

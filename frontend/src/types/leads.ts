@@ -32,8 +32,6 @@ export interface Lead {
   added_by_name?: string
   added_by_role?: string
   referrals?: LeadReferral[] // Lead referral tracking
-  status: string
-  status_can_be_referred?: boolean // Whether the lead's status allows referrals
   total_viewings?: number
   created_at: string
   updated_at: string
@@ -67,17 +65,9 @@ export interface UserWhoCanAddLeads {
 // Backward compatibility alias
 export type OperationsUser = UserWhoCanAddLeads
 
-export interface LeadStatusOption {
-  id: number
-  status_name: string
-  created_at: string
-  modified_at: string
-}
-
 export interface LeadFilters {
   /** Team leaders only: restrict to leads assigned to you or your team agents (server-enforced). */
   my_team?: boolean
-  status?: string
   agent_id?: number
   reference_source_id?: number
   date_from?: string
@@ -102,7 +92,6 @@ export interface EditLeadFormData {
   price?: number  // New optional field
   reference_source_id?: number  // Required before submit
   added_by_id?: number  // Will be auto-set to current user if not provided
-  status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
 }
 
@@ -115,17 +104,11 @@ export interface CreateLeadFormData {
   price?: number  // New optional field
   reference_source_id?: number  // Required before submit
   added_by_id?: number  // Will be auto-set to current user if not provided
-  status: string
   referrals?: LeadReferralInput[]  // Optional referrals field
 }
 
 export interface LeadStats {
   total_leads: number
-  active: number
-  contacted: number
-  qualified: number
-  converted: number
-  closed: number
 }
 
 export interface LeadStatsResponse {
@@ -134,26 +117,11 @@ export interface LeadStatsResponse {
     lead_date: string
     count: number
   }>
-  byStatus: Array<{
-    status: string
-    count: number
-  }>
   byAgent: Array<{
     agent_name: string
     count: number
   }>
 }
-
-// Lead status options (matching database values)
-export const LEAD_STATUSES = [
-  { value: 'Active', label: 'Active', color: '#10B981' },
-  { value: 'Contacted', label: 'Contacted', color: '#3B82F6' },
-  { value: 'Qualified', label: 'Qualified', color: '#8B5CF6' },
-  { value: 'Converted', label: 'Converted', color: '#059669' },
-  { value: 'Closed', label: 'Closed', color: '#6B7280' }
-] as const
-
-export type LeadStatus = typeof LEAD_STATUSES[number]['value']
 
 // API response types
 export interface LeadsResponse {
@@ -182,7 +150,6 @@ export interface LeadResponse {
 
 export interface LeadStatsData {
   total: number
-  byStatus: { status: string; count: number }[]
   pricing: {
     withPrice: number
     averagePrice: number
@@ -245,7 +212,6 @@ export interface AgentReferralStatsResponse {
       lead_id: number
       customer_name: string
       phone_number: string
-      lead_status: string
       agent_id: number
       referral_date: string
       external: boolean
@@ -269,7 +235,6 @@ export interface LeadsImportRowPreview {
   added_by_name: string | null
   agent_id: number | null
   agent_name: string | null
-  status: string
   warnings: string[]
   errors: string[]
   isError?: boolean

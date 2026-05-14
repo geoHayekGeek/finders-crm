@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, ChevronDown, User, RefreshCw, UserCircle, Plus, Phone, Globe, Tag, Users } from 'lucide-react'
+import { X, ChevronDown, User, RefreshCw, UserCircle, Plus, Phone, Globe } from 'lucide-react'
 import { leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -12,7 +12,6 @@ interface Owner {
   customer_name: string
   phone_number?: string
   date: string
-  status?: string
 }
 
 interface OwnerSelectorProps {
@@ -127,8 +126,7 @@ export function OwnerSelector({
     const searchLower = searchTerm.toLowerCase()
     return (
       owner.customer_name.toLowerCase().includes(searchLower) ||
-      (owner.phone_number && owner.phone_number.toLowerCase().includes(searchLower)) ||
-      (owner.status && owner.status.toLowerCase().includes(searchLower))
+      (owner.phone_number && owner.phone_number.toLowerCase().includes(searchLower))
     )
   })
 
@@ -230,7 +228,6 @@ export function OwnerSelector({
         phone_number: quickAddForm.phone_number.trim(),
         reference_source_id: quickAddForm.reference_source_id,
         date: today,
-        status: 'Active', // Default status
         referrals: [
           {
             name: 'Property Owner',
@@ -254,8 +251,7 @@ export function OwnerSelector({
           id: response.data.id,
           customer_name: response.data.customer_name,
           phone_number: response.data.phone_number,
-          date: response.data.date,
-          status: response.data.status
+          date: response.data.date
         }
         onOwnerChange(newLead)
         
@@ -300,23 +296,6 @@ export function OwnerSelector({
     }
   }, [owners, selectedOwnerId, selectedOwner])
 
-  const getStatusColor = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return 'bg-green-100 text-green-700'
-      case 'contacted':
-        return 'bg-blue-100 text-blue-700'
-      case 'qualified':
-        return 'bg-purple-100 text-purple-700'
-      case 'converted':
-        return 'bg-indigo-100 text-indigo-700'
-      case 'closed':
-        return 'bg-gray-100 text-gray-700'
-      default:
-        return 'bg-gray-100 text-gray-700'
-    }
-  }
-
   // Determine what to display - prefer selectedOwner from list, fallback to selectedOwnerName prop
   // If owner_name is 'Hidden', don't use it - let the component find the owner by ID from the list
   // Also handle case where owner_name exists but owner_id is null (legacy data)
@@ -327,8 +306,7 @@ export function OwnerSelector({
       id: selectedOwnerId || 0, // Use 0 as placeholder if owner_id is null
       customer_name: selectedOwnerName,
       phone_number: undefined,
-      date: '',
-      status: undefined
+      date: ''
     } : null
   )
   
@@ -359,11 +337,6 @@ export function OwnerSelector({
               <div className="flex items-center gap-2">
                 {displayOwner.phone_number && (
                   <span className="text-xs text-indigo-600">{displayOwner.phone_number}</span>
-                )}
-                {displayOwner.status && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(displayOwner.status)}`}>
-                    {displayOwner.status}
-                  </span>
                 )}
                 {!selectedOwner && selectedOwnerName && selectedOwnerId && (
                   <span className="text-xs text-gray-500 italic">(Loading details...)</span>
@@ -472,12 +445,7 @@ export function OwnerSelector({
                             <div className="text-xs text-gray-600">{owner.phone_number}</div>
                           )}
                         </div>
-                        <div className="ml-3 flex items-center gap-2">
-                          {owner.status && (
-                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(owner.status)}`}>
-                              {owner.status}
-                            </span>
-                          )}
+                        <div className="ml-3 flex items-center">
                           <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
                             <UserCircle className="h-4 w-4 text-indigo-600" />
                           </div>
@@ -562,7 +530,7 @@ export function OwnerSelector({
                   />
                   {quickAddErrors.customer_name && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {quickAddErrors.customer_name}
                     </p>
                   )}
@@ -598,7 +566,7 @@ export function OwnerSelector({
                   />
                   {quickAddErrors.phone_number && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {quickAddErrors.phone_number}
                     </p>
                   )}
@@ -622,7 +590,7 @@ export function OwnerSelector({
                   />
                   {quickAddErrors.reference_source_id && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {quickAddErrors.reference_source_id}
                     </p>
                   )}
@@ -638,7 +606,7 @@ export function OwnerSelector({
                     </div>
                     <div className="flex-1">
                       <p className="text-sm text-blue-800">
-                        <strong>Auto-filled:</strong> Date (today), Status (Active), and a default referral will be added automatically.
+                        <strong>Auto-filled:</strong> Date (today) and a default referral will be added automatically.
                       </p>
                     </div>
                   </div>
@@ -688,4 +656,3 @@ export function OwnerSelector({
     </div>
   )
 }
-

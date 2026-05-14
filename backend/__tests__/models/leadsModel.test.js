@@ -25,8 +25,7 @@ describe('Lead Model', () => {
         agent_id: 1,
         price: 200000,
         reference_source_id: 1,
-        added_by_id: 2,
-        status: 'Active'
+        added_by_id: 2
       };
 
       const mockLead = {
@@ -52,8 +51,7 @@ describe('Lead Model', () => {
           undefined,
           200000,
           1,
-          2,
-          'Active'
+          2
         ])
       );
     });
@@ -74,7 +72,7 @@ describe('Lead Model', () => {
       expect(callArgs[0]).toBeDefined(); // Date should be set
     });
 
-    it('should use default status when not provided', async () => {
+    it('should not include lead status in insert values', async () => {
       const leadData = {
         customer_name: 'John Doe',
         phone_number: '1234567890',
@@ -87,7 +85,8 @@ describe('Lead Model', () => {
       await Lead.createLead(leadData);
 
       const callArgs = mockQuery.mock.calls[0][1];
-      expect(callArgs[8]).toBe('Active'); // Default status (9th parameter, index 8)
+      expect(callArgs).not.toContain('Active');
+      expect(callArgs).toHaveLength(8);
     });
 
     it('should throw error when added_by_id is missing', async () => {
@@ -264,8 +263,7 @@ describe('Lead Model', () => {
     it('should update lead successfully', async () => {
       const updates = {
         customer_name: 'Jane Doe',
-        phone_number: '9876543210',
-        status: 'Contacted'
+        phone_number: '9876543210'
       };
 
       const mockUpdated = {
@@ -282,7 +280,7 @@ describe('Lead Model', () => {
       expect(result.customer_name).toBe('Jane Doe');
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE leads'),
-        expect.arrayContaining([1, 'Jane Doe', '9876543210', 'Contacted'])
+        expect.arrayContaining([1, 'Jane Doe', '9876543210'])
       );
     });
 
@@ -354,17 +352,17 @@ describe('Lead Model', () => {
   });
 
   describe('getLeadsWithFilters', () => {
-    it('should filter by status', async () => {
-      const filters = { status: 'Active' };
-      const mockLeads = { rows: [{ id: 1, status: 'Active' }] };
+    it('should filter by reference_source_id', async () => {
+      const filters = { reference_source_id: 3 };
+      const mockLeads = { rows: [{ id: 1, reference_source_id: 3 }] };
 
       mockQuery.mockResolvedValueOnce(mockLeads);
 
-      const result = await Lead.getLeadsWithFilters(filters);
+      await Lead.getLeadsWithFilters(filters);
 
       expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('AND l.status = $'),
-        expect.arrayContaining(['Active'])
+        expect.stringContaining('AND l.reference_source_id = $'),
+        expect.arrayContaining([3])
       );
     });
 
@@ -389,15 +387,11 @@ describe('Lead Model', () => {
       };
       const mockLeads = { rows: [] };
 
-      mockQuery
-        .mockResolvedValueOnce({ rows: [] }) // Sample query
-        .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // date_from count
-        .mockResolvedValueOnce({ rows: [{ count: 0 }] }) // date_to count
-        .mockResolvedValueOnce(mockLeads); // Main query
+      mockQuery.mockResolvedValueOnce(mockLeads);
 
       await Lead.getLeadsWithFilters(filters);
 
-      const queryCall = mockQuery.mock.calls[3][0];
+      const queryCall = mockQuery.mock.calls[0][0];
       expect(queryCall).toContain('AND l.date >=');
       expect(queryCall).toContain('AND l.date <');
     });
@@ -444,7 +438,11 @@ describe('Lead Model', () => {
       const result = await Lead.getLeadStats();
 
       expect(result.total_leads).toBe(100);
-      expect(result.active).toBe(50);
+      expect(result.active).toBe(0);
+      expect(result.contacted).toBe(0);
+      expect(result.qualified).toBe(0);
+      expect(result.converted).toBe(0);
+      expect(result.closed).toBe(0);
     });
   });
 
@@ -535,4 +533,3 @@ describe('Lead Model', () => {
     });
   });
 });
-

@@ -309,8 +309,8 @@ async function addLebaneseDummyData() {
       const contactSource = getRandomElement(['call', 'unknown']); // Only valid values
       
       const result = await client.query(
-        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, operations_id, reference_source_id, contact_source, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, operations_id, reference_source_id, contact_source)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, customer_name`,
         [
           getRandomPastDate(90),
@@ -320,8 +320,7 @@ async function addLebaneseDummyData() {
           employees.find(e => e.id === agent)?.name || 'Unknown',
           operations,
           referenceSource,
-          contactSource,
-          getRandomElement(['active', 'contacted', 'qualified', 'converted', 'closed'])
+          contactSource
         ]
       );
       leads.push(result.rows[0]);
@@ -681,8 +680,8 @@ async function addLebaneseDummyData() {
         const octoberDate = getRandomOctoberDate();
         
         const result = await client.query(
-          `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, operations_id, reference_source_id, contact_source, status, created_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, operations_id, reference_source_id, contact_source, created_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING id, customer_name`,
           [
             octoberDate,
@@ -693,7 +692,6 @@ async function addLebaneseDummyData() {
             operations,
             referenceSource,
             contactSource,
-            getRandomElement(['active', 'contacted', 'qualified', 'converted', 'closed']),
             new Date(octoberDate + 'T10:00:00').toISOString()
           ]
         );
@@ -740,4 +738,3 @@ async function run() {
 }
 
 run();
-

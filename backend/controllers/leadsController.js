@@ -244,7 +244,6 @@ class LeadsController {
         customerName: newLead.customer_name,
         phoneNumber: newLead.phone_number ? '***' : null, // Mask sensitive data
         agentId: newLead.agent_id,
-        status: newLead.status,
         price: newLead.price,
         createdBy: req.user.id,
         createdByName: req.user.name,
@@ -301,8 +300,7 @@ class LeadsController {
           'created',
           {
             customer_name: newLead.customer_name,
-            phone_number: newLead.phone_number,
-            status: newLead.status
+            phone_number: newLead.phone_number
           },
           req.user.id
         );
@@ -483,26 +481,15 @@ class LeadsController {
       try {
         const notificationData = {
           customer_name: updatedLead.customer_name,
-          phone_number: updatedLead.phone_number,
-          status: updatedLead.status
+          phone_number: updatedLead.phone_number
         };
 
-        // Check if status changed
-        if (req.body.status && req.body.status !== existingLead.status) {
-          await Notification.createLeadNotification(
-            parseInt(id),
-            'status_changed',
-            notificationData,
-            req.user.id
-          );
-        } else {
-          await Notification.createLeadNotification(
-            parseInt(id),
-            'updated',
-            notificationData,
-            req.user.id
-          );
-        }
+        await Notification.createLeadNotification(
+          parseInt(id),
+          'updated',
+          notificationData,
+          req.user.id
+        );
 
         // If agent assignment changed, create a specific "Lead Assigned" notification for the new agent
         if (req.body.agent_id && req.body.agent_id !== existingLead.agent_id && req.body.agent_id !== req.user.id) {
@@ -525,9 +512,6 @@ class LeadsController {
       const changes = {};
       if (req.body.agent_id !== undefined && req.body.agent_id !== existingLead.agent_id) {
         changes.agent_id = { from: existingLead.agent_id, to: req.body.agent_id };
-      }
-      if (req.body.status !== undefined && req.body.status !== existingLead.status) {
-        changes.status = { from: existingLead.status, to: req.body.status };
       }
       if (req.body.price !== undefined && req.body.price !== existingLead.price) {
         changes.price = { from: existingLead.price, to: req.body.price };
@@ -592,8 +576,7 @@ class LeadsController {
           'deleted',
           {
             customer_name: existingLead.customer_name,
-            phone_number: existingLead.phone_number,
-            status: existingLead.status
+            phone_number: existingLead.phone_number
           },
           req.user.id
         );
@@ -1323,23 +1306,6 @@ class LeadsController {
       const lead = await Lead.getLeadById(id);
       if (!lead) {
         return res.status(404).json({ message: 'Lead not found' });
-      }
-
-      // Check if the lead's status allows referrals
-      if (lead.status_can_be_referred === false) {
-        return res.status(400).json({ 
-          message: `Leads with status "${lead.status}" cannot be referred.` 
-        });
-      }
-      
-      // Fallback check for undefined/null (shouldn't happen after migration, but just in case)
-      if (lead.status_can_be_referred === undefined || lead.status_can_be_referred === null) {
-        const isClosed = lead.status && ['closed', 'converted'].includes(lead.status.toLowerCase());
-        if (isClosed) {
-          return res.status(400).json({ 
-            message: `Leads with status "${lead.status}" cannot be referred.` 
-          });
-        }
       }
 
       // For agents and team leaders, they can only refer leads assigned to them

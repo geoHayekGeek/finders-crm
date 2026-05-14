@@ -368,7 +368,6 @@ async function main() {
       const phoneNumber = generateLebanesePhone();
       const agent = randomElement(leadAssignableUsers);
       const date = randomPastDate(365);
-      const status = randomElement(['Active', 'Contacted', 'Qualified', 'Converted', 'Closed']);
       const referenceSource = referenceSources.length > 0 ? randomElement(referenceSources).id : null;
       const price = Math.floor(Math.random() * 500000) + 50000; // 50k to 550k
       // Randomly assign to different operations users
@@ -377,9 +376,9 @@ async function main() {
         : finalOperationsId;
       
       const leadResult = await pool.query(
-        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, operations_id, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-        [date, customerName, phoneNumber, agent.id, agent.name, price, referenceSource, assignedOperationsId, status]
+        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, operations_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [date, customerName, phoneNumber, agent.id, agent.name, price, referenceSource, assignedOperationsId]
       );
       
       const leadId = leadResult.rows[0].id;
@@ -664,4 +663,3 @@ async function main() {
 }
 
 main().catch(console.error);
-

@@ -36,12 +36,6 @@ class LeadsStatsController {
 
       await sanitizeAgentIdFilterQuery(filters, userId, userRole);
       
-      if (filters.status && filters.status !== 'All') {
-        whereConditions.push(`l.status = $${paramIndex}`);
-        params.push(filters.status);
-        paramIndex++;
-      }
-
       if (filters.agent_id) {
         const agentId = parseInt(filters.agent_id);
         if (!isNaN(agentId)) {
@@ -85,7 +79,6 @@ class LeadsStatsController {
       // Execute all queries in parallel for better performance
       const [
         totalResult,
-        statusResult,
         priceResult,
         sourceResult,
         recentResult,
@@ -96,12 +89,6 @@ class LeadsStatsController {
         // Total leads
         pool.query(
           `SELECT COUNT(*) as total FROM leads l ${whereClause}`,
-          params
-        ),
-        
-        // By status
-        pool.query(
-          `SELECT status, COUNT(*) as count FROM leads l ${whereClause} GROUP BY status ORDER BY count DESC`,
           params
         ),
         
@@ -158,10 +145,7 @@ class LeadsStatsController {
       const stats = {
         total: totalLeads,
         
-        byStatus: statusResult.rows.map(row => ({
-          status: row.status,
-          count: parseInt(row.count)
-        })),
+        byStatus: [],
         
         pricing: {
           withPrice: parseInt(priceResult.rows[0].with_price),

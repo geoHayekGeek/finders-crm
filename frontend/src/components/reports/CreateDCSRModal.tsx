@@ -51,7 +51,6 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     agent_id?: number
   }>({})
   const [leadFilters, setLeadFilters] = useState<{
-    status?: string
     agent_id?: number
   }>({})
   const [viewingFilters, setViewingFilters] = useState<{
@@ -1019,19 +1018,6 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                       {detailedViewTab === 'leads' && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                            <select
-                              value={leadFilters.status || ''}
-                              onChange={(e) => setLeadFilters(prev => ({ ...prev, status: e.target.value || undefined }))}
-                              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                            >
-                              <option value="">All Statuses</option>
-                              <option value="active">Active</option>
-                              <option value="closed">Closed</option>
-                              <option value="converted">Converted</option>
-                            </select>
-                          </div>
-                          <div>
                             <label className="block text-xs font-medium text-gray-600 mb-1">Agent</label>
                             <select
                               value={leadFilters.agent_id || ''}
@@ -1199,14 +1185,13 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {teamLeads.length === 0 ? (
                               <tr>
-                                <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
                                   No leads found for this team in the selected date range.
                                 </td>
                               </tr>
@@ -1230,17 +1215,6 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                                   </td>
                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                                     {lead.agent_name || 'Unassigned'} {lead.agent_code ? `(${lead.agent_code})` : ''}
-                                  </td>
-                                  <td className="px-4 py-3 whitespace-nowrap text-sm">
-                                    <span className={`px-2 py-1 text-xs font-medium rounded ${
-                                      lead.status === 'active' 
-                                        ? 'bg-green-100 text-green-800'
-                                        : lead.status === 'closed'
-                                        ? 'bg-gray-100 text-gray-800'
-                                        : 'bg-blue-100 text-blue-800'
-                                    }`}>
-                                      {lead.status}
-                                    </span>
                                   </td>
                                   <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">
                                     {lead.notes || '-'}
@@ -1402,4 +1376,3 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     </div>
   )
 }
-

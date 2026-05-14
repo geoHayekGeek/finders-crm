@@ -107,8 +107,8 @@ async function createOwnerLead(client, payload) {
     importerRole,
   } = payload;
   const lead = await client.query(
-    `INSERT INTO leads (date, customer_name, phone_number, reference_source_id, added_by_id, status, agent_id, agent_name)
-     VALUES ($1, $2, $3, $4, $5, 'Active', $6, $7)
+    `INSERT INTO leads (date, customer_name, phone_number, reference_source_id, added_by_id, agent_id, agent_name)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING id`,
     [
       date,

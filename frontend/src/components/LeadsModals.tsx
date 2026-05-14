@@ -1,28 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, User, Phone, Calendar, Users, Tag, Globe, Settings, RefreshCw, Calculator, Edit3, Building2, Eye, UserPlus } from 'lucide-react'
-import { Lead, LEAD_STATUSES, CreateLeadFormData, EditLeadFormData, ReferenceSource, OperationsUser, LeadReferralInput, LeadNote } from '@/types/leads'
+import { X, User, Phone, Calendar, Users, Globe, Settings, RefreshCw, Calculator, Edit3, Building2, Eye, UserPlus } from 'lucide-react'
+import { Lead, CreateLeadFormData, EditLeadFormData, LeadNote } from '@/types/leads'
 import { AgentSelector } from './AgentSelector'
-import { StatusSelector } from './StatusSelector'
 import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { OperationsSelector } from './OperationsSelector'
 import { LeadReferralsSection } from './LeadReferralsSection'
 import { LeadReferralSelector } from './LeadReferralSelector'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
-import { leadStatusesApi, leadsApi, leadNotesApi, ApiError } from '@/utils/api'
+import { leadsApi, leadNotesApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAgentRole, isTeamLeaderRole, isAdminRole, isOperationsRole, isAgentManagerRole, normalizeRole } from '@/utils/roleUtils'
-
-interface User {
-  id: number
-  name: string
-  email: string
-  role: string
-  location?: string
-  phone?: string
-}
 
 interface LeadsModalsProps {
   // Add Lead Modal
@@ -91,10 +81,6 @@ export function LeadsModals({
   // Check if user can see lead profile tabs
   const canViewLeadProfile = isAdminRole(user?.role) || isOperationsRole(user?.role) || isAgentManagerRole(user?.role)
   
-  // Lead statuses state
-  const [leadStatuses, setLeadStatuses] = useState<Array<{ value: string; label: string; color: string }>>([])
-  const [loadingStatuses, setLoadingStatuses] = useState(false)
-  
   // Agents state for referrals
   const [agents, setAgents] = useState<Array<{ id: number; name: string }>>([])
   const [loadingAgents, setLoadingAgents] = useState(false)
@@ -161,9 +147,9 @@ export function LeadsModals({
         date: referralDate
       }
       
-      console.log('📤 Sending referral data:', referralData)
+      console.log('Sending referral data:', referralData)
       const response = await leadsApi.addReferral(leadId, referralData, token)
-      console.log('📥 Received response:', response)
+      console.log('Received response:', response)
       
       if (response.success) {
         showSuccess('Referral added successfully')
@@ -216,7 +202,6 @@ export function LeadsModals({
     price: undefined,
     reference_source_id: undefined,
     added_by_id: undefined,
-    status: '',
     referrals: []
   })
 
@@ -361,46 +346,6 @@ export function LeadsModals({
     }
   }
 
-  // Load lead statuses from API
-  const loadLeadStatuses = async () => {
-    if (!token) return
-    
-    try {
-      setLoadingStatuses(true)
-      const response = await leadStatusesApi.getAll()
-      
-      if (response.success && response.data) {
-        // Convert API data to the format expected by StatusSelector
-        const statuses = response.data.map((status: any) => ({
-          value: status.status_name,
-          label: status.status_name,
-          color: getStatusColor(status.status_name)
-        }))
-        setLeadStatuses(statuses)
-      } else {
-        // Fallback to hardcoded statuses if API fails
-        setLeadStatuses(LEAD_STATUSES.map(s => ({ ...s })))
-      }
-    } catch (error) {
-      console.error('Error loading lead statuses:', error)
-      // Fallback to hardcoded statuses if API fails
-      setLeadStatuses(LEAD_STATUSES.map(s => ({ ...s })))
-    } finally {
-      setLoadingStatuses(false)
-    }
-  }
-
-  // Get color for status (fallback to hardcoded colors)
-  const getStatusColor = (statusName: string) => {
-    const hardcodedStatus = LEAD_STATUSES.find(s => s.value === statusName)
-    return hardcodedStatus?.color || '#6B7280'
-  }
-
-  // Load lead statuses on component mount
-  useEffect(() => {
-    loadLeadStatuses()
-  }, [token])
-
   // Clear validation errors when editing lead changes
   useEffect(() => {
     if (editingLead) {
@@ -431,11 +376,6 @@ export function LeadsModals({
       case 'added_by_id':
         // For agents and team leaders, this is auto-set, so no validation needed
         // For others, it's optional (will default to current user)
-        break
-      case 'status':
-        if (!value || value.trim() === '') {
-          errorMessage = 'Status is required'
-        }
         break
       case 'referrals':
         if (!value || !Array.isArray(value) || value.length === 0) {
@@ -476,7 +416,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'status', 'referrals']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'referrals']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -503,11 +443,6 @@ export function LeadsModals({
         case 'operations_id':
           if (!value || value === undefined || value === null) {
             errorMessage = 'Operations staff assignment is required'
-          }
-          break
-        case 'status':
-          if (!value || (typeof value === 'string' && value.trim() === '')) {
-            errorMessage = 'Status is required'
           }
           break
         case 'referrals':
@@ -548,7 +483,6 @@ export function LeadsModals({
         price: undefined,
         reference_source_id: undefined,
         added_by_id: undefined,
-        status: '',
         referrals: []
       })
       // Clear validation errors
@@ -566,7 +500,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'status', 'referrals']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'referrals']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -593,11 +527,6 @@ export function LeadsModals({
         case 'operations_id':
           if (!value || value === undefined || value === null) {
             errorMessage = 'Operations staff assignment is required'
-          }
-          break
-        case 'status':
-          if (!value || (typeof value === 'string' && value.trim() === '')) {
-            errorMessage = 'Status is required'
           }
           break
         case 'referrals':
@@ -724,7 +653,7 @@ export function LeadsModals({
                   />
                   {addValidationErrors.customer_name && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {addValidationErrors.customer_name}
                     </p>
                   )}
@@ -753,7 +682,7 @@ export function LeadsModals({
                   />
                   {addValidationErrors.phone_number && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {addValidationErrors.phone_number}
                     </p>
                   )}
@@ -813,7 +742,7 @@ export function LeadsModals({
                   />
                   {addValidationErrors.reference_source_id && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {addValidationErrors.reference_source_id}
                     </p>
                   )}
@@ -840,38 +769,12 @@ export function LeadsModals({
                     />
                     {addValidationErrors.added_by_id && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
-                        <span className="mr-1">⚠️</span>
+                        <span className="mr-1">!</span>
                         {addValidationErrors.added_by_id}
                       </p>
                     )}
                   </div>
                 )}
-
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    <Tag className="inline h-4 w-4 mr-1" />
-                    Status <span className="text-red-500">*</span>
-                  </label>
-                  <StatusSelector
-                    selectedStatus={addFormData.status}
-                    onStatusChange={(status) => {
-                      setAddFormData({ 
-                        ...addFormData, 
-                        status: status 
-                      })
-                      clearFieldError('status')
-                      validateField('status', status)
-                    }}
-                    placeholder="Select a status..."
-                  />
-                  {addValidationErrors.status && (
-                    <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
-                      {addValidationErrors.status}
-                    </p>
-                  )}
-                </div>
 
                 {/* Referrals */}
                 <div>
@@ -891,7 +794,7 @@ export function LeadsModals({
                   />
                   {addValidationErrors.referrals && (
                     <p className="mt-1 text-sm text-red-600 flex items-center">
-                      <span className="mr-1">⚠️</span>
+                      <span className="mr-1">!</span>
                       {addValidationErrors.referrals}
                     </p>
                   )}
@@ -943,21 +846,9 @@ export function LeadsModals({
                     {/* Read-only Information for Agents/Team Leaders */}
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                       <p className="text-sm text-blue-700 mb-3 font-medium">
-                        ℹ️ You have read-only access to this lead. Contact an admin to modify lead details.
+                        Info: You have read-only access to this lead. Contact an admin to modify lead details.
                       </p>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
-                          <span 
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: LEAD_STATUSES.find(s => s.value === editFormData.status)?.color || '#6B7280' }}
-                          >
-                            {editFormData.status}
-                          </span>
-                        </div>
-                      </div>
-                      
+
                       <div className="mt-3">
                         <label className="block text-xs font-medium text-gray-600 mb-1">Customer Name</label>
                         <p className="text-sm text-gray-900 font-medium">{editFormData.customer_name}</p>
@@ -1009,7 +900,7 @@ export function LeadsModals({
                       />
                       {editValidationErrors.customer_name && (
                         <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
+                          <span className="mr-1">!</span>
                           {editValidationErrors.customer_name}
                         </p>
                       )}
@@ -1038,7 +929,7 @@ export function LeadsModals({
                       />
                       {editValidationErrors.phone_number && (
                         <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
+                          <span className="mr-1">!</span>
                           {editValidationErrors.phone_number}
                         </p>
                       )}
@@ -1052,13 +943,13 @@ export function LeadsModals({
                       <AgentSelector
                         selectedAgentId={editFormData.agent_id}
                         onAgentChange={(agent) => {
-                          console.log('🔄 Agent changed:', agent)
+                          console.log('Agent changed:', agent)
                           const newFormData = { 
                             ...editFormData, 
                             agent_id: agent?.id, 
                             agent_name: agent?.name || '' 
                           }
-                          console.log('📝 New form data after agent change:', newFormData)
+                          console.log('New form data after agent change:', newFormData)
                           setEditFormData(newFormData)
                         }}
                         placeholder="Select an agent..."
@@ -1102,7 +993,7 @@ export function LeadsModals({
                       />
                       {editValidationErrors.reference_source_id && (
                         <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
+                          <span className="mr-1">!</span>
                           {editValidationErrors.reference_source_id}
                         </p>
                       )}
@@ -1129,48 +1020,12 @@ export function LeadsModals({
                         />
                         {editValidationErrors.added_by_id && (
                           <p className="mt-1 text-sm text-red-600 flex items-center">
-                            <span className="mr-1">⚠️</span>
+                            <span className="mr-1">!</span>
                             {editValidationErrors.added_by_id}
                           </p>
                         )}
                       </div>
                     )}
-
-                    {/* Status */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        <Tag className="inline h-4 w-4 mr-1" />
-                        Status <span className="text-red-500">*</span>
-                      </label>
-                      <StatusSelector
-                        selectedStatus={editFormData.status}
-                        onStatusChange={(status) => {
-                          console.log('🔄 [LeadsModals] Status changed in edit form:', status)
-                          console.log('🔄 [LeadsModals] Current editFormData before change:', editFormData)
-                          
-                          const newFormData = { 
-                            ...editFormData, 
-                            status: status 
-                          }
-                          
-                          console.log('📝 [LeadsModals] New form data after status change:', newFormData)
-                          console.log('📝 [LeadsModals] Status field specifically:', newFormData.status)
-                          
-                          setEditFormData(newFormData)
-                          clearFieldError('status', true)
-                          validateField('status', status, true)
-                          
-                          console.log('✅ [LeadsModals] Status change processing completed')
-                        }}
-                        placeholder="Select a status..."
-                      />
-                      {editValidationErrors.status && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
-                          {editValidationErrors.status}
-                        </p>
-                      )}
-                    </div>
 
                     {/* Referrals */}
                     <div>
@@ -1190,7 +1045,7 @@ export function LeadsModals({
                       />
                       {editValidationErrors.referrals && (
                         <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">⚠️</span>
+                          <span className="mr-1">!</span>
                           {editValidationErrors.referrals}
                         </p>
                       )}
@@ -1249,21 +1104,7 @@ export function LeadsModals({
                     if (!user || !viewingLead || !onReferLead) {
                       return null
                     }
-                    
-                    // Check if the lead's status allows referrals
-                    if (viewingLead.status_can_be_referred === false) {
-                      return null
-                    }
-                    
-                    // For backward compatibility, if status_can_be_referred is undefined or null,
-                    // fall back to checking status name (for old data)
-                    if (viewingLead.status_can_be_referred === undefined || viewingLead.status_can_be_referred === null) {
-                      const isClosed = viewingLead.status && ['closed', 'converted'].includes(viewingLead.status.toLowerCase())
-                      if (isClosed) {
-                        return null
-                      }
-                    }
-                    
+
                     // Check user role and assignment
                     const normalizedUserRole = normalizeRole(user.role);
                     const canRefer = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') &&
@@ -1335,17 +1176,6 @@ export function LeadsModals({
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                     <p className="text-gray-900">{formatDateForDisplay(viewingLead.date)}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                    <span 
-                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
-                      style={{ 
-                        backgroundColor: LEAD_STATUSES.find(s => s.value === viewingLead.status)?.color || '#6B7280' 
-                      }}
-                    >
-                      {LEAD_STATUSES.find(s => s.value === viewingLead.status)?.label || viewingLead.status}
-                    </span>
                   </div>
                 </div>
 
@@ -1466,10 +1296,10 @@ export function LeadsModals({
                                     </p>
                                   )}
                                   <p className="mt-1 text-xs text-gray-500">
-                                    By {note.created_by_name || 'User'} ({note.created_by_role}) · Created{' '}
+                                    By {note.created_by_name || 'User'} ({note.created_by_role}) - Created{' '}
                                     {createdAt.toLocaleString()}
                                     {updatedAt && updatedAt.getTime() !== createdAt.getTime() && (
-                                      <> · Updated {updatedAt.toLocaleString()}</>
+                                      <> - Updated {updatedAt.toLocaleString()}</>
                                     )}
                                   </p>
                                 </div>
@@ -1582,7 +1412,7 @@ export function LeadsModals({
                             <div
                               key={viewing.id}
                               onClick={() => {
-                                const url = `/dashboard/properties?view=${viewing.property_id}`
+                                const url = `/dashboard/properties-view=${viewing.property_id}`
                                 window.open(url, '_blank')
                               }}
                               className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:border-blue-300 cursor-pointer transition-colors"
@@ -1639,7 +1469,7 @@ export function LeadsModals({
                             <div
                               key={property.id}
                               onClick={() => {
-                                const url = `/dashboard/properties?view=${property.id}`
+                                const url = `/dashboard/properties-view=${property.id}`
                                 window.open(url, '_blank')
                               }}
                               className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 hover:border-blue-300 cursor-pointer transition-colors"
@@ -1705,7 +1535,7 @@ export function LeadsModals({
 
               <div className="mb-6">
                 <p className="text-gray-700 mb-4">
-                  Are you sure you want to delete this lead? This action cannot be undone.
+                  Are you sure you want to delete this lead- This action cannot be undone.
                 </p>
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <p className="font-medium text-gray-900">{deletingLead.customer_name}</p>

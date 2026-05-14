@@ -112,7 +112,6 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
     const searchLower = searchTerm.toLowerCase()
     return (
       lead.customer_name.toLowerCase().includes(searchLower) ||
-      lead.status.toLowerCase().includes(searchLower) ||
       (lead.phone_number && lead.phone_number.toLowerCase().includes(searchLower))
     )
   })
@@ -128,23 +127,6 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
   }
 
   const selectedLead = leads.find(l => l.id === selectedLeadId)
-
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'new':
-        return 'bg-blue-100 text-blue-700'
-      case 'contacted':
-        return 'bg-yellow-100 text-yellow-700'
-      case 'qualified':
-        return 'bg-purple-100 text-purple-700'
-      case 'converted':
-        return 'bg-green-100 text-green-700'
-      case 'lost':
-        return 'bg-red-100 text-red-700'
-      default:
-        return 'bg-gray-100 text-gray-700'
-    }
-  }
 
   return (
     <div className="space-y-2">
@@ -168,9 +150,6 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
                     {selectedLead.phone_number}
                   </span>
                 )}
-                <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(selectedLead.status)}`}>
-                  {selectedLead.status}
-                </span>
               </div>
             </div>
           </div>
@@ -264,10 +243,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
                             </div>
                           )}
                         </div>
-                        <div className="ml-3 flex items-center gap-2">
-                          <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(lead.status)}`}>
-                            {lead.status}
-                          </span>
+                        <div className="ml-3 flex items-center">
                           <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
                             <UserCircle2 className="h-4 w-4 text-purple-600" />
                           </div>

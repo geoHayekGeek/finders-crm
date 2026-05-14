@@ -292,7 +292,6 @@ export function ImportLeadsModal({ isOpen, onClose, onSuccess, token }: ImportLe
                     <th className="text-left p-2">Source</th>
                     <th className="text-left p-2">Operations</th>
                     <th className="text-left p-2">Price</th>
-                    <th className="text-left p-2">Status</th>
                     <th className="text-left p-2">Warnings</th>
                   </tr>
                 </thead>
@@ -312,7 +311,6 @@ export function ImportLeadsModal({ isOpen, onClose, onSuccess, token }: ImportLe
                       <td className="p-2">{row.reference_source_name ?? row.reference_source_id ?? '—'}</td>
                       <td className="p-2">{row.added_by_name ?? `#${row.added_by_id}`}</td>
                       <td className="p-2">{row.price != null ? row.price : '—'}</td>
-                      <td className="p-2">{row.status ?? 'Active'}</td>
                       <td className="p-2 max-w-[180px]">
                         {(row.warnings || []).length > 0 ? (
                           <span className="text-amber-700" title={(row.warnings || []).join('; ')}>

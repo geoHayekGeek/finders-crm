@@ -557,7 +557,7 @@ async function getTeamLeads(req, res) {
     const role = req.user?.role;
     const userId = req.user?.id;
     const { teamLeaderId } = req.params;
-    const { start_date, end_date, status, agent_id } = req.query;
+    const { start_date, end_date, agent_id } = req.query;
     
     // Team leaders can only access their own team's data
     if (role === 'team leader' && parseInt(teamLeaderId) !== userId) {
@@ -600,7 +600,6 @@ async function getTeamLeads(req, res) {
     }
 
     const filters = {};
-    if (status) filters.status = status;
     if (agent_id) filters.agent_id = agent_id;
 
     const leads = await dcsrReportsModel.getTeamLeads(
@@ -790,4 +789,3 @@ module.exports = {
   getTeamLeads,
   getTeamViewings
 };
-

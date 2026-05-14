@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { formatRole } from '@/utils/roleFormatter'
 import { Search, Filter, X, ChevronDown, Calendar, Tag } from 'lucide-react'
-import { LeadFilters, LEAD_STATUSES, ReferenceSource } from '@/types/leads'
+import { LeadFilters, ReferenceSource } from '@/types/leads'
 import { usersApi, leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -145,24 +145,8 @@ export function LeadsFilters({
           </div>
         </div>
 
-        {/* Status Filter and Advanced Filters - Takes 50% width */}
+        {/* Agent Filter and Advanced Filters - Takes 50% width */}
         <div className="w-full lg:w-1/2 flex flex-col sm:flex-row gap-4">
-          {/* Status Filter */}
-          <div className="flex-1 min-w-0">
-            <select
-              value={filters.status || ''}
-              onChange={(e) => handleFilterChange('status', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-            >
-              <option value="">All Statuses</option>
-              {LEAD_STATUSES.map(status => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Agent (options scoped: agents = self, team leaders = their team, management = all) */}
           <div className="flex-1 min-w-0">
             <label className="sr-only">Agent</label>
@@ -244,18 +228,6 @@ export function LeadsFilters({
                 <button
                   type="button"
                   onClick={() => handleFilterChange('search', undefined)}
-                  className="hover:text-blue-900"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            )}
-            {filters.status && (
-              <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
-                Status: {LEAD_STATUSES.find((s) => s.value === filters.status)?.label}
-                <button
-                  type="button"
-                  onClick={() => handleFilterChange('status', undefined)}
                   className="hover:text-blue-900"
                 >
                   <X className="h-3 w-3" />

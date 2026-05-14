@@ -61,8 +61,6 @@ async function applySensitiveMaskingForLeadsList(leads, userId, normalizedRole) 
       reference_source_id: lead.reference_source_id,
       reference_source_name: lead.reference_source_name,
       price: lead.price,
-      status: lead.status,
-      status_can_be_referred: lead.status_can_be_referred,
       created_at: lead.created_at,
       updated_at: lead.updated_at
     };

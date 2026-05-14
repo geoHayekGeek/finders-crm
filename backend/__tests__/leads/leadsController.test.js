@@ -75,8 +75,6 @@ describe('Leads Controller', () => {
           reference_source_name: 'Source',
           contact_source: 'phone',
           price: 100000,
-          status: 'active',
-          status_can_be_referred: true,
           created_at: '2024-01-01',
           updated_at: '2024-01-01',
           date: '2024-01-01'
@@ -103,8 +101,6 @@ describe('Leads Controller', () => {
           reference_source_id: 1,
           reference_source_name: 'Source',
           price: 100000,
-          status: 'active',
-          status_can_be_referred: true,
           created_at: '2024-01-01',
           updated_at: '2024-01-01'
         }],
@@ -605,10 +601,10 @@ describe('Leads Controller', () => {
       expect(LeadReferral.processLeadReassignment).toHaveBeenCalledWith(1, 2, 1);
     });
 
-    it('should create status change notification', async () => {
+    it('should create lead update notification', async () => {
       req.params.id = '1';
-      req.body = { status: 'closed' };
-      const mockUpdatedLead = { ...mockLead, status: 'closed' };
+      req.body = { customer_name: 'Customer 1' };
+      const mockUpdatedLead = { ...mockLead, customer_name: 'Customer 1' };
       const mockCompleteLead = { ...mockUpdatedLead, referrals: [] };
 
       Lead.getLeadById.mockResolvedValueOnce(mockLead);
@@ -620,7 +616,7 @@ describe('Leads Controller', () => {
 
       expect(Notification.createLeadNotification).toHaveBeenCalledWith(
         1,
-        'status_changed',
+        'updated',
         expect.any(Object),
         1
       );
@@ -1751,7 +1747,7 @@ describe('Leads Controller', () => {
       });
     });
 
-    it('should return 400 if lead status does not allow referrals', async () => {
+    it('should allow referral even when legacy lead status fields are present', async () => {
       req.params.id = '100';
       req.body.referred_to_agent_id = 28;
       req.user.id = 27;
@@ -1765,17 +1761,28 @@ describe('Leads Controller', () => {
         status: 'Closed',
         status_can_be_referred: false
       };
+      const mockReferral = {
+        id: 1,
+        lead_id: 100,
+        referred_to_agent_id: 28,
+        referred_by_user_id: 27,
+        status: 'pending'
+      };
 
       Lead.getLeadById.mockResolvedValue(mockLead);
+      LeadReferral.referLeadToAgent.mockResolvedValue(mockReferral);
+      Notification.createNotification.mockResolvedValue({ id: 1 });
 
       await LeadsController.referLeadToAgent(req, res);
 
       expect(Lead.getLeadById).toHaveBeenCalledWith('100');
-      expect(res.status).toHaveBeenCalledWith(400);
+      expect(LeadReferral.referLeadToAgent).toHaveBeenCalledWith(100, 28, 27);
+      expect(res.status).not.toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Leads with status "Closed" cannot be referred.'
+        success: true,
+        message: expect.stringContaining('Lead referred successfully'),
+        data: mockReferral
       });
-      expect(LeadReferral.referLeadToAgent).not.toHaveBeenCalled();
     });
 
     it('should return 404 if lead not found', async () => {
@@ -2080,4 +2087,3 @@ describe('Leads Controller', () => {
     });
   });
 });
-

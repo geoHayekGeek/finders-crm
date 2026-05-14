@@ -17,7 +17,6 @@ interface PendingLeadReferral {
   referred_by_role: string
   customer_name: string
   phone_number: string
-  lead_status: string
   notes?: string
 }
 
@@ -194,12 +193,9 @@ export function PendingLeadReferralsModal({
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between mb-2">
                           <div>
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="mb-1">
                               <span className="font-semibold text-lg text-gray-900">
                                 {referral.customer_name}
-                              </span>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                {referral.lead_status}
                               </span>
                             </div>
                             <div className="flex items-center text-sm text-gray-600 mb-1">

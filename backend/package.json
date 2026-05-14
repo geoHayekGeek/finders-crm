@@ -6,10 +6,11 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "prisma:migrate": "npx prisma migrate deploy --schema ./prisma/schema.prisma",
+    "prisma:drop-lead-status": "npx prisma db execute --schema ./prisma/schema.prisma --file ./prisma/migrations/202605140001_remove_lead_status_from_leads/migration.sql",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "migrate:lead-statuses": "node run-lead-statuses-migration.js",
     "migrate:users-table": "node run-users-table-migration.js",
     "migrate:verify-users": "node verify-users-migration.js",
     "migrate:added-by": "node run-added-by-migration.js",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "jest": "^29.7.0",
+    "prisma": "^6.8.2",
     "supertest": "^6.3.3"
   },
   "jest": {
