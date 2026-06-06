@@ -100,7 +100,7 @@ describe('Property Validation', () => {
       expect(validProperty.main_image.length).toBeGreaterThan(0);
     });
 
-    it('should require referrals field', () => {
+    it('should allow referrals field to be optional', () => {
       const validProperty = {
         referrals: [
           { name: 'Test Referral', type: 'custom', date: '2024-01-01' }
@@ -257,4 +257,3 @@ describe('Property Validation', () => {
     });
   });
 });
-

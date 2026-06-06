@@ -13,6 +13,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { leadsApi, leadNotesApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAgentRole, isTeamLeaderRole, isAdminRole, isOperationsRole, isAgentManagerRole, normalizeRole } from '@/utils/roleUtils'
+import { mapValidationErrors } from '@/utils/validationErrors'
 
 interface LeadsModalsProps {
   // Add Lead Modal
@@ -378,9 +379,6 @@ export function LeadsModals({
         // For others, it's optional (will default to current user)
         break
       case 'referrals':
-        if (!value || !Array.isArray(value) || value.length === 0) {
-          errorMessage = 'At least one referral is required'
-        }
         break
     }
     
@@ -416,7 +414,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'referrals']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -445,11 +443,6 @@ export function LeadsModals({
             errorMessage = 'Operations staff assignment is required'
           }
           break
-        case 'referrals':
-          if (!value || !Array.isArray(value) || value.length === 0) {
-            errorMessage = 'At least one referral is required'
-          }
-          break
       }
       
       newValidationErrors[field] = errorMessage
@@ -470,7 +463,10 @@ export function LeadsModals({
 
     setSaving(true)
     try {
-      await onSaveAdd(addFormData)
+      const createdLead = await onSaveAdd(addFormData)
+      if (!createdLead) {
+        return
+      }
       showSuccess('Lead created successfully!')
       setShowAddLeadModal(false)
       // Reset form
@@ -489,6 +485,15 @@ export function LeadsModals({
       setAddValidationErrors({})
     } catch (error) {
       console.error('Error saving lead:', error)
+      if (error instanceof ApiError && Array.isArray(error.errors) && error.errors.length > 0) {
+        setAddValidationErrors((prev) => ({
+          ...prev,
+          ...mapValidationErrors(error.errors)
+        }))
+        showError('Please fix the validation errors shown below')
+        return
+      }
+
       showError('Failed to create lead. Please try again.')
     } finally {
       setSaving(false)
@@ -500,7 +505,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'referrals']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -527,11 +532,6 @@ export function LeadsModals({
         case 'operations_id':
           if (!value || value === undefined || value === null) {
             errorMessage = 'Operations staff assignment is required'
-          }
-          break
-        case 'referrals':
-          if (!value || !Array.isArray(value) || value.length === 0) {
-            errorMessage = 'At least one referral is required'
           }
           break
       }
@@ -780,7 +780,7 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Users className="inline h-4 w-4 mr-1" />
-                    Referrals *
+                    Referrals
                   </label>
                   <LeadReferralSelector
                     referrals={addFormData.referrals || []}
@@ -798,7 +798,7 @@ export function LeadsModals({
                       {addValidationErrors.referrals}
                     </p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">At least one referral is required</p>
+                  <p className="mt-1 text-xs text-gray-500">Optional</p>
                 </div>
 
                 {/* Action Buttons */}
@@ -1031,7 +1031,7 @@ export function LeadsModals({
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         <Users className="inline h-4 w-4 mr-1" />
-                        Referrals *
+                        Referrals
                       </label>
                       <LeadReferralSelector
                         referrals={editFormData.referrals || []}
@@ -1049,7 +1049,7 @@ export function LeadsModals({
                           {editValidationErrors.referrals}
                         </p>
                       )}
-                      <p className="mt-1 text-xs text-gray-500">At least one referral is required</p>
+                      <p className="mt-1 text-xs text-gray-500">Optional</p>
                     </div>
                   </>
                 )}

@@ -202,7 +202,7 @@ describe('Property Model', () => {
       expect(result.main_image).toBeNull();
     });
 
-    it('should throw error when referrals are missing', async () => {
+    it('should allow creating property when referrals are missing', async () => {
       const propertyData = {
         status_id: 1,
         property_type: 'sale',
@@ -231,15 +231,40 @@ describe('Property Model', () => {
         agent_id: 1,
         price: 200000,
         main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
-        // referrals is missing
       };
 
-      await expect(Property.createProperty(propertyData)).rejects.toThrow(
-        'At least one referral is required'
+      const mockStatus = { rows: [{ is_closure_status: false }] };
+      const mockCategory = { rows: [{ code: 'CAT' }] };
+      const mockRefNumber = { rows: [{ generate_reference_number: 'REF-001' }] };
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          reference_number: 'REF-001',
+          ...propertyData
+        }]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(mockCategory)
+        .mockResolvedValueOnce(mockRefNumber);
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Property.createProperty(propertyData);
+
+      expect(result.id).toBe(1);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        'UPDATE properties SET referrals_count = $1 WHERE id = $2',
+        [0, 1]
       );
     });
 
-    it('should throw error when referrals is empty array', async () => {
+    it('should allow creating property when referrals is an empty array', async () => {
       const propertyData = {
         status_id: 1,
         property_type: 'sale',
@@ -271,8 +296,34 @@ describe('Property Model', () => {
         referrals: [] // Empty array
       };
 
-      await expect(Property.createProperty(propertyData)).rejects.toThrow(
-        'At least one referral is required'
+      const mockStatus = { rows: [{ is_closure_status: false }] };
+      const mockCategory = { rows: [{ code: 'CAT' }] };
+      const mockRefNumber = { rows: [{ generate_reference_number: 'REF-002' }] };
+      const mockProperty = {
+        rows: [{
+          id: 2,
+          reference_number: 'REF-002',
+          ...propertyData
+        }]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(mockCategory)
+        .mockResolvedValueOnce(mockRefNumber);
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Property.createProperty(propertyData);
+
+      expect(result.id).toBe(2);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        'UPDATE properties SET referrals_count = $1 WHERE id = $2',
+        [0, 2]
       );
     });
 
@@ -749,12 +800,9 @@ describe('Property Model', () => {
       };
       const mockProperty = { rows: [{ id: 1 }] };
       const mockReferrals = { rows: [] };
-      const mockExistingReferrals = { rows: [{ count: '1' }] }; // Property already has 1 referral
-
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockUpdated) // UPDATE
-        .mockResolvedValueOnce(mockExistingReferrals) // Check existing referrals count
         .mockResolvedValueOnce({}) // COMMIT
         .mockResolvedValueOnce(mockProperty) // SELECT property
         .mockResolvedValueOnce(mockReferrals); // SELECT referrals
@@ -793,13 +841,10 @@ describe('Property Model', () => {
       const mockUpdated = { rows: [{ id: 1 }] };
       const mockProperty = { rows: [{ id: 1 }] };
       const mockReferrals = { rows: [] };
-      const mockExistingReferrals = { rows: [{ count: '1' }] }; // Property already has 1 referral
-
       mockClient.query
         .mockResolvedValueOnce({}) // BEGIN
         .mockResolvedValueOnce(mockOwner) // Get owner data
         .mockResolvedValueOnce(mockUpdated) // UPDATE
-        .mockResolvedValueOnce(mockExistingReferrals) // Check existing referrals count
         .mockResolvedValueOnce({}) // COMMIT
         .mockResolvedValueOnce(mockProperty)
         .mockResolvedValueOnce(mockReferrals);
@@ -839,6 +884,30 @@ describe('Property Model', () => {
       expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('DELETE FROM referrals'),
         [1]
+      );
+    });
+
+    it('should allow clearing referrals on update', async () => {
+      const updates = {
+        referrals: []
+      };
+
+      const mockProperty = { rows: [{ id: 1 }] };
+      const mockReferrals = { rows: [] };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({}) // DELETE referrals
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
+        .mockResolvedValueOnce({}) // COMMIT
+        .mockResolvedValueOnce(mockProperty) // SELECT property
+        .mockResolvedValueOnce(mockReferrals); // SELECT referrals
+
+      await Property.updateProperty(1, updates);
+
+      expect(mockClient.query).toHaveBeenCalledWith(
+        'UPDATE properties SET referrals_count = $1 WHERE id = $2',
+        [0, 1]
       );
     });
   });

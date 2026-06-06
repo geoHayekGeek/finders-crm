@@ -254,32 +254,8 @@ describe('Leads Validation', () => {
     });
   });
 
-  describe('getValidStatuses', () => {
-    it('should fetch valid statuses from database', async () => {
-      const mockStatuses = [
-        { status_name: 'Active' },
-        { status_name: 'Contacted' }
-      ];
-
-      pool.query.mockResolvedValue({ rows: mockStatuses });
-
-      const statuses = await leadsValidation.getValidStatuses();
-
-      expect(pool.query).toHaveBeenCalled();
-      expect(statuses).toEqual(['Active', 'Contacted']);
-    });
-
-    it('should return default statuses on error', async () => {
-      pool.query.mockRejectedValue(new Error('Database error'));
-
-      const statuses = await leadsValidation.getValidStatuses();
-
-      expect(statuses).toEqual(['Active', 'Contacted', 'Qualified', 'Converted', 'Closed']);
-    });
-  });
-
   describe('Referrals Validation', () => {
-    it('should require referrals field in validateCreateLead', () => {
+    it('should allow optional referrals in validateCreateLead', () => {
       const validators = leadsValidation.validateCreateLead;
       const referralsValidator = validators.find(v => {
         // Find the validator that checks referrals
@@ -290,7 +266,7 @@ describe('Leads Validation', () => {
       expect(validators.length).toBeGreaterThan(0);
     });
 
-    it('should require referrals field in validateUpdateLead', () => {
+    it('should allow optional referrals in validateUpdateLead', () => {
       const validators = leadsValidation.validateUpdateLead;
       
       // The validators array should exist
@@ -299,4 +275,3 @@ describe('Leads Validation', () => {
     });
   });
 });
-

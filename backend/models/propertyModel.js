@@ -176,11 +176,7 @@ class Property {
         };
       }
     }
-
-    // VALIDATION: referrals are required
-    if (!referrals || !Array.isArray(referrals) || referrals.length === 0) {
-      throw new Error('At least one referral is required. Please provide at least one referral for the property.');
-    }
+    const normalizedReferrals = Array.isArray(referrals) ? referrals : [];
 
     // VALIDATION: If creating property with a closure status, ensure closed_date is set
     const statusCheck = await pool.query(
@@ -252,8 +248,8 @@ class Property {
       
       const newProperty = result.rows[0];
       
-      // Insert referrals (required, already validated above)
-      for (const referral of referrals) {
+      // Insert referrals when provided
+      for (const referral of normalizedReferrals) {
         await client.query(
           `INSERT INTO referrals (property_id, name, type, employee_id, date) 
            VALUES ($1, $2, $3, $4, $5)`,
@@ -270,7 +266,7 @@ class Property {
       // Update referrals count
       await client.query(
         `UPDATE properties SET referrals_count = $1 WHERE id = $2`,
-        [referrals.length, newProperty.id]
+        [normalizedReferrals.length, newProperty.id]
       );
       
       await client.query('COMMIT');
@@ -1020,22 +1016,24 @@ class Property {
         }
       }
       
-      // Handle referrals (required on update)
+      // Handle referrals when provided on update
       if (referrals !== undefined) {
-        // VALIDATION: If referrals are being updated, they must not be empty
-        if (!referrals || !Array.isArray(referrals) || referrals.length === 0) {
-          throw new Error('At least one referral is required. Please provide at least one referral for the property.');
+        const normalizedReferrals =
+          referrals === null ? [] : Array.isArray(referrals) ? referrals : null;
+
+        if (normalizedReferrals === null) {
+          throw new Error('Referrals must be an array when provided.');
         }
         
-        logger.debug('Handling referrals for property', { propertyId: id, referralCount: referrals.length });
+        logger.debug('Handling referrals for property', { propertyId: id, referralCount: normalizedReferrals.length });
         
         // Delete existing referrals for this property
         await client.query('DELETE FROM referrals WHERE property_id = $1', [id]);
         logger.debug('Deleted existing referrals', { propertyId: id });
         
-        // Insert new referrals (required, already validated above)
-        logger.debug('Inserting referrals', { propertyId: id, count: referrals.length });
-        for (const referral of referrals) {
+        // Insert new referrals after replacing the existing list
+        logger.debug('Inserting referrals', { propertyId: id, count: normalizedReferrals.length });
+        for (const referral of normalizedReferrals) {
           logger.debug('Inserting referral', {
             propertyId: id,
             referralName: referral.name,
@@ -1052,22 +1050,8 @@ class Property {
         // Update referrals_count in properties table
         await client.query(
           'UPDATE properties SET referrals_count = $1 WHERE id = $2',
-          [referrals.length, id]
+          [normalizedReferrals.length, id]
         );
-      } else {
-        // If referrals are not provided in update, check if property already has referrals
-        const existingReferralsResult = await client.query(
-          'SELECT COUNT(*) as count FROM referrals WHERE property_id = $1',
-          [id]
-        );
-        if (existingReferralsResult.rows && existingReferralsResult.rows.length > 0) {
-          const referralsCount = parseInt(existingReferralsResult.rows[0].count);
-          if (referralsCount === 0) {
-            throw new Error('At least one referral is required. Please provide at least one referral for the property.');
-          }
-        } else {
-          throw new Error('At least one referral is required. Please provide at least one referral for the property.');
-        }
       }
       
       await client.query('COMMIT');

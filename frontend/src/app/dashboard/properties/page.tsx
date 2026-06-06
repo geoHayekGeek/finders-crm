@@ -25,7 +25,8 @@ import { PropertyPagination } from '@/components/PropertyPagination'
 import { ReferPropertyModal } from '@/components/ReferPropertyModal'
 import { getPropertyColumns, getPropertyDetailedColumns } from '@/components/PropertyTableColumns'
 import { Property, Category, Status, PropertyFilters as PropertyFiltersType, EditFormData } from '@/types/property'
-import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategories, mockStatuses } from '@/utils/api'
+import { propertiesApi, categoriesApi, statusesApi, mockProperties, mockCategories, mockStatuses, ApiError } from '@/utils/api'
+import { mapValidationErrors } from '@/utils/validationErrors'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -604,7 +605,7 @@ export default function PropertiesPage() {
       // Get the property ID from selectedProperty
       if (!selectedProperty) {
         showError('No property selected for editing')
-        return
+        return { success: false, error: 'No property selected for editing' }
       }
 
       // Note: Required field validation is now handled by HTML required attributes
@@ -638,28 +639,15 @@ export default function PropertiesPage() {
       
       // Check if there were validation errors
       if (result && !result.success && result.validationErrors) {
-        // Handle validation errors - don't close modal, show errors under inputs
-        
-        // Convert backend validation errors to frontend format
-        const fieldErrors: Record<string, string> = {}
-        result.validationErrors.forEach((error: any) => {
-          fieldErrors[error.field] = error.message
-        })
-        
-        // Set backend validation errors to display under inputs
-        setBackendValidationErrors(fieldErrors)
-        
-        // Show a generic error message
         showError('Please fix the validation errors shown below')
-        return // Don't close modal
+        return result
       }
       
       // Check if there was an error (but not validation errors)
       if (result && !result.success && !result.validationErrors) {
         // Show the error message
         showError(result.error || 'Update failed')
-        // Don't close modal for other errors either
-        return
+        return result
       }
       
       // Only close modal if update was successful
@@ -673,12 +661,14 @@ export default function PropertiesPage() {
         // Refresh categories and statuses to ensure they're up to date
         await refreshCategories()
         await refreshStatuses()
+        return result
       } else {
-        // Don't close modal if we don't know what happened
+        return { success: false, error: 'Update did not complete successfully' }
       }
     } catch (error) {
       // Error handled by showError toast
       showError('Something went wrong while updating the property. Please try again.')
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error occurred' }
     }
   }
 
@@ -719,7 +709,7 @@ export default function PropertiesPage() {
           price: parseFloat(propertyData.price),
           notes: propertyData.notes || null,
           property_url: propertyData.property_url || null,
-          referrals: propertyData.referrals || null
+          referrals: propertyData.referrals || []
         }
         
         // Add main_image if provided (now required for property creation)
@@ -736,27 +726,7 @@ export default function PropertiesPage() {
           return
         }
         
-        // Call the production API with authentication
-      const response = await fetch(`${API_BASE_URL}/properties`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(formattedData),
-      })
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          showError('Authentication required. Please log in again.')
-          return
-        }
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `Failed to add property: ${response.statusText}`)
-      }
-
-      const newProperty = await response.json()
-      showSuccess('Property added successfully!')
+      const response = await propertiesApi.create(formattedData)
 
               // Refresh the properties list
         await loadData()
@@ -766,12 +736,13 @@ export default function PropertiesPage() {
         await refreshStatuses()
         
         // Return the created property data for image upload
-        return newProperty.data || newProperty
+        return response.data || response
       
     } catch (error) {
-      // Error handled by showError toast
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      showError(`Something went wrong: ${errorMessage}`)
+      if (error instanceof ApiError && Array.isArray(error.errors) && error.errors.length > 0) {
+        throw error
+      }
+
       throw error // Re-throw so the modal knows the creation failed
     }
   }
@@ -980,16 +951,12 @@ export default function PropertiesPage() {
       return { success: true, data: response.data }
       
     } catch (error) {
-      // Error handled by showError toast
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
-      
-      // Check if it's a CSRF error
-      if (errorMessage.includes('CSRF') || errorMessage.includes('Invalid CSRF token')) {
-        showError('Security token expired. Please refresh the page and try again.')
-      } else {
-        showError(`Something went wrong while updating property: ${errorMessage}`)
+      if (error instanceof ApiError && Array.isArray(error.errors) && error.errors.length > 0) {
+        setBackendValidationErrors(mapValidationErrors(error.errors))
+        return { success: false, validationErrors: error.errors }
       }
-      
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred'
       return { success: false, error: errorMessage }
     }
   }

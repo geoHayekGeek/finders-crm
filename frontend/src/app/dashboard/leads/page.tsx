@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { formatDateForInput } from '@/utils/dateUtils'
 import { isAgentRole, isTeamLeaderRole, normalizeRole } from '@/utils/roleUtils'
+import { mapValidationErrors } from '@/utils/validationErrors'
 
 export default function LeadsPage() {
   const { user, token, isAuthenticated } = useAuth()
@@ -720,18 +721,7 @@ useEffect(() => {
         if (error.errors && Array.isArray(error.errors)) {
           console.log('🚫 [LeadsPage] Processing validation errors:', error.errors.length, 'errors')
           
-          // Set validation errors for each field
-          const newValidationErrors: Record<string, string> = {}
-          error.errors.forEach((validationError: { field: string; message: string }) => {
-            // If there are multiple errors for the same field, combine them
-            if (newValidationErrors[validationError.field]) {
-              newValidationErrors[validationError.field] += `; ${validationError.message}`
-            } else {
-              newValidationErrors[validationError.field] = validationError.message
-            }
-          })
-          
-          setEditValidationErrors(newValidationErrors)
+          setEditValidationErrors(mapValidationErrors(error.errors))
           
           // Throw the error so the modal knows the operation failed
           throw error

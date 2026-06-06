@@ -17,6 +17,26 @@ const sanitizeInput = (input) => {
 // Phone number validation regex (international format)
 const phoneRegex = /^[\+]?[1-9][\d\s\-\(\)]{6,19}$/;
 
+const validateReferrals = (referrals) => {
+  if (!Array.isArray(referrals)) {
+    throw new Error('Referrals must be an array');
+  }
+
+  for (const referral of referrals) {
+    if (!referral.name || !referral.type || !referral.date) {
+      throw new Error('Each referral must have name, type, and date');
+    }
+    if (!['employee', 'custom'].includes(referral.type)) {
+      throw new Error('Referral type must be either "employee" or "custom"');
+    }
+    if (referral.type === 'employee' && !referral.employee_id) {
+      throw new Error('Employee referrals must include employee_id');
+    }
+  }
+
+  return true;
+};
+
 // Validation rules for creating leads
 const validateCreateLead = [
   // Required fields
@@ -97,28 +117,9 @@ const validateCreateLead = [
     .isInt({ min: 1 })
     .withMessage('Added by ID must be a positive integer'),
     
-  // Required referrals validation - at least one referral is mandatory
   body('referrals')
-    .notEmpty()
-    .withMessage('At least one referral is required')
-    .custom((referrals) => {
-      if (!Array.isArray(referrals) || referrals.length === 0) {
-        throw new Error('Referrals must be an array with at least one item');
-      }
-      // Validate each referral has required fields
-      for (const referral of referrals) {
-        if (!referral.name || !referral.type || !referral.date) {
-          throw new Error('Each referral must have name, type, and date');
-        }
-        if (!['employee', 'custom'].includes(referral.type)) {
-          throw new Error('Referral type must be either "employee" or "custom"');
-        }
-        if (referral.type === 'employee' && !referral.employee_id) {
-          throw new Error('Employee referrals must include employee_id');
-        }
-      }
-      return true;
-    }),
+    .optional({ nullable: true })
+    .custom(validateReferrals),
     
   // Cross-field validation
   body().custom((body) => {
@@ -195,28 +196,9 @@ const validateUpdateLead = [
     .isInt({ min: 1 })
     .withMessage('Added by ID must be a positive integer'),
     
-  // Required referrals validation for updates - at least one referral is mandatory
   body('referrals')
-    .notEmpty()
-    .withMessage('At least one referral is required')
-    .custom((referrals) => {
-      if (!Array.isArray(referrals) || referrals.length === 0) {
-        throw new Error('Referrals must be an array with at least one item');
-      }
-      // Validate each referral has required fields
-      for (const referral of referrals) {
-        if (!referral.name || !referral.type || !referral.date) {
-          throw new Error('Each referral must have name, type, and date');
-        }
-        if (!['employee', 'custom'].includes(referral.type)) {
-          throw new Error('Referral type must be either "employee" or "custom"');
-        }
-        if (referral.type === 'employee' && !referral.employee_id) {
-          throw new Error('Employee referrals must include employee_id');
-        }
-      }
-      return true;
-    }),
+    .optional({ nullable: true })
+    .custom(validateReferrals),
   
   // Ensure at least one field is being updated
   body().custom((body) => {

@@ -231,16 +231,13 @@ const validateProperty = [
     }),
     
   body('referrals')
-    .notEmpty()
-    .withMessage('At least one referral is required')
-    .isArray({ min: 1 })
-    .withMessage('At least one referral is required')
+    .optional({ nullable: true })
     .custom((value) => {
+      if (value === undefined || value === null) {
+        return true;
+      }
       if (!Array.isArray(value)) {
         throw new Error('Referrals must be an array');
-      }
-      if (value.length === 0) {
-        throw new Error('At least one referral is required');
       }
       return true;
     }),

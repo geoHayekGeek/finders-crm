@@ -22,8 +22,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole, normalizeRole } from '@/utils/roleUtils'
 import { CreateViewingFormData, Viewing } from '@/types/viewing'
-import { viewingsApi } from '@/utils/api'
+import { viewingsApi, ApiError } from '@/utils/api'
 import { canViewViewingsForProperty as canViewViewingsForPropertyUtil } from '@/utils/propertyViewingsPermissions'
+import { mapValidationErrors } from '@/utils/validationErrors'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
@@ -210,7 +211,7 @@ interface PropertyModalsProps {
   setDeleteConfirmation: (confirmation: string) => void
   editFormData: EditFormData
   setEditFormData: (data: any) => void
-  onSaveEdit: () => void
+  onSaveEdit: () => Promise<{ success: boolean; data?: any; error?: string; validationErrors?: any[] } | void>
   onConfirmDelete: () => void
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void
   onSaveAdd: (propertyData: any) => Promise<any>
@@ -498,8 +499,7 @@ export function PropertyModals({
         // For edit form: check editFormData.main_image_file (handled separately in edit form validation)
         return !!(value || addFormData.main_image_file)
       case 'referrals':
-        // Required field - must have at least one referral
-        return value && Array.isArray(value) && value.length > 0
+        return true
       default:
         return true
     }
@@ -554,9 +554,6 @@ export function PropertyModals({
     }
     if (!isFieldValid('main_image', addFormData.main_image)) {
       errors.push('Main image is required');
-    }
-    if (!isFieldValid('referrals', addFormData.referrals)) {
-      errors.push('At least one referral is required');
     }
     
     return errors;
@@ -642,7 +639,7 @@ export function PropertyModals({
       case 'main_image':
         return 'Main image is required'
       case 'referrals':
-        return 'At least one referral is required'
+        return ''
       default:
         return ''
     }
@@ -1032,6 +1029,7 @@ export function PropertyModals({
           main_image_preview: previewUrl,
           main_image: previewUrl // Use preview URL as base64 for now (will be compressed on submit)
         }))
+        clearFieldError('main_image')
 
         // Clear the file input
         if (event.target) {
@@ -1163,6 +1161,7 @@ export function PropertyModals({
           main_image_file: file,
           main_image_preview: previewUrl
         }))
+        clearFieldError('main_image', true)
 
         // Clear the file input
         if (event.target) {
@@ -1268,7 +1267,7 @@ export function PropertyModals({
                 e.preventDefault()
 
                 // Validate all required fields and optional fields with format requirements
-                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image', 'referrals']
+                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
                 
 
                 // Force validation on all fields and collect errors
@@ -1351,9 +1350,12 @@ export function PropertyModals({
 
                   // Step 1: Create the property without main_image (will be uploaded separately)
                   const newProperty = await onSaveAdd(propertyData)
+                  if (!newProperty || !newProperty.id) {
+                    return
+                  }
 
                   // Step 2: Upload main image (required - property creation successful)
-                  if (newProperty && newProperty.id) {
+                  if (newProperty.id) {
                     try {
                       const mainImageResult = await uploadMainPropertyImage(newProperty.id, addFormData.main_image_file)
                       if (!mainImageResult.success) {
@@ -1370,7 +1372,7 @@ export function PropertyModals({
                   }
 
                   // Step 3: Upload gallery images if any (only if property creation was successful)
-                  if (newProperty && newProperty.id && addFormData.gallery_files.length > 0) {
+                  if (newProperty.id && addFormData.gallery_files.length > 0) {
                     try {
                       // Upload gallery images
                       const galleryResult = await uploadGalleryImages(newProperty.id, addFormData.gallery_files)
@@ -1397,6 +1399,15 @@ export function PropertyModals({
                   showSuccess('Property created successfully!')
 
                 } catch (error) {
+                  if (error instanceof ApiError && Array.isArray(error.errors) && error.errors.length > 0) {
+                    setValidationErrors((prev) => ({
+                      ...prev,
+                      ...mapValidationErrors(error.errors)
+                    }))
+                    showError('Please fix the validation errors shown below')
+                    return
+                  }
+
                   showError('Something went wrong creating property: ' + (error instanceof Error ? error.message : 'Unknown error'))
                 }
               }}>
@@ -1407,7 +1418,9 @@ export function PropertyModals({
                     Main Image <span className="text-red-500">*</span>
                   </label>
                   <div className="relative group">
-                    <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
+                    <div className={`aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed ${
+                      validationErrors.main_image ? 'border-red-300' : 'border-gray-300 hover:border-gray-400'
+                    } transition-colors`}>
                       {(addFormData.main_image_preview || addFormData.main_image) ? (
                         <div className="relative w-full h-full">
                           <img
@@ -1454,6 +1467,12 @@ export function PropertyModals({
                       </div>
                     </div>
                   </div>
+                  {validationErrors.main_image && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">!</span>
+                      {validationErrors.main_image}
+                    </p>
+                  )}
                 </div>
 
                 {/* Property Details Form */}
@@ -2056,7 +2075,7 @@ export function PropertyModals({
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Referrals <span className="text-red-500">*</span>
+                      Referrals
                     </label>
                     {validationErrors.referrals && (
                       <p className="mb-2 text-sm text-red-600 flex items-center">
@@ -2068,17 +2087,10 @@ export function PropertyModals({
                       referrals={addFormData.referrals}
                       onReferralsChange={(referrals) => {
                         setAddFormData(prev => ({ ...prev, referrals }))
-                        // Clear error when referrals are added
-                        if (referrals && referrals.length > 0) {
-                          setValidationErrors(prev => {
-                            const newErrors = { ...prev }
-                            delete newErrors.referrals
-                            return newErrors
-                          })
-                        }
+                        clearFieldError('referrals')
                       }}
                       employees={employees}
-                      placeholder="Add property referrals (required)..."
+                      placeholder="Add property referrals (optional)..."
                     />
                   </div>
 
@@ -2216,7 +2228,7 @@ export function PropertyModals({
                 e.preventDefault()
                 
                 // Validate required fields and optional fields with format requirements for edit form
-                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image', 'referrals']
+                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
                 let hasErrors = false
                 
 
@@ -2227,10 +2239,7 @@ export function PropertyModals({
                   if (field === 'main_image') {
                     // For edit form, check if there's either existing main_image or new main_image_file
                     isValid = !!(value || editFormData.main_image_file)
-                  } else if (field === 'referrals') {
-                    // For edit form, check if there's at least one referral
-                    isValid = !!(value && Array.isArray(value) && value.length > 0)
-                  }
+                    }
                   if (!isValid) {
                     validateField(field, value, true)
                     hasErrors = true
@@ -2291,7 +2300,11 @@ export function PropertyModals({
                     Main Image <span className="text-red-500">*</span>
                   </label>
                   <div className="relative group">
-                    <div className="aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors">
+                    <div className={`aspect-video bg-gray-200 rounded-lg overflow-hidden cursor-pointer hover:opacity-90 transition-opacity border-2 border-dashed ${
+                      backendValidationErrors.main_image || editValidationErrors.main_image
+                        ? 'border-red-300'
+                        : 'border-gray-300 hover:border-gray-400'
+                    } transition-colors`}>
                       {editFormData.main_image_preview || editFormData.main_image ? (
                         <div className="relative w-full h-full">
                           <img
@@ -2359,6 +2372,13 @@ export function PropertyModals({
                                   main_image_file: file,
                                   main_image_preview: previewUrl
                                 }))
+                                clearFieldError('main_image', true)
+                                if (setBackendValidationErrors && backendValidationErrors.main_image) {
+                                  setBackendValidationErrors({
+                                    ...backendValidationErrors,
+                                    main_image: ''
+                                  })
+                                }
 
                                 showSuccess('Image selected! It will be uploaded when you save the property.')
                               } catch (error) {
@@ -2374,6 +2394,12 @@ export function PropertyModals({
                       </div>
                     </div>
                   </div>
+                  {(backendValidationErrors.main_image || editValidationErrors.main_image) && (
+                    <p className="mt-2 text-sm text-red-600 flex items-center">
+                      <span className="mr-1">!</span>
+                      {backendValidationErrors.main_image || editValidationErrors.main_image}
+                    </p>
+                  )}
                 </div>
 
                 {/* Property Details Form */}
@@ -3067,29 +3093,28 @@ export function PropertyModals({
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Referrals <span className="text-red-500">*</span>
+                      Referrals
                     </label>
-                    {editValidationErrors.referrals && (
+                    {(backendValidationErrors.referrals || editValidationErrors.referrals) && (
                       <p className="mb-2 text-sm text-red-600 flex items-center">
                         <span className="mr-1">⚠️</span>
-                        {editValidationErrors.referrals}
+                        {backendValidationErrors.referrals || editValidationErrors.referrals}
                       </p>
                     )}
                     <ReferralSelector
                       referrals={editFormData.referrals || []}
                       onReferralsChange={(referrals) => {
                         setEditFormData((prev: EditFormData) => ({ ...prev, referrals }))
-                        // Clear error when referrals are added
-                        if (referrals && referrals.length > 0) {
-                          setEditValidationErrors(prev => {
-                            const newErrors = { ...prev }
-                            delete newErrors.referrals
-                            return newErrors
+                        clearFieldError('referrals', true)
+                        if (setBackendValidationErrors && backendValidationErrors.referrals) {
+                          setBackendValidationErrors({
+                            ...backendValidationErrors,
+                            referrals: ''
                           })
                         }
                       }}
                       employees={employees}
-                      placeholder="Add property referrals (required)..."
+                      placeholder="Add property referrals (optional)..."
                     />
                   </div>
 
@@ -3182,12 +3207,15 @@ export function PropertyModals({
                 onClick={async () => {
                   
                   // Validate required fields and optional fields with format requirements for edit form
-                  const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url']
+                  const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
                   let hasErrors = false
 
                   fieldsToValidate.forEach(field => {
                     const value = editFormData[field as keyof EditFormData]
-                    const isValid = isFieldValid(field, value)
+                    let isValid = isFieldValid(field, value)
+                    if (field === 'main_image') {
+                      isValid = !!(value || editFormData.main_image_file)
+                    }
                     
                     if (!isValid) {
                       validateField(field, value, true)
@@ -3203,7 +3231,10 @@ export function PropertyModals({
 
                   
                   // Save property first and wait for completion
-                  await onSaveEdit()
+                  const editResult = await onSaveEdit()
+                  if (!editResult || editResult.success !== true) {
+                    return
+                  }
                   
                   // Upload main image if present
                   if (editFormData.main_image_file) {
