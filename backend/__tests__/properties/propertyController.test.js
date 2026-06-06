@@ -448,10 +448,10 @@ describe('Property Controller', () => {
       });
     });
 
-    it('should auto-set closed_date when status changes to closed', async () => {
+    it('should auto-set closed_date when status changes to a closure status', async () => {
       req.params.id = '1';
       req.body = { status_id: 2 };
-      const mockStatus = { id: 2, code: 'closed' };
+      const mockStatus = { id: 2, code: 'closed', is_closure_status: true };
       const mockUpdatedProperty = { ...mockProperty, status_id: 2, closed_date: '2024-01-01' };
 
       Property.getPropertyById.mockResolvedValue(mockProperty);
@@ -471,10 +471,10 @@ describe('Property Controller', () => {
       );
     });
 
-    it('should clear closed_date when status changes away from closed', async () => {
+    it('should clear closed_date when status changes away from a closure status', async () => {
       req.params.id = '1';
       req.body = { status_id: 3 };
-      const mockStatus = { id: 3, code: 'active' };
+      const mockStatus = { id: 3, code: 'active', is_closure_status: false };
       const mockUpdatedProperty = { ...mockProperty, status_id: 3, closed_date: null };
 
       Property.getPropertyById.mockResolvedValue({ ...mockProperty, status_id: 2 });

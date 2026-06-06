@@ -317,6 +317,19 @@ export function PropertyModals({
     const role = user.role
     return isAdminRole(role) || isOperationsRole(role) || isAgentManagerRole(role) || isTeamLeaderRole(role) || isAgentRole(role)
   }
+
+  const isClosureStatusById = (statusId?: number) => {
+    if (!statusId) return false
+    const status = statuses.find(s => s.id === statusId)
+    return status?.is_closure_status === true
+  }
+
+  const isClosureStatusForProperty = (property: Property | null) => {
+    if (!property) return false
+    if (property.status_is_closure_status === true) return true
+    return isClosureStatusById(property.status_id)
+  }
+
   const [selectedImageState, setSelectedImageState] = useState<string>('')
   const [allImagesState, setAllImagesState] = useState<string[]>([])
   const [currentImageIndexState, setCurrentImageIndexState] = useState<number>(0)
@@ -365,6 +378,11 @@ export function PropertyModals({
     price: '',
     notes: '',
     property_url: '',
+    closed_date: '',
+    sold_amount: undefined as number | undefined,
+    buyer_id: undefined as number | undefined,
+    commission: undefined as number | undefined,
+    platform_id: undefined as number | undefined,
     main_image: '',
     main_image_file: null as File | null, // New: File object for upload
     main_image_preview: '', // New: Preview URL for display
@@ -1108,6 +1126,11 @@ export function PropertyModals({
       price: '',
       notes: '',
       property_url: '',
+      closed_date: '',
+      sold_amount: undefined as number | undefined,
+      buyer_id: undefined as number | undefined,
+      commission: undefined as number | undefined,
+      platform_id: undefined as number | undefined,
 
       main_image: '',
       main_image_file: null as File | null,
@@ -1274,6 +1297,11 @@ export function PropertyModals({
                   showError('Please fill in all required fields before submitting')
                   return
                 }
+
+                if (isClosureStatusById(addFormData.status_id) && !addFormData.closed_date) {
+                  showError('Closed date is required when the selected status is marked as a closure status.')
+                  return
+                }
                 
 
                 try {
@@ -1301,6 +1329,11 @@ export function PropertyModals({
                     price: parseFloat(addFormData.price),
                     notes: addFormData.notes || undefined,
                     property_url: addFormData.property_url || undefined,
+                    closed_date: addFormData.closed_date || undefined,
+                    sold_amount: addFormData.sold_amount,
+                    buyer_id: addFormData.buyer_id,
+                    commission: addFormData.commission,
+                    platform_id: addFormData.platform_id,
                     referrals: addFormData.referrals || [],
                     main_image: null // Main image will be uploaded separately after property creation
                     // Gallery images will be uploaded separately after property creation
@@ -1434,7 +1467,21 @@ export function PropertyModals({
                         <PropertyStatusSelector
                           selectedStatusId={addFormData.status_id}
                           onStatusChange={(statusId) => {
-                            setAddFormData(prev => ({ ...prev, status_id: statusId }))
+                            setAddFormData(prev => {
+                              const shouldAutoFillClosedDate = isClosureStatusById(statusId)
+
+                              return {
+                                ...prev,
+                                status_id: statusId,
+                                closed_date: shouldAutoFillClosedDate && !prev.closed_date
+                                  ? new Date().toISOString().split('T')[0]
+                                  : prev.closed_date,
+                                sold_amount: shouldAutoFillClosedDate ? prev.sold_amount : undefined,
+                                buyer_id: shouldAutoFillClosedDate ? prev.buyer_id : undefined,
+                                commission: shouldAutoFillClosedDate ? prev.commission : undefined,
+                                platform_id: shouldAutoFillClosedDate ? prev.platform_id : undefined
+                              }
+                            })
                           }}
                           placeholder="Select status..."
                         />
@@ -1462,6 +1509,94 @@ export function PropertyModals({
                       </select>
                     </div>
                   </div>
+
+                  {isClosureStatusById(addFormData.status_id) && (
+                    <div className="space-y-4 border-t pt-4 mt-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Closing Details</h3>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <Calendar className="inline h-4 w-4 mr-1" />
+                          Closed Date
+                        </label>
+                        <input
+                          type="date"
+                          value={addFormData.closed_date || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value
+                            setAddFormData(prev => ({ ...prev, closed_date: newValue }))
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Sold Amount ($)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={addFormData.sold_amount || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value ? parseFloat(e.target.value) : undefined
+                            setAddFormData(prev => ({ ...prev, sold_amount: newValue }))
+                          }}
+                          placeholder="Enter sold amount (optional)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Client (Buyer)
+                        </label>
+                        <OwnerSelector
+                          selectedOwnerId={addFormData.buyer_id}
+                          onOwnerChange={(owner) => {
+                            setAddFormData(prev => ({
+                              ...prev,
+                              buyer_id: owner ? owner.id : undefined
+                            }))
+                          }}
+                          placeholder="Select buyer from leads..."
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Commission ($)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={addFormData.commission || ''}
+                          onChange={(e) => {
+                            const newValue = e.target.value ? parseFloat(e.target.value) : undefined
+                            setAddFormData(prev => ({ ...prev, commission: newValue }))
+                          }}
+                          placeholder="Enter commission amount (optional)"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Platform
+                        </label>
+                        <ReferenceSourceSelector
+                          selectedReferenceSourceId={addFormData.platform_id}
+                          onReferenceSourceChange={(sourceId) => {
+                            setAddFormData(prev => ({
+                              ...prev,
+                              platform_id: sourceId || undefined
+                            }))
+                          }}
+                          placeholder="Select platform..."
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -2249,21 +2384,20 @@ export function PropertyModals({
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Status <span className="text-red-500">*</span>
                       </label>
-                      <PropertyStatusSelector
-                        selectedStatusId={editFormData.status_id}
-                        onStatusChange={(statusId) => {
-                          setEditFormData((prev: EditFormData) => {
-                            const newStatus = statuses.find(s => s.id === statusId);
-                            const shouldAutoFillClosedDate = newStatus && newStatus.code === 'closed';
+                        <PropertyStatusSelector
+                          selectedStatusId={editFormData.status_id}
+                          onStatusChange={(statusId) => {
+                            setEditFormData((prev: EditFormData) => {
+                            const shouldAutoFillClosedDate = isClosureStatusById(statusId);
                             
                             return {
                               ...prev, 
                               status_id: statusId,
-                              // Auto-fill closed_date if changing to closed and it's empty
+                              // Auto-fill closed_date when switching to a closure status
                               closed_date: shouldAutoFillClosedDate && !prev.closed_date 
                                 ? new Date().toISOString().split('T')[0] 
                                 : prev.closed_date,
-                              // Clear closing fields if moving away from closed status
+                              // Clear closing fields if moving away from a closure status
                               sold_amount: shouldAutoFillClosedDate ? prev.sold_amount : undefined,
                               buyer_id: shouldAutoFillClosedDate ? prev.buyer_id : undefined,
                               commission: shouldAutoFillClosedDate ? prev.commission : undefined,
@@ -2297,10 +2431,9 @@ export function PropertyModals({
                     </div>
                   </div>
 
-                  {/* Closed Date and Closing Fields - only show when status is 'closed' */}
+                  {/* Closed Date and Closing Fields - only show for closure statuses */}
                   {(() => {
-                    const selectedStatus = statuses.find(s => s.id === editFormData.status_id);
-                    const shouldShowClosedFields = selectedStatus && selectedStatus.code === 'closed';
+                    const shouldShowClosedFields = isClosureStatusById(editFormData.status_id);
                     
                     
                     if (shouldShowClosedFields) {
@@ -3222,10 +3355,9 @@ export function PropertyModals({
                     </div>
                   </div>
 
-                  {/* Closed Date - only show if status is 'closed' */}
+                  {/* Closed Date - only show for closure statuses */}
                   {(() => {
-                    const selectedStatus = statuses.find(s => s.id === viewPropertyData.status_id);
-                    if (selectedStatus && selectedStatus.code === 'closed') {
+                    if (isClosureStatusForProperty(viewPropertyData)) {
                       return (
                         <div className="space-y-4 border-t pt-4 mt-4">
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Closing Details</h3>

@@ -2,6 +2,7 @@
 // Model for "Statistics of Sale and Rent Source" report
 
 const pool = require('../config/db');
+const { isClosureStatusSql } = require('../utils/propertyStatusUtils');
 
 // Helper function to round monetary values to 2 decimal places
 function roundMoney(value) {
@@ -116,11 +117,7 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date }) {
          AND p.closed_date IS NOT NULL
          AND p.closed_date >= $2::date
          AND p.closed_date <= $3::date
-         AND (
-           s.id IS NULL
-           OR LOWER(s.code) IN ('sold', 'rented', 'closed')
-           OR LOWER(s.name) IN ('sold', 'rented', 'closed')
-         )
+         AND ${isClosureStatusSql('s')}
        ORDER BY p.closed_date DESC, p.reference_number ASC`,
       [agent_id, startDateStr, endDateStr]
     );
@@ -159,5 +156,3 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date }) {
 module.exports = {
   getSaleRentSourceData
 };
-
-

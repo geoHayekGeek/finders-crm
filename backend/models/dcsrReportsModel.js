@@ -2,6 +2,7 @@
 // Model for DCSR (Daily Client/Sales Report) Monthly Reports - Company-wide totals
 
 const pool = require('../config/db');
+const { isClosureStatusSql } = require('../utils/propertyStatusUtils');
 
 /**
  * Calculate DCSR report data for a specific date range (company-wide totals)
@@ -61,9 +62,11 @@ async function calculateDCSRData(startDateInput, endDateInput) {
     const salesResult = await client.query(
       `SELECT COUNT(*) as count 
        FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.closed_date IS NOT NULL
        AND p.closed_date >= $1::date
        AND p.closed_date <= $2::date
+       AND ${isClosureStatusSql('s')}
        AND p.property_type = 'sale'`,
       [startDateStr, endDateStr]
     );
@@ -73,9 +76,11 @@ async function calculateDCSRData(startDateInput, endDateInput) {
     const rentResult = await client.query(
       `SELECT COUNT(*) as count 
        FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.closed_date IS NOT NULL
        AND p.closed_date >= $1::date
        AND p.closed_date <= $2::date
+       AND ${isClosureStatusSql('s')}
        AND p.property_type = 'rent'`,
       [startDateStr, endDateStr]
     );
@@ -510,10 +515,12 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
     const salesResult = await client.query(
       `SELECT COUNT(*) as count 
        FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.agent_id = ANY($1::int[])
        AND p.closed_date IS NOT NULL
        AND p.closed_date >= $2::date
        AND p.closed_date <= $3::date
+       AND ${isClosureStatusSql('s')}
        AND p.property_type = 'sale'`,
       [teamMemberIdsArray, startDateStr, endDateStr]
     );
@@ -523,10 +530,12 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
     const rentResult = await client.query(
       `SELECT COUNT(*) as count 
        FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.agent_id = ANY($1::int[])
        AND p.closed_date IS NOT NULL
        AND p.closed_date >= $2::date
        AND p.closed_date <= $3::date
+       AND ${isClosureStatusSql('s')}
        AND p.property_type = 'rent'`,
       [teamMemberIdsArray, startDateStr, endDateStr]
     );

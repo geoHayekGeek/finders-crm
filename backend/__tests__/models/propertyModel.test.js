@@ -62,7 +62,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [{ code: 'APT' }] };
       const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
       const mockProperty = {
@@ -127,12 +127,12 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'sold', name: 'Sold' }] };
+      const mockStatus = { rows: [{ is_closure_status: true }] };
 
       mockQuery.mockResolvedValueOnce(mockStatus);
 
       await expect(Property.createProperty(propertyData)).rejects.toThrow(
-        'Properties with closed status (Sold/Rented/Closed) must have a closed_date set'
+        'Properties with a closure status must have a closed_date set'
       );
     });
 
@@ -170,7 +170,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [{ code: 'CAT' }] };
       const mockRefNumber = { rows: [{ generate_reference_number: 'REF-001' }] };
       const mockProperty = {
@@ -310,7 +310,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [{ code: 'APT' }] };
       const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
       const mockOwner = { rows: [{ customer_name: 'John Doe', phone_number: '1234567890' }] };
@@ -370,7 +370,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [{ code: 'APT' }] };
       const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
       const mockProperty = { rows: [{ id: 1, reference_number: 'APT-001' }] };
@@ -428,7 +428,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [] }; // No category found
 
       mockQuery
@@ -472,7 +472,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [{ code: 'APT' }] };
       const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
       const mockProperty = {
@@ -525,7 +525,7 @@ describe('Property Model', () => {
         ]
       };
 
-      const mockStatus = { rows: [{ code: 'active', name: 'Active' }] };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
       const mockCategory = { rows: [{ code: 'APT' }] };
       const mockRefNumber = { rows: [{ generate_reference_number: 'APT-001' }] };
       const mockProperty = {
@@ -770,7 +770,7 @@ describe('Property Model', () => {
         status_id: 2 // Closed status
       };
 
-      const mockStatus = { rows: [{ code: 'sold', name: 'Sold' }] };
+      const mockStatus = { rows: [{ is_closure_status: true }] };
       const mockProperty = { rows: [{ closed_date: null }] };
       const mockExistingReferrals = { rows: [{ count: '1' }] }; // Property already has 1 referral
 
@@ -780,7 +780,7 @@ describe('Property Model', () => {
         .mockResolvedValueOnce(mockProperty); // Existing property check
 
       await expect(Property.updateProperty(1, updates)).rejects.toThrow(
-        'Properties with closed status (Sold/Rented/Closed) must have a closed_date set'
+        'Properties with a closure status must have a closed_date set'
       );
     });
 
@@ -1031,4 +1031,3 @@ describe('Property Model', () => {
     });
   });
 });
-

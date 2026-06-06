@@ -2,6 +2,7 @@
 // Model for Operations Commission Reports
 
 const pool = require('../config/db');
+const { isClosureStatusSql } = require('../utils/propertyStatusUtils');
 
 /**
  * Normalize and validate a provided date range
@@ -78,9 +79,11 @@ async function calculateCommissionData(startDateInput, endDateInput) {
         p.price,
         p.closed_date
        FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.closed_date IS NOT NULL
        AND p.closed_date >= $1::date
        AND p.closed_date <= $2::date
+       AND ${isClosureStatusSql('s')}
        ORDER BY p.closed_date DESC`,
       [startDateStr, endDateStr]
     );
@@ -389,4 +392,3 @@ module.exports = {
   recalculateReport,
   deleteReport
 };
-

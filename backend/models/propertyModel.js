@@ -1,6 +1,10 @@
 // models/propertyModel.js
 const pool = require('../config/db');
 const logger = require('../utils/logger');
+const {
+  CLOSURE_STATUS_REQUIRED_ERROR,
+  isClosureStatus,
+} = require('../utils/propertyStatusUtils');
 
 class Property {
   static buildPropertyFilters(filters = {}, values = [], valueIndex = 1) {
@@ -178,20 +182,16 @@ class Property {
       throw new Error('At least one referral is required. Please provide at least one referral for the property.');
     }
 
-    // VALIDATION: If creating property with closed status, ensure closed_date is set
+    // VALIDATION: If creating property with a closure status, ensure closed_date is set
     const statusCheck = await pool.query(
-      `SELECT code, name FROM statuses WHERE id = $1`,
+      `SELECT is_closure_status FROM statuses WHERE id = $1`,
       [status_id]
     );
     
     if (statusCheck.rows.length > 0) {
       const status = statusCheck.rows[0];
-      const isClosedStatus = 
-        ['sold', 'rented', 'closed'].includes(status.code?.toLowerCase()) ||
-        ['sold', 'rented', 'closed'].includes(status.name?.toLowerCase());
-      
-      if (isClosedStatus && !closed_date) {
-        throw new Error('Properties with closed status (Sold/Rented/Closed) must have a closed_date set. Please provide a closed_date.');
+      if (isClosureStatus(status) && !closed_date) {
+        throw new Error(CLOSURE_STATUS_REQUIRED_ERROR);
       }
     }
 
@@ -246,7 +246,7 @@ class Property {
           finalOwnerId, finalOwnerName, finalPhoneNumber, surface, detailsJsonb, interiorDetailsJsonb,
           payment_facilities || false, payment_facilities_specification || null,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, sold_amount || null, buyer_id || null, commission || null, platform_id || null, main_image, image_gallery, created_by || null
+          closed_date, sold_amount ?? null, buyer_id ?? null, commission ?? null, platform_id ?? null, main_image, image_gallery, created_by || null
         ]
       );
       
@@ -295,6 +295,7 @@ class Property {
           COALESCE(s.name, 'Uncategorized Status') as status_name,
           COALESCE(s.color, '#6B7280') as status_color,
           COALESCE(s.can_be_referred, TRUE) as status_can_be_referred,
+          COALESCE(s.is_closure_status, FALSE) as status_is_closure_status,
           p.property_type,
           p.location,
           p.category_id,
@@ -398,6 +399,7 @@ class Property {
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
         COALESCE(s.can_be_referred, TRUE) as status_can_be_referred,
+        COALESCE(s.is_closure_status, FALSE) as status_is_closure_status,
         p.property_type,
         p.location,
         p.category_id,
@@ -523,6 +525,7 @@ class Property {
           COALESCE(s.name, 'Uncategorized Status') as status_name,
           COALESCE(s.color, '#6B7280') as status_color,
           COALESCE(s.can_be_referred, TRUE) as status_can_be_referred,
+          COALESCE(s.is_closure_status, FALSE) as status_is_closure_status,
           p.property_type,
           p.location,
           p.category_id,
@@ -806,6 +809,7 @@ class Property {
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
         COALESCE(s.can_be_referred, TRUE) as status_can_be_referred,
+        COALESCE(s.is_closure_status, FALSE) as status_is_closure_status,
         p.property_type,
         p.location,
         p.category_id,
@@ -927,20 +931,16 @@ class Property {
         }
       }
       
-      // VALIDATION: If setting property to closed status, ensure closed_date is set
+      // VALIDATION: If setting property to a closure status, ensure closed_date is set
       if (propertyUpdates.status_id) {
         const statusCheck = await client.query(
-          `SELECT code, name FROM statuses WHERE id = $1`,
+          `SELECT is_closure_status FROM statuses WHERE id = $1`,
           [propertyUpdates.status_id]
         );
         
         if (statusCheck.rows.length > 0) {
           const status = statusCheck.rows[0];
-          const isClosedStatus = 
-            ['sold', 'rented', 'closed'].includes(status.code?.toLowerCase()) ||
-            ['sold', 'rented', 'closed'].includes(status.name?.toLowerCase());
-          
-          if (isClosedStatus && !propertyUpdates.closed_date) {
+          if (isClosureStatus(status) && !propertyUpdates.closed_date) {
             // Check if property already has a closed_date
             const existingProperty = await client.query(
               'SELECT closed_date FROM properties WHERE id = $1',
@@ -948,7 +948,7 @@ class Property {
             );
             
             if (!existingProperty.rows[0]?.closed_date) {
-              throw new Error('Properties with closed status (Sold/Rented/Closed) must have a closed_date set. Please provide a closed_date.');
+              throw new Error(CLOSURE_STATUS_REQUIRED_ERROR);
             }
           }
         }
@@ -1303,6 +1303,7 @@ class Property {
         COALESCE(s.name, 'Uncategorized Status') as status_name,
         COALESCE(s.color, '#6B7280') as status_color,
         COALESCE(s.can_be_referred, TRUE) as status_can_be_referred,
+        COALESCE(s.is_closure_status, FALSE) as status_is_closure_status,
         p.property_type,
         p.location,
         p.category_id,

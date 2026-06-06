@@ -8,6 +8,7 @@ const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 const logger = require('../utils/logger');
 const { normalizeRole } = require('../utils/roleUtils');
+const { isClosureStatus } = require('../utils/propertyStatusUtils');
 const propertyImportService = require('../services/propertyImport');
 
 // Helper function to filter created_by info based on user role
@@ -803,6 +804,11 @@ const createProperty = async (req, res) => {
       price,
       notes,
       property_url,
+      closed_date,
+      sold_amount,
+      buyer_id,
+      commission,
+      platform_id,
       referrals,
 
       main_image,
@@ -851,6 +857,11 @@ const createProperty = async (req, res) => {
       price,
       notes,
       property_url: property_url || null, // Optional
+      closed_date: closed_date || null,
+      sold_amount: sold_amount ?? null,
+      buyer_id: buyer_id ?? null,
+      commission: commission ?? null,
+      platform_id: platform_id ?? null,
       referrals: referrals || [], // Required - validation happens in middleware and model
       main_image: main_image || null, // Optional
       image_gallery: image_gallery || [], // Optional
@@ -1031,17 +1042,18 @@ const updateProperty = async (req, res) => {
       changes.agent_id = { from: property.agent_id, to: updates.agent_id };
     }
     
-    // If status_id is being updated, check if it's 'closed' and set closed_date
+    // If status_id is being updated, use the status closure flag to manage closing fields
     if (updates.status_id && updates.status_id !== property.status_id) {
       const newStatus = await Status.getStatusById(updates.status_id);
       logger.debug('Property status change', {
         propertyId: id,
         oldStatusId: property.status_id,
         newStatusId: updates.status_id,
-        newStatusCode: newStatus?.code
+        newStatusCode: newStatus?.code,
+        isClosureStatus: newStatus?.is_closure_status
       });
       
-      if (newStatus && newStatus.code === 'closed') {
+      if (isClosureStatus(newStatus)) {
         // Set closed_date to today if not already set (either not present or empty string)
         if (!updates.closed_date || updates.closed_date === '') {
           updates.closed_date = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
@@ -1060,7 +1072,7 @@ const updateProperty = async (req, res) => {
             });
           }
         }
-      } else if (newStatus && newStatus.code !== 'closed') {
+      } else if (newStatus) {
         // If changing away from closed, clear the closed_date and closing fields
         updates.closed_date = null;
         updates.sold_amount = null;

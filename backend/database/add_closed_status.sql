@@ -5,8 +5,8 @@
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM statuses WHERE code = 'closed') THEN
-    INSERT INTO statuses (name, code, description, color) VALUES
-      ('Closed', 'closed', 'Property has been closed (sold or rented)', '#6B7280');
+    INSERT INTO statuses (name, code, description, color, can_be_referred, is_closure_status) VALUES
+      ('Closed', 'closed', 'Property has been closed (sold or rented)', '#6B7280', FALSE, TRUE);
   END IF;
 END $$;
 

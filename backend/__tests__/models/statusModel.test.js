@@ -175,7 +175,7 @@ describe('Status Model', () => {
       expect(result.name).toBe('New Status');
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        ['New Status', 'new_status', 'A new status', '#FF0000', true, true]
+        ['New Status', 'new_status', 'A new status', '#FF0000', true, true, false]
       );
     });
 
@@ -216,7 +216,7 @@ describe('Status Model', () => {
       expect(result.can_be_referred).toBe(true);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        expect.arrayContaining([true]) // can_be_referred default
+        expect.arrayContaining([true, false]) // can_be_referred default, closure default
       );
     });
 
@@ -241,7 +241,33 @@ describe('Status Model', () => {
       expect(result.can_be_referred).toBe(false);
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        ['Sold', 'sold', 'Property has been sold', '#EF4444', true, false]
+        ['Sold', 'sold', 'Property has been sold', '#EF4444', true, false, false]
+      );
+    });
+
+    it('should create status with is_closure_status set to true', async () => {
+      const statusData = {
+        name: 'Closed Won',
+        code: 'closed_won',
+        description: 'Custom closure status',
+        color: '#111827',
+        is_active: true,
+        can_be_referred: false,
+        is_closure_status: true
+      };
+
+      const mockCreated = {
+        rows: [{ id: 1, ...statusData }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockCreated);
+
+      const result = await Status.createStatus(statusData);
+
+      expect(result.is_closure_status).toBe(true);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO statuses'),
+        ['Closed Won', 'closed_won', 'Custom closure status', '#111827', true, false, true]
       );
     });
   });
@@ -294,6 +320,31 @@ describe('Status Model', () => {
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE statuses'),
         expect.arrayContaining([1, false])
+      );
+    });
+
+    it('should update is_closure_status field', async () => {
+      const updates = {
+        is_closure_status: true
+      };
+
+      const mockUpdated = {
+        rows: [{
+          id: 1,
+          name: 'Closed Won',
+          code: 'closed_won',
+          is_closure_status: true
+        }]
+      };
+
+      mockQuery.mockResolvedValueOnce(mockUpdated);
+
+      const result = await Status.updateStatus(1, updates);
+
+      expect(result.is_closure_status).toBe(true);
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE statuses'),
+        expect.arrayContaining([1, true])
       );
     });
 
@@ -404,4 +455,3 @@ describe('Status Model', () => {
     });
   });
 });
-

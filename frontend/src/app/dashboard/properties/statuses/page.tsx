@@ -120,7 +120,7 @@ export default function StatusesPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Statuses</h1>
-            <p className="text-gray-600">Manage property statuses with custom colors</p>
+            <p className="text-gray-600">Manage property statuses, closure rules, and custom colors</p>
           </div>
         </div>
         
@@ -152,7 +152,7 @@ export default function StatusesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center">
             <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -187,6 +187,20 @@ export default function StatusesPage() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600">Filtered Results</p>
               <p className="text-2xl font-bold text-gray-900">{filteredStatuses.length}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="flex items-center">
+            <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+              <Circle className="h-6 w-6 text-amber-600" />
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600">Closure Statuses</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {statuses.filter(stat => stat.is_closure_status).length}
+              </p>
             </div>
           </div>
         </div>

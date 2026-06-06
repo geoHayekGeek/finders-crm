@@ -36,14 +36,18 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
     );
     testUserId = userResult.rows[0]?.id;
 
-    // Get or create test status (sold)
+    // Get or create a test closure status
     let statusResult = await pool.query(
-      `SELECT id FROM statuses WHERE LOWER(code) = 'sold' LIMIT 1`
+      `SELECT id
+       FROM statuses
+       WHERE COALESCE(is_closure_status, FALSE) = TRUE
+       ORDER BY id
+       LIMIT 1`
     );
     if (statusResult.rows.length === 0) {
       statusResult = await pool.query(
-        `INSERT INTO statuses (name, code, color) 
-         VALUES ('Sold', 'SOLD', 'green')
+        `INSERT INTO statuses (name, code, color, can_be_referred, is_closure_status) 
+         VALUES ('Sold', 'SOLD', 'green', FALSE, TRUE)
          RETURNING id`
       );
     }
@@ -265,7 +269,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
          AND closed_date <= $3::date
          AND status_id IN (
            SELECT id FROM statuses 
-           WHERE LOWER(code) IN ('sold', 'rented', 'closed')
+           WHERE COALESCE(is_closure_status, FALSE) = TRUE
          )`,
         [testAgentId, testDateRange.start, testDateRange.end]
       );
@@ -750,4 +754,3 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
     });
   });
 });
-

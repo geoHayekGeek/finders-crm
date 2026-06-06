@@ -183,7 +183,8 @@ describe('Status Controller', () => {
         description: 'Property for sale',
         color: '#10B981',
         is_active: true,
-        can_be_referred: true
+        can_be_referred: true,
+        is_closure_status: false
       });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
@@ -214,7 +215,8 @@ describe('Status Controller', () => {
         description: 'Property has been sold',
         color: '#EF4444',
         is_active: true,
-        can_be_referred: false
+        can_be_referred: false,
+        is_closure_status: false
       });
       expect(res.status).toHaveBeenCalledWith(201);
     });
@@ -239,7 +241,8 @@ describe('Status Controller', () => {
         description: 'Property is active',
         color: '#10B981',
         is_active: true,
-        can_be_referred: true
+        can_be_referred: true,
+        is_closure_status: false
       });
     });
 
@@ -260,8 +263,37 @@ describe('Status Controller', () => {
         description: undefined,
         color: '#6B7280',
         is_active: true,
-        can_be_referred: true
+        can_be_referred: true,
+        is_closure_status: false
       });
+    });
+
+    it('should create status with is_closure_status field', async () => {
+      req.body = {
+        name: 'Closed Won',
+        code: 'CLOSED_WON',
+        description: 'Custom closure status',
+        color: '#111827',
+        is_active: true,
+        can_be_referred: false,
+        is_closure_status: true
+      };
+
+      const mockStatus = { id: 1, ...req.body };
+      Status.createStatus.mockResolvedValue(mockStatus);
+
+      await StatusController.createStatus(req, res);
+
+      expect(Status.createStatus).toHaveBeenCalledWith({
+        name: 'Closed Won',
+        code: 'CLOSED_WON',
+        description: 'Custom closure status',
+        color: '#111827',
+        is_active: true,
+        can_be_referred: false,
+        is_closure_status: true
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
     });
 
     it('should return 400 if name is missing', async () => {
@@ -608,7 +640,6 @@ describe('Status Controller', () => {
     });
   });
 });
-
 
 
 

@@ -7,20 +7,41 @@ CREATE TABLE IF NOT EXISTS statuses (
   color VARCHAR(20) DEFAULT '#6B7280',
   is_active BOOLEAN DEFAULT TRUE,
   can_be_referred BOOLEAN DEFAULT TRUE,
+  is_closure_status BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+ALTER TABLE statuses
+  ADD COLUMN IF NOT EXISTS can_be_referred BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE statuses
+  ADD COLUMN IF NOT EXISTS is_closure_status BOOLEAN DEFAULT FALSE;
+
 -- Insert default statuses
-INSERT INTO statuses (name, code, description, color, can_be_referred) VALUES
-  ('Active', 'active', 'Property is available for sale/rent', '#10B981', TRUE),
-  ('Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', TRUE),
-  ('Sold', 'sold', 'Property has been sold', '#EF4444', FALSE),
-  ('Rented', 'rented', 'Property has been rented', '#8B5CF6', FALSE),
-  ('Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', TRUE),
-  ('Pending', 'pending', 'Property is pending approval', '#3B82F6', TRUE),
-  ('Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', TRUE)
+INSERT INTO statuses (name, code, description, color, can_be_referred, is_closure_status) VALUES
+  ('Active', 'active', 'Property is available for sale/rent', '#10B981', TRUE, FALSE),
+  ('Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', TRUE, FALSE),
+  ('Sold', 'sold', 'Property has been sold', '#EF4444', FALSE, TRUE),
+  ('Rented', 'rented', 'Property has been rented', '#8B5CF6', FALSE, TRUE),
+  ('Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', TRUE, FALSE),
+  ('Pending', 'pending', 'Property is pending approval', '#3B82F6', TRUE, FALSE),
+  ('Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', TRUE, FALSE)
 ON CONFLICT (name) DO NOTHING;
+
+UPDATE statuses
+SET can_be_referred = FALSE
+WHERE LOWER(code) IN ('sold', 'rented', 'closed')
+   OR LOWER(name) IN ('sold', 'rented', 'closed');
+
+UPDATE statuses
+SET is_closure_status = TRUE
+WHERE LOWER(code) IN ('sold', 'rented', 'closed')
+   OR LOWER(name) IN ('sold', 'rented', 'closed');
+
+UPDATE statuses
+SET is_closure_status = FALSE
+WHERE is_closure_status IS NULL;
 
 -- Create index on code for faster lookups
 CREATE INDEX IF NOT EXISTS idx_statuses_code ON statuses(code);

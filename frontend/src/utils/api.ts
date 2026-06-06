@@ -890,12 +890,12 @@ export const statusesApi = {
   getStats: (token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>('/statuses/stats', {}, token),
   search: (query: string, token?: AuthToken) => apiRequest<{ success: boolean; data: any[] }>(`/statuses/search?q=${encodeURIComponent(query)}`, {}, token),
   getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: any }>(`/statuses/${id}`, {}, token),
-  create: (data: { name: string; code: string; description?: string; color?: string; is_active?: boolean }, token?: AuthToken) => 
+  create: (data: { name: string; code: string; description?: string; color?: string; is_active?: boolean; can_be_referred?: boolean; is_closure_status?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message: string }>('/statuses', {
       method: 'POST',
       body: JSON.stringify(data),
     }, token),
-  update: (id: number, data: { name?: string; code?: string; description?: string; color?: string; is_active?: boolean }, token?: AuthToken) => 
+  update: (id: number, data: { name?: string; code?: string; description?: string; color?: string; is_active?: boolean; can_be_referred?: boolean; is_closure_status?: boolean }, token?: AuthToken) => 
     apiRequest<{ success: boolean; data: any; message: string }>(`/statuses/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -1211,11 +1211,11 @@ export const mockCategories: Category[] = [
 ]
 
 export const mockStatuses: Status[] = [
-  { id: 1, name: 'Active', code: 'active', description: 'Property is available for sale/rent', color: '#10B981', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
-  { id: 2, name: 'Sold', code: 'sold', description: 'Property has been sold', color: '#EF4444', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
-  { id: 3, name: 'Rented', code: 'rented', description: 'Property has been rented', color: '#8B5CF6', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
-  { id: 4, name: 'Under Contract', code: 'under_contract', description: 'Property is under contract', color: '#F59E0B', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
-  { id: 5, name: 'Pending', code: 'pending', description: 'Property is pending approval', color: '#3B82F6', is_active: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
+  { id: 1, name: 'Active', code: 'active', description: 'Property is available for sale/rent', color: '#10B981', is_active: true, can_be_referred: true, is_closure_status: false, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 2, name: 'Sold', code: 'sold', description: 'Property has been sold', color: '#EF4444', is_active: true, can_be_referred: false, is_closure_status: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 3, name: 'Rented', code: 'rented', description: 'Property has been rented', color: '#8B5CF6', is_active: true, can_be_referred: false, is_closure_status: true, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 4, name: 'Under Contract', code: 'under_contract', description: 'Property is under contract', color: '#F59E0B', is_active: true, can_be_referred: true, is_closure_status: false, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' },
+  { id: 5, name: 'Pending', code: 'pending', description: 'Property is pending approval', color: '#3B82F6', is_active: true, can_be_referred: true, is_closure_status: false, created_at: '2025-01-01T00:00:00Z', updated_at: '2025-01-01T00:00:00Z' }
 ]
 
 // ======================

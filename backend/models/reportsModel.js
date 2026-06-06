@@ -2,6 +2,7 @@
 const pool = require('../config/db');
 const PropertyReferral = require('./propertyReferralModel');
 const LeadReferral = require('./leadReferralModel');
+const { CLOSURE_STATUS_ID_SUBQUERY } = require('../utils/propertyStatusUtils');
 
 // Helper function to ensure external column exists
 async function ensureExternalColumnExists() {
@@ -104,10 +105,7 @@ class Report {
            AND p.closed_date >= $2::date 
            AND p.closed_date <= $3::date
            AND p.status_id IN (
-             SELECT id FROM statuses 
-             WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-             OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-             OR LOWER(name) IN ('sold', 'rented', 'closed')
+             ${CLOSURE_STATUS_ID_SUBQUERY}
            )`,
           [agent_id, startDateStr, endDateStr]
         );
@@ -131,10 +129,7 @@ class Report {
            AND p.closed_date >= $2::date 
            AND p.closed_date <= $3::date
            AND p.status_id IN (
-             SELECT id FROM statuses 
-             WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-             OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-             OR LOWER(name) IN ('sold', 'rented', 'closed')
+             ${CLOSURE_STATUS_ID_SUBQUERY}
            )`,
           [agent_id, startDateStr, endDateStr]
         );
@@ -349,10 +344,7 @@ class Report {
          AND closed_date >= $2::date 
          AND closed_date <= $3::date
          AND status_id IN (
-           SELECT id FROM statuses 
-           WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-           OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-           OR LOWER(name) IN ('sold', 'rented', 'closed')
+           ${CLOSURE_STATUS_ID_SUBQUERY}
          )`,
         [agentId, startDateStr, endDateStr]
       );
@@ -403,10 +395,7 @@ class Report {
              AND p.closed_date >= $2::date 
              AND p.closed_date <= $3::date
              AND p.status_id IN (
-               SELECT id FROM statuses 
-               WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-               OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-               OR LOWER(name) IN ('sold', 'rented', 'closed')
+               ${CLOSURE_STATUS_ID_SUBQUERY}
              )
            )
            SELECT 
@@ -437,10 +426,7 @@ class Report {
                AND p.closed_date >= $2::date 
                AND p.closed_date <= $3::date
                AND p.status_id IN (
-                 SELECT id FROM statuses 
-                 WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-                 OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-                 OR LOWER(name) IN ('sold', 'rented', 'closed')
+                 ${CLOSURE_STATUS_ID_SUBQUERY}
                )
              )
              SELECT 
@@ -486,10 +472,7 @@ class Report {
          AND p.closed_date >= $2::date 
          AND p.closed_date <= $3::date
          AND p.status_id IN (
-           SELECT id FROM statuses 
-           WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-           OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-           OR LOWER(name) IN ('sold', 'rented', 'closed')
+           ${CLOSURE_STATUS_ID_SUBQUERY}
          )
          ORDER BY r.id`,
         [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
@@ -566,10 +549,7 @@ class Report {
              AND p.closed_date >= $2::date 
              AND p.closed_date <= $3::date
              AND p.status_id IN (
-               SELECT id FROM statuses 
-               WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-               OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-               OR LOWER(name) IN ('sold', 'rented', 'closed')
+               ${CLOSURE_STATUS_ID_SUBQUERY}
              )
            )
            SELECT 
@@ -616,10 +596,7 @@ class Report {
            AND p.closed_date >= $2::date 
            AND p.closed_date <= $3::date
            AND p.status_id IN (
-             SELECT id FROM statuses 
-             WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-             OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-             OR LOWER(name) IN ('sold', 'rented', 'closed')
+             ${CLOSURE_STATUS_ID_SUBQUERY}
            )`,
           [agentId, startDateStr, endDateStr]
         );
@@ -635,10 +612,7 @@ class Report {
              AND p.closed_date >= $2::date 
              AND p.closed_date <= $3::date
              AND p.status_id IN (
-               SELECT id FROM statuses 
-               WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-               OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-               OR LOWER(name) IN ('sold', 'rented', 'closed')
+               ${CLOSURE_STATUS_ID_SUBQUERY}
              )`,
             [agentId, startDateStr, endDateStr]
           );
@@ -672,10 +646,7 @@ class Report {
            AND p.closed_date >= $2::date 
            AND p.closed_date <= $3::date
            AND p.status_id IN (
-             SELECT id FROM statuses 
-             WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-             OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-             OR LOWER(name) IN ('sold', 'rented', 'closed')
+             ${CLOSURE_STATUS_ID_SUBQUERY}
            )`,
           [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
         );
@@ -698,10 +669,7 @@ class Report {
              AND p.closed_date >= $2::date 
              AND p.closed_date <= $3::date
              AND p.status_id IN (
-               SELECT id FROM statuses 
-               WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-               OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-               OR LOWER(name) IN ('sold', 'rented', 'closed')
+               ${CLOSURE_STATUS_ID_SUBQUERY}
              )`,
             [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
           );
@@ -891,10 +859,7 @@ class Report {
            AND p.closed_date >= $2::date 
            AND p.closed_date <= $3::date
            AND p.status_id IN (
-             SELECT id FROM statuses 
-             WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-             OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-             OR LOWER(name) IN ('sold', 'rented', 'closed')
+             ${CLOSURE_STATUS_ID_SUBQUERY}
            )`,
           [report.agent_id, recalculationStart, recalculationEnd]
         );
@@ -918,10 +883,7 @@ class Report {
            AND p.closed_date >= $2::date 
            AND p.closed_date <= $3::date
            AND p.status_id IN (
-             SELECT id FROM statuses 
-             WHERE LOWER(code) IN ('sold', 'rented', 'closed') 
-             OR UPPER(code) IN ('SOLD', 'RENTED', 'CLOSED')
-             OR LOWER(name) IN ('sold', 'rented', 'closed')
+             ${CLOSURE_STATUS_ID_SUBQUERY}
            )`,
           [report.agent_id, recalculationStart, recalculationEnd]
         );
@@ -1251,4 +1213,3 @@ class Report {
 }
 
 module.exports = Report;
-

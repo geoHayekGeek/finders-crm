@@ -40,6 +40,9 @@ export default function StatusTable({ statuses, onEdit, onDelete, canManage }: S
               Status
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Closure
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Created
             </th>
             {canManage && (
@@ -97,6 +100,17 @@ export default function StatusTable({ statuses, onEdit, onDelete, canManage }: S
                 ) : (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     Inactive
+                  </span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                {status.is_closure_status ? (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    Closed
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                    Open
                   </span>
                 )}
               </td>
