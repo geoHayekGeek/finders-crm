@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
+  MapPin,
   ChevronDown,
   ChevronUp,
   Tag,
@@ -68,6 +69,7 @@ export default function DashboardLayout({
   const [sidebarExpanded, setSidebarExpanded] = useState(true)
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
+  const [calendarMenuOpen, setCalendarMenuOpen] = useState(false)
   const { user, logout } = useAuth()
   const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canViewViewings, role } = usePermissions()
   const { settings } = useSettings()
@@ -136,8 +138,22 @@ export default function DashboardLayout({
       })
     }
 
-    // Calendar - visible to all roles
-    baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
+    // Calendar - visible to all roles; management roles get a submenu for events and locations
+    if (canViewCategoriesAndStatuses) {
+      baseNavigation.push({
+        name: 'Calendar',
+        href: '/dashboard/calendar',
+        icon: Calendar,
+        alwaysVisible: true,
+        hasSubmenu: true,
+        submenu: [
+          { name: 'Events', href: '/dashboard/calendar', icon: Calendar },
+          { name: 'Locations', href: '/dashboard/calendar/locations', icon: MapPin }
+        ]
+      })
+    } else {
+      baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
+    }
 
     // Reports - visible to roles with agent performance viewing permissions, accountant (view-only), operations, or hr (view-only)
     if (canViewAgentPerformance || normalizedRole === 'accountant' || normalizedRole === 'operations' || normalizedRole === 'hr') {
@@ -203,19 +219,21 @@ export default function DashboardLayout({
                             setPropertiesMenuOpen(!propertiesMenuOpen)
                           } else if (item.name === 'Leads') {
                             setLeadsMenuOpen(!leadsMenuOpen)
+                          } else if (item.name === 'Calendar') {
+                            setCalendarMenuOpen(!calendarMenuOpen)
                           }
                         }}
                         className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       >
                         <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
                         {item.name}
-                        {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) ? (
+                        {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen) || (item.name === 'Calendar' && calendarMenuOpen)) ? (
                           <ChevronUp className="ml-auto h-4 w-4" />
                         ) : (
                           <ChevronDown className="ml-auto h-4 w-4" />
                         )}
                       </button>
-                      {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen)) && (
+                      {((item.name === 'Properties' && propertiesMenuOpen) || (item.name === 'Leads' && leadsMenuOpen) || (item.name === 'Calendar' && calendarMenuOpen)) && (
                         <div className="ml-6 space-y-1 mt-1">
                           {item.submenu?.map((subItem) => (
                             <Link
@@ -315,8 +333,9 @@ export default function DashboardLayout({
                 const primaryHref = item.submenu?.[0]?.href ?? item.href
                 const isPropertiesItem = item.name === 'Properties'
                 const isLeadsItem = item.name === 'Leads'
+                const isCalendarItem = item.name === 'Calendar'
                 const isMenuOpen =
-                  (isPropertiesItem && propertiesMenuOpen) || (isLeadsItem && leadsMenuOpen)
+                  (isPropertiesItem && propertiesMenuOpen) || (isLeadsItem && leadsMenuOpen) || (isCalendarItem && calendarMenuOpen)
 
                 return (
                 <div key={item.name}>
@@ -329,6 +348,8 @@ export default function DashboardLayout({
                             setPropertiesMenuOpen(!propertiesMenuOpen)
                               } else if (isLeadsItem) {
                             setLeadsMenuOpen(!leadsMenuOpen)
+                              } else if (isCalendarItem) {
+                                setCalendarMenuOpen(!calendarMenuOpen)
                           }
                         }}
                         className="group flex items-center w-full px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"

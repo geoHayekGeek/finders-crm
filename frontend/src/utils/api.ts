@@ -1,4 +1,5 @@
 import { Property, Category, Status } from '@/types/property'
+import { CalendarLocation } from '@/types/location'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote, LeadsImportResponse } from '@/types/leads'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
@@ -902,6 +903,34 @@ export const statusesApi = {
     }, token),
   delete: (id: number, token?: AuthToken) => 
     apiRequest<{ success: boolean; message: string }>(`/statuses/${id}`, {
+      method: 'DELETE',
+    }, token),
+}
+
+// Calendar Locations API
+export const locationsApi = {
+  getAll: (token?: AuthToken) => apiRequest<{ success: boolean; data: CalendarLocation[] }>('/locations', {}, token),
+  getAllForAdmin: (token?: AuthToken) => apiRequest<{ success: boolean; data: CalendarLocation[] }>('/locations/admin', {}, token),
+  search: (query: string, token?: AuthToken) =>
+    apiRequest<{ success: boolean; data: CalendarLocation[] }>(`/locations/search?q=${encodeURIComponent(query)}`, {}, token),
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: CalendarLocation }>(`/locations/${id}`, {}, token),
+  create: (
+    data: { name: string; description?: string; is_active?: boolean },
+    token?: AuthToken
+  ) => apiRequest<{ success: boolean; data: CalendarLocation; message: string }>('/locations', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }, token),
+  update: (
+    id: number,
+    data: { name?: string; description?: string; is_active?: boolean },
+    token?: AuthToken
+  ) => apiRequest<{ success: boolean; data: CalendarLocation; message: string }>(`/locations/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }, token),
+  delete: (id: number, token?: AuthToken) =>
+    apiRequest<{ success: boolean; data: CalendarLocation; message: string }>(`/locations/${id}`, {
       method: 'DELETE',
     }, token),
 }

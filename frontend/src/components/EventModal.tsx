@@ -5,6 +5,7 @@ import { Dialog } from '@headlessui/react'
 import { XMarkIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
+import { LocationSelector } from './LocationSelector'
 import { useToast } from '@/contexts/ToastContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { useAuth } from '@/contexts/AuthContext'
@@ -55,7 +56,8 @@ export function EventModal({
     allDay: false,
     color: 'blue' as CalendarEvent['color'],
     type: 'other' as CalendarEvent['type'],
-    location: '',
+    locationId: null as number | null,
+    locationText: '',
     attendees: [] as EventUser[],
     notes: '',
     propertyId: null as number | null,
@@ -94,7 +96,8 @@ export function EventModal({
         allDay: event.allDay,
         color: event.color,
         type: event.type,
-        location: event.location || '',
+        locationId: event.locationId || null,
+        locationText: event.locationName || event.location || '',
         attendees: attendeeUsers,
         notes: event.notes || '',
         propertyId: event.propertyId || null,
@@ -125,7 +128,8 @@ export function EventModal({
         allDay: false,
         color: 'blue',
         type: 'other',
-        location: '',
+        locationId: null,
+        locationText: '',
         attendees: [],
         notes: '',
         propertyId: null,
@@ -140,6 +144,8 @@ export function EventModal({
     if (event && !loadingDropdowns && (properties.length > 0 || leads.length > 0)) {
       setFormData(prev => ({
         ...prev,
+        locationId: event.locationId || null,
+        locationText: event.locationName || event.location || '',
         propertyId: event.propertyId || null,
         leadId: event.leadId || null
       }))
@@ -246,9 +252,9 @@ export function EventModal({
       newErrors.description = 'Description must be less than 500 characters'
     }
 
-    // Optional field validation: Location
-    if (formData.location && formData.location.length > 200) {
-      newErrors.location = 'Location must be less than 200 characters'
+    // Optional field validation: Location label
+    if (formData.locationText && formData.locationText.length > 255) {
+      newErrors.location = 'Location must be less than 255 characters'
     }
 
     // Optional field validation: Notes
@@ -309,7 +315,8 @@ export function EventModal({
             allDay: formData.allDay, 
             color: formData.color, 
             type: formData.type, 
-            location: formData.location.trim() || undefined, 
+            locationId: formData.locationId,
+            location: formData.locationText.trim() || undefined, 
             attendees: attendeeNames, 
             notes: formData.notes.trim() || undefined,
             propertyId: formData.propertyId,
@@ -323,7 +330,8 @@ export function EventModal({
             allDay: formData.allDay,
             color: formData.color,
             type: formData.type,
-            location: formData.location.trim() || undefined,
+            locationId: formData.locationId,
+            location: formData.locationText.trim() || undefined,
             attendees: attendeeNames,
             notes: formData.notes.trim() || undefined,
             propertyId: formData.propertyId,
@@ -562,20 +570,21 @@ export function EventModal({
 
             {/* Location */}
             <div>
-              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Location
               </label>
-              <input
-                type="text"
-                id="location"
-                value={formData.location}
-                onChange={(e) => {
-                  setFormData(prev => ({ ...prev, location: e.target.value }))
+              <LocationSelector
+                selectedLocationId={formData.locationId}
+                selectedLocationName={formData.locationText}
+                onLocationChange={(location) => {
+                  setFormData(prev => ({
+                    ...prev,
+                    locationId: location?.id || null,
+                    locationText: location?.name || ''
+                  }))
                   clearFieldError('location')
                 }}
-                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 ${errors.location ? 'border-red-300' : 'border-gray-300'
-                  }`}
-                placeholder="Event location"
+                placeholder="Select a predefined location..."
               />
               {errors.location && (
                 <p className="mt-1 text-sm text-red-600">{errors.location}</p>

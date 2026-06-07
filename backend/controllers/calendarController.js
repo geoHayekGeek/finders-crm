@@ -60,6 +60,36 @@ const getAttendeeUserIds = async (attendeeNames) => {
     return [];
   }
 };
+
+const formatCalendarEventResponse = (event) => ({
+  id: event.id,
+  title: event.title,
+  description: event.description,
+  start: event.start_time,
+  end: event.end_time,
+  allDay: event.all_day,
+  color: event.color,
+  type: event.type,
+  location: event.location,
+  locationId: event.location_id,
+  locationName: event.location_name || event.location,
+  attendees: event.attendees || [],
+  notes: event.notes,
+  createdBy: event.created_by,
+  assignedTo: event.assigned_to,
+  createdAt: event.created_at,
+  updatedAt: event.updated_at,
+  propertyId: event.property_id,
+  propertyReference: event.property_reference,
+  propertyLocation: event.property_location,
+  leadId: event.lead_id,
+  leadName: event.lead_name,
+  leadPhone: event.lead_phone,
+  createdByName: event.created_by_name,
+  createdByRole: event.created_by_role,
+  assignedToName: event.assigned_to_name,
+  assignedToRole: event.assigned_to_role
+});
 // Helper function to schedule event reminders
 const scheduleEventReminders = async (eventId, eventData) => {
   try {
@@ -115,7 +145,7 @@ const getAllEvents = async (req, res) => {
 
     // Admins: return all events when no filters are provided; otherwise use advanced filters
     if (userRole === 'admin') {
-      if (query.createdBy || query.attendee || query.type || query.dateFrom || query.dateTo || query.search) {
+      if (query.createdBy || query.attendee || query.type || query.locationId || query.dateFrom || query.dateTo || query.search) {
         events = await calendarEventModel.getEventsWithAdvancedFilters(query);
       } else {
         events = await calendarEventModel.getAllEvents();
@@ -126,30 +156,7 @@ const getAllEvents = async (req, res) => {
     
     res.json({
       success: true,
-      events: events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        assignedTo: event.assigned_to,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone,
-        createdByName: event.created_by_name
-      }))
+      events: events.map(formatCalendarEventResponse)
     });
   } catch (error) {
     console.error('Error fetching all events:', error);
@@ -196,28 +203,7 @@ const getEventsByDateRange = async (req, res) => {
     );
     res.json({
       success: true,
-      events: events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone
-      }))
+      events: events.map(formatCalendarEventResponse)
     });
   } catch (error) {
     console.error('Error fetching events by date range:', error);
@@ -262,28 +248,7 @@ const getEventsByMonth = async (req, res) => {
     });
     res.json({
       success: true,
-      events: events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone
-      }))
+      events: events.map(formatCalendarEventResponse)
     });
   } catch (error) {
     console.error('Error fetching events by month:', error);
@@ -331,28 +296,7 @@ const getEventsByWeek = async (req, res) => {
     );
     res.json({
       success: true,
-      events: events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone
-      }))
+      events: events.map(formatCalendarEventResponse)
     });
   } catch (error) {
     console.error('Error fetching events by week:', error);
@@ -402,28 +346,7 @@ const getEventsByDay = async (req, res) => {
     );
     res.json({
       success: true,
-      events: events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone
-      }))
+      events: events.map(formatCalendarEventResponse)
     });
   } catch (error) {
     console.error('Error fetching events by day:', error);
@@ -469,28 +392,7 @@ const getEventById = async (req, res) => {
 
     res.json({
       success: true,
-      event: {
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone
-      }
+      event: formatCalendarEventResponse(event)
     });
   } catch (error) {
     console.error('Error fetching event by ID:', error);
@@ -513,6 +415,7 @@ const createEvent = async (req, res) => {
       color,
       type,
       location,
+      locationId,
       attendees,
       notes,
       propertyId,
@@ -554,6 +457,7 @@ const createEvent = async (req, res) => {
       color: color || 'blue',
       type: type || 'other',
       location: location?.trim() || null,
+      location_id: locationId || null,
       attendees: attendees || [],
       notes: notes?.trim() || null,
       created_by: req.user?.id || null,
@@ -635,29 +539,7 @@ const createEvent = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Event created successfully',
-      event: {
-        id: enrichedNewEvent.id,
-        title: enrichedNewEvent.title,
-        description: enrichedNewEvent.description,
-        start: enrichedNewEvent.start_time,
-        end: enrichedNewEvent.end_time,
-        allDay: enrichedNewEvent.all_day,
-        color: enrichedNewEvent.color,
-        type: enrichedNewEvent.type,
-        location: enrichedNewEvent.location,
-        attendees: enrichedNewEvent.attendees || [],
-        notes: enrichedNewEvent.notes,
-        createdBy: enrichedNewEvent.created_by,
-        createdByName: enrichedNewEvent.created_by_name,
-        createdAt: enrichedNewEvent.created_at,
-        updatedAt: enrichedNewEvent.updated_at,
-        propertyId: enrichedNewEvent.property_id,
-        propertyReference: enrichedNewEvent.property_reference,
-        propertyLocation: enrichedNewEvent.property_location,
-        leadId: enrichedNewEvent.lead_id,
-        leadName: enrichedNewEvent.lead_name,
-        leadPhone: enrichedNewEvent.lead_phone
-      }
+      event: formatCalendarEventResponse(enrichedNewEvent)
     });
   } catch (error) {
     console.error('Error creating event:', error);
@@ -729,6 +611,7 @@ const updateEvent = async (req, res) => {
     if (updates.color !== undefined) updateData.color = updates.color;
     if (updates.type !== undefined) updateData.type = updates.type;
     if (updates.location !== undefined) updateData.location = updates.location?.trim() || null;
+    if (updates.locationId !== undefined) updateData.location_id = updates.locationId || null;
     if (updates.attendees !== undefined) updateData.attendees = updates.attendees;
     if (updates.notes !== undefined) updateData.notes = updates.notes?.trim() || null;
     if (updates.propertyId !== undefined) updateData.property_id = updates.propertyId || null;
@@ -805,29 +688,7 @@ const updateEvent = async (req, res) => {
     res.json({
       success: true,
       message: 'Event updated successfully',
-      event: {
-        id: updatedEvent.id,
-        title: updatedEvent.title,
-        description: updatedEvent.description,
-        start: updatedEvent.start_time,
-        end: updatedEvent.end_time,
-        allDay: updatedEvent.all_day,
-        color: updatedEvent.color,
-        type: updatedEvent.type,
-        location: updatedEvent.location,
-        attendees: updatedEvent.attendees || [],
-        notes: updatedEvent.notes,
-        createdBy: updatedEvent.created_by,
-        createdByName: updatedEvent.created_by_name,
-        createdAt: updatedEvent.created_at,
-        updatedAt: updatedEvent.updated_at,
-        propertyId: updatedEvent.property_id,
-        propertyReference: updatedEvent.property_reference,
-        propertyLocation: updatedEvent.property_location,
-        leadId: updatedEvent.lead_id,
-        leadName: updatedEvent.lead_name,
-        leadPhone: updatedEvent.lead_phone
-      }
+      event: formatCalendarEventResponse(updatedEvent)
     });
   } catch (error) {
     console.error('Error updating event:', error);
@@ -972,28 +833,7 @@ const searchEvents = async (req, res) => {
     );
     res.json({
       success: true,
-      events: events.map(event => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start: event.start_time,
-        end: event.end_time,
-        allDay: event.all_day,
-        color: event.color,
-        type: event.type,
-        location: event.location,
-        attendees: event.attendees || [],
-        notes: event.notes,
-        createdBy: event.created_by,
-        createdAt: event.created_at,
-        updatedAt: event.updated_at,
-        propertyId: event.property_id,
-        propertyReference: event.property_reference,
-        propertyLocation: event.property_location,
-        leadId: event.lead_id,
-        leadName: event.lead_name,
-        leadPhone: event.lead_phone
-      }))
+      events: events.map(formatCalendarEventResponse)
     });
   } catch (error) {
     console.error('Error searching events:', error);

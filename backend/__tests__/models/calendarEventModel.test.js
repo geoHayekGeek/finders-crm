@@ -38,13 +38,19 @@ describe('CalendarEvent Model', () => {
         lead_id: 2
       };
 
-      mockQuery.mockResolvedValue({
-        rows: [{ id: 1, ...eventData }]
-      });
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ id: 1, ...eventData }] });
 
       const result = await CalendarEvent.createEvent(eventData);
 
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('SELECT id, name'),
+        [eventData.location]
+      );
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
         expect.stringContaining('INSERT INTO calendar_events'),
         expect.arrayContaining([
           eventData.title,
@@ -542,4 +548,3 @@ describe('CalendarEvent Model', () => {
     });
   });
 });
-

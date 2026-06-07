@@ -1,4 +1,19 @@
 -- Calendar Events Table
+CREATE TABLE IF NOT EXISTS locations (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_locations_name_lower
+  ON locations (LOWER(TRIM(name)));
+
+CREATE INDEX IF NOT EXISTS idx_locations_is_active
+  ON locations (is_active);
+
 CREATE TABLE IF NOT EXISTS calendar_events (
   id SERIAL PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
@@ -9,6 +24,7 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   color VARCHAR(50) DEFAULT 'blue',
   type VARCHAR(100) DEFAULT 'other',
   location TEXT,
+  location_id INTEGER REFERENCES locations(id) ON DELETE SET NULL,
   attendees TEXT[], -- Array of user IDs or names
   notes TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -26,6 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_created_by ON calendar_events(cre
 CREATE INDEX IF NOT EXISTS idx_calendar_events_assigned_to ON calendar_events(assigned_to);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_property_id ON calendar_events(property_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_lead_id ON calendar_events(lead_id);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_location_id ON calendar_events(location_id);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_type ON calendar_events(type);
 
 -- Trigger function to update updated_at timestamp
@@ -43,6 +60,43 @@ CREATE TRIGGER update_calendar_events_updated_at
   BEFORE UPDATE ON calendar_events 
   FOR EACH ROW 
   EXECUTE FUNCTION update_updated_at_column();
+
+CREATE OR REPLACE FUNCTION sync_calendar_event_location_name()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.location_id IS NOT NULL THEN
+    SELECT name INTO NEW.location
+    FROM locations
+    WHERE id = NEW.location_id
+    LIMIT 1;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_calendar_event_location_name ON calendar_events;
+CREATE TRIGGER trg_sync_calendar_event_location_name
+  BEFORE INSERT OR UPDATE OF location_id ON calendar_events
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_calendar_event_location_name();
+
+CREATE OR REPLACE FUNCTION sync_calendar_event_location_name_on_locations_update()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.name IS DISTINCT FROM OLD.name THEN
+    UPDATE calendar_events
+    SET location = NEW.name
+    WHERE location_id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_sync_calendar_event_location_name_on_locations_update ON locations;
+CREATE TRIGGER trg_sync_calendar_event_location_name_on_locations_update
+  AFTER UPDATE OF name ON locations
+  FOR EACH ROW
+  EXECUTE FUNCTION sync_calendar_event_location_name_on_locations_update();
 
 -- Function to get users who should be notified for calendar event changes
 CREATE OR REPLACE FUNCTION get_calendar_event_notification_users(

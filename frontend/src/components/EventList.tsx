@@ -196,10 +196,10 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
                     </div>
 
                     {/* Location */}
-                    {event.location && (
+                    {(event.locationName || event.location) && (
                       <div className="flex items-center space-x-1">
                         <MapPinIcon className="h-3 w-3" />
-                        <span className="truncate">{event.location}</span>
+                        <span className="truncate">{event.locationName || event.location}</span>
                       </div>
                     )}
 

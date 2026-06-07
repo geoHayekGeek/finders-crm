@@ -7,6 +7,49 @@ const User = require('./userModel');
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
+const resolveLocationPayload = async (locationId, locationValue, client = pool) => {
+  let resolvedLocationId = locationId ?? null;
+  let resolvedLocation = locationValue?.trim() || null;
+
+  if (resolvedLocationId) {
+    const existingLocation = await client.query(
+      `SELECT id, name
+       FROM locations
+       WHERE id = $1
+       LIMIT 1`,
+      [resolvedLocationId]
+    );
+
+    const locationRow = existingLocation.rows[0];
+    if (locationRow) {
+      resolvedLocation = locationRow.name;
+    } else {
+      resolvedLocationId = null;
+    }
+  }
+
+  if (!resolvedLocationId && resolvedLocation) {
+    const matchedLocation = await client.query(
+      `SELECT id, name
+       FROM locations
+       WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+       LIMIT 1`,
+      [resolvedLocation]
+    );
+
+    const locationRow = matchedLocation.rows[0];
+    if (locationRow) {
+      resolvedLocationId = locationRow.id;
+      resolvedLocation = locationRow.name;
+    }
+  }
+
+  return {
+    location_id: resolvedLocationId,
+    location: resolvedLocation
+  };
+};
+
 class CalendarEvent {
   static async createEvent(eventData) {
     const {
@@ -23,16 +66,19 @@ class CalendarEvent {
       created_by,
       assigned_to,
       property_id,
-      lead_id
+      lead_id,
+      location_id
     } = eventData;
+
+    const resolvedLocation = await resolveLocationPayload(location_id, location, pool);
 
     const result = await pool.query(
       `INSERT INTO calendar_events (
         title, description, start_time, end_time, all_day, 
-        color, type, location, attendees, notes, created_by, assigned_to, property_id, lead_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        color, type, location, location_id, attendees, notes, created_by, assigned_to, property_id, lead_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
-      [title, description, start_time, end_time, all_day, color, type, location, attendees, notes, created_by, assigned_to, property_id, lead_id]
+      [title, description, start_time, end_time, all_day, color, type, resolvedLocation.location, resolvedLocation.location_id, attendees, notes, created_by, assigned_to, property_id, lead_id]
     );
     return result.rows[0];
   }
@@ -41,6 +87,7 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
@@ -50,6 +97,7 @@ class CalendarEvent {
         assignee.name as assigned_to_name,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
@@ -64,6 +112,7 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
@@ -73,6 +122,7 @@ class CalendarEvent {
         assignee.name as assigned_to_name,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
@@ -87,11 +137,13 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       WHERE ce.assigned_to = $1
@@ -106,11 +158,13 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       WHERE ce.assigned_to = $1
@@ -128,11 +182,13 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users u ON u.id = $1
@@ -150,11 +206,13 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users u ON u.id = $1
@@ -174,11 +232,13 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       WHERE (ce.start_time >= $1 AND ce.start_time <= $2) 
@@ -216,8 +276,24 @@ class CalendarEvent {
   }
 
   static async updateEvent(id, updates) {
-    const fields = Object.keys(updates);
-    const values = Object.values(updates);
+    const normalizedUpdates = { ...updates };
+
+    if (
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'location_id') ||
+      Object.prototype.hasOwnProperty.call(normalizedUpdates, 'location')
+    ) {
+      const resolvedLocation = await resolveLocationPayload(
+        normalizedUpdates.location_id,
+        normalizedUpdates.location,
+        pool
+      );
+
+      normalizedUpdates.location_id = resolvedLocation.location_id;
+      normalizedUpdates.location = resolvedLocation.location;
+    }
+
+    const fields = Object.keys(normalizedUpdates);
+    const values = Object.values(normalizedUpdates);
     
     const setClause = fields.map((field, index) => `${field} = $${index + 2}`).join(', ');
     const query = `
@@ -243,7 +319,9 @@ class CalendarEvent {
 
   static async getEventsByUser(userId) {
     const result = await pool.query(
-      `SELECT * FROM calendar_events 
+      `SELECT ce.*, loc.name as location_name
+       FROM calendar_events ce
+       LEFT JOIN locations loc ON ce.location_id = loc.id
        WHERE created_by = $1 OR $1 = ANY(attendees)
        ORDER BY start_time ASC`,
       [userId]
@@ -255,14 +333,16 @@ class CalendarEvent {
     let query = `
       SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
-      WHERE (ce.title ILIKE $1 OR ce.description ILIKE $1 OR ce.location ILIKE $1)
+      WHERE (ce.title ILIKE $1 OR ce.description ILIKE $1 OR ce.location ILIKE $1 OR loc.name ILIKE $1)
     `;
     let params = [`%${searchTerm}%`];
 
@@ -282,9 +362,11 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       WHERE ce.property_id = $1
       ORDER BY ce.start_time ASC`,
@@ -298,9 +380,11 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         l.customer_name as lead_name,
         l.phone_number as lead_phone
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       WHERE ce.lead_id = $1
       ORDER BY ce.start_time ASC`,
@@ -314,9 +398,11 @@ class CalendarEvent {
     const result = await pool.query(
       `SELECT 
         ce.*,
+        loc.name as location_name,
         creator.role as created_by_role,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN users creator ON ce.created_by = creator.id
       LEFT JOIN users assignee ON ce.assigned_to = assignee.id
       WHERE ce.id = $1`,
@@ -403,6 +489,7 @@ class CalendarEvent {
     let query = `
       SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
@@ -412,6 +499,7 @@ class CalendarEvent {
         assignee.name as assigned_to_name,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
@@ -448,6 +536,7 @@ class CalendarEvent {
     let query = `
       SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
@@ -457,6 +546,7 @@ class CalendarEvent {
         assignee.name as assigned_to_name,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
@@ -500,6 +590,7 @@ class CalendarEvent {
     let query = `
       SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
@@ -509,6 +600,7 @@ class CalendarEvent {
         assignee.name as assigned_to_name,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
@@ -517,6 +609,7 @@ class CalendarEvent {
         ce.title ILIKE $1 
         OR ce.description ILIKE $1 
         OR ce.location ILIKE $1 
+        OR loc.name ILIKE $1
         OR ce.notes ILIKE $1
         OR p.reference_number ILIKE $1
         OR p.location ILIKE $1
@@ -553,6 +646,7 @@ class CalendarEvent {
     let query = `
       SELECT 
         ce.*,
+        loc.name as location_name,
         p.reference_number as property_reference,
         p.location as property_location,
         l.customer_name as lead_name,
@@ -562,6 +656,7 @@ class CalendarEvent {
         assignee.name as assigned_to_name,
         assignee.role as assigned_to_role
       FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
       LEFT JOIN properties p ON ce.property_id = p.id
       LEFT JOIN leads l ON ce.lead_id = l.id
       LEFT JOIN users creator ON ce.created_by = creator.id
@@ -596,6 +691,12 @@ class CalendarEvent {
       params.push(filters.type);
     }
 
+    if (filters.locationId) {
+      paramCount++;
+      query += ` AND ce.location_id = $${paramCount}`;
+      params.push(parseInt(filters.locationId));
+    }
+
     // Filter by date range
     if (filters.dateFrom) {
       paramCount++;
@@ -617,6 +718,7 @@ class CalendarEvent {
         ce.title ILIKE $${paramCount} 
         OR ce.description ILIKE $${paramCount}
         OR ce.location ILIKE $${paramCount}
+        OR loc.name ILIKE $${paramCount}
         OR ce.notes ILIKE $${paramCount}
         OR p.reference_number ILIKE $${paramCount}
         OR p.location ILIKE $${paramCount}

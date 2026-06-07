@@ -241,7 +241,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                                   e.stopPropagation()
                                   onEventClick(event)
                                 }}
-                                title={`${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}`}
+                                title={`${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}${event.locationName || event.location ? ` (Location: ${event.locationName || event.location})` : ''}`}
                               >
                                 <div className="flex items-center space-x-1">
                                   {event.propertyId && (

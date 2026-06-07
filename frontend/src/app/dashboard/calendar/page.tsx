@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Calendar } from '@/components/Calendar'
 import { EventModal } from '@/components/EventModal'
 import { EventList } from '@/components/EventList'
@@ -10,7 +10,7 @@ import { PlusIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRole } from '@/utils/roleFormatter'
-import { usersApi } from '@/utils/api'
+import { usersApi, locationsApi } from '@/utils/api'
 
 function normalizeRole(role?: string) {
   return role ? role.toLowerCase().replace(/_/g, ' ').trim() : ''
@@ -25,6 +25,7 @@ interface CalendarFilters {
   createdBy?: string
   attendee?: string
   type?: string
+  locationId?: string
   dateFrom?: string
   dateTo?: string
   search?: string
@@ -40,6 +41,8 @@ export interface CalendarEvent {
   color: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'pink'
   type: 'meeting' | 'showing' | 'inspection' | 'closing' | 'other'
   location?: string
+  locationId?: number | null
+  locationName?: string
   attendees?: string[]
   notes?: string
   propertyId?: number | null
@@ -80,6 +83,8 @@ interface BackendEvent {
   color?: string
   type?: string
   location?: string
+  locationId?: number | string | null
+  locationName?: string
   attendees?: (string | number)[]
   notes?: string
   propertyId?: number | null
@@ -110,6 +115,8 @@ export default function CalendarPage() {
   const [eventPermissions, setEventPermissions] = useState<Record<string, EventPermissions>>({})
   const [adminFilters, setAdminFilters] = useState<CalendarFilters>({})
   const [users, setUsers] = useState<BackendUser[]>([])
+  const [locations, setLocations] = useState<Array<{ id: number; name: string; is_active: boolean }>>([])
+  const [locationFilterId, setLocationFilterId] = useState('')
   const [teamLeaderViewMode, setTeamLeaderViewMode] = useState<TeamLeaderViewMode>('team')
   const [teamLeaderAgentId, setTeamLeaderAgentId] = useState<string>('')
   const [teamAgents, setTeamAgents] = useState<BackendUser[]>([])
@@ -221,7 +228,9 @@ export default function CalendarPage() {
             allDay: event.allDay,
             color: (event.color || 'blue') as CalendarEvent['color'],
             type: (event.type || 'other') as CalendarEvent['type'],
-            location: event.location,
+            location: event.locationName || event.location,
+            locationId: event.locationId !== undefined && event.locationId !== null ? Number(event.locationId) : undefined,
+            locationName: event.locationName || event.location,
             attendees: Array.isArray(event.attendees)
               ? event.attendees.map((att: string | number) => String(att))
               : [],
@@ -267,6 +276,9 @@ export default function CalendarPage() {
   useEffect(() => {
     if (user?.role === 'admin') {
       loadUsers()
+    }
+    if (user) {
+      loadLocations()
     }
   }, [user?.role])
 
@@ -325,7 +337,8 @@ export default function CalendarPage() {
           allDay: event.allDay,
           color: event.color,
           type: event.type,
-          location: event.location,
+          location: event.locationName || event.location,
+          locationId: event.locationId,
           attendees: event.attendees?.map(a => typeof a === 'string' ? a : String(a)) || [],
           notes: event.notes,
           propertyId: event.propertyId,
@@ -378,7 +391,8 @@ export default function CalendarPage() {
           allDay: event.allDay,
           color: event.color,
           type: event.type,
-          location: event.location,
+          location: event.locationName || event.location,
+          locationId: event.locationId,
           attendees: event.attendees?.map(a => typeof a === 'string' ? a : String(a)) || [],
           notes: event.notes,
           propertyId: event.propertyId,
@@ -557,6 +571,43 @@ export default function CalendarPage() {
     }
   }
 
+  const loadLocations = async () => {
+    try {
+      const token = localStorage.getItem('token')
+      const response = user?.role === 'admin'
+        ? await locationsApi.getAllForAdmin(token || undefined)
+        : await locationsApi.getAll(token || undefined)
+
+      if (response.success) {
+        setLocations(response.data || [])
+      }
+    } catch (error) {
+      console.error('Error loading locations:', error)
+    }
+  }
+
+  const displayedEvents = useMemo(() => {
+    if (user?.role === 'admin' || !locationFilterId) {
+      return events
+    }
+
+    const selectedLocation = locations.find(location => String(location.id) === locationFilterId)
+    const selectedLocationName = selectedLocation?.name.trim().toLowerCase() || ''
+
+    return events.filter(event => {
+      if (event.locationId !== undefined && event.locationId !== null) {
+        return String(event.locationId) === locationFilterId
+      }
+
+      if (!selectedLocationName) {
+        return false
+      }
+
+      const eventLocationName = (event.locationName || event.location || '').trim().toLowerCase()
+      return eventLocationName === selectedLocationName
+    })
+  }, [events, locationFilterId, locations, user?.role])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -679,6 +730,36 @@ export default function CalendarPage() {
           </div>
         )}
 
+        {user?.role !== 'admin' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+            <div className="p-4 border-b border-gray-200">
+              <h3 className="text-lg font-medium text-gray-900">Location Filter</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Filter the calendar by one of the predefined locations.
+              </p>
+            </div>
+            <div className="p-4">
+              <div className="max-w-md">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Location
+                </label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={locationFilterId}
+                  onChange={(e) => setLocationFilterId(e.target.value)}
+                >
+                  <option value="">All Locations</option>
+                  {locations.map(location => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Admin Filters */}
         {user?.role === 'admin' && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
@@ -694,7 +775,7 @@ export default function CalendarPage() {
               </div>
             </div>
             <div className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Search Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -763,8 +844,9 @@ export default function CalendarPage() {
                     <option value="inspection">Inspection</option>
                     <option value="closing">Closing</option>
                     <option value="other">Other</option>
-                  </select>
+                    </select>
                 </div>
+
               </div>
 
               {/* Date Range Filters */}
@@ -824,6 +906,14 @@ export default function CalendarPage() {
                         Type: {adminFilters.type}
                       </span>
                     )}
+                    {adminFilters.locationId && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                        Location: {(() => {
+                          const location = locations.find(l => l.id.toString() === adminFilters.locationId)
+                          return location ? location.name : adminFilters.locationId
+                        })()}
+                      </span>
+                    )}
                     {adminFilters.dateFrom && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                         From: {adminFilters.dateFrom}
@@ -852,7 +942,7 @@ export default function CalendarPage() {
                 onViewChange={setView}
               />
               <Calendar
-                events={events}
+                events={displayedEvents}
                 selectedDate={selectedDate}
                 view={view}
                 onEventClick={handleEventClick}
@@ -870,7 +960,7 @@ export default function CalendarPage() {
               </div>
               <div className="p-6">
                 <EventList
-                  events={events}
+                  events={displayedEvents}
                   onEventClick={handleEventClick}
                   selectedDate={selectedDate}
                 />
