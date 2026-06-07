@@ -15,6 +15,25 @@ const logger = require('../utils/logger');
 const { normalizeRole } = require('../utils/roleUtils');
 const leadsImportService = require('../services/leadsImport');
 
+const LEAD_ROLE_VALIDATION_MESSAGE = 'Lead must be buyer, seller, or both';
+
+function isLeadRoleValidationError(error) {
+  return error && error.message === LEAD_ROLE_VALIDATION_MESSAGE;
+}
+
+function respondWithLeadRoleValidationError(res) {
+  return res.status(400).json({
+    success: false,
+    message: 'Validation failed',
+    errors: [
+      {
+        field: 'lead_role',
+        message: 'Select at least one lead type',
+      },
+    ],
+  });
+}
+
 class LeadsController {
   static parsePagination(query = {}) {
     const hasPage = query.page !== undefined;
@@ -331,6 +350,9 @@ class LeadsController {
       });
     } catch (error) {
       logger.error('Error creating lead', error);
+      if (isLeadRoleValidationError(error)) {
+        return respondWithLeadRoleValidationError(res);
+      }
       res.status(500).json({
         success: false,
         message: 'Failed to create lead',
@@ -536,6 +558,9 @@ class LeadsController {
       });
     } catch (error) {
       logger.error('Error updating lead', error);
+      if (isLeadRoleValidationError(error)) {
+        return respondWithLeadRoleValidationError(res);
+      }
       res.status(500).json({
         success: false,
         message: 'Failed to update lead',

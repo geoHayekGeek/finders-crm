@@ -50,6 +50,8 @@ describe('Lead Model', () => {
           1,
           undefined,
           200000,
+          true,
+          false,
           1,
           2
         ])
@@ -86,7 +88,9 @@ describe('Lead Model', () => {
 
       const callArgs = mockQuery.mock.calls[0][1];
       expect(callArgs).not.toContain('Active');
-      expect(callArgs).toHaveLength(8);
+      expect(callArgs).toHaveLength(10);
+      expect(callArgs[6]).toBe(true);
+      expect(callArgs[7]).toBe(false);
     });
 
     it('should throw error when added_by_id is missing', async () => {
@@ -97,6 +101,20 @@ describe('Lead Model', () => {
 
       await expect(Lead.createLead(leadData)).rejects.toThrow(
         'added_by_id is required and cannot be null'
+      );
+    });
+
+    it('should reject leads without buyer or seller role', async () => {
+      const leadData = {
+        customer_name: 'John Doe',
+        phone_number: '1234567890',
+        added_by_id: 2,
+        is_buyer: false,
+        is_seller: false
+      };
+
+      await expect(Lead.createLead(leadData)).rejects.toThrow(
+        'Lead must be buyer, seller, or both'
       );
     });
   });
@@ -407,6 +425,20 @@ describe('Lead Model', () => {
       expect(mockQuery).toHaveBeenCalledWith(
         expect.stringContaining('ILIKE'),
         expect.arrayContaining(['%John%'])
+      );
+    });
+
+    it('should filter by lead_role', async () => {
+      const filters = { lead_role: 'both' };
+      const mockLeads = { rows: [] };
+
+      mockQuery.mockResolvedValueOnce(mockLeads);
+
+      await Lead.getLeadsWithFilters(filters);
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('AND l.is_buyer = TRUE AND l.is_seller = TRUE'),
+        expect.any(Array)
       );
     });
 

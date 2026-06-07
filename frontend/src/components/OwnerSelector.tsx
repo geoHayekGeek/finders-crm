@@ -25,11 +25,12 @@ export function OwnerSelector({
   selectedOwnerId, 
   selectedOwnerName,
   onOwnerChange, 
-  placeholder = "Select an owner (lead)..."
+  placeholder = "Select a buyer lead..."
 }: OwnerSelectorProps) {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
   const [owners, setOwners] = useState<Owner[]>([])
+  const [selectedOwnerDetails, setSelectedOwnerDetails] = useState<Owner | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -53,8 +54,8 @@ export function OwnerSelector({
     reference_source_id: ''
   })
 
-  // Fetch owners (leads) from database
-  const fetchOwners = async () => {
+  // Fetch buyer leads from the database using server-side search.
+  const fetchOwners = async (search = '') => {
     if (!token) {
       setError('No authentication token available')
       return
@@ -63,12 +64,19 @@ export function OwnerSelector({
     setIsLoading(true)
     setError('')
     try {
-      const data = await leadsApi.getAll(token)
+      const data = await leadsApi.getWithFilters(
+        {
+          lead_role: 'buyer',
+          search: search || undefined
+        },
+        token,
+        { page: 1, limit: 20 }
+      )
       
       if (data.success && data.data) {
         setOwners(data.data)
       } else {
-        setError(data.message || 'Failed to load owners')
+        setError(data.message || 'Failed to load buyers')
       }
     } catch (error) {
       if (error instanceof Error) {
@@ -81,33 +89,67 @@ export function OwnerSelector({
     }
   }
 
-  useEffect(() => {
-    if (token) {
-      fetchOwners()
+  const fetchOwnerById = async (ownerId: number) => {
+    if (!token || !ownerId) {
+      return
     }
-  }, [token])
 
-  // Re-fetch owners when selectedOwnerId changes (if owners list is empty or owner not found)
-  // This ensures the owner is found when the component receives a selectedOwnerId prop
-  useEffect(() => {
-    if (token && selectedOwnerId !== undefined && selectedOwnerId !== null) {
-      // Check if owner exists with robust type matching
-      const ownerExists = owners.find(o => {
-        if (o.id === selectedOwnerId) return true
-        if (o.id == selectedOwnerId) return true
-        const ownerIdNum = Number(o.id)
-        const selectedIdNum = Number(selectedOwnerId)
-        return !isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum
-      })
-      
-      if (owners.length === 0 && !isLoading) {
-        fetchOwners()
-      } else if (owners.length > 0 && !ownerExists && !isLoading) {
-        fetchOwners()
+    try {
+      const response = await leadsApi.getById(ownerId, token)
+      if (response.success && response.data) {
+        setSelectedOwnerDetails({
+          id: response.data.id,
+          customer_name: response.data.customer_name,
+          phone_number: response.data.phone_number,
+          date: response.data.date
+        })
       }
+    } catch (error) {
+      console.error('Error fetching selected owner:', error)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedOwnerId])
+  }
+
+  useEffect(() => {
+    if (!token || !isDropdownOpen) {
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      fetchOwners(searchTerm.trim())
+    }, searchTerm.trim() ? 250 : 0)
+
+    return () => clearTimeout(timeout)
+  }, [token, isDropdownOpen, searchTerm])
+
+  useEffect(() => {
+    if (!token) {
+      setSelectedOwnerDetails(null)
+      return
+    }
+
+    if (selectedOwnerId === undefined || selectedOwnerId === null || selectedOwnerId === 0) {
+      setSelectedOwnerDetails(null)
+      return
+    }
+
+    const ownerExists = owners.find(o => {
+      if (o.id === selectedOwnerId) return true
+      if (o.id == selectedOwnerId) return true
+      const ownerIdNum = Number(o.id)
+      const selectedIdNum = Number(selectedOwnerId)
+      return !isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum
+    })
+
+    if (ownerExists) {
+      setSelectedOwnerDetails(ownerExists)
+      return
+    }
+
+    if (selectedOwnerDetails?.id !== Number(selectedOwnerId)) {
+      setSelectedOwnerDetails(null)
+      fetchOwnerById(Number(selectedOwnerId))
+    }
+  }, [token, selectedOwnerId, owners, selectedOwnerDetails?.id])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -123,21 +165,23 @@ export function OwnerSelector({
   }, [])
 
   const filteredOwners = owners.filter(owner => {
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      owner.customer_name.toLowerCase().includes(searchLower) ||
-      (owner.phone_number && owner.phone_number.toLowerCase().includes(searchLower))
-    )
+      const searchLower = searchTerm.toLowerCase()
+      return (
+        owner.customer_name.toLowerCase().includes(searchLower) ||
+        (owner.phone_number && owner.phone_number.toLowerCase().includes(searchLower))
+      )
   })
 
   const handleOwnerSelect = (owner: Owner) => {
     onOwnerChange(owner)
+    setSelectedOwnerDetails(owner)
     setIsDropdownOpen(false)
     setSearchTerm('')
   }
 
   const handleClearOwner = () => {
     onOwnerChange(undefined)
+    setSelectedOwnerDetails(null)
   }
   
   // Quick add modal handlers
@@ -227,6 +271,8 @@ export function OwnerSelector({
         customer_name: quickAddForm.customer_name.trim(),
         phone_number: quickAddForm.phone_number.trim(),
         reference_source_id: quickAddForm.reference_source_id,
+        is_buyer: true,
+        is_seller: false,
         date: today,
         referrals: [
           {
@@ -241,10 +287,16 @@ export function OwnerSelector({
       const response = await leadsApi.create(leadData, token)
       
       if (response.success && response.data) {
-        showSuccess('Owner added successfully!')
+        showSuccess('Buyer added successfully!')
+        setSelectedOwnerDetails({
+          id: response.data.id,
+          customer_name: response.data.customer_name,
+          phone_number: response.data.phone_number,
+          date: response.data.date
+        })
         
         // Refresh the owners list
-        await fetchOwners()
+        await fetchOwners(searchTerm.trim())
         
         // Auto-select the newly created lead
         const newLead = {
@@ -278,24 +330,8 @@ export function OwnerSelector({
     const selectedIdNum = Number(selectedOwnerId)
     if (!isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum) return true
     return false
-  })
+  }) || (selectedOwnerDetails && Number(selectedOwnerDetails.id) === Number(selectedOwnerId) ? selectedOwnerDetails : null)
   
-  // Notify parent when owner is found after owners load (for cases where component mounts before owners load)
-  useEffect(() => {
-    if (selectedOwnerId !== undefined && selectedOwnerId !== null && owners.length > 0 && !selectedOwner) {
-      const found = owners.find(o => {
-        if (o.id === selectedOwnerId) return true
-        if (o.id == selectedOwnerId) return true
-        const ownerIdNum = Number(o.id)
-        const selectedIdNum = Number(selectedOwnerId)
-        return !isNaN(ownerIdNum) && !isNaN(selectedIdNum) && ownerIdNum === selectedIdNum
-      })
-      
-      // Don't call onOwnerChange here as it might cause infinite loops
-      // The selectedOwner will be computed on next render
-    }
-  }, [owners, selectedOwnerId, selectedOwner])
-
   // Determine what to display - prefer selectedOwner from list, fallback to selectedOwnerName prop
   // If owner_name is 'Hidden', don't use it - let the component find the owner by ID from the list
   // Also handle case where owner_name exists but owner_id is null (legacy data)
@@ -342,7 +378,7 @@ export function OwnerSelector({
                   <span className="text-xs text-gray-500 italic">(Loading details...)</span>
                 )}
                 {!selectedOwnerId && selectedOwnerName && (
-                  <span className="text-xs text-yellow-600 italic">(Not linked to lead - please select a lead)</span>
+                  <span className="text-xs text-yellow-600 italic">(Not linked to lead - please select a buyer lead)</span>
                 )}
               </div>
             </div>
@@ -351,7 +387,7 @@ export function OwnerSelector({
             type="button"
             onClick={handleClearOwner}
             className="p-1 text-indigo-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-            title="Clear owner"
+            title="Clear buyer"
           >
             <X className="h-4 w-4" />
           </button>
@@ -379,17 +415,17 @@ export function OwnerSelector({
             type="button"
             onClick={handleOpenQuickAdd}
             className="p-3 text-green-600 hover:text-green-700 hover:bg-green-50 border border-green-300 rounded-lg transition-colors"
-            title="Add new owner"
+            title="Add new buyer"
           >
             <Plus className="h-4 w-4" />
           </button>
           
           <button
             type="button"
-            onClick={fetchOwners}
+            onClick={() => fetchOwners(searchTerm.trim())}
             disabled={isLoading}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
-            title="Refresh owners"
+            title="Refresh buyers"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
@@ -407,7 +443,7 @@ export function OwnerSelector({
             <div className="p-3 border-b border-gray-200">
               <input
                 type="text"
-                placeholder="Search owners..."
+                placeholder="Search buyers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-sm"
@@ -419,7 +455,7 @@ export function OwnerSelector({
               {isLoading ? (
                 <div className="p-4 text-center text-gray-500">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600 mx-auto mb-2"></div>
-                  Loading owners...
+                  Loading buyers...
                 </div>
               ) : error ? (
                 <div className="p-4 text-center text-red-500 text-sm">
@@ -427,7 +463,7 @@ export function OwnerSelector({
                 </div>
               ) : filteredOwners.length === 0 ? (
                 <div className="p-4 text-center text-gray-500 text-sm">
-                  {searchTerm ? 'No owners found matching your search' : 'No owners available'}
+                  {searchTerm ? 'No buyers found matching your search' : 'No buyers available'}
                 </div>
               ) : (
                 <div>
@@ -482,8 +518,8 @@ export function OwnerSelector({
               {/* Modal Header */}
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">Add New Owner</h2>
-                  <p className="text-sm text-gray-600 mt-1">Quickly add a property owner (lead)</p>
+                  <h2 className="text-xl font-semibold text-gray-900">Add New Buyer</h2>
+                  <p className="text-sm text-gray-600 mt-1">Quickly add a property buyer (lead)</p>
                 </div>
                 <button
                   type="button"

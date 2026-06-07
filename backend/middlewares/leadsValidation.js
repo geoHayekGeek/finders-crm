@@ -88,6 +88,30 @@ const validateCreateLead = [
     .matches(/^[a-zA-Z\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF'-]+$/)
     .withMessage('Agent name can only contain letters, spaces, hyphens, and apostrophes')
     .customSanitizer(sanitizeInput),
+
+  body('is_buyer')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') {
+        return true;
+      }
+      if (typeof value === 'boolean' || value === 'true' || value === 'false' || value === 1 || value === 0 || value === '1' || value === '0') {
+        return true;
+      }
+      throw new Error('Buyer flag must be a boolean or 0/1 value');
+    }),
+
+  body('is_seller')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') {
+        return true;
+      }
+      if (typeof value === 'boolean' || value === 'true' || value === 'false' || value === 1 || value === 0 || value === '1' || value === '0') {
+        return true;
+      }
+      throw new Error('Seller flag must be a boolean or 0/1 value');
+    }),
     
   // Optional price field
   body('price')
@@ -185,6 +209,30 @@ const validateUpdateLead = [
     .matches(/^[a-zA-Z\s\u00C0-\u017F\u0100-\u024F\u1E00-\u1EFF'-]+$/)
     .withMessage('Agent name can only contain letters, spaces, hyphens, and apostrophes')
     .customSanitizer(sanitizeInput),
+
+  body('is_buyer')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') {
+        return true;
+      }
+      if (typeof value === 'boolean' || value === 'true' || value === 'false' || value === 1 || value === 0 || value === '1' || value === '0') {
+        return true;
+      }
+      throw new Error('Buyer flag must be a boolean or 0/1 value');
+    }),
+
+  body('is_seller')
+    .optional({ nullable: true })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') {
+        return true;
+      }
+      if (typeof value === 'boolean' || value === 'true' || value === 'false' || value === 1 || value === 0 || value === '1' || value === '0') {
+        return true;
+      }
+      throw new Error('Seller flag must be a boolean or 0/1 value');
+    }),
     
   body('reference_source_id')
     .optional({ nullable: true, checkFalsy: true })
@@ -202,7 +250,7 @@ const validateUpdateLead = [
   
   // Ensure at least one field is being updated
   body().custom((body) => {
-    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'reference_source_id', 'added_by_id', 'referrals'];
+    const updatableFields = ['customer_name', 'date', 'phone_number', 'agent_id', 'agent_name', 'is_buyer', 'is_seller', 'reference_source_id', 'added_by_id', 'referrals'];
     const hasUpdate = updatableFields.some(field => body.hasOwnProperty(field));
     
     if (!hasUpdate) {
@@ -247,6 +295,20 @@ const validateLeadsFilters = [
     .optional()
     .isInt({ min: 1 })
     .withMessage('Reference source ID must be a positive integer'),
+
+  query('lead_role')
+    .optional({ nullable: true, checkFalsy: true })
+    .custom((value) => {
+      if (value === undefined || value === null || value === '') {
+        return true;
+      }
+
+      const normalized = String(value).toLowerCase().trim();
+      if (!['buyer', 'seller', 'both'].includes(normalized)) {
+        throw new Error('Lead role must be buyer, seller, or both');
+      }
+      return true;
+    }),
     
   query('date_from')
     .optional()

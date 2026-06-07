@@ -5,6 +5,7 @@ import { Eye, Edit3, Trash2, Phone, Calendar, User, UserPlus } from 'lucide-reac
 import { ColumnDef } from '@tanstack/react-table'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 import { isTeamLeaderRole } from '@/utils/roleUtils'
+import { getLeadRoleBadgeClassName, getLeadRoleLabel } from '@/utils/leadRoles'
 
 interface LeadsColumnOptions {
   limitedAccess?: boolean
@@ -39,9 +40,14 @@ export const getLeadsColumns = (
       cell: ({ row }) => {
         const lead = row.original
         return (
-          <div className="flex items-center gap-2">
-            <User className="h-4 w-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-900">{lead.customer_name || '-'}</span>
+          <div className="flex items-start gap-2">
+            <User className="h-4 w-4 text-gray-400 mt-0.5" />
+            <div>
+              <div className="text-sm font-medium text-gray-900">{lead.customer_name || '-'}</div>
+              <span className={`inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${getLeadRoleBadgeClassName(lead)}`}>
+                {getLeadRoleLabel(lead)}
+              </span>
+            </div>
           </div>
         )
       }

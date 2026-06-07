@@ -7,6 +7,7 @@ import { formatDateForDisplay } from '@/utils/dateUtils'
 import { ReferLeadModal } from './ReferLeadModal'
 import { useAuth } from '@/contexts/AuthContext'
 import { isTeamLeaderRole, normalizeRole } from '@/utils/roleUtils'
+import { getLeadRoleBadgeClassName, getLeadRoleLabel } from '@/utils/leadRoles'
 
 interface LeadsCardProps {
   lead: Lead
@@ -69,6 +70,9 @@ export function LeadsCard({
             {lead.customer_name}
           </h3>
         </div>
+        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getLeadRoleBadgeClassName(lead)}`}>
+          {getLeadRoleLabel(lead)}
+        </span>
       </div>
 
       {lead.phone_number && (

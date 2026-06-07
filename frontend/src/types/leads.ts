@@ -16,6 +16,8 @@ export interface LeadReferral {
   updated_at?: string
 }
 
+export type LeadRole = 'buyer' | 'seller' | 'both'
+
 export interface Lead {
   id: number
   date: string
@@ -26,6 +28,9 @@ export interface Lead {
   assigned_agent_name?: string
   agent_role?: string
   price?: number  // New optional field
+  is_buyer?: boolean
+  is_seller?: boolean
+  lead_role?: LeadRole
   reference_source_id: number  // Now required
   reference_source_name?: string
   added_by_id: number  // Person who added the lead
@@ -69,6 +74,7 @@ export interface LeadFilters {
   /** Team leaders only: restrict to leads assigned to you or your team agents (server-enforced). */
   my_team?: boolean
   agent_id?: number
+  lead_role?: LeadRole
   reference_source_id?: number
   date_from?: string
   date_to?: string
@@ -90,6 +96,8 @@ export interface EditLeadFormData {
   agent_id?: number
   agent_name?: string
   price?: number  // New optional field
+  is_buyer: boolean
+  is_seller: boolean
   reference_source_id?: number  // Required before submit
   added_by_id?: number  // Will be auto-set to current user if not provided
   referrals?: LeadReferralInput[]  // Optional referrals field
@@ -102,6 +110,8 @@ export interface CreateLeadFormData {
   agent_id?: number
   agent_name?: string
   price?: number  // New optional field
+  is_buyer: boolean
+  is_seller: boolean
   reference_source_id?: number  // Required before submit
   added_by_id?: number  // Will be auto-set to current user if not provided
   referrals?: LeadReferralInput[]  // Optional referrals field

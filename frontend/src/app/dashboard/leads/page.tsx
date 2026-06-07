@@ -93,6 +93,8 @@ useEffect(() => {
     agent_id: undefined,
     agent_name: '',
     price: undefined,
+    is_buyer: true,
+    is_seller: false,
     reference_source_id: undefined,
     added_by_id: undefined
   })
@@ -495,6 +497,11 @@ useEffect(() => {
         return Number(value);
       };
 
+      const inferredIsBuyer =
+        refreshedLead.is_buyer ?? (refreshedLead.lead_role === 'buyer' || refreshedLead.lead_role === 'both')
+      const inferredIsSeller =
+        refreshedLead.is_seller ?? (refreshedLead.lead_role === 'seller' || refreshedLead.lead_role === 'both')
+
       const formData = {
         date: formattedDate,
         customer_name: refreshedLead.customer_name || '',
@@ -504,8 +511,11 @@ useEffect(() => {
         price: refreshedLead.price !== null && refreshedLead.price !== undefined && refreshedLead.price !== 0 
           ? parseFloat(refreshedLead.price.toString()) 
           : undefined,
+        is_buyer: !!inferredIsBuyer,
+        is_seller: !!inferredIsSeller,
         reference_source_id: safeNumber(refreshedLead.reference_source_id),
-        added_by_id: safeNumber(refreshedLead.added_by_id),        referrals: convertedReferrals
+        added_by_id: safeNumber(refreshedLead.added_by_id),
+        referrals: convertedReferrals
       }
       
       console.log('📝 Full refreshed lead data:', refreshedLead)

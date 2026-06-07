@@ -6,6 +6,7 @@ import { Lead, CreateLeadFormData, EditLeadFormData, LeadNote } from '@/types/le
 import { AgentSelector } from './AgentSelector'
 import { ReferenceSourceSelector } from './ReferenceSourceSelector'
 import { OperationsSelector } from './OperationsSelector'
+import { LeadRoleSelector } from './LeadRoleSelector'
 import { LeadReferralsSection } from './LeadReferralsSection'
 import { LeadReferralSelector } from './LeadReferralSelector'
 import { formatDateForDisplay } from '@/utils/dateUtils'
@@ -14,6 +15,7 @@ import { leadsApi, leadNotesApi, ApiError } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { isAgentRole, isTeamLeaderRole, isAdminRole, isOperationsRole, isAgentManagerRole, normalizeRole } from '@/utils/roleUtils'
 import { mapValidationErrors } from '@/utils/validationErrors'
+import { getLeadRoleBadgeClassName, getLeadRoleLabel } from '@/utils/leadRoles'
 
 interface LeadsModalsProps {
   // Add Lead Modal
@@ -201,6 +203,8 @@ export function LeadsModals({
     agent_id: undefined,
     agent_name: '',
     price: undefined,
+    is_buyer: true,
+    is_seller: false,
     reference_source_id: undefined,
     added_by_id: undefined,
     referrals: []
@@ -374,6 +378,11 @@ export function LeadsModals({
           errorMessage = 'Reference source is required'
         }
         break
+      case 'lead_role':
+        if (!value || (!value.is_buyer && !value.is_seller)) {
+          errorMessage = 'Select at least one lead type'
+        }
+        break
       case 'added_by_id':
         // For agents and team leaders, this is auto-set, so no validation needed
         // For others, it's optional (will default to current user)
@@ -414,7 +423,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'lead_role']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -436,6 +445,11 @@ export function LeadsModals({
         case 'reference_source_id':
           if (!value || value === undefined || value === null) {
             errorMessage = 'Reference source is required'
+          }
+          break
+        case 'lead_role':
+          if (!addFormData.is_buyer && !addFormData.is_seller) {
+            errorMessage = 'Select at least one lead type'
           }
           break
         case 'operations_id':
@@ -477,6 +491,8 @@ export function LeadsModals({
         agent_id: undefined,
         agent_name: '',
         price: undefined,
+        is_buyer: true,
+        is_seller: false,
         reference_source_id: undefined,
         added_by_id: undefined,
         referrals: []
@@ -505,7 +521,7 @@ export function LeadsModals({
     e.preventDefault()
     
     // Validate all required fields
-    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id']
+    const fieldsToValidate = ['customer_name', 'phone_number', 'reference_source_id', 'lead_role']
     const newValidationErrors: Record<string, string> = {}
     let hasErrors = false
     
@@ -527,6 +543,11 @@ export function LeadsModals({
         case 'reference_source_id':
           if (!value || value === undefined || value === null) {
             errorMessage = 'Reference source is required'
+          }
+          break
+        case 'lead_role':
+          if (!editFormData.is_buyer && !editFormData.is_seller) {
+            errorMessage = 'Select at least one lead type'
           }
           break
         case 'operations_id':
@@ -688,22 +709,33 @@ export function LeadsModals({
                   )}
                 </div>
 
-                                 {/* Agent Selection */}
-                 <div>
-                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                     <Users className="inline h-4 w-4 mr-1" />
-                     Assigned Agent <span className="text-gray-400 text-xs">(optional)</span>
-                   </label>
-                   <AgentSelector
-                     selectedAgentId={addFormData.agent_id}
-                     onAgentChange={(agent) => setAddFormData({ 
-                       ...addFormData, 
-                       agent_id: agent?.id, 
-                       agent_name: agent?.name || '' 
-                     })}
-                     placeholder="Select an agent..."
-                   />
-                 </div>
+                <LeadRoleSelector
+                  isBuyer={addFormData.is_buyer}
+                  isSeller={addFormData.is_seller}
+                  onChange={(next) => {
+                    setAddFormData((prev) => ({ ...prev, ...next }))
+                    clearFieldError('lead_role')
+                    validateField('lead_role', next)
+                  }}
+                  error={addValidationErrors.lead_role}
+                />
+
+                {/* Agent Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <Users className="inline h-4 w-4 mr-1" />
+                    Assigned Agent <span className="text-gray-400 text-xs">(optional)</span>
+                  </label>
+                  <AgentSelector
+                    selectedAgentId={addFormData.agent_id}
+                    onAgentChange={(agent) => setAddFormData({ 
+                      ...addFormData, 
+                      agent_id: agent?.id, 
+                      agent_name: agent?.name || '' 
+                    })}
+                    placeholder="Select an agent..."
+                  />
+                </div>
 
                 {/* Price */}
                 <div>
@@ -858,6 +890,13 @@ export function LeadsModals({
                         <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number</label>
                         <p className="text-sm text-gray-900">{editFormData.phone_number}</p>
                       </div>
+
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Lead Type</label>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getLeadRoleBadgeClassName(editFormData)}`}>
+                          {getLeadRoleLabel(editFormData)}
+                        </span>
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -927,13 +966,25 @@ export function LeadsModals({
                         }`}
                         placeholder="Enter phone number"
                       />
-                      {editValidationErrors.phone_number && (
-                        <p className="mt-1 text-sm text-red-600 flex items-center">
-                          <span className="mr-1">!</span>
-                          {editValidationErrors.phone_number}
-                        </p>
-                      )}
-                    </div>
+                    {editValidationErrors.phone_number && (
+                      <p className="mt-1 text-sm text-red-600 flex items-center">
+                        <span className="mr-1">!</span>
+                        {editValidationErrors.phone_number}
+                      </p>
+                    )}
+                  </div>
+
+                  <LeadRoleSelector
+                    isBuyer={editFormData.is_buyer}
+                    isSeller={editFormData.is_seller}
+                    onChange={(next) => {
+                      setEditFormData((prev) => ({ ...prev, ...next }))
+                      clearFieldError('lead_role', true)
+                      validateField('lead_role', next, true)
+                    }}
+                    error={editValidationErrors.lead_role}
+                  />
+
                     {/* Agent Selection */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1187,6 +1238,13 @@ export function LeadsModals({
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
                   <p className="text-gray-900">{viewingLead.phone_number || 'Not provided'}</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lead Type</label>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getLeadRoleBadgeClassName(viewingLead)}`}>
+                    {getLeadRoleLabel(viewingLead)}
+                  </span>
                 </div>
 
                 <div>

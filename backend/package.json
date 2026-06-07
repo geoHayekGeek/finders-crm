@@ -13,6 +13,7 @@
     "test:coverage": "jest --coverage",
     "migrate:closure-status": "node run-closure-status-migration.js",
     "migrate:default-status": "node run-default-status-migration.js",
+    "migrate:lead-roles": "node run-lead-roles-migration.js",
     "migrate:users-table": "node run-users-table-migration.js",
     "migrate:verify-users": "node verify-users-migration.js",
     "migrate:added-by": "node run-added-by-migration.js",

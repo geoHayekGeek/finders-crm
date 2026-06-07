@@ -1,5 +1,9 @@
 // models/leadsModel.js
 const pool = require('../config/db');
+const {
+  buildLeadRoleWhereClause,
+  isTruthyLeadRole,
+} = require('../utils/leadRoles');
 
 const LEAD_SELECT_COLUMNS = `
   l.id,
@@ -11,6 +15,14 @@ const LEAD_SELECT_COLUMNS = `
   u.name as assigned_agent_name,
   u.role as agent_role,
   l.price,
+  l.is_buyer,
+  l.is_seller,
+  CASE
+    WHEN l.is_buyer = TRUE AND l.is_seller = TRUE THEN 'both'
+    WHEN l.is_buyer = TRUE THEN 'buyer'
+    WHEN l.is_seller = TRUE THEN 'seller'
+    ELSE NULL
+  END as lead_role,
   l.reference_source_id,
   rs.source_name as reference_source_name,
   l.added_by_id,
@@ -55,6 +67,8 @@ class Lead {
       valueIndex++;
     }
 
+    whereClause += buildLeadRoleWhereClause(filters.lead_role);
+
     if (filters.search) {
       whereClause += ` AND (l.customer_name ILIKE $${valueIndex} OR l.phone_number ILIKE $${valueIndex} OR l.agent_name ILIKE $${valueIndex})`;
       values.push(`%${filters.search}%`);
@@ -72,6 +86,8 @@ class Lead {
       agent_id,
       agent_name,
       price,
+      is_buyer,
+      is_seller,
       reference_source_id,
       added_by_id,
     } = leadData;
@@ -80,11 +96,22 @@ class Lead {
       throw new Error('added_by_id is required and cannot be null');
     }
 
+    const resolvedIsBuyer = Object.prototype.hasOwnProperty.call(leadData, 'is_buyer')
+      ? isTruthyLeadRole(is_buyer)
+      : true;
+    const resolvedIsSeller = Object.prototype.hasOwnProperty.call(leadData, 'is_seller')
+      ? isTruthyLeadRole(is_seller)
+      : false;
+
+    if (!resolvedIsBuyer && !resolvedIsSeller) {
+      throw new Error('Lead must be buyer, seller, or both');
+    }
+
     const result = await pool.query(
       `INSERT INTO leads (
         date, customer_name, phone_number, agent_id, agent_name,
-        price, reference_source_id, added_by_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        price, is_buyer, is_seller, reference_source_id, added_by_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *`,
       [
         date || new Date().toISOString().split('T')[0],
@@ -93,6 +120,8 @@ class Lead {
         agent_id,
         agent_name,
         price,
+        resolvedIsBuyer,
+        resolvedIsSeller,
         reference_source_id,
         added_by_id,
       ]
@@ -194,7 +223,7 @@ class Lead {
       WHERE l.id = $1
       GROUP BY
         l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
-        u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.added_by_id,
+        u.name, u.role, l.price, l.is_buyer, l.is_seller, l.reference_source_id, rs.source_name, l.added_by_id,
         added_by.name, added_by.role, l.created_at, l.updated_at
     `,
       [id]
@@ -206,6 +235,23 @@ class Lead {
   static async updateLead(id, updates) {
     if (Object.prototype.hasOwnProperty.call(updates, 'added_by_id') && (!updates.added_by_id || updates.added_by_id === null)) {
       throw new Error('added_by_id is required and cannot be null');
+    }
+
+    const roleFieldsPresent = Object.prototype.hasOwnProperty.call(updates, 'is_buyer') ||
+      Object.prototype.hasOwnProperty.call(updates, 'is_seller');
+
+    if (roleFieldsPresent) {
+      const currentLead = await Lead.getLeadById(id);
+      const nextIsBuyer = Object.prototype.hasOwnProperty.call(updates, 'is_buyer')
+        ? isTruthyLeadRole(updates.is_buyer)
+        : !!currentLead?.is_buyer;
+      const nextIsSeller = Object.prototype.hasOwnProperty.call(updates, 'is_seller')
+        ? isTruthyLeadRole(updates.is_seller)
+        : !!currentLead?.is_seller;
+
+      if (!nextIsBuyer && !nextIsSeller) {
+        throw new Error('Lead must be buyer, seller, or both');
+      }
     }
 
     const cleanUpdates = {};
@@ -269,42 +315,13 @@ class Lead {
     `;
 
     const values = [];
-    let valueIndex = 1;
-
-    if (filters.agent_id) {
-      query += ` AND l.agent_id = $${valueIndex}`;
-      values.push(filters.agent_id);
-      valueIndex++;
-    }
-
-    if (filters.date_from && String(filters.date_from).trim() !== '') {
-      query += ` AND l.date >= $${valueIndex}::date`;
-      values.push(String(filters.date_from).trim());
-      valueIndex++;
-    }
-
-    if (filters.date_to && String(filters.date_to).trim() !== '') {
-      query += ` AND l.date < ($${valueIndex}::date + interval '1 day')`;
-      values.push(String(filters.date_to).trim());
-      valueIndex++;
-    }
-
-    if (filters.reference_source_id) {
-      query += ` AND l.reference_source_id = $${valueIndex}`;
-      values.push(filters.reference_source_id);
-      valueIndex++;
-    }
-
-    if (filters.search) {
-      query += ` AND (l.customer_name ILIKE $${valueIndex} OR l.phone_number ILIKE $${valueIndex} OR l.agent_name ILIKE $${valueIndex})`;
-      values.push(`%${filters.search}%`);
-      valueIndex++;
-    }
+    const { whereClause } = this.buildLeadsFilters(filters, values, 1);
+    query += whereClause;
 
     query += `
       GROUP BY
         l.id, l.date, l.customer_name, l.phone_number, l.agent_id, l.agent_name,
-        u.name, u.role, l.price, l.reference_source_id, rs.source_name, l.added_by_id,
+        u.name, u.role, l.price, l.is_buyer, l.is_seller, l.reference_source_id, rs.source_name, l.added_by_id,
         added_by.name, added_by.role, l.created_at, l.updated_at
       ORDER BY l.created_at DESC
     `;

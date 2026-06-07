@@ -17,6 +17,7 @@ interface LeadSelectorProps {
 export default function LeadSelectorForViewings({ selectedLeadId, onSelect, error }: LeadSelectorProps) {
   const { token, user } = useAuth()
   const [leads, setLeads] = useState<Lead[]>([])
+  const [selectedLeadDetails, setSelectedLeadDetails] = useState<Lead | null>(null)
   const [loading, setLoading] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -24,13 +25,20 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
   const [allowedAgentIds, setAllowedAgentIds] = useState<number[] | null>(null)
   const [teamAgentsLoading, setTeamAgentsLoading] = useState(false)
 
-  // Fetch leads from database
-  const fetchLeads = async () => {
+  // Fetch buyer leads from database using server-side search
+  const fetchLeads = async (search = '') => {
     if (!token) return
     
     setLoading(true)
     try {
-      const response = await leadsApi.getAll(token)
+      const response = await leadsApi.getWithFilters(
+        {
+          lead_role: 'buyer',
+          search: search || undefined
+        },
+        token,
+        { page: 1, limit: 20 }
+      )
       if (response.success) {
         setLeads(response.data)
       }
@@ -41,11 +49,36 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
     }
   }
 
+  const fetchLeadById = async (leadId: number) => {
+    if (!token || !leadId) return
+
+    try {
+      const response = await leadsApi.getById(leadId, token)
+      if (response.success && response.data) {
+        setSelectedLeadDetails(response.data)
+      }
+    } catch (error) {
+      console.error('Error fetching selected lead:', error)
+    }
+  }
+
   useEffect(() => {
     if (token) {
       fetchLeads()
     }
   }, [token])
+
+  useEffect(() => {
+    if (!token || !isDropdownOpen) {
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      fetchLeads(searchTerm.trim())
+    }, searchTerm.trim() ? 250 : 0)
+
+    return () => clearTimeout(timeout)
+  }, [token, isDropdownOpen, searchTerm])
 
   useEffect(() => {
     if (!user?.id) {
@@ -100,6 +133,29 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    if (!token) {
+      setSelectedLeadDetails(null)
+      return
+    }
+
+    if (selectedLeadId === undefined || selectedLeadId === null || selectedLeadId === 0) {
+      setSelectedLeadDetails(null)
+      return
+    }
+
+    const leadInList = leads.find(lead => lead.id === selectedLeadId)
+    if (leadInList) {
+      setSelectedLeadDetails(leadInList)
+      return
+    }
+
+    if (selectedLeadDetails?.id !== selectedLeadId) {
+      setSelectedLeadDetails(null)
+      fetchLeadById(selectedLeadId)
+    }
+  }, [token, selectedLeadId, leads, selectedLeadDetails?.id])
+
   const shouldRestrictByAssignment = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
 
   const filteredLeads = leads.filter(lead => {
@@ -118,20 +174,24 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
 
   const handleSelect = (lead: Lead) => {
     onSelect(lead.id)
+    setSelectedLeadDetails(lead)
     setIsDropdownOpen(false)
     setSearchTerm('')
   }
 
   const handleClear = () => {
     onSelect(0)
+    setSelectedLeadDetails(null)
   }
 
-  const selectedLead = leads.find(l => l.id === selectedLeadId)
+  const selectedLead = leads.find(l => l.id === selectedLeadId) || (
+    selectedLeadDetails && selectedLeadDetails.id === selectedLeadId ? selectedLeadDetails : null
+  )
 
   return (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">
-        Lead <span className="text-red-500">*</span>
+        Buyer Lead <span className="text-red-500">*</span>
       </label>
 
       {/* Display selected lead */}
@@ -157,7 +217,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
             type="button"
             onClick={handleClear}
             className="p-1 text-purple-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-            title="Clear lead"
+            title="Clear buyer lead"
           >
             <X className="h-4 w-4" />
           </button>
@@ -177,7 +237,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
           >
             <div className="flex items-center justify-between">
               <span className={selectedLead ? "text-gray-900" : "text-gray-600"}>
-                {loading ? 'Loading...' : (selectedLead ? selectedLead.customer_name : 'Select a lead...')}
+                {loading ? 'Loading...' : (selectedLead ? selectedLead.customer_name : 'Select a buyer lead...')}
               </span>
               <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
             </div>
@@ -185,10 +245,10 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
           
           <button
             type="button"
-            onClick={fetchLeads}
+            onClick={() => fetchLeads(searchTerm.trim())}
             disabled={loading}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
-            title="Refresh leads"
+            title="Refresh buyers"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -206,7 +266,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
             <div className="p-3 border-b border-gray-200">
               <input
                 type="text"
-                placeholder="Search leads..."
+                placeholder="Search buyers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
@@ -218,11 +278,11 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
               {loading || teamAgentsLoading ? (
                 <div className="p-4 text-center text-gray-500">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600 mx-auto mb-2"></div>
-                  Loading leads...
+                  Loading buyers...
                 </div>
               ) : filteredLeads.length === 0 ? (
                 <div className="p-4 text-center text-gray-500 text-sm">
-                  {searchTerm ? 'No leads found matching your search' : 'No leads available'}
+                  {searchTerm ? 'No buyers found matching your search' : 'No buyers available'}
                 </div>
               ) : (
                 <div>

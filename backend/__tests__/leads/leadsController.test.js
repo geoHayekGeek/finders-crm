@@ -460,6 +460,25 @@ describe('Leads Controller', () => {
       });
     });
 
+    it('should return a lead role validation error', async () => {
+      req.body = mockLeadData;
+      Lead.createLead.mockRejectedValue(new Error('Lead must be buyer, seller, or both'));
+
+      await LeadsController.createLead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Validation failed',
+        errors: [
+          {
+            field: 'lead_role',
+            message: 'Select at least one lead type'
+          }
+        ]
+      });
+    });
+
     it('should allow agent to create lead with auto-set added_by_id', async () => {
       req.user = { id: 5, role: 'agent' };
       req.body = { ...mockLeadData, added_by_id: undefined };
@@ -1438,6 +1457,29 @@ describe('Leads Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message: 'You do not have permission to update this lead'
+      });
+    });
+
+    it('should return a lead role validation error on update', async () => {
+      req.params.id = '1';
+      req.body = { is_buyer: false, is_seller: false };
+      const mockLead = { id: 1, agent_id: 1, customer_name: 'Customer 1' };
+
+      Lead.getLeadById.mockResolvedValueOnce(mockLead);
+      Lead.updateLead.mockRejectedValue(new Error('Lead must be buyer, seller, or both'));
+
+      await LeadsController.updateLead(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Validation failed',
+        errors: [
+          {
+            field: 'lead_role',
+            message: 'Select at least one lead type'
+          }
+        ]
       });
     });
   });

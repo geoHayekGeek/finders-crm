@@ -2,6 +2,7 @@
 const pool = require('../config/db');
 const User = require('../models/userModel');
 const { sanitizeAgentIdFilterQuery } = require('../utils/leadAccessUtils');
+const { normalizeLeadRole } = require('../utils/leadRoles');
 
 class LeadsStatsController {
   // Get comprehensive leads statistics
@@ -66,6 +67,15 @@ class LeadsStatsController {
           params.push(refSourceId);
           paramIndex++;
         }
+      }
+
+      const leadRole = normalizeLeadRole(filters.lead_role);
+      if (leadRole === 'buyer') {
+        whereConditions.push('l.is_buyer = TRUE');
+      } else if (leadRole === 'seller') {
+        whereConditions.push('l.is_seller = TRUE');
+      } else if (leadRole === 'both') {
+        whereConditions.push('l.is_buyer = TRUE AND l.is_seller = TRUE');
       }
 
       if (filters.search) {

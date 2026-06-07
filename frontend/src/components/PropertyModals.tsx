@@ -1738,7 +1738,7 @@ export function PropertyModals({
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Owner (Lead) <span className="text-red-500">*</span>
+                      Owner (Buyer Lead) <span className="text-red-500">*</span>
                     </label>
                     <OwnerSelector
                       selectedOwnerId={addFormData.owner_id}
@@ -1765,7 +1765,7 @@ export function PropertyModals({
                           }))
                         }
                       }}
-                      placeholder="Select owner from leads..."
+                      placeholder="Select buyer from leads..."
                     />
                     {(validationErrors.owner_name || validationErrors.owner_id) && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -2703,7 +2703,7 @@ export function PropertyModals({
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Owner (Lead) <span className="text-red-500">*</span>
+                      Owner (Buyer Lead) <span className="text-red-500">*</span>
                     </label>
                     <OwnerSelector
                       key={`edit-owner-${showEditPropertyModal}-${editFormData.owner_id || 'none'}-${editingProperty?.id || 'new'}`}
@@ -2739,7 +2739,7 @@ export function PropertyModals({
                           }))
                         }
                       }}
-                      placeholder="Select owner from leads..."
+                      placeholder="Select buyer from leads..."
                     />
                     {(backendValidationErrors.owner_name || editValidationErrors.owner_name) && (
                       <p className="mt-1 text-sm text-red-600 flex items-center">

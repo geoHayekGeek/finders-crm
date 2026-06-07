@@ -6,6 +6,7 @@ import { Search, Filter, X, ChevronDown, Calendar, Tag } from 'lucide-react'
 import { LeadFilters, ReferenceSource } from '@/types/leads'
 import { usersApi, leadsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { getLeadRoleFilterLabel } from '@/utils/leadRoles'
 
 interface User {
   id: number
@@ -147,6 +148,23 @@ export function LeadsFilters({
 
         {/* Agent Filter and Advanced Filters - Takes 50% width */}
         <div className="w-full lg:w-1/2 flex flex-col sm:flex-row gap-4">
+          {/* Lead Type Filter */}
+          <div className="flex-1 min-w-0">
+            <label className="sr-only">Lead Type</label>
+            <select
+              value={filters.lead_role || ''}
+              onChange={(e) =>
+                handleFilterChange('lead_role', e.target.value ? (e.target.value as LeadFilters['lead_role']) : undefined)
+              }
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+            >
+              <option value="">All Lead Types</option>
+              <option value="buyer">Buyer</option>
+              <option value="seller">Seller</option>
+              <option value="both">Buyer + Seller</option>
+            </select>
+          </div>
+
           {/* Agent (options scoped: agents = self, team leaders = their team, management = all) */}
           <div className="flex-1 min-w-0">
             <label className="sr-only">Agent</label>
@@ -241,6 +259,18 @@ export function LeadsFilters({
                   type="button"
                   onClick={() => handleFilterChange('agent_id', undefined)}
                   className="hover:text-blue-900"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {filters.lead_role && (
+              <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs">
+                Lead Type: {getLeadRoleFilterLabel(filters.lead_role)}
+                <button
+                  type="button"
+                  onClick={() => handleFilterChange('lead_role', undefined)}
+                  className="hover:text-emerald-900"
                 >
                   <X className="h-3 w-3" />
                 </button>

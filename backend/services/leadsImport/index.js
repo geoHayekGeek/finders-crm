@@ -349,8 +349,8 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
 
       const listedDate = row.date ? `${row.date}T12:00:00.000Z` : null;
       const ins = await client.query(
-        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, price, reference_source_id, added_by_id, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9::timestamptz, NOW())) RETURNING id`,
+        `INSERT INTO leads (date, customer_name, phone_number, agent_id, agent_name, is_buyer, is_seller, price, reference_source_id, added_by_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, TRUE, FALSE, $6, $7, $8, COALESCE($9::timestamptz, NOW())) RETURNING id`,
         [
           row.date,
           customer_name,
