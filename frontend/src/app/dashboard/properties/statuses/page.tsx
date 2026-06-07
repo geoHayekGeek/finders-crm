@@ -91,23 +91,21 @@ export default function StatusesPage() {
     setShowDeleteModal(true)
   }
 
-  const handleStatusCreated = (newStatus: Status) => {
-    setStatuses(prev => [...prev, newStatus])
+  const handleStatusCreated = () => {
     setShowAddModal(false)
+    void loadStatuses()
   }
 
-  const handleStatusUpdated = (updatedStatus: Status) => {
-    setStatuses(prev => prev.map(stat => 
-      stat.id === updatedStatus.id ? updatedStatus : stat
-    ))
+  const handleStatusUpdated = () => {
     setShowEditModal(false)
     setSelectedStatus(null)
+    void loadStatuses()
   }
 
-  const handleStatusDeleted = (deletedStatusId: number) => {
-    setStatuses(prev => prev.filter(stat => stat.id !== deletedStatusId))
+  const handleStatusDeleted = () => {
     setShowDeleteModal(false)
     setSelectedStatus(null)
+    void loadStatuses()
   }
 
   return (
