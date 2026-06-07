@@ -2072,6 +2072,26 @@ export const calendarApi = {
   // Get leads for dropdown
   getLeads: (token?: AuthToken) => 
     apiRequest<{ success: boolean; leads: any[] }>('/calendar/leads', {}, token),
+
+  // Check whether a location is available for a time range
+  checkLocationAvailability: (
+    params: { locationId: number; start: string; end: string; eventId?: string },
+    token?: AuthToken
+  ) => {
+    const query = new URLSearchParams({
+      locationId: String(params.locationId),
+      start: params.start,
+      end: params.end,
+    })
+    if (params.eventId) {
+      query.append('eventId', params.eventId)
+    }
+    return apiRequest<{ success: boolean; data: { available: boolean; conflictCount: number } }>(
+      `/calendar/location-availability?${query.toString()}`,
+      {},
+      token
+    )
+  },
   
   // Create event
   create: (eventData: any, token?: AuthToken) => 

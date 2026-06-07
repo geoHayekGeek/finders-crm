@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { CalendarEvent } from '@/app/dashboard/calendar/page'
-import { ClockIcon, MapPinIcon, UserGroupIcon, UserIcon } from '@heroicons/react/24/outline'
+import { ClockIcon, MapPinIcon, UserGroupIcon, UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
 interface EventListProps {
   events: CalendarEvent[]
@@ -43,10 +43,13 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
       red: 'bg-red-500',
       yellow: 'bg-yellow-500',
       purple: 'bg-purple-500',
-      pink: 'bg-pink-500'
+      pink: 'bg-pink-500',
+      gray: 'bg-gray-400'
     }
     return colors[color as keyof typeof colors] || 'bg-gray-500'
   }
+
+  const getEventDisplayTitle = (event: CalendarEvent) => event.isRestricted ? 'Busy' : event.title
 
   const formatEventTime = (event: CalendarEvent) => {
     if (event.allDay) return 'All day'
@@ -167,8 +170,12 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
                   {/* Event Header */}
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center space-x-2">
-                      <span className="text-base sm:text-lg">{getEventTypeIcon(event.type)}</span>
-                      <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${getEventColor(event.color)}`} />
+                      {event.isRestricted ? (
+                        <LockClosedIcon className="h-4 w-4 text-gray-500" />
+                      ) : (
+                        <span className="text-base sm:text-lg">{getEventTypeIcon(event.type)}</span>
+                      )}
+                      <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full ${event.isRestricted ? 'bg-gray-400' : getEventColor(event.color)}`} />
                     </div>
                     <span className="text-xs text-gray-500 font-medium">
                       {formatEventDate(event)}
@@ -177,13 +184,13 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
 
                   {/* Event Title */}
                   <h4 className="font-medium text-gray-900 mb-1 group-hover:text-blue-600 transition-colors text-sm sm:text-base">
-                    {event.title}
+                    {getEventDisplayTitle(event)}
                   </h4>
 
                   {/* Event Details */}
                   <div className="space-y-1 text-xs text-gray-600">
                     {/* Creator */}
-                    {event.createdByName && (
+                    {!event.isRestricted && event.createdByName && (
                       <div className="flex items-center space-x-1">
                         <UserIcon className="h-3 w-3" />
                         <span className="truncate">{event.createdByName}</span>
@@ -196,7 +203,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
                     </div>
 
                     {/* Location */}
-                    {(event.locationName || event.location) && (
+                    {!event.isRestricted && (event.locationName || event.location) && (
                       <div className="flex items-center space-x-1">
                         <MapPinIcon className="h-3 w-3" />
                         <span className="truncate">{event.locationName || event.location}</span>
@@ -204,7 +211,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
                     )}
 
                     {/* Attendees */}
-                    {event.attendees && event.attendees.length > 0 && (
+                    {!event.isRestricted && event.attendees && event.attendees.length > 0 && (
                       <div className="flex items-center space-x-1">
                         <UserGroupIcon className="h-3 w-3" />
                         <span className="truncate">{formatAttendees(event.attendees)}</span>
@@ -212,7 +219,7 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
                     )}
 
                     {/* Description */}
-                    {event.description && (
+                    {!event.isRestricted && event.description && (
                       <p className="text-gray-500 line-clamp-2 mt-2 text-xs">
                         {event.description}
                       </p>
@@ -221,9 +228,15 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
 
                   {/* Event Type Badge */}
                   <div className="mt-2">
-                    <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                      {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
-                    </span>
+                    {event.isRestricted ? (
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                        Occupied
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
+                        {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))}

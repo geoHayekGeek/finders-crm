@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Calendar } from '@/components/Calendar'
 import { EventModal } from '@/components/EventModal'
 import { EventList } from '@/components/EventList'
@@ -38,11 +38,12 @@ export interface CalendarEvent {
   start: Date
   end: Date
   allDay: boolean
-  color: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'pink'
+  color: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'pink' | 'gray'
   type: 'meeting' | 'showing' | 'inspection' | 'closing' | 'other'
   location?: string
   locationId?: number | null
   locationName?: string
+  isRestricted?: boolean
   attendees?: string[]
   notes?: string
   propertyId?: number | null
@@ -85,6 +86,7 @@ interface BackendEvent {
   location?: string
   locationId?: number | string | null
   locationName?: string
+  isRestricted?: boolean
   attendees?: (string | number)[]
   notes?: string
   propertyId?: number | null
@@ -121,7 +123,7 @@ export default function CalendarPage() {
   const [teamLeaderAgentId, setTeamLeaderAgentId] = useState<string>('')
   const [teamAgents, setTeamAgents] = useState<BackendUser[]>([])
   const loadingRef = useRef(false)
-  const { showSuccess, showError, showWarning } = useToast()
+  const { showSuccess, showError, showWarning, showInfo } = useToast()
   const { user } = useAuth()
 
   // Check permissions for an event
@@ -182,7 +184,7 @@ export default function CalendarPage() {
       }
 
       const queryParams = new URLSearchParams()
-      if (filters && user?.role === 'admin') {
+      if (filters) {
         Object.entries(filters).forEach(([key, value]) => {
           if (value !== undefined && value !== '') {
             queryParams.append(key, value)
@@ -242,7 +244,8 @@ export default function CalendarPage() {
             leadName: event.leadName,
             leadPhone: event.leadPhone,
             createdById: event.createdBy ? String(event.createdBy) : undefined,
-            createdByName: event.createdByName
+            createdByName: event.createdByName,
+            isRestricted: Boolean(event.isRestricted)
           }))
 
           setEvents(formattedEvents)
@@ -268,9 +271,14 @@ export default function CalendarPage() {
   // Load events when user context is available
   useEffect(() => {
     if (!user) return
-    loadEvents()
+    const filters = locationFilterId
+      ? { locationId: locationFilterId }
+      : user?.role === 'admin'
+        ? adminFilters
+        : undefined
+    loadEvents(filters)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.role, teamLeaderViewMode, teamLeaderAgentId])
+  }, [user?.id, user?.role, teamLeaderViewMode, teamLeaderAgentId, locationFilterId])
 
   // Load users for admin filters
   useEffect(() => {
@@ -305,6 +313,9 @@ export default function CalendarPage() {
   // Load events when admin filters change (with debouncing)
   useEffect(() => {
     if (user?.role === 'admin') {
+      if (locationFilterId) {
+        return
+      }
       // Skip the initial load since we already load events on mount
       if (isInitialLoad.current) {
         isInitialLoad.current = false
@@ -318,7 +329,7 @@ export default function CalendarPage() {
       return () => clearTimeout(timeoutId)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminFilters, user?.role])
+  }, [adminFilters, user?.role, locationFilterId])
 
   const handleAddEvent = async (event: Omit<CalendarEvent, 'id'>) => {
     try {
@@ -501,6 +512,11 @@ export default function CalendarPage() {
       console.log('❌ Event NOT found in state!')
     }
     
+    if (event.isRestricted) {
+      showInfo('This time is occupied. You do not have access to the event details.')
+      return
+    }
+
     // Check permissions for this event
     console.log('🔐 Checking permissions for event:', event.id)
     const permissions = await checkEventPermissions(event.id)
@@ -542,6 +558,7 @@ export default function CalendarPage() {
 
   const handleClearFilters = useCallback(() => {
     setAdminFilters({})
+    setLocationFilterId('')
   }, [])
 
   const handleTeamLeaderModeChange = (mode: TeamLeaderViewMode) => {
@@ -585,28 +602,6 @@ export default function CalendarPage() {
       console.error('Error loading locations:', error)
     }
   }
-
-  const displayedEvents = useMemo(() => {
-    if (user?.role === 'admin' || !locationFilterId) {
-      return events
-    }
-
-    const selectedLocation = locations.find(location => String(location.id) === locationFilterId)
-    const selectedLocationName = selectedLocation?.name.trim().toLowerCase() || ''
-
-    return events.filter(event => {
-      if (event.locationId !== undefined && event.locationId !== null) {
-        return String(event.locationId) === locationFilterId
-      }
-
-      if (!selectedLocationName) {
-        return false
-      }
-
-      const eventLocationName = (event.locationName || event.location || '').trim().toLowerCase()
-      return eventLocationName === selectedLocationName
-    })
-  }, [events, locationFilterId, locations, user?.role])
 
   if (isLoading) {
     return (
@@ -730,35 +725,45 @@ export default function CalendarPage() {
           </div>
         )}
 
-        {user?.role !== 'admin' && (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Location Filter</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Filter the calendar by one of the predefined locations.
-              </p>
-            </div>
-            <div className="p-4">
-              <div className="max-w-md">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location
-                </label>
-                <select
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  value={locationFilterId}
-                  onChange={(e) => setLocationFilterId(e.target.value)}
-                >
-                  <option value="">All Locations</option>
-                  {locations.map(location => (
-                    <option key={location.id} value={location.id}>
-                      {location.name}
-                    </option>
-                  ))}
-                </select>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+          <div className="p-4 border-b border-gray-200">
+            <h3 className="text-lg font-medium text-gray-900">Location Filter</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Show occupied time slots for a predefined location. Busy slots stay generic unless you can access the event.
+            </p>
+          </div>
+          <div className="p-4">
+            <div className="max-w-md flex items-end gap-3">
+              <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Location
+              </label>
+              <select
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                value={locationFilterId}
+                onChange={(e) => setLocationFilterId(e.target.value)}
+              >
+                <option value="">All Locations</option>
+                {locations.map(location => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </select>
               </div>
+              {locationFilterId && (
+                <button
+                  type="button"
+                  onClick={() => setLocationFilterId('')}
+                  className="px-3 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </div>
-        )}
+        </div>
+        
 
         {/* Admin Filters */}
         {user?.role === 'admin' && (
@@ -775,7 +780,7 @@ export default function CalendarPage() {
               </div>
             </div>
             <div className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Search Filter */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -876,7 +881,7 @@ export default function CalendarPage() {
               </div>
 
               {/* Active Filters Summary */}
-              {Object.keys(adminFilters).some(key => adminFilters[key as keyof CalendarFilters]) && (
+              {(Object.keys(adminFilters).some(key => adminFilters[key as keyof CalendarFilters]) || locationFilterId) && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <h4 className="text-sm font-medium text-gray-700 mb-2">Active Filters:</h4>
                   <div className="flex flex-wrap gap-2">
@@ -906,11 +911,11 @@ export default function CalendarPage() {
                         Type: {adminFilters.type}
                       </span>
                     )}
-                    {adminFilters.locationId && (
+                    {locationFilterId && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
                         Location: {(() => {
-                          const location = locations.find(l => l.id.toString() === adminFilters.locationId)
-                          return location ? location.name : adminFilters.locationId
+                          const location = locations.find(l => l.id.toString() === locationFilterId)
+                          return location ? location.name : locationFilterId
                         })()}
                       </span>
                     )}
@@ -942,7 +947,7 @@ export default function CalendarPage() {
                 onViewChange={setView}
               />
               <Calendar
-                events={displayedEvents}
+                events={events}
                 selectedDate={selectedDate}
                 view={view}
                 onEventClick={handleEventClick}
@@ -960,7 +965,7 @@ export default function CalendarPage() {
               </div>
               <div className="p-6">
                 <EventList
-                  events={displayedEvents}
+                  events={events}
                   onEventClick={handleEventClick}
                   selectedDate={selectedDate}
                 />

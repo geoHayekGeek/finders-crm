@@ -90,6 +90,26 @@ describe('Calendar Controller', () => {
       expect(calendarEventModel.getEventsForUserWithHierarchy).toHaveBeenCalledWith(2, 'agent', {});
     });
 
+    it('should use location filtering when locationId is provided', async () => {
+      req.query = { locationId: '5' };
+      const mockEvents = [{ id: 1, title: 'Busy' }];
+
+      calendarEventModel.getLocationEventsWithHierarchy.mockResolvedValue(mockEvents);
+
+      await calendarController.getAllEvents(req, res);
+
+      expect(calendarEventModel.getLocationEventsWithHierarchy).toHaveBeenCalledWith(5, 1, 'admin', {});
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        events: expect.arrayContaining([
+          expect.objectContaining({
+            id: 1,
+            title: 'Busy'
+          })
+        ])
+      });
+    });
+
     it('should handle errors', async () => {
       calendarEventModel.getAllEvents.mockRejectedValue(new Error('Database error'));
 
@@ -615,6 +635,38 @@ describe('Calendar Controller', () => {
       expect(Notification.createCalendarEventAssignmentNotification).toHaveBeenCalled();
     });
 
+    it('should return 409 when the selected location is occupied', async () => {
+      req.body = {
+        ...mockEventData,
+        locationId: 7,
+        start: '2024-01-01T10:00:00Z',
+        end: '2024-01-01T11:00:00Z'
+      };
+
+      calendarEventModel.isLocationAvailable.mockResolvedValue({
+        available: false,
+        conflictCount: 1
+      });
+
+      await calendarController.createEvent(req, res);
+
+      expect(calendarEventModel.isLocationAvailable).toHaveBeenCalledWith(
+        7,
+        expect.any(Date),
+        expect.any(Date)
+      );
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Selected location is not available for the chosen time',
+        data: {
+          available: false,
+          conflictCount: 1
+        }
+      });
+      expect(calendarEventModel.createEvent).not.toHaveBeenCalled();
+    });
+
     it('should handle errors', async () => {
       req.body = mockEventData;
       calendarEventModel.createEvent.mockRejectedValue(new Error('Database error'));
@@ -752,6 +804,43 @@ describe('Calendar Controller', () => {
         success: false,
         message: 'End time must be after start time'
       });
+    });
+
+    it('should return 409 when updating to an occupied location', async () => {
+      req.params.id = '1';
+      req.body = {
+        title: 'Updated Event',
+        locationId: 8,
+        start: '2024-01-01T10:00:00Z',
+        end: '2024-01-01T11:00:00Z'
+      };
+      const mockEventWithRole = { ...mockEvent, created_by_role: 'admin' };
+
+      calendarEventModel.findById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.getEventById.mockResolvedValue(mockEventWithRole);
+      calendarEventModel.isLocationAvailable.mockResolvedValue({
+        available: false,
+        conflictCount: 2
+      });
+
+      await calendarController.updateEvent(req, res);
+
+      expect(calendarEventModel.isLocationAvailable).toHaveBeenCalledWith(
+        8,
+        expect.any(Date),
+        expect.any(Date),
+        '1'
+      );
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Selected location is not available for the chosen time',
+        data: {
+          available: false,
+          conflictCount: 2
+        }
+      });
+      expect(calendarEventModel.updateEvent).not.toHaveBeenCalled();
     });
 
     it('should handle errors', async () => {
@@ -1048,6 +1137,36 @@ describe('Calendar Controller', () => {
     });
   });
 
+  describe('getLocationAvailability', () => {
+    it('should return location availability', async () => {
+      req.query = {
+        locationId: '7',
+        start: '2024-01-01T10:00:00Z',
+        end: '2024-01-01T11:00:00Z'
+      };
+      calendarEventModel.isLocationAvailable.mockResolvedValue({
+        available: false,
+        conflictCount: 2
+      });
+
+      await calendarController.getLocationAvailability(req, res);
+
+      expect(calendarEventModel.isLocationAvailable).toHaveBeenCalledWith(
+        7,
+        expect.any(Date),
+        expect.any(Date),
+        null
+      );
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          available: false,
+          conflictCount: 2
+        }
+      });
+    });
+  });
+
   describe('getPropertiesForDropdown', () => {
     it('should get properties for admin', async () => {
       const mockProperties = [
@@ -1184,4 +1303,3 @@ describe('Calendar Controller', () => {
     });
   });
 });
-

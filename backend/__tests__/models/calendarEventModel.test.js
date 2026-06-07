@@ -63,6 +63,20 @@ describe('CalendarEvent Model', () => {
     });
   });
 
+  describe('isLocationAvailable', () => {
+    it('should report availability when no conflicts exist', async () => {
+      mockQuery.mockResolvedValueOnce({ rows: [{ conflict_count: 0 }] });
+
+      const result = await CalendarEvent.isLocationAvailable(5, new Date('2024-01-01T10:00:00Z'), new Date('2024-01-01T11:00:00Z'));
+
+      expect(mockQuery).toHaveBeenCalledWith(
+        expect.stringContaining('COUNT(*)::int AS conflict_count'),
+        [5, expect.any(Date), expect.any(Date)]
+      );
+      expect(result).toEqual({ available: true, conflictCount: 0 });
+    });
+  });
+
   describe('findById', () => {
     it('should get an event by ID with related data', async () => {
       const eventId = 1;
@@ -225,6 +239,7 @@ describe('CalendarEvent Model', () => {
 
       mockQuery
         .mockResolvedValueOnce({ rows: [{ id: eventId }] })
+        .mockResolvedValueOnce({ rows: [{ id: eventId, ...updates }] })
         .mockResolvedValueOnce({ rows: [{ id: eventId, ...updates }] });
 
       const result = await CalendarEvent.updateEvent(eventId, updates);
@@ -545,6 +560,44 @@ describe('CalendarEvent Model', () => {
         expect.stringContaining('ILIKE'),
         expect.arrayContaining(['%test%'])
       );
+    });
+  });
+
+  describe('getLocationEventsWithHierarchy', () => {
+    it('should mask inaccessible location events', async () => {
+      const spy = jest.spyOn(CalendarEvent, 'isEventVisibleToUser')
+        .mockResolvedValueOnce(true)
+        .mockResolvedValueOnce(false);
+
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 1,
+            title: 'Visible Event',
+            start_time: '2024-01-01T10:00:00Z',
+            end_time: '2024-01-01T11:00:00Z',
+            location_id: 5,
+            location_name: 'Office',
+            created_by: 1
+          },
+          {
+            id: 2,
+            title: 'Hidden Event',
+            start_time: '2024-01-01T11:00:00Z',
+            end_time: '2024-01-01T12:00:00Z',
+            location_id: 5,
+            location_name: 'Office',
+            created_by: 9
+          }
+        ]
+      });
+
+      const result = await CalendarEvent.getLocationEventsWithHierarchy(5, 1, 'agent', {});
+
+      expect(result[0].title).toBe('Visible Event');
+      expect(result[1].title).toBe('Busy');
+      expect(result[1].is_restricted).toBe(true);
+      spy.mockRestore();
     });
   });
 });

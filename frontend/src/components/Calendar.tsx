@@ -97,9 +97,19 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
       red: 'bg-red-500 text-white',
       yellow: 'bg-yellow-500 text-black',
       purple: 'bg-purple-500 text-white',
-      pink: 'bg-pink-500 text-white'
+      pink: 'bg-pink-500 text-white',
+      gray: 'bg-gray-400 text-white'
     }
     return colors[color as keyof typeof colors] || 'bg-gray-500 text-white'
+  }
+
+  const getEventLabel = (event: CalendarEvent) => event.isRestricted ? 'Busy' : event.title
+  const getEventTitle = (event: CalendarEvent) => {
+    if (event.isRestricted) {
+      return 'Busy time slot'
+    }
+
+    return `${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}${event.locationName || event.location ? ` (Location: ${event.locationName || event.location})` : ''}`
   }
 
   const navigateDate = (direction: 'prev' | 'next') => {
@@ -241,16 +251,16 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                                   e.stopPropagation()
                                   onEventClick(event)
                                 }}
-                                title={`${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}${event.locationName || event.location ? ` (Location: ${event.locationName || event.location})` : ''}`}
+                                title={getEventTitle(event)}
                               >
                                 <div className="flex items-center space-x-1">
-                                  {event.propertyId && (
+                                  {!event.isRestricted && event.propertyId && (
                                     <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
                                   )}
-                                  {event.leadId && (
+                                  {!event.isRestricted && event.leadId && (
                                     <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
                                   )}
-                                  <span className="truncate">{event.title}{event.createdByName ? ` · ${event.createdByName}` : ''}</span>
+                                  <span className="truncate">{getEventLabel(event)}{!event.isRestricted && event.createdByName ? ` · ${event.createdByName}` : ''}</span>
                                 </div>
                               </div>
                             ))}
@@ -384,16 +394,16 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                               e.stopPropagation()
                               onEventClick(event)
                             }}
-                            title={`${event.title}${event.propertyReference ? ` (Property: ${event.propertyReference})` : ''}${event.leadName ? ` (Lead: ${event.leadName})` : ''}`}
+                            title={getEventTitle(event)}
                           >
                             <div className="flex items-center space-x-1">
-                              {event.propertyId && (
+                              {!event.isRestricted && event.propertyId && (
                                 <div className="w-1 h-1 bg-white rounded-full opacity-75"></div>
                               )}
-                              {event.leadId && (
+                              {!event.isRestricted && event.leadId && (
                                 <div className="w-1 h-1 bg-white rounded-full opacity-75"></div>
                               )}
-                              <span className="truncate">{event.title}{event.createdByName ? ` · ${event.createdByName}` : ''}</span>
+                              <span className="truncate">{getEventLabel(event)}{!event.isRestricted && event.createdByName ? ` · ${event.createdByName}` : ''}</span>
                             </div>
                           </div>
                         ))}
@@ -505,21 +515,21 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
                       }}
                     >
                       <div className="font-medium text-xs sm:text-sm flex items-center space-x-1">
-                        {event.propertyId && (
+                        {!event.isRestricted && event.propertyId && (
                           <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
                         )}
-                        {event.leadId && (
+                        {!event.isRestricted && event.leadId && (
                           <div className="w-1.5 h-1.5 bg-white rounded-full opacity-75"></div>
                         )}
-                        <span>{event.title}{event.createdByName ? ` · ${event.createdByName}` : ''}</span>
+                        <span>{getEventLabel(event)}{!event.isRestricted && event.createdByName ? ` · ${event.createdByName}` : ''}</span>
                       </div>
-                      {event.location && (
+                      {!event.isRestricted && event.location && (
                         <div className="text-xs opacity-90">{event.location}</div>
                       )}
-                      {event.propertyReference && (
+                      {!event.isRestricted && event.propertyReference && (
                         <div className="text-xs opacity-75">Property: {event.propertyReference}</div>
                       )}
-                      {event.leadName && (
+                      {!event.isRestricted && event.leadName && (
                         <div className="text-xs opacity-75">Lead: {event.leadName}</div>
                       )}
                     </div>

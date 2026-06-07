@@ -29,6 +29,9 @@ router.get('/day', calendarController.getEventsByDay);
 // Search events (must come before /:id route)
 router.get('/search', calendarController.searchEvents);
 
+// Check whether a location is available for a time range
+router.get('/location-availability', calendarController.getLocationAvailability);
+
 // Get properties for dropdown
 router.get('/properties', calendarController.getPropertiesForDropdown);
 

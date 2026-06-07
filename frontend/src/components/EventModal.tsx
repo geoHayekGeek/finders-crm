@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Dialog } from '@headlessui/react'
-import { XMarkIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, TrashIcon, UserIcon, CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
 import { LocationSelector } from './LocationSelector'
@@ -69,6 +69,13 @@ export function EventModal({
   const [leads, setLeads] = useState<Lead[]>([])
   const [loadingDropdowns, setLoadingDropdowns] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [locationAvailability, setLocationAvailability] = useState<{
+    status: 'idle' | 'checking' | 'available' | 'unavailable' | 'error'
+    conflictCount: number
+  }>({
+    status: 'idle',
+    conflictCount: 0
+  })
 
 
   useEffect(() => {
@@ -137,6 +144,7 @@ export function EventModal({
       })
     }
     setErrors({})
+    setLocationAvailability({ status: 'idle', conflictCount: 0 })
   }, [event, selectedDate, isOpen])
 
   // Update form data when properties/leads are loaded and we have an event
@@ -201,6 +209,68 @@ export function EventModal({
       loadDropdownData()
     }
   }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) return
+
+    if (!formData.locationId) {
+      setLocationAvailability({ status: 'idle', conflictCount: 0 })
+      return
+    }
+
+    if (!formData.start || !formData.end) {
+      setLocationAvailability({ status: 'idle', conflictCount: 0 })
+      return
+    }
+
+    const startDate = new Date(formData.start)
+    const endDate = new Date(formData.end)
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || startDate >= endDate) {
+      setLocationAvailability({ status: 'idle', conflictCount: 0 })
+      return
+    }
+
+    let cancelled = false
+    setLocationAvailability(prev => ({ ...prev, status: 'checking' }))
+
+    const timeout = setTimeout(async () => {
+      try {
+        if (!token) {
+          throw new Error('Authentication required')
+        }
+
+        const response = await calendarApi.checkLocationAvailability(
+          {
+            locationId: formData.locationId as number,
+            start: startDate.toISOString(),
+            end: endDate.toISOString(),
+            eventId: event?.id
+          },
+          token
+        )
+
+        if (cancelled) return
+
+        if (response.success && response.data) {
+          setLocationAvailability({
+            status: response.data.available ? 'available' : 'unavailable',
+            conflictCount: response.data.conflictCount || 0
+          })
+        } else {
+          setLocationAvailability({ status: 'error', conflictCount: 0 })
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLocationAvailability({ status: 'error', conflictCount: 0 })
+        }
+      }
+    }, 350)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [isOpen, formData.locationId, formData.start, formData.end, token, event?.id])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -387,6 +457,70 @@ export function EventModal({
     { value: 'closing', label: 'Closing' },
     { value: 'other', label: 'Other' }
   ]
+
+  const locationUnavailable = Boolean(formData.locationId && locationAvailability.status === 'unavailable')
+
+  const availabilityUI = (() => {
+    if (!formData.locationId) {
+      return (
+        <div className="flex items-start gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-3">
+          <InformationCircleIcon className="h-5 w-5 text-gray-400 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-700">Location availability</p>
+            <p className="text-sm text-gray-500">Select a location to check whether it is free for the chosen time.</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (locationAvailability.status === 'checking') {
+      return (
+        <div className="flex items-start gap-3 rounded-lg border border-teal-200 bg-teal-50 px-3 py-3">
+          <div className="mt-0.5 h-5 w-5 rounded-full border-2 border-teal-600 border-t-transparent animate-spin" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-teal-900">Checking availability</p>
+            <p className="text-sm text-teal-700">Please wait while we verify the selected time slot.</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (locationAvailability.status === 'available') {
+      return (
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
+          <CheckCircleIcon className="h-5 w-5 text-emerald-600 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-emerald-900">Location available</p>
+            <p className="text-sm text-emerald-700">This location is free for the selected time.</p>
+          </div>
+        </div>
+      )
+    }
+
+    if (locationAvailability.status === 'unavailable') {
+      return (
+        <div className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-3">
+          <ExclamationTriangleIcon className="h-5 w-5 text-rose-600 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-rose-900">Location unavailable</p>
+            <p className="text-sm text-rose-700">
+              This location is already occupied for the selected time.
+            </p>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+        <InformationCircleIcon className="h-5 w-5 text-amber-600 mt-0.5" />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-amber-900">Could not verify availability</p>
+          <p className="text-sm text-amber-700">Try again in a moment, or save if you need to continue.</p>
+        </div>
+      </div>
+    )
+  })()
 
   return (
     <>
@@ -586,6 +720,9 @@ export function EventModal({
                 }}
                 placeholder="Select a predefined location..."
               />
+              <div className="mt-2">
+                {availabilityUI}
+              </div>
               {errors.location && (
                 <p className="mt-1 text-sm text-red-600">{errors.location}</p>
               )}
@@ -805,13 +942,19 @@ export function EventModal({
                 </button>
                 <button
                   type="submit"
-                  disabled={saving || (event && !permissions?.canEdit) || false}
+                  disabled={saving || locationAvailability.status === 'checking' || locationUnavailable || (event && !permissions?.canEdit) || false}
                   className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    saving || (event && !permissions?.canEdit)
+                    saving || locationAvailability.status === 'checking' || locationUnavailable || (event && !permissions?.canEdit)
                       ? 'text-gray-400 bg-gray-100 cursor-not-allowed'
                       : 'text-white bg-blue-600 hover:bg-blue-700'
                   }`}
-                  title={event && !permissions?.canEdit ? permissions?.reason : undefined}
+                  title={
+                    locationUnavailable
+                      ? 'Selected location is not available for this time'
+                      : event && !permissions?.canEdit
+                        ? permissions?.reason
+                        : undefined
+                  }
                 >
                   {saving ? 'Saving...' : (event ? 'Update' : 'Create')} Event
                 </button>

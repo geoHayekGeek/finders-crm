@@ -88,7 +88,8 @@ const formatCalendarEventResponse = (event) => ({
   createdByName: event.created_by_name,
   createdByRole: event.created_by_role,
   assignedToName: event.assigned_to_name,
-  assignedToRole: event.assigned_to_role
+  assignedToRole: event.assigned_to_role,
+  isRestricted: Boolean(event.is_restricted || event.isRestricted)
 });
 // Helper function to schedule event reminders
 const scheduleEventReminders = async (eventId, eventData) => {
@@ -144,8 +145,17 @@ const getAllEvents = async (req, res) => {
     let events;
 
     // Admins: return all events when no filters are provided; otherwise use advanced filters
-    if (userRole === 'admin') {
-      if (query.createdBy || query.attendee || query.type || query.locationId || query.dateFrom || query.dateTo || query.search) {
+    if (query.locationId) {
+      const locationId = parseInt(query.locationId, 10);
+      if (Number.isNaN(locationId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid location ID'
+        });
+      }
+      events = await calendarEventModel.getLocationEventsWithHierarchy(locationId, userId, userRole, calendarOptions);
+    } else if (userRole === 'admin') {
+      if (query.createdBy || query.attendee || query.type || query.dateFrom || query.dateTo || query.search) {
         events = await calendarEventModel.getEventsWithAdvancedFilters(query);
       } else {
         events = await calendarEventModel.getAllEvents();
@@ -163,6 +173,62 @@ const getAllEvents = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch events'
+    });
+  }
+};
+
+const getLocationAvailability = async (req, res) => {
+  try {
+    const { locationId, start, end, eventId } = req.query;
+
+    if (!locationId || !start || !end) {
+      return res.status(400).json({
+        success: false,
+        message: 'Location ID, start time, and end time are required'
+      });
+    }
+
+    const startTime = new Date(start);
+    const endTime = new Date(end);
+
+    if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format'
+      });
+    }
+
+    if (startTime >= endTime) {
+      return res.status(400).json({
+        success: false,
+        message: 'End time must be after start time'
+      });
+    }
+
+    const parsedLocationId = parseInt(locationId, 10);
+    if (Number.isNaN(parsedLocationId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid location ID'
+      });
+    }
+
+    const availability = await calendarEventModel.isLocationAvailable(
+      parsedLocationId,
+      startTime,
+      endTime,
+      eventId ? parseInt(eventId, 10) : null
+    );
+
+    res.json({
+      success: true,
+      data: availability
+    });
+  } catch (error) {
+    console.error('Error checking location availability:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check location availability'
     });
   }
 };
@@ -466,6 +532,22 @@ const createEvent = async (req, res) => {
       lead_id: leadId || null
     };
 
+    if (eventData.location_id) {
+      const availability = await calendarEventModel.isLocationAvailable(
+        eventData.location_id,
+        eventData.start_time,
+        eventData.end_time
+      );
+
+      if (!availability.available) {
+        return res.status(409).json({
+          success: false,
+          message: 'Selected location is not available for the chosen time',
+          data: availability
+        });
+      }
+    }
+
     const newEvent = await calendarEventModel.createEvent(eventData);
     // Re-fetch with joins to include creator/assignee names
     const enrichedNewEvent = await calendarEventModel.findById(newEvent.id);
@@ -616,6 +698,27 @@ const updateEvent = async (req, res) => {
     if (updates.notes !== undefined) updateData.notes = updates.notes?.trim() || null;
     if (updates.propertyId !== undefined) updateData.property_id = updates.propertyId || null;
     if (updates.leadId !== undefined) updateData.lead_id = updates.leadId || null;
+
+    const finalLocationId = updateData.location_id !== undefined ? updateData.location_id : existingEvent.location_id;
+    const finalStartTime = updateData.start_time || existingEvent.start_time;
+    const finalEndTime = updateData.end_time || existingEvent.end_time;
+
+    if (finalLocationId) {
+      const availability = await calendarEventModel.isLocationAvailable(
+        finalLocationId,
+        finalStartTime,
+        finalEndTime,
+        id
+      );
+
+      if (!availability.available) {
+        return res.status(409).json({
+          success: false,
+          message: 'Selected location is not available for the chosen time',
+          data: availability
+        });
+      }
+    }
 
     const updatedEvent = await calendarEventModel.updateEvent(id, updateData);
     
@@ -1019,6 +1122,7 @@ module.exports = {
   deleteEvent,
   checkEventPermissions,
   searchEvents,
+  getLocationAvailability,
   getPropertiesForDropdown,
   getLeadsForDropdown,
   resetAndSeedEvents

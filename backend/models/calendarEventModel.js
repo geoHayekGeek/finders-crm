@@ -50,6 +50,29 @@ const resolveLocationPayload = async (locationId, locationValue, client = pool) 
   };
 };
 
+const maskRestrictedEvent = (event) => ({
+  ...event,
+  title: 'Busy',
+  description: null,
+  color: 'gray',
+  type: 'other',
+  attendees: [],
+  notes: null,
+  created_by: null,
+  assigned_to: null,
+  property_id: null,
+  property_reference: null,
+  property_location: null,
+  lead_id: null,
+  lead_name: null,
+  lead_phone: null,
+  created_by_name: null,
+  created_by_role: null,
+  assigned_to_name: null,
+  assigned_to_role: null,
+  is_restricted: true
+});
+
 class CalendarEvent {
   static async createEvent(eventData) {
     const {
@@ -72,6 +95,21 @@ class CalendarEvent {
 
     const resolvedLocation = await resolveLocationPayload(location_id, location, pool);
 
+    if (resolvedLocation.location_id) {
+      const availability = await CalendarEvent.isLocationAvailable(
+        resolvedLocation.location_id,
+        start_time,
+        end_time
+      );
+
+      if (!availability.available) {
+        const error = new Error('Selected location is not available for the chosen time');
+        error.statusCode = 409;
+        error.availability = availability;
+        throw error;
+      }
+    }
+
     const result = await pool.query(
       `INSERT INTO calendar_events (
         title, description, start_time, end_time, all_day, 
@@ -81,6 +119,30 @@ class CalendarEvent {
       [title, description, start_time, end_time, all_day, color, type, resolvedLocation.location, resolvedLocation.location_id, attendees, notes, created_by, assigned_to, property_id, lead_id]
     );
     return result.rows[0];
+  }
+
+  static async isLocationAvailable(locationId, startTime, endTime, excludeEventId = null) {
+    const params = [locationId, startTime, endTime];
+    let query = `
+      SELECT COUNT(*)::int AS conflict_count
+      FROM calendar_events
+      WHERE location_id = $1
+        AND start_time < $3
+        AND end_time > $2
+    `;
+
+    if (excludeEventId) {
+      query += ` AND id <> $4`;
+      params.push(excludeEventId);
+    }
+
+    const result = await pool.query(query, params);
+    const conflictCount = result.rows[0]?.conflict_count || 0;
+
+    return {
+      available: conflictCount === 0,
+      conflictCount
+    };
   }
 
   static async findById(id) {
@@ -290,6 +352,44 @@ class CalendarEvent {
 
       normalizedUpdates.location_id = resolvedLocation.location_id;
       normalizedUpdates.location = resolvedLocation.location;
+    }
+
+    const existingEventResult = await pool.query(
+      `SELECT start_time, end_time, location_id
+       FROM calendar_events
+       WHERE id = $1
+       LIMIT 1`,
+      [id]
+    );
+    const existingEvent = existingEventResult.rows[0];
+    if (!existingEvent) {
+      return null;
+    }
+
+    const finalLocationId = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'location_id')
+      ? normalizedUpdates.location_id
+      : existingEvent.location_id;
+    const finalStartTime = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'start_time')
+      ? normalizedUpdates.start_time
+      : existingEvent.start_time;
+    const finalEndTime = Object.prototype.hasOwnProperty.call(normalizedUpdates, 'end_time')
+      ? normalizedUpdates.end_time
+      : existingEvent.end_time;
+
+    if (finalLocationId) {
+      const availability = await CalendarEvent.isLocationAvailable(
+        finalLocationId,
+        finalStartTime,
+        finalEndTime,
+        id
+      );
+
+      if (!availability.available) {
+        const error = new Error('Selected location is not available for the chosen time');
+        error.statusCode = 409;
+        error.availability = availability;
+        throw error;
+      }
     }
 
     const fields = Object.keys(normalizedUpdates);
@@ -734,6 +834,44 @@ class CalendarEvent {
 
     const result = await pool.query(query, params);
     return result.rows;
+  }
+
+  static async getLocationEventsWithHierarchy(locationId, userId, userRole, calendarOptions = {}) {
+    const result = await pool.query(
+      `SELECT 
+        ce.*,
+        loc.name as location_name,
+        p.reference_number as property_reference,
+        p.location as property_location,
+        l.customer_name as lead_name,
+        l.phone_number as lead_phone,
+        creator.name as created_by_name,
+        creator.role as created_by_role,
+        assignee.name as assigned_to_name,
+        assignee.role as assigned_to_role
+      FROM calendar_events ce
+      LEFT JOIN locations loc ON ce.location_id = loc.id
+      LEFT JOIN properties p ON ce.property_id = p.id
+      LEFT JOIN leads l ON ce.lead_id = l.id
+      LEFT JOIN users creator ON ce.created_by = creator.id
+      LEFT JOIN users assignee ON ce.assigned_to = assignee.id
+      WHERE ce.location_id = $1
+      ORDER BY ce.start_time ASC`,
+      [locationId]
+    );
+
+    const normalizedRole = normalizeRole(userRole);
+    if (normalizedRole === 'admin') {
+      return result.rows;
+    }
+
+    const maskedEvents = [];
+    for (const event of result.rows) {
+      const canSeeFullEvent = await CalendarEvent.isEventVisibleToUser(event, userId, userRole);
+      maskedEvents.push(canSeeFullEvent ? event : maskRestrictedEvent(event));
+    }
+
+    return maskedEvents;
   }
 }
 
