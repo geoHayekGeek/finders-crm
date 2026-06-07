@@ -785,6 +785,7 @@ const createProperty = async (req, res) => {
 
     const {
       status_id,
+      reference_number,
       property_type,
       location,
       category_id,
@@ -838,6 +839,7 @@ const createProperty = async (req, res) => {
 
     const newProperty = await Property.createProperty({
       status_id,
+      reference_number,
       property_type,
       location,
       category_id,

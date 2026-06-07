@@ -31,6 +31,7 @@ describe('Property Model', () => {
     it('should create a property successfully', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-001',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -96,6 +97,7 @@ describe('Property Model', () => {
     it('should throw error when closed status without closed_date', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-002',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -138,6 +140,7 @@ describe('Property Model', () => {
 
     it('should use the configured default status when status_id is missing', async () => {
       const propertyData = {
+        reference_number: 'REF-DEFAULT',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -207,6 +210,7 @@ describe('Property Model', () => {
     it('should allow creating property without main_image (to be uploaded separately)', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'REF-001',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -273,6 +277,7 @@ describe('Property Model', () => {
     it('should allow creating property when referrals are missing', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'REF-002',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -335,6 +340,7 @@ describe('Property Model', () => {
     it('should allow creating property when referrals is an empty array', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-003',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -398,6 +404,7 @@ describe('Property Model', () => {
     it('should sync owner_name and phone_number from lead when owner_id provided', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-004',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -459,6 +466,7 @@ describe('Property Model', () => {
     it('should create property with referrals', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-005',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -517,6 +525,7 @@ describe('Property Model', () => {
     it('should throw error for invalid category', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-006',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 999,
@@ -560,6 +569,7 @@ describe('Property Model', () => {
     it('should handle structured details and interior_details correctly', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-007',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,
@@ -626,6 +636,7 @@ describe('Property Model', () => {
     it('should convert string details to structured object for backward compatibility', async () => {
       const propertyData = {
         status_id: 1,
+        reference_number: 'APT-008',
         property_type: 'sale',
         location: 'Test Location',
         category_id: 1,

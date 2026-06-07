@@ -23,6 +23,15 @@ const validateProperty = [
     .withMessage('Status ID is required')
     .isInt({ min: 1 })
     .withMessage('Status ID must be a positive integer'),
+
+  body('reference_number')
+    .customSanitizer(sanitizeInput)
+    .isString()
+    .withMessage('Reference number must be a string')
+    .notEmpty()
+    .withMessage('Reference number is required')
+    .isLength({ min: 1, max: 20 })
+    .withMessage('Reference number must be between 1 and 20 characters'),
     
   body('property_type')
     .notEmpty()

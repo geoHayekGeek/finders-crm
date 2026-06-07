@@ -356,6 +356,7 @@ export function PropertyModals({
   // Local state for add property modal
   const [addFormData, setAddFormData] = useState({
     status_id: undefined as number | undefined,
+    reference_number: '',
     property_type: 'sale' as 'sale' | 'rent',
     location: '',
     category_id: undefined as number | undefined,
@@ -451,6 +452,8 @@ export function PropertyModals({
       // Required fields
       case 'status_id':
         return value !== undefined && value !== null && value !== 0
+      case 'reference_number':
+        return value && typeof value === 'string' && value.trim() !== '' && value.trim().length <= 20
       case 'category_id':
         return value !== undefined && value !== null && value !== 0
       case 'location':
@@ -534,6 +537,9 @@ export function PropertyModals({
     if (!isFieldValid('status_id', addFormData.status_id)) {
       errors.push('Status is required and must be a valid selection');
     }
+    if (!isFieldValid('reference_number', addFormData.reference_number)) {
+      errors.push('Reference number is required');
+    }
     if (!isFieldValid('category_id', addFormData.category_id)) {
       errors.push('Category is required and must be a valid selection');
     }
@@ -589,6 +595,14 @@ export function PropertyModals({
     switch (fieldName) {
       case 'status_id':
         return 'Please select a status'
+      case 'reference_number':
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          return 'Reference number is required'
+        }
+        if (typeof value === 'string' && value.trim().length > 20) {
+          return 'Reference number cannot exceed 20 characters'
+        }
+        return 'Reference number is required'
       case 'category_id':
         return 'Please select a category'
       case 'location':
@@ -1116,6 +1130,7 @@ export function PropertyModals({
   const resetAddFormData = () => {
     setAddFormData({
       status_id: getDefaultPropertyStatusId(),
+      reference_number: '',
       property_type: 'sale' as 'sale' | 'rent',
       location: '',
       category_id: undefined as number | undefined,
@@ -1289,7 +1304,7 @@ export function PropertyModals({
                 e.preventDefault()
 
                 // Validate all required fields and optional fields with format requirements
-                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
+                const fieldsToValidate = ['status_id', 'reference_number', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
                 const resolvedStatusId = addFormData.status_id ?? getDefaultPropertyStatusId()
 
                 if (!resolvedStatusId) {
@@ -1339,6 +1354,7 @@ export function PropertyModals({
                   // Create property data object
                   const propertyData = {
                     status_id: resolvedStatusId,
+                    reference_number: addFormData.reference_number,
                     property_type: addFormData.property_type,
                     location: addFormData.location,
                     category_id: addFormData.category_id,
@@ -1669,12 +1685,20 @@ export function PropertyModals({
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
-                      <input
+                      <InputField
+                        label="Reference Number"
+                        id="add-reference-number"
                         type="text"
-                        value="Auto-generated"
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                        value={addFormData.reference_number}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setAddFormData(prev => ({ ...prev, reference_number: newValue }))
+                          clearFieldError('reference_number')
+                        }}
+                        onBlur={(e) => validateField('reference_number', e.target.value)}
+                        required={true}
+                        placeholder="Enter reference number"
+                        errorMessage={validationErrors.reference_number}
                       />
                     </div>
                   </div>
@@ -2258,7 +2282,7 @@ export function PropertyModals({
                 e.preventDefault()
                 
                 // Validate required fields and optional fields with format requirements for edit form
-                const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
+                const fieldsToValidate = ['status_id', 'reference_number', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
                 let hasErrors = false
                 
 
@@ -2617,12 +2641,26 @@ export function PropertyModals({
                       )}
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Reference Number</label>
-                      <input
+                      <InputField
+                        label="Reference Number"
+                        id="edit-reference-number"
                         type="text"
                         value={editFormData.reference_number || ''}
-                        disabled
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setEditFormData((prev: EditFormData) => ({ ...prev, reference_number: newValue }))
+                          clearFieldError('reference_number', true)
+                          if (setBackendValidationErrors) {
+                            setBackendValidationErrors(prev => ({
+                              ...prev,
+                              reference_number: ''
+                            }))
+                          }
+                        }}
+                        onBlur={(e) => validateField('reference_number', e.target.value, true)}
+                        required={true}
+                        placeholder="Enter reference number"
+                        errorMessage={backendValidationErrors.reference_number || editValidationErrors.reference_number}
                       />
                     </div>
                   </div>
@@ -3237,7 +3275,7 @@ export function PropertyModals({
                 onClick={async () => {
                   
                   // Validate required fields and optional fields with format requirements for edit form
-                  const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
+                  const fieldsToValidate = ['status_id', 'reference_number', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
                   let hasErrors = false
 
                   fieldsToValidate.forEach(field => {

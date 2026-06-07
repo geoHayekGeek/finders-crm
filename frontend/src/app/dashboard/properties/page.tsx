@@ -706,6 +706,7 @@ export default function PropertiesPage() {
 
               const formattedData: any = {
           status_id: resolvedStatusId,
+          reference_number: propertyData.reference_number,
           property_type: propertyData.property_type || 'sale',
           location: propertyData.location,
           category_id: parseInt(propertyData.category_id),

@@ -188,6 +188,7 @@ describe('Property Controller', () => {
   describe('createProperty', () => {
     const mockPropertyData = {
       status_id: 1,
+      reference_number: 'REF001',
       property_type: 'sale',
       location: 'Beirut',
       category_id: 1,

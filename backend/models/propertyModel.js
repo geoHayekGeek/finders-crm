@@ -110,6 +110,7 @@ class Property {
   static async createProperty(propertyData) {
     const {
       status_id,
+      reference_number,
       property_type,
       location,
       category_id,
@@ -179,6 +180,13 @@ class Property {
     }
     const normalizedReferrals = Array.isArray(referrals) ? referrals : [];
 
+    const manualReferenceNumber = typeof reference_number === 'string'
+      ? reference_number.trim()
+      : '';
+    if (!manualReferenceNumber) {
+      throw new Error('Reference number is required.');
+    }
+
     let resolvedStatusId = status_id;
     if (resolvedStatusId === undefined || resolvedStatusId === null || resolvedStatusId === '') {
       const defaultStatus = await Status.getDefaultStatusForPropertyCreation();
@@ -223,16 +231,11 @@ class Property {
       }
     }
 
-    // Generate reference number
-    const category = await pool.query('SELECT code FROM categories WHERE id = $1', [category_id]);
+    // Validate category exists
+    const category = await pool.query('SELECT id FROM categories WHERE id = $1', [category_id]);
     if (!category.rows[0]) {
       throw new Error('Invalid category');
     }
-
-    const refNumber = await pool.query(
-      'SELECT generate_reference_number($1, $2)',
-      [category.rows[0].code, property_type] // Pass category code and property_type
-    );
 
     // Use a transaction to insert property and referrals
     const client = await pool.connect();
@@ -251,7 +254,7 @@ class Property {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
         RETURNING *`,
         [
-          refNumber.rows[0].generate_reference_number, resolvedStatusId, property_type, location, category_id, building_name,
+          manualReferenceNumber, resolvedStatusId, property_type, location, category_id, building_name,
           finalOwnerId, finalOwnerName, finalPhoneNumber, surface, detailsJsonb, interiorDetailsJsonb,
           payment_facilities || false, payment_facilities_specification || null,
           built_year, view_type, concierge, agent_id, price, notes, property_url,

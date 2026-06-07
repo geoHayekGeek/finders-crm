@@ -139,14 +139,6 @@ async function findPropertyByReference(client, referenceNumber) {
   return r.rows[0] || null;
 }
 
-/** Generate reference number (category code + property_type). */
-async function generateReferenceNumber(client, categoryId, propertyType) {
-  const cat = await client.query('SELECT code FROM categories WHERE id = $1', [categoryId]);
-  if (!cat.rows[0]) return null;
-  const r = await client.query('SELECT generate_reference_number($1, $2)', [cat.rows[0].code, propertyType || 'sale']);
-  return r.rows[0].generate_reference_number;
-}
-
 /**
  * Process one raw row into normalized payload + warnings + errors.
  * fallbackDate: when provided, used as date when current row date is missing or invalid (e.g. previous row's date).
@@ -157,6 +149,11 @@ function processRow(row, rowNumber, lookups, importerUserId, fallbackDate) {
 
   const referenceRaw = getRowValue(row, 'reference');
   const reference = referenceRaw ? String(referenceRaw).trim() : '';
+  if (!reference) {
+    errors.push('Reference number is required');
+  } else if (reference.length > 20) {
+    errors.push('Reference number cannot exceed 20 characters');
+  }
 
   const dateRaw = getRowValue(row, 'date');
   const dateResult = normalizeDateWithFallbackAndReference(dateRaw, fallbackDate, reference);
@@ -479,11 +476,6 @@ async function commitImport(buffer, mimeType, importerUserId, importerRole, mode
           imported.push({ rowNumber: row.rowNumber, message: 'Updated', propertyId: existingByRef.id, reference_number });
           await client.query(`RELEASE SAVEPOINT ${savepoint}`);
           continue;
-        }
-
-        if (!reference_number) {
-          reference_number = await generateReferenceNumber(client, row.category_id, DEFAULT_PROPERTY_TYPE);
-          if (!reference_number) throw new Error('Could not generate reference number');
         }
 
         const listedDate = row.date ? `${row.date}T12:00:00.000Z` : null;
