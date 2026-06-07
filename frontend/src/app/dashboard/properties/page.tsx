@@ -349,6 +349,13 @@ export default function PropertiesPage() {
     }
   }
 
+  const getDefaultPropertyStatusId = () => {
+    const defaultStatus =
+      statuses.find(status => status.is_default_status && status.is_active)
+
+    return defaultStatus?.id
+  }
+
   // Load all necessary data (initial load)
   const loadData = async () => {
     try {
@@ -691,8 +698,14 @@ export default function PropertiesPage() {
       // Note: Required field validation is now handled by HTML required attributes
 
       // Ensure numeric fields are properly formatted
+      const resolvedStatusId = Number(propertyData.status_id) || getDefaultPropertyStatusId()
+      if (!resolvedStatusId) {
+        showError('No default property status is configured. Please mark one status as the default.')
+        return
+      }
+
               const formattedData: any = {
-          status_id: parseInt(propertyData.status_id),
+          status_id: resolvedStatusId,
           property_type: propertyData.property_type || 'sale',
           location: propertyData.location,
           category_id: parseInt(propertyData.category_id),

@@ -7,6 +7,7 @@
 const pool = require('../../config/db');
 const logger = require('../../utils/logger');
 const { normalizeRole } = require('../../utils/roleUtils');
+const { getDefaultStatusFromRows } = require('../../utils/propertyStatusUtils');
 const { parseFile } = require('./parser');
 const {
   isEmpty,
@@ -50,7 +51,7 @@ function getRowValue(row, ...possibleKeys) {
 
 async function loadLookups() {
   const [statusesResult, categoriesResult, usersResult, assignableResult, refSourcesResult] = await Promise.all([
-    pool.query('SELECT id, name, code FROM statuses ORDER BY name'),
+    pool.query('SELECT id, name, code, is_active, is_default_status FROM statuses ORDER BY name'),
     pool.query('SELECT id, name, code FROM categories WHERE is_active = true ORDER BY name'),
     pool.query(`
       SELECT id, name, role, user_code, updated_at
@@ -168,10 +169,10 @@ function processRow(row, rowNumber, lookups, importerUserId, fallbackDate) {
   let status_name = statusRes.statusName;
   if (statusRes.error) {
     warnings.push(statusRes.error);
-    const active = lookups.statuses.find(s => (s.code || '').toLowerCase() === 'active' || (s.name || '').toLowerCase() === 'active');
-    if (active) {
-      status_id = active.id;
-      status_name = active.name;
+    const defaultStatus = getDefaultStatusFromRows(lookups.statuses);
+    if (defaultStatus) {
+      status_id = defaultStatus.id;
+      status_name = defaultStatus.name;
     }
   }
 

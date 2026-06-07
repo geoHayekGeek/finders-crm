@@ -184,7 +184,8 @@ describe('Status Controller', () => {
         color: '#10B981',
         is_active: true,
         can_be_referred: true,
-        is_closure_status: false
+        is_closure_status: false,
+        is_default_status: false
       });
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
@@ -216,7 +217,8 @@ describe('Status Controller', () => {
         color: '#EF4444',
         is_active: true,
         can_be_referred: false,
-        is_closure_status: false
+        is_closure_status: false,
+        is_default_status: false
       });
       expect(res.status).toHaveBeenCalledWith(201);
     });
@@ -242,7 +244,8 @@ describe('Status Controller', () => {
         color: '#10B981',
         is_active: true,
         can_be_referred: true,
-        is_closure_status: false
+        is_closure_status: false,
+        is_default_status: false
       });
     });
 
@@ -264,7 +267,8 @@ describe('Status Controller', () => {
         color: '#6B7280',
         is_active: true,
         can_be_referred: true,
-        is_closure_status: false
+        is_closure_status: false,
+        is_default_status: false
       });
     });
 
@@ -291,7 +295,38 @@ describe('Status Controller', () => {
         color: '#111827',
         is_active: true,
         can_be_referred: false,
-        is_closure_status: true
+        is_closure_status: true,
+        is_default_status: false
+      });
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it('should create status with is_default_status field', async () => {
+      req.body = {
+        name: 'Featured',
+        code: 'FEATURED',
+        description: 'Featured default status',
+        color: '#1E3A8A',
+        is_active: true,
+        can_be_referred: true,
+        is_closure_status: false,
+        is_default_status: true
+      };
+
+      const mockStatus = { id: 1, ...req.body };
+      Status.createStatus.mockResolvedValue(mockStatus);
+
+      await StatusController.createStatus(req, res);
+
+      expect(Status.createStatus).toHaveBeenCalledWith({
+        name: 'Featured',
+        code: 'FEATURED',
+        description: 'Featured default status',
+        color: '#1E3A8A',
+        is_active: true,
+        can_be_referred: true,
+        is_closure_status: false,
+        is_default_status: true
       });
       expect(res.status).toHaveBeenCalledWith(201);
     });
@@ -640,7 +675,6 @@ describe('Status Controller', () => {
     });
   });
 });
-
 
 
 

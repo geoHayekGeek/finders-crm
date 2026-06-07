@@ -1,6 +1,7 @@
 // models/propertyModel.js
 const pool = require('../config/db');
 const logger = require('../utils/logger');
+const Status = require('./statusModel');
 const {
   CLOSURE_STATUS_REQUIRED_ERROR,
   isClosureStatus,
@@ -178,10 +179,22 @@ class Property {
     }
     const normalizedReferrals = Array.isArray(referrals) ? referrals : [];
 
+    let resolvedStatusId = status_id;
+    if (resolvedStatusId === undefined || resolvedStatusId === null || resolvedStatusId === '') {
+      const defaultStatus = await Status.getDefaultStatusForPropertyCreation();
+      if (defaultStatus?.id) {
+        resolvedStatusId = defaultStatus.id;
+      }
+    }
+
+    if (resolvedStatusId === undefined || resolvedStatusId === null || resolvedStatusId === '') {
+      throw new Error('Status is required and no default status is configured.');
+    }
+
     // VALIDATION: If creating property with a closure status, ensure closed_date is set
     const statusCheck = await pool.query(
       `SELECT is_closure_status FROM statuses WHERE id = $1`,
-      [status_id]
+      [resolvedStatusId]
     );
     
     if (statusCheck.rows.length > 0) {
@@ -238,7 +251,7 @@ class Property {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
         RETURNING *`,
         [
-          refNumber.rows[0].generate_reference_number, status_id, property_type, location, category_id, building_name,
+          refNumber.rows[0].generate_reference_number, resolvedStatusId, property_type, location, category_id, building_name,
           finalOwnerId, finalOwnerName, finalPhoneNumber, surface, detailsJsonb, interiorDetailsJsonb,
           payment_facilities || false, payment_facilities_specification || null,
           built_year, view_type, concierge, agent_id, price, notes, property_url,

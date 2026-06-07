@@ -1,6 +1,6 @@
 'use client'
 
-import { Edit2, Trash2, Circle } from 'lucide-react'
+import { Edit2, Trash2, Circle, Star } from 'lucide-react'
 import { Status } from '@/types/property'
 
 interface StatusTableProps {
@@ -37,7 +37,10 @@ export default function StatusTable({ statuses, onEdit, onDelete, canManage }: S
               Description
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Status
+              State
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Default
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Closure
@@ -68,7 +71,12 @@ export default function StatusTable({ statuses, onEdit, onDelete, canManage }: S
                     />
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-gray-900">{status.name}</div>
+                    <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
+                      {status.is_default_status && (
+                        <Star className="h-3.5 w-3.5 fill-blue-500 text-blue-500" title="Default status" />
+                      )}
+                      <span>{status.name}</span>
+                    </div>
                     <div className="text-sm text-gray-500">ID: {status.id}</div>
                   </div>
                 </div>
@@ -100,6 +108,18 @@ export default function StatusTable({ statuses, onEdit, onDelete, canManage }: S
                 ) : (
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                     Inactive
+                  </span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                {status.is_default_status ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <Star className="h-3 w-3 fill-blue-700 text-blue-700" />
+                    Default
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                    Standard
                   </span>
                 )}
               </td>

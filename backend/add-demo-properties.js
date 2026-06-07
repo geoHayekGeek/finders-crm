@@ -7,7 +7,12 @@ async function addDemoProperties() {
     
     // Get categories and statuses for reference
     const categories = await pool.query('SELECT id, name, code FROM categories WHERE is_active = true');
-    const statuses = await pool.query('SELECT id, name, code FROM statuses WHERE is_active = true');
+    const statuses = await pool.query('SELECT id, name, code, is_default_status FROM statuses WHERE is_active = true ORDER BY is_default_status DESC, name ASC');
+    const defaultStatus = statuses.rows.find(s => s.is_default_status) || statuses.rows[0];
+
+    if (!defaultStatus) {
+      throw new Error('No default property status found. Please configure one before running this script.');
+    }
     
     console.log(`📋 Found ${categories.rows.length} categories and ${statuses.rows.length} statuses`);
     
@@ -27,7 +32,7 @@ async function addDemoProperties() {
     // Demo properties data
     const demoProperties = [
       {
-        status_id: statuses.rows.find(s => s.code === 'active').id,
+        status_id: defaultStatus.id,
         location: "Beirut Central District, Lebanon",
         category_id: categories.rows.find(c => c.code === 'A').id,
         building_name: "Marina Towers",
@@ -52,7 +57,7 @@ async function addDemoProperties() {
         ]
       },
       {
-        status_id: statuses.rows.find(s => s.code === 'active').id,
+        status_id: defaultStatus.id,
         location: "Jounieh, Mount Lebanon",
         category_id: categories.rows.find(c => c.code === 'V').id,
         building_name: "Villa Paradise",
@@ -77,7 +82,7 @@ async function addDemoProperties() {
         ]
       },
       {
-        status_id: statuses.rows.find(s => s.code === 'active').id,
+        status_id: defaultStatus.id,
         location: "Hamra, Beirut",
         category_id: categories.rows.find(c => c.code === 'O').id,
         building_name: "Business Center Hamra",
@@ -173,7 +178,7 @@ async function addDemoProperties() {
         ]
       },
       {
-        status_id: statuses.rows.find(s => s.code === 'active').id,
+        status_id: defaultStatus.id,
         location: "Saida, South Lebanon",
         category_id: categories.rows.find(c => c.code === 'R').id,
         building_name: "Saida Seafood Restaurant",

@@ -19,7 +19,7 @@ async function addClosedStatus() {
     
     // Verify the status was added
     const result = await pool.query(`
-      SELECT id, name, code, description, color
+      SELECT id, name, code, description, color, is_default_status
       FROM statuses 
       WHERE code = 'closed'
     `);

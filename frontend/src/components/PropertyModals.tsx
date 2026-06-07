@@ -325,6 +325,13 @@ export function PropertyModals({
     return status?.is_closure_status === true
   }
 
+  const getDefaultPropertyStatusId = () => {
+    const defaultStatus =
+      statuses.find(status => status.is_default_status && status.is_active)
+
+    return defaultStatus?.id
+  }
+
   const isClosureStatusForProperty = (property: Property | null) => {
     if (!property) return false
     if (property.status_is_closure_status === true) return true
@@ -422,6 +429,21 @@ export function PropertyModals({
 
     fetchEmployees()
   }, [token])
+
+  useEffect(() => {
+    if (!showAddPropertyModal) {
+      return
+    }
+
+    if (addFormData.status_id) {
+      return
+    }
+
+    const defaultStatusId = getDefaultPropertyStatusId()
+    if (defaultStatusId) {
+      setAddFormData(prev => (prev.status_id ? prev : { ...prev, status_id: defaultStatusId }))
+    }
+  }, [showAddPropertyModal, statuses, addFormData.status_id])
 
   // Comprehensive validation function for all fields
   const isFieldValid = (fieldName: string, value: any) => {
@@ -1093,7 +1115,7 @@ export function PropertyModals({
   // Reset add form data
   const resetAddFormData = () => {
     setAddFormData({
-      status_id: undefined as number | undefined,
+      status_id: getDefaultPropertyStatusId(),
       property_type: 'sale' as 'sale' | 'rent',
       location: '',
       category_id: undefined as number | undefined,
@@ -1268,6 +1290,12 @@ export function PropertyModals({
 
                 // Validate all required fields and optional fields with format requirements
                 const fieldsToValidate = ['status_id', 'category_id', 'location', 'owner_name', 'phone_number', 'surface', 'price', 'details', 'interior_details', 'agent_id', 'view_type', 'concierge', 'built_year', 'property_url', 'main_image']
+                const resolvedStatusId = addFormData.status_id ?? getDefaultPropertyStatusId()
+
+                if (!resolvedStatusId) {
+                  showError('No default property status is configured. Please mark one status as the default.')
+                  return
+                }
                 
 
                 // Force validation on all fields and collect errors
@@ -1275,7 +1303,9 @@ export function PropertyModals({
                 let hasErrors = false
                 
                 fieldsToValidate.forEach(field => {
-                  const value = addFormData[field as keyof typeof addFormData]
+                  const value = field === 'status_id'
+                    ? resolvedStatusId
+                    : addFormData[field as keyof typeof addFormData]
                   const isValid = isFieldValid(field, value)
                   const errorMessage = isValid ? '' : getFieldErrorMessage(field, value)
                   
@@ -1297,7 +1327,7 @@ export function PropertyModals({
                   return
                 }
 
-                if (isClosureStatusById(addFormData.status_id) && !addFormData.closed_date) {
+                if (isClosureStatusById(resolvedStatusId) && !addFormData.closed_date) {
                   showError('Closed date is required when the selected status is marked as a closure status.')
                   return
                 }
@@ -1308,7 +1338,7 @@ export function PropertyModals({
 
                   // Create property data object
                   const propertyData = {
-                    status_id: addFormData.status_id,
+                    status_id: resolvedStatusId,
                     property_type: addFormData.property_type,
                     location: addFormData.location,
                     category_id: addFormData.category_id,

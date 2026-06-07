@@ -9,13 +9,13 @@ require('dotenv').config();
 const pool = require('../config/db');
 
 const STATUSES = [
-  ['Active', 'active', 'Property is available for sale/rent', '#10B981', true, false],
-  ['Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', true, false],
-  ['Sold', 'sold', 'Property has been sold', '#EF4444', false, true],
-  ['Rented', 'rented', 'Property has been rented', '#8B5CF6', false, true],
-  ['Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', true, false],
-  ['Pending', 'pending', 'Property is pending approval', '#3B82F6', true, false],
-  ['Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', true, false],
+  ['Active', 'active', 'Property is available for sale/rent', '#10B981', true, false, true],
+  ['Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', true, false, false],
+  ['Sold', 'sold', 'Property has been sold', '#EF4444', false, true, false],
+  ['Rented', 'rented', 'Property has been rented', '#8B5CF6', false, true, false],
+  ['Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', true, false, false],
+  ['Pending', 'pending', 'Property is pending approval', '#3B82F6', true, false, false],
+  ['Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', true, false, false],
 ];
 
 const CATEGORIES = [
@@ -45,12 +45,12 @@ const CATEGORIES = [
 
 async function seedStatuses() {
   let added = 0;
-  for (const [name, code, description, color, can_be_referred, is_closure_status] of STATUSES) {
+  for (const [name, code, description, color, can_be_referred, is_closure_status, is_default_status] of STATUSES) {
     const r = await pool.query(
-      `INSERT INTO statuses (name, code, description, color, can_be_referred, is_closure_status)
-       SELECT $1::text, $2::text, $3::text, $4::text, $5::boolean, $6::boolean
+      `INSERT INTO statuses (name, code, description, color, can_be_referred, is_closure_status, is_default_status)
+       SELECT $1::text, $2::text, $3::text, $4::text, $5::boolean, $6::boolean, $7::boolean
        WHERE NOT EXISTS (SELECT 1 FROM statuses WHERE LOWER(name) = LOWER($1::text) OR LOWER(code) = LOWER($2::text))`,
-      [name, code, description, color, can_be_referred, is_closure_status]
+      [name, code, description, color, can_be_referred, is_closure_status, is_default_status]
     );
     if (r.rowCount > 0) added++;
   }

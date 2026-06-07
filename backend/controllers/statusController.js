@@ -95,7 +95,7 @@ class StatusController {
   // Create new status
   static async createStatus(req, res) {
     try {
-      const { name, code, description, color, is_active, can_be_referred, is_closure_status } = req.body;
+      const { name, code, description, color, is_active, can_be_referred, is_closure_status, is_default_status } = req.body;
 
       // Validation
       if (!name || !code) {
@@ -112,7 +112,8 @@ class StatusController {
         color: color || '#6B7280',
         is_active: is_active !== undefined ? is_active : true,
         can_be_referred: can_be_referred !== undefined ? can_be_referred : true,
-        is_closure_status: is_closure_status !== undefined ? is_closure_status : false
+        is_closure_status: is_closure_status !== undefined ? is_closure_status : false,
+        is_default_status: is_default_status !== undefined ? is_default_status : false
       });
 
       res.status(201).json({

@@ -21,6 +21,7 @@ const {
   sanitizeRequestBody, 
   propertyUpdateRateLimit 
 } = require('../middlewares/propertyValidation');
+const { applyDefaultPropertyStatus } = require('../middlewares/propertyDefaultStatus');
 const { csrfProtection } = require('../middlewares/csrfProtection');
 const { xssProtection } = require('../middlewares/xssProtection');
 const { createRateLimiter } = require('../middlewares/rateLimiter');
@@ -89,6 +90,7 @@ router.post('/',
   canManageProperties, 
   xssProtection,
   sanitizeRequestBody,
+  applyDefaultPropertyStatus,
   validateProperty,
   handleValidationErrors,
   propertyController.createProperty

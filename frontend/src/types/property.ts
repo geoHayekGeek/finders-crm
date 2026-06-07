@@ -166,6 +166,7 @@ export interface Status {
   is_active: boolean
   can_be_referred?: boolean
   is_closure_status?: boolean
+  is_default_status?: boolean
   created_at: string
   updated_at: string
 }

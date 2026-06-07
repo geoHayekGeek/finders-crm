@@ -3,6 +3,8 @@
  * All matching is case-insensitive: "rented", "Rented", "RENTED" all resolve to status "Rented".
  */
 
+const { getDefaultStatusFromRows } = require('../../utils/propertyStatusUtils');
+
 const STATUS_SYNONYMS = {
   active: ['active', 'actif'],
   inactive: ['inactive', 'inactif', 'archived'],
@@ -20,9 +22,11 @@ function norm(v) {
  */
 function resolveStatus(statuses, value) {
   if (!value || !String(value).trim()) {
-    const active = statuses.find(s => norm(s.code) === 'active' || norm(s.name) === 'active');
-    if (active) return { statusId: active.id, statusName: active.name };
-    return { statusId: null, statusName: null, error: 'Active status missing and no default' };
+    const defaultStatus = getDefaultStatusFromRows(statuses);
+    if (defaultStatus) {
+      return { statusId: defaultStatus.id, statusName: defaultStatus.name };
+    }
+    return { statusId: null, statusName: null, error: 'No default status available' };
   }
   const raw = norm(value);
 
@@ -40,7 +44,7 @@ function resolveStatus(statuses, value) {
     return { statusId: null, statusName: null, error: 'Inactive/Archived status not found in system' };
   }
   if (STATUS_SYNONYMS.active.some(s => raw === s || raw.includes(s))) {
-    const s = statuses.find(x => norm(x.code) === 'active' || norm(x.name) === 'active');
+    const s = statuses.find(x => norm(x.code) === 'active' || norm(x.name) === 'active') || getDefaultStatusFromRows(statuses);
     if (s) return { statusId: s.id, statusName: s.name };
     return { statusId: null, statusName: null, error: 'Active status not found in system' };
   }

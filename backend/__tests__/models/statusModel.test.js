@@ -9,10 +9,18 @@ jest.mock('../../config/db');
 
 describe('Status Model', () => {
   let mockQuery;
+  let mockClient;
+  let mockConnect;
 
   beforeEach(() => {
     mockQuery = jest.fn();
     pool.query = mockQuery;
+    mockClient = {
+      query: jest.fn(),
+      release: jest.fn()
+    };
+    mockConnect = jest.fn().mockResolvedValue(mockClient);
+    pool.connect = mockConnect;
     jest.clearAllMocks();
   });
 
@@ -165,17 +173,23 @@ describe('Status Model', () => {
       };
 
       const mockCreated = {
-        rows: [{ id: 1, ...statusData }]
+        rows: [{ id: 1, ...statusData, can_be_referred: true, is_closure_status: false, is_default_status: false }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockCreated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockCreated) // INSERT
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.createStatus(statusData);
 
+      expect(mockConnect).toHaveBeenCalled();
       expect(result.name).toBe('New Status');
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        ['New Status', 'new_status', 'A new status', '#FF0000', true, true, false]
+        ['New Status', 'new_status', 'A new status', '#FF0000', true, true, false, false]
       );
     });
 
@@ -186,10 +200,15 @@ describe('Status Model', () => {
       };
 
       const mockCreated = {
-        rows: [{ id: 1, ...statusData, is_active: true }]
+        rows: [{ id: 1, ...statusData, is_active: true, can_be_referred: true, is_closure_status: false, is_default_status: false }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockCreated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockCreated) // INSERT
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.createStatus(statusData);
 
@@ -206,17 +225,22 @@ describe('Status Model', () => {
       };
 
       const mockCreated = {
-        rows: [{ id: 1, ...statusData, can_be_referred: true }]
+        rows: [{ id: 1, ...statusData, can_be_referred: true, is_closure_status: false, is_default_status: false }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockCreated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockCreated) // INSERT
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.createStatus(statusData);
 
       expect(result.can_be_referred).toBe(true);
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        expect.arrayContaining([true, false]) // can_be_referred default, closure default
+        expect.arrayContaining([true, false]) // closure + default flag values
       );
     });
 
@@ -231,17 +255,22 @@ describe('Status Model', () => {
       };
 
       const mockCreated = {
-        rows: [{ id: 1, ...statusData }]
+        rows: [{ id: 1, ...statusData, is_closure_status: false, is_default_status: false }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockCreated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockCreated) // INSERT
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.createStatus(statusData);
 
       expect(result.can_be_referred).toBe(false);
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        ['Sold', 'sold', 'Property has been sold', '#EF4444', true, false, false]
+        ['Sold', 'sold', 'Property has been sold', '#EF4444', true, false, false, false]
       );
     });
 
@@ -257,17 +286,54 @@ describe('Status Model', () => {
       };
 
       const mockCreated = {
-        rows: [{ id: 1, ...statusData }]
+        rows: [{ id: 1, ...statusData, is_default_status: false }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockCreated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockCreated) // INSERT
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.createStatus(statusData);
 
       expect(result.is_closure_status).toBe(true);
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO statuses'),
-        ['Closed Won', 'closed_won', 'Custom closure status', '#111827', true, false, true]
+        ['Closed Won', 'closed_won', 'Custom closure status', '#111827', true, false, true, false]
+      );
+    });
+
+    it('should create status with is_default_status set to true and clear others', async () => {
+      const statusData = {
+        name: 'Featured',
+        code: 'featured',
+        description: 'Featured default status',
+        color: '#0F172A',
+        is_active: true,
+        can_be_referred: true,
+        is_closure_status: false,
+        is_default_status: true
+      };
+
+      const mockCreated = {
+        rows: [{ id: 10, ...statusData }]
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({}) // clear existing defaults
+        .mockResolvedValueOnce(mockCreated) // INSERT
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Status.createStatus(statusData);
+
+      expect(result.is_default_status).toBe(true);
+      expect(mockClient.query.mock.calls[1][0]).toContain('SET is_default_status = false');
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO statuses'),
+        ['Featured', 'featured', 'Featured default status', '#0F172A', true, true, false, true]
       );
     });
   });
@@ -287,12 +353,18 @@ describe('Status Model', () => {
         }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockUpdated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.updateStatus(1, updates);
 
+      expect(mockConnect).toHaveBeenCalled();
       expect(result.name).toBe('Updated Status');
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE statuses'),
         expect.arrayContaining([1, 'Updated Status', '#00FF00'])
       );
@@ -312,12 +384,17 @@ describe('Status Model', () => {
         }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockUpdated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.updateStatus(1, updates);
 
       expect(result.can_be_referred).toBe(false);
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE statuses'),
         expect.arrayContaining([1, false])
       );
@@ -337,12 +414,17 @@ describe('Status Model', () => {
         }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockUpdated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.updateStatus(1, updates);
 
       expect(result.is_closure_status).toBe(true);
-      expect(mockQuery).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE statuses'),
         expect.arrayContaining([1, true])
       );
@@ -362,13 +444,53 @@ describe('Status Model', () => {
         }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockUpdated);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.updateStatus(1, updates);
 
       expect(result.name).toBe('Sold');
       expect(result.can_be_referred).toBe(false);
       expect(result.color).toBe('#EF4444');
+    });
+
+    it('should promote the updated status to default and clear previous defaults', async () => {
+      const updates = {
+        is_default_status: true
+      };
+
+      const mockUpdated = {
+        rows: [{
+          id: 1,
+          name: 'Featured',
+          code: 'featured',
+          is_default_status: true,
+          is_active: true
+        }]
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({}) // clear previous defaults
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Status.updateStatus(1, updates);
+
+      expect(result.is_default_status).toBe(true);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE COALESCE(is_default_status, FALSE) = true')
+      );
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE statuses'),
+        expect.arrayContaining([1, true])
+      );
     });
   });
 
@@ -378,18 +500,53 @@ describe('Status Model', () => {
         rows: [{
           id: 1,
           name: 'Status',
-          is_active: false
+          is_active: false,
+          is_default_status: false
         }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockDeleted);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockDeleted) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // ensureDefaultStatus existing default
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Status.deleteStatus(1);
+
+      expect(mockConnect).toHaveBeenCalled();
+      expect(result.is_active).toBe(false);
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE statuses'),
+        [1]
+      );
+    });
+
+    it('should promote another active status when deleting the default status', async () => {
+      const mockDeleted = {
+        rows: [{
+          id: 1,
+          name: 'Featured',
+          is_active: false,
+          is_default_status: false
+        }]
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockDeleted) // UPDATE
+        .mockResolvedValueOnce({}) // ensureDefaultStatus clear inactive defaults
+        .mockResolvedValueOnce({ rows: [] }) // no active default remains
+        .mockResolvedValueOnce({ rows: [{ id: 2 }] }) // preferred active fallback
+        .mockResolvedValueOnce({}) // promote fallback to default
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Status.deleteStatus(1);
 
       expect(result.is_active).toBe(false);
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE statuses SET is_active = false'),
-        [1]
+      expect(mockClient.query).toHaveBeenCalledWith(
+        expect.stringContaining('SET is_default_status = true'),
+        [2]
       );
     });
   });

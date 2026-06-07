@@ -6,11 +6,12 @@ const { resolveStatus, STATUS_SYNONYMS } = require('../../../services/propertyIm
 
 describe('propertyImport statusMapper', () => {
   const statuses = [
-    { id: 1, name: 'Active', code: 'active' },
+    { id: 1, name: 'Active', code: 'active', is_default_status: false },
     { id: 2, name: 'Inactive', code: 'inactive' },
     { id: 3, name: 'Archived', code: 'archived' },
     { id: 4, name: 'Rented', code: 'rented' },
     { id: 5, name: 'Sold', code: 'sold' },
+    { id: 6, name: 'Featured', code: 'featured', is_default_status: true },
   ];
 
   it('maps "Active" to Active status', () => {
@@ -38,10 +39,10 @@ describe('propertyImport statusMapper', () => {
     expect(r2.statusId).toBe(3);
   });
 
-  it('when empty, defaults to Active if available', () => {
+  it('when empty, defaults to the configured default status', () => {
     const r = resolveStatus(statuses, '');
-    expect(r.statusId).toBe(1);
-    expect(r.statusName).toBe('Active');
+    expect(r.statusId).toBe(6);
+    expect(r.statusName).toBe('Featured');
   });
 
   it('returns error for unknown status value when no match', () => {

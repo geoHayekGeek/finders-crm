@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS statuses (
   is_active BOOLEAN DEFAULT TRUE,
   can_be_referred BOOLEAN DEFAULT TRUE,
   is_closure_status BOOLEAN DEFAULT FALSE,
+  is_default_status BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -18,15 +19,18 @@ ALTER TABLE statuses
 ALTER TABLE statuses
   ADD COLUMN IF NOT EXISTS is_closure_status BOOLEAN DEFAULT FALSE;
 
+ALTER TABLE statuses
+  ADD COLUMN IF NOT EXISTS is_default_status BOOLEAN DEFAULT FALSE;
+
 -- Insert default statuses
-INSERT INTO statuses (name, code, description, color, can_be_referred, is_closure_status) VALUES
-  ('Active', 'active', 'Property is available for sale/rent', '#10B981', TRUE, FALSE),
-  ('Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', TRUE, FALSE),
-  ('Sold', 'sold', 'Property has been sold', '#EF4444', FALSE, TRUE),
-  ('Rented', 'rented', 'Property has been rented', '#8B5CF6', FALSE, TRUE),
-  ('Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', TRUE, FALSE),
-  ('Pending', 'pending', 'Property is pending approval', '#3B82F6', TRUE, FALSE),
-  ('Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', TRUE, FALSE)
+INSERT INTO statuses (name, code, description, color, can_be_referred, is_closure_status, is_default_status) VALUES
+  ('Active', 'active', 'Property is available for sale/rent', '#10B981', TRUE, FALSE, TRUE),
+  ('Inactive', 'inactive', 'Property is temporarily unavailable', '#6B7280', TRUE, FALSE, FALSE),
+  ('Sold', 'sold', 'Property has been sold', '#EF4444', FALSE, TRUE, FALSE),
+  ('Rented', 'rented', 'Property has been rented', '#8B5CF6', FALSE, TRUE, FALSE),
+  ('Under Contract', 'under_contract', 'Property is under contract', '#F59E0B', TRUE, FALSE, FALSE),
+  ('Pending', 'pending', 'Property is pending approval', '#3B82F6', TRUE, FALSE, FALSE),
+  ('Reserved', 'reserved', 'Property is reserved for a client', '#EC4899', TRUE, FALSE, FALSE)
 ON CONFLICT (name) DO NOTHING;
 
 UPDATE statuses

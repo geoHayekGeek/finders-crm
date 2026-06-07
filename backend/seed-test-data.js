@@ -67,11 +67,9 @@ async function seedDatabase() {
     console.log('✅ Cleanup complete');
 
     // Get statuses
-    const statusResult = await client.query("SELECT id, code, name FROM statuses WHERE is_active = true");
+    const statusResult = await client.query("SELECT id, code, name, is_default_status FROM statuses WHERE is_active = true ORDER BY is_default_status DESC, name ASC");
     const statuses = statusResult.rows;
-    const activeStatus = statuses.find(s => 
-      s.code === 'active' || s.code === 'ACTIVE' || s.name.toLowerCase() === 'active'
-    ) || statuses.find(s => s.code !== 'closed' && s.code !== 'CLOSED');
+    const activeStatus = statuses.find(s => s.is_default_status) || statuses.find(s => s.code !== 'closed' && s.code !== 'CLOSED');
     const closedStatus = statuses.find(s => 
       s.code === 'closed' || s.code === 'CLOSED' || s.name.toLowerCase() === 'closed' ||
       s.code === 'sold' || s.code === 'SOLD' || s.name.toLowerCase() === 'sold' ||
@@ -946,4 +944,3 @@ seedDatabase()
     console.error('\n❌ Seeding failed:', error);
     process.exit(1);
   });
-

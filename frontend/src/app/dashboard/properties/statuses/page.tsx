@@ -7,7 +7,8 @@ import {
   Edit2, 
   Trash2, 
   Circle,
-  FileText
+  FileText,
+  Star
 } from 'lucide-react'
 import { Status } from '@/types/property'
 import { statusesApi } from '@/utils/api'
@@ -120,7 +121,7 @@ export default function StatusesPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Statuses</h1>
-            <p className="text-gray-600">Manage property statuses, closure rules, and custom colors</p>
+            <p className="text-gray-600">Manage property statuses, the default status, closure rules, and custom colors</p>
           </div>
         </div>
         
@@ -178,15 +179,17 @@ export default function StatusesPage() {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-lg border border-gray-200 p-6">
           <div className="flex items-center">
-            <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Search className="h-6 w-6 text-orange-600" />
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Star className="h-6 w-6 text-blue-600 fill-blue-600" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Filtered Results</p>
-              <p className="text-2xl font-bold text-gray-900">{filteredStatuses.length}</p>
+              <p className="text-sm font-medium text-gray-600">Default Status</p>
+              <p className="text-2xl font-bold text-gray-900">
+                {(statuses.find(stat => stat.is_default_status && stat.is_active) || statuses.find(stat => stat.is_default_status))?.name || 'Not set'}
+              </p>
             </div>
           </div>
         </div>

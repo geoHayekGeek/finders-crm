@@ -144,7 +144,7 @@ async function main() {
 
     // Step 13: Get required data (statuses, categories, operations users, reference sources)
     console.log('📋 Step 13: Fetching required data...');
-    const statusesResult = await client.query('SELECT id, code, name FROM statuses WHERE is_active = true');
+    const statusesResult = await client.query('SELECT id, code, name, is_default_status FROM statuses WHERE is_active = true ORDER BY is_default_status DESC, name ASC');
     const categoriesResult = await client.query('SELECT id, code, name FROM categories WHERE is_active = true');
     
     // Helper to generate unique user code within transaction
@@ -215,7 +215,7 @@ async function main() {
       throw new Error('Missing required statuses or categories!');
     }
 
-    const activeStatus = statuses.find(s => s.code?.toLowerCase() === 'active') || statuses[0];
+    const activeStatus = statuses.find(s => s.is_default_status) || statuses[0];
     const soldStatus = statuses.find(s => s.code?.toLowerCase() === 'sold') || statuses.find(s => s.name?.toLowerCase().includes('sold'));
     const rentedStatus = statuses.find(s => s.code?.toLowerCase() === 'rented') || statuses.find(s => s.name?.toLowerCase().includes('rented'));
     const closedStatuses = statuses.filter(s => 

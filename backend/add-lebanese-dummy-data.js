@@ -107,7 +107,7 @@ async function addLebaneseDummyData() {
 
     // Get categories and statuses
     const categories = await client.query('SELECT id, name, code FROM categories WHERE is_active = true');
-    const statuses = await client.query('SELECT id, name, code FROM statuses WHERE is_active = true');
+    const statuses = await client.query('SELECT id, name, code, is_default_status FROM statuses WHERE is_active = true ORDER BY is_default_status DESC, name ASC');
     
     // Try to get reference sources, but don't fail if table doesn't exist
     let referenceSources = { rows: [] };
@@ -459,7 +459,7 @@ async function addLebaneseDummyData() {
     for (const agent of employees.filter(e => e.role === 'agent')) {
       for (let i = 0; i < listingCountPerAgent; i++) {
         const category = getRandomElement(categories.rows);
-        const status = statuses.rows.find(s => s.code === 'active') || statuses.rows[0];
+        const status = statuses.rows.find(s => s.is_default_status) || statuses.rows[0];
         const propertyType = getRandomElement(['sale', 'rent']);
         const ownerName = getRandomElement([...lebaneseNames.male, ...lebaneseNames.female]);
         const viewType = getRandomElement(['open view', 'sea view', 'mountain view', 'no view']);

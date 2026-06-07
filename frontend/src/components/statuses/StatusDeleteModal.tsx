@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Trash2, AlertTriangle, Circle } from 'lucide-react'
+import { X, Trash2, AlertTriangle, Circle, Star } from 'lucide-react'
 import { Status } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -88,7 +88,7 @@ export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }
                 <p className="text-sm text-yellow-700 mt-1">
                   This action cannot be undone. This will permanently delete the status and may affect 
                   properties that are currently assigned to this status. Properties with this status will 
-                  show as &quot;Uncategorized Status&quot;.
+                  show as &quot;Uncategorized Status&quot;. If this is the default status, another active status will be promoted automatically.
                 </p>
               </div>
             </div>
@@ -104,9 +104,15 @@ export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }
                 />
                 <div>
                   <p className="font-medium text-gray-900">{status.name}</p>
-                  <p className="text-sm text-gray-600">Code: {status.code}</p>
-                </div>
+                <p className="text-sm text-gray-600">Code: {status.code}</p>
               </div>
+            </div>
+              {status.is_default_status && (
+                <div className="mb-2 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <Star className="h-3 w-3 fill-blue-700 text-blue-700" />
+                  Default status
+                </div>
+              )}
               {status.description && (
                 <p className="text-sm text-gray-600">Description: {status.description}</p>
               )}

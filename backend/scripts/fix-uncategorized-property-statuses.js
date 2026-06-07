@@ -23,8 +23,8 @@ async function ensureClosedStatus() {
   // Create a new Closed status if it doesn't exist
   const inserted = await pool.query(
     `
-      INSERT INTO statuses (name, code, description, color, is_active, can_be_referred, is_closure_status)
-      VALUES ('Closed', 'closed', 'Property is closed (sold or rented)', '#6B7280', TRUE, FALSE, TRUE)
+      INSERT INTO statuses (name, code, description, color, is_active, can_be_referred, is_closure_status, is_default_status)
+      VALUES ('Closed', 'closed', 'Property is closed (sold or rented)', '#6B7280', TRUE, FALSE, TRUE, FALSE)
       RETURNING id, name, code
     `
   );

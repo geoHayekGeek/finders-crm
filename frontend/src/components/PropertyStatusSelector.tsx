@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { X, ChevronDown, Flag, RefreshCw } from 'lucide-react'
+import { X, ChevronDown, Flag, RefreshCw, Star } from 'lucide-react'
 import { Status } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
 import { statusesApi } from '@/utils/api'
@@ -116,6 +116,12 @@ export function PropertyStatusSelector({
             <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(selectedStatus.color)}`}>
               {selectedStatus.name}
             </span>
+            {selectedStatus.is_default_status && (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800">
+                <Star className="h-3 w-3 fill-blue-700 text-blue-700" />
+                Default
+              </span>
+            )}
             {selectedStatus.description && (
               <span className="text-xs text-green-600">
                 ({selectedStatus.description})
@@ -209,10 +215,16 @@ export function PropertyStatusSelector({
                       <div className="flex items-center gap-3">
                         <Flag className="h-4 w-4 text-green-600" />
                         <div className="flex-1">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(status.color)}`}>
                               {status.name}
                             </span>
+                            {status.is_default_status && (
+                              <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                <Star className="h-3 w-3 fill-blue-700 text-blue-700" />
+                                Default
+                              </span>
+                            )}
                           </div>
                           {status.description && (
                             <div className="text-xs text-gray-600 mt-1">{status.description}</div>

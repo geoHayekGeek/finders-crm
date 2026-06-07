@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Circle, Save, Palette } from 'lucide-react'
+import { X, Circle, Save, Palette, Star } from 'lucide-react'
 import { Status } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -45,7 +45,8 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
     color: '#6B7280',
     is_active: true,
     can_be_referred: true,
-    is_closure_status: false
+    is_closure_status: false,
+    is_default_status: false
   })
 
   // Validation functions
@@ -89,7 +90,8 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
           color: status.color || '#6B7280',
           is_active: status.is_active,
           can_be_referred: status.can_be_referred !== undefined ? status.can_be_referred : true,
-          is_closure_status: status.is_closure_status === true
+          is_closure_status: status.is_closure_status === true,
+          is_default_status: status.is_default_status === true
         })
       } else {
         setFormData({
@@ -99,7 +101,8 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
           color: '#6B7280',
           is_active: true,
           can_be_referred: true,
-          is_closure_status: false
+          is_closure_status: false,
+          is_default_status: false
         })
       }
       setError(null)
@@ -110,11 +113,31 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target
     const checked = (e.target as HTMLInputElement).checked
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }))
+
+    setFormData(prev => {
+      if (name === 'is_default_status') {
+        const nextIsDefault = checked
+        return {
+          ...prev,
+          is_default_status: nextIsDefault,
+          is_active: nextIsDefault ? true : prev.is_active
+        }
+      }
+
+      if (name === 'is_active') {
+        const nextIsActive = checked
+        return {
+          ...prev,
+          is_active: nextIsActive,
+          is_default_status: nextIsActive ? prev.is_default_status : false
+        }
+      }
+
+      return {
+        ...prev,
+        [name]: type === 'checkbox' ? checked : value
+      }
+    })
     
     // Clear error when user starts typing
     clearFieldError(name)
@@ -159,7 +182,8 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
         color: formData.color,
         is_active: formData.is_active,
         can_be_referred: formData.can_be_referred,
-        is_closure_status: formData.is_closure_status
+        is_closure_status: formData.is_closure_status,
+        is_default_status: formData.is_default_status
       }
 
       let response
@@ -368,6 +392,49 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
                           formData.is_active ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label htmlFor="is_default_status" className="text-sm font-medium text-gray-700">
+                      Default Status
+                    </label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {formData.is_default_status
+                        ? 'This status will be preselected when creating a new property'
+                        : 'Only one active status can be the default for new properties'}
+                    </p>
+                    {formData.is_default_status && (
+                      <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                        <Star className="h-3.5 w-3.5 fill-blue-600 text-blue-600" />
+                        Default statuses must remain active.
+                      </p>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      id="is_default_status"
+                      name="is_default_status"
+                      checked={formData.is_default_status}
+                      onChange={handleInputChange}
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="is_default_status"
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        formData.is_default_status ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          formData.is_default_status ? 'translate-x-5' : 'translate-x-0'
                         }`}
                       />
                     </label>

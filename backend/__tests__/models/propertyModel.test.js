@@ -136,6 +136,74 @@ describe('Property Model', () => {
       );
     });
 
+    it('should use the configured default status when status_id is missing', async () => {
+      const propertyData = {
+        property_type: 'sale',
+        location: 'Test Location',
+        category_id: 1,
+        owner_name: 'John Doe',
+        phone_number: '1234567890',
+        surface: 100,
+        details: {
+          floor_number: '5th',
+          balcony: 'Yes',
+          covered_parking: '2 spaces',
+          outdoor_parking: '1 space',
+          cave: 'No'
+        },
+        interior_details: {
+          living_rooms: '2',
+          bedrooms: '3',
+          bathrooms: '2',
+          maid_room: 'Yes'
+        },
+        payment_facilities: true,
+        payment_facilities_specification: 'Bank financing available',
+        view_type: 'sea view',
+        concierge: false,
+        agent_id: 1,
+        price: 200000,
+        main_image: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
+      };
+
+      const mockDefaultStatus = {
+        rows: [{ id: 7, name: 'Featured', code: 'featured', is_default_status: true, is_active: true }]
+      };
+      const mockStatus = { rows: [{ is_closure_status: false }] };
+      const mockCategory = { rows: [{ code: 'CAT' }] };
+      const mockRefNumber = { rows: [{ generate_reference_number: 'REF-DEFAULT' }] };
+      const mockProperty = {
+        rows: [{
+          id: 3,
+          reference_number: 'REF-DEFAULT',
+          status_id: 7,
+          ...propertyData
+        }]
+      };
+
+      mockQuery
+        .mockResolvedValueOnce(mockDefaultStatus)
+        .mockResolvedValueOnce(mockStatus)
+        .mockResolvedValueOnce(mockCategory)
+        .mockResolvedValueOnce(mockRefNumber);
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockProperty) // INSERT
+        .mockResolvedValueOnce({}) // UPDATE referrals_count
+        .mockResolvedValueOnce({}); // COMMIT
+
+      const result = await Property.createProperty(propertyData);
+
+      expect(mockQuery.mock.calls[0][0]).toContain('FROM statuses');
+      expect(result.status_id).toBe(7);
+      expect(result.reference_number).toBe('REF-DEFAULT');
+      expect(mockClient.query).toHaveBeenCalledWith(
+        'UPDATE properties SET referrals_count = $1 WHERE id = $2',
+        [0, 3]
+      );
+    });
+
     it('should allow creating property without main_image (to be uploaded separately)', async () => {
       const propertyData = {
         status_id: 1,
