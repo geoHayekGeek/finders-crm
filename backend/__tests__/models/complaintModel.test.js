@@ -96,4 +96,16 @@ describe('Complaint Model', () => {
       expect.arrayContaining([[5, 6]])
     );
   });
+
+  it('should delete a complaint by id', async () => {
+    mockQuery.mockResolvedValueOnce({ rowCount: 1, rows: [{ id: 91 }] });
+
+    const result = await Complaint.deleteComplaint(91);
+
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringContaining('DELETE FROM complaints'),
+      [91]
+    );
+    expect(result).toBe(true);
+  });
 });

@@ -361,7 +361,7 @@ describe('Notification Model', () => {
       };
 
       mockQuery
-        .mockResolvedValueOnce({ rows: [{ id: 2 }, { id: 3 }] })
+        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }] })
         .mockResolvedValueOnce({ rows: [{ notification_count: 3 }] });
 
       const result = await Notification.createComplaintNotification(10, complaintData, 1);
@@ -369,14 +369,43 @@ describe('Notification Model', () => {
       expect(mockQuery).toHaveBeenNthCalledWith(
         1,
         expect.stringContaining('FROM users'),
-        [ ['admin', 'operations manager', 'operations', 'hr'], 1 ]
+        [ ['admin', 'operations manager', 'operations', 'agent manager', 'hr'] ]
       );
       expect(mockQuery).toHaveBeenNthCalledWith(
         2,
         expect.stringContaining('create_notification_for_users'),
-        expect.arrayContaining([[2, 3, 5], 'New Complaint'])
+        expect.arrayContaining([[1, 2, 3, 5], 'New Complaint'])
       );
       expect(result).toBe(3);
+    });
+
+    it('should notify the team leader even when the team leader created the complaint', async () => {
+      const complaintData = {
+        lead_id: 1,
+        target_user_role: 'agent',
+        target_user_name: 'Agent One',
+        target_assigned_to: 5,
+        lead_name: 'Lead One',
+        title: 'Late follow-up'
+      };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [{ id: 5 }, { id: 2 }] })
+        .mockResolvedValueOnce({ rows: [{ notification_count: 2 }] });
+
+      const result = await Notification.createComplaintNotification(10, complaintData, 5);
+
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('FROM users'),
+        [ ['admin', 'operations manager', 'operations', 'agent manager', 'hr'] ]
+      );
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('create_notification_for_users'),
+        expect.arrayContaining([[5, 2], 'New Complaint'])
+      );
+      expect(result).toBe(2);
     });
   });
 

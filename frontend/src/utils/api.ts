@@ -1004,6 +1004,11 @@ export const complaintsApi = {
     apiRequest<ComplaintResponse>('/complaints', {
       method: 'POST',
       body: JSON.stringify(data),
+    }, token),
+
+  delete: (id: number, token?: AuthToken) =>
+    apiRequest<{ success: boolean; message: string }>(`/complaints/${id}`, {
+      method: 'DELETE'
     }, token)
 }
 

@@ -65,7 +65,7 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     const canViewAgentPerformance = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'agent manager' || normalizedRole === 'team leader'
     const canManageCategoriesAndStatuses = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
     const canViewCategoriesAndStatuses = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || isAgentRole(normalizedRole) || normalizedRole === 'team leader'
-    const canViewComplaints = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'hr' || normalizedRole === 'team leader'
+    const canViewComplaints = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'hr' || normalizedRole === 'team leader'
     const canManageComplaints = canViewComplaints
 
     return {

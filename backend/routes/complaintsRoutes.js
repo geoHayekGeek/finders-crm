@@ -7,5 +7,6 @@ router.use(authenticateToken);
 
 router.get('/', canViewComplaints, ComplaintsController.getAllComplaints);
 router.post('/', canManageComplaints, ComplaintsController.createComplaint);
+router.delete('/:id', canManageComplaints, ComplaintsController.deleteComplaint);
 
 module.exports = router;

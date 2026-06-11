@@ -452,6 +452,25 @@ describe('Permissions Middleware', () => {
     });
   });
 
+  describe('complaint permissions', () => {
+    it('should allow operations to view complaints', () => {
+      req.user = { role: 'operations' };
+      permissions.canViewComplaints(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should allow agent manager to view and manage complaints', () => {
+      req.user = { role: 'agent manager' };
+      permissions.canViewComplaints(req, res, next);
+      expect(next).toHaveBeenCalled();
+
+      jest.clearAllMocks();
+
+      permissions.canManageComplaints(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
   describe('filterDataByRole', () => {
     it('should set role filters for admin', () => {
       req.user = { role: 'admin' };

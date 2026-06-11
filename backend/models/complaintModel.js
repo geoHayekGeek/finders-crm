@@ -125,6 +125,17 @@ class Complaint {
     const result = await pool.query(query, params);
     return result.rows;
   }
+
+  static async deleteComplaint(id) {
+    const result = await pool.query(
+      `DELETE FROM complaints
+       WHERE id = $1
+       RETURNING id`,
+      [id]
+    );
+
+    return result.rowCount > 0;
+  }
 }
 
 module.exports = Complaint;

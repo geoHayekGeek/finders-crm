@@ -87,6 +87,52 @@ describe('Complaints Controller', () => {
     );
   });
 
+  it('should allow agent manager to create a complaint', async () => {
+    req.user = { id: 7, role: 'agent manager' };
+    req.body = {
+      lead_id: 18,
+      target_user_id: 24,
+      title: 'Escalation needed',
+      description: 'The issue requires management attention.'
+    };
+
+    Lead.getLeadById.mockResolvedValue({ id: 18, customer_name: 'Lead B' });
+    User.findById.mockResolvedValue({
+      id: 24,
+      name: 'Team Lead A',
+      role: 'team leader'
+    });
+    Complaint.createComplaint.mockResolvedValue({
+      id: 102,
+      lead_id: 18,
+      target_user_id: 24,
+      title: req.body.title,
+      description: req.body.description,
+      created_by: 7,
+      target_user_role: 'team leader',
+      target_user_name: 'Team Lead A',
+      target_assigned_to: null
+    });
+    Notification.createComplaintNotification.mockResolvedValue(1);
+
+    await ComplaintsController.createComplaint(req, res);
+
+    expect(Complaint.createComplaint).toHaveBeenCalledWith({
+      lead_id: 18,
+      target_user_id: 24,
+      title: 'Escalation needed',
+      description: 'The issue requires management attention.',
+      created_by: 7
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        message: 'Complaint created successfully'
+      })
+    );
+  });
+
   it('should block team leaders from complaining about people outside their team', async () => {
     req.user = { id: 5, role: 'team leader' };
     req.body = {
@@ -136,6 +182,32 @@ describe('Complaints Controller', () => {
       success: true,
       data: [{ id: 1 }],
       count: 1
+    });
+  });
+
+  it('should delete a complaint when requested', async () => {
+    req.params = { id: '101' };
+    Complaint.deleteComplaint.mockResolvedValue(true);
+
+    await ComplaintsController.deleteComplaint(req, res);
+
+    expect(Complaint.deleteComplaint).toHaveBeenCalledWith(101);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: 'Complaint deleted successfully'
+    });
+  });
+
+  it('should return 404 when deleting a missing complaint', async () => {
+    req.params = { id: '999' };
+    Complaint.deleteComplaint.mockResolvedValue(false);
+
+    await ComplaintsController.deleteComplaint(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: 'Complaint not found'
     });
   });
 });

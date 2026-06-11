@@ -263,7 +263,7 @@ export default function ComplaintModal({ isOpen, onClose, onSuccess }: Complaint
                 <FileText className="h-4 w-4 text-gray-500" />
                 <h4 className="text-sm font-semibold text-gray-900">Lead</h4>
               </div>
-              <div className="relative mb-3">
+              <div className="input-with-icon relative mb-3">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
@@ -363,7 +363,7 @@ export default function ComplaintModal({ isOpen, onClose, onSuccess }: Complaint
                 <h4 className="text-sm font-semibold text-gray-900">Target user</h4>
               </div>
 
-              <div className="relative mb-3">
+              <div className="input-with-icon relative mb-3">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                 <input
                   type="text"
@@ -503,7 +503,7 @@ export default function ComplaintModal({ isOpen, onClose, onSuccess }: Complaint
             )}
 
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Complaints are visible to operations, HR, admin, and team leaders according to their access.
+              Complaints are visible to operations, HR, agent managers, admin, and team leaders according to their access.
               Team leaders can only file complaints against their own team members.
             </div>
           </div>

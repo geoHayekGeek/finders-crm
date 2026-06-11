@@ -1,18 +1,22 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Plus, Search, Users, FileText, CalendarDays, UserCheck } from 'lucide-react'
+import { AlertCircle, Plus, Search, Users, FileText, CalendarDays, UserCheck, Eye, Trash2 } from 'lucide-react'
 import { RequireComplaintsAccess, usePermissions } from '@/contexts/PermissionContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { useToast } from '@/contexts/ToastContext'
 import { complaintsApi } from '@/utils/api'
 import { Complaint } from '@/types/complaints'
 import ComplaintModal from '@/components/complaints/ComplaintModal'
+import ComplaintDetailsModal from '@/components/complaints/ComplaintDetailsModal'
+import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { formatRole, getRoleColor } from '@/utils/roleFormatter'
 import { normalizeRole } from '@/utils/roleUtils'
 
 export default function ComplaintsPage() {
   const { token, isAuthenticated } = useAuth()
   const { canManageComplaints } = usePermissions()
+  const { showSuccess, showError } = useToast()
 
   const [complaints, setComplaints] = useState<Complaint[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,6 +24,9 @@ export default function ComplaintsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [targetRoleFilter, setTargetRoleFilter] = useState<'all' | 'agent' | 'team leader'>('all')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
+  const [complaintToDelete, setComplaintToDelete] = useState<Complaint | null>(null)
+  const [deletingComplaint, setDeletingComplaint] = useState(false)
   const loadRequestRef = useRef(0)
 
   useEffect(() => {
@@ -62,6 +69,41 @@ export default function ComplaintsPage() {
       if (requestId === loadRequestRef.current) {
         setLoading(false)
       }
+    }
+  }
+
+  const handleViewComplaint = (complaint: Complaint) => {
+    setSelectedComplaint(complaint)
+  }
+
+  const handleRequestDeleteComplaint = (complaint: Complaint) => {
+    setComplaintToDelete(complaint)
+  }
+
+  const handleDeleteComplaint = async () => {
+    if (!token || !complaintToDelete) {
+      return
+    }
+
+    try {
+      setDeletingComplaint(true)
+      const response = await complaintsApi.delete(complaintToDelete.id, token)
+
+      if (response.success) {
+        setComplaints((current) => current.filter((complaint) => complaint.id !== complaintToDelete.id))
+        if (selectedComplaint?.id === complaintToDelete.id) {
+          setSelectedComplaint(null)
+        }
+        setComplaintToDelete(null)
+        showSuccess('Complaint deleted successfully')
+      } else {
+        showError(response.message || 'Failed to delete complaint')
+      }
+    } catch (deleteError) {
+      console.error('Error deleting complaint:', deleteError)
+      showError(deleteError instanceof Error ? deleteError.message : 'Failed to delete complaint')
+    } finally {
+      setDeletingComplaint(false)
     }
   }
 
@@ -185,8 +227,11 @@ export default function ComplaintsPage() {
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
-            <div className="relative flex-1">
+          <div
+            className="flex flex-col gap-4 lg:grid lg:items-center"
+            style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(220px, 0.8fr) auto' }}
+          >
+            <div className="input-with-icon relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
@@ -200,7 +245,7 @@ export default function ComplaintsPage() {
             <select
               value={targetRoleFilter}
               onChange={(e) => setTargetRoleFilter(e.target.value as 'all' | 'agent' | 'team leader')}
-              className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
             >
               <option value="all">All Targets</option>
               <option value="agent">Agents & Consultants</option>
@@ -214,7 +259,7 @@ export default function ComplaintsPage() {
                   setSearchTerm('')
                   setTargetRoleFilter('all')
                 }}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 lg:justify-self-end"
               >
                 Clear Filters
               </button>
@@ -287,6 +332,9 @@ export default function ComplaintsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                       Date
                     </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -334,6 +382,28 @@ export default function ComplaintsPage() {
                             day: 'numeric'
                           })}
                         </td>
+                        <td className="px-6 py-4 align-top">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleViewComplaint(complaint)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </button>
+                            {canManageComplaints && (
+                              <button
+                                type="button"
+                                onClick={() => handleRequestDeleteComplaint(complaint)}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}
@@ -349,6 +419,31 @@ export default function ComplaintsPage() {
           onSuccess={() => {
             void loadComplaints()
           }}
+        />
+
+        <ComplaintDetailsModal
+          complaint={selectedComplaint}
+          isOpen={selectedComplaint !== null}
+          onClose={() => setSelectedComplaint(null)}
+        />
+
+        <ConfirmationModal
+          isOpen={complaintToDelete !== null}
+          onClose={() => {
+            if (!deletingComplaint) {
+              setComplaintToDelete(null)
+            }
+          }}
+          onConfirm={handleDeleteComplaint}
+          title="Delete Complaint"
+          message={
+            complaintToDelete
+              ? `Are you sure you want to delete "${complaintToDelete.title}"? This action cannot be undone.`
+              : 'Are you sure you want to delete this complaint? This action cannot be undone.'
+          }
+          confirmText="Delete Complaint"
+          variant="danger"
+          loading={deletingComplaint}
         />
       </div>
     </RequireComplaintsAccess>

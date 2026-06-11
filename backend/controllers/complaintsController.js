@@ -5,9 +5,7 @@ const Notification = require('../models/notificationModel');
 const logger = require('../utils/logger');
 const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 
-const ALLOWED_CREATORS = new Set(['admin', 'operations manager', 'operations', 'hr', 'team leader']);
-const MANAGEMENT_NOTIFY_ROLES = ['admin', 'operations manager', 'operations', 'hr'];
-
+const ALLOWED_CREATORS = new Set(['admin', 'operations manager', 'operations', 'agent manager', 'hr', 'team leader']);
 function normalizeId(value) {
   if (value === undefined || value === null || value === '') return null;
   const parsed = parseInt(String(value), 10);
@@ -142,6 +140,39 @@ class ComplaintsController {
       res.status(500).json({
         success: false,
         message: 'Failed to create complaint'
+      });
+    }
+  }
+
+  static async deleteComplaint(req, res) {
+    try {
+      const complaintId = normalizeId(req.params?.id);
+
+      if (!complaintId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Valid complaint ID is required'
+        });
+      }
+
+      const deleted = await Complaint.deleteComplaint(complaintId);
+
+      if (!deleted) {
+        return res.status(404).json({
+          success: false,
+          message: 'Complaint not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Complaint deleted successfully'
+      });
+    } catch (error) {
+      logger.error('Error deleting complaint', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete complaint'
       });
     }
   }

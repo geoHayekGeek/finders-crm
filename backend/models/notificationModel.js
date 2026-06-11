@@ -233,23 +233,24 @@ class Notification {
    * Create complaint-related notifications
    */
   static async createComplaintNotification(complaintId, complaintData, actorUserId) {
+    void actorUserId; // retained for compatibility with existing callers
+
     const recipientIds = new Set();
     const targetRole = normalizeRole(complaintData.target_user_role);
 
-    const managementRoles = ['admin', 'operations manager', 'operations', 'hr'];
+    const managementRoles = ['admin', 'operations manager', 'operations', 'agent manager', 'hr'];
     const managementResult = await pool.query(
       `SELECT id
        FROM users
        WHERE role = ANY($1::text[])
-         AND COALESCE(is_active, true) = true
-         AND id <> $2`,
-      [managementRoles, actorUserId]
+         AND COALESCE(is_active, true) = true`,
+      [managementRoles]
     );
     managementResult.rows.forEach((row) => recipientIds.add(row.id));
 
     if (['agent', 'consultant'].includes(targetRole) && complaintData.target_assigned_to) {
       const teamLeaderId = Number(complaintData.target_assigned_to);
-      if (!Number.isNaN(teamLeaderId) && teamLeaderId !== actorUserId) {
+      if (!Number.isNaN(teamLeaderId)) {
         recipientIds.add(teamLeaderId);
       }
     }
