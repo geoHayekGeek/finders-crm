@@ -494,7 +494,7 @@ class Viewing {
     const normalizedRole = normalizeRole(userRole);
     
     // Agents and team leaders see viewings assigned to them
-    if (normalizedRole === 'agent') {
+    if (['agent', 'consultant'].includes(normalizedRole)) {
       return this.getViewingsByAgent(agentId);
     }
     

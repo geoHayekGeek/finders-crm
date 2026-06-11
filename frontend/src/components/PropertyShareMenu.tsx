@@ -41,7 +41,7 @@ export function PropertyShareMenu({
     }
     
     // Agents and team leaders can only share properties assigned to them
-    if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
+    if ((['agent', 'consultant'].includes(normalizedRole) || normalizedRole === 'team leader')) {
       return property.agent_id === user?.id
     }
     

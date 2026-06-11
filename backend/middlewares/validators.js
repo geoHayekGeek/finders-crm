@@ -13,8 +13,8 @@ const registerValidator = [
     .matches(/[0-9]/).withMessage('Password must contain at least one number')
     .matches(/[^a-zA-Z0-9]/).withMessage('Password must contain at least one special character'),
   body('role')
-    .isIn(['agent', 'agent manager', 'operations', 'operations manager', 'admin', 'accountant', 'team_leader'])
-    .withMessage('Invalid role. Must be one of: agent, agent manager, operations, operations manager, admin, accountant, team_leader'),
+    .isIn(['agent', 'consultant', 'agent manager', 'operations', 'operations manager', 'admin', 'accountant', 'team_leader'])
+    .withMessage('Invalid role. Must be one of: agent, consultant, agent manager, operations, operations manager, admin, accountant, team_leader'),
   body('phone')
     .optional({ nullable: true, checkFalsy: true })
     .isLength({ min: 7, max: 20 })

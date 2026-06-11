@@ -40,7 +40,7 @@ export default function PropertiesPage() {
   const { user, token, isAuthenticated } = useAuth()
   const { canManageProperties, canDeleteProperties, canViewProperties, canViewLeads, canAccessHR, role } = usePermissions()
   const showMyTeamFilter =
-    normalizeRole(role) === 'agent' || normalizeRole(role) === 'team leader'
+    ['agent', 'consultant'].includes(normalizeRole(role)) || normalizeRole(role) === 'team leader'
   const { showSuccess, showError, showWarning } = useToast()
   const router = useRouter()
   
@@ -1450,7 +1450,7 @@ export default function PropertiesPage() {
             (property: Property) => {
               // Agents and team leaders can only refer properties that are assigned to them and can be referred
               const normalizedUserRole = normalizeRole(user?.role);
-              return (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
+              return ((['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader')) && 
                      property.agent_id === user?.id &&
                      (property.status_can_be_referred !== false) // Default to true if not set
             }

@@ -1,5 +1,6 @@
 // models/notificationModel.js
 const pool = require('../config/db');
+const { normalizeRole } = require('../utils/roleUtils');
 
 class Notification {
   /**
@@ -225,6 +226,49 @@ class Notification {
       type: 'info',
       entity_type: 'property',
       entity_id: propertyId
+    });
+  }
+
+  /**
+   * Create complaint-related notifications
+   */
+  static async createComplaintNotification(complaintId, complaintData, actorUserId) {
+    const recipientIds = new Set();
+    const targetRole = normalizeRole(complaintData.target_user_role);
+
+    const managementRoles = ['admin', 'operations manager', 'operations', 'hr'];
+    const managementResult = await pool.query(
+      `SELECT id
+       FROM users
+       WHERE role = ANY($1::text[])
+         AND COALESCE(is_active, true) = true
+         AND id <> $2`,
+      [managementRoles, actorUserId]
+    );
+    managementResult.rows.forEach((row) => recipientIds.add(row.id));
+
+    if (['agent', 'consultant'].includes(targetRole) && complaintData.target_assigned_to) {
+      const teamLeaderId = Number(complaintData.target_assigned_to);
+      if (!Number.isNaN(teamLeaderId) && teamLeaderId !== actorUserId) {
+        recipientIds.add(teamLeaderId);
+      }
+    }
+
+    if (recipientIds.size === 0) {
+      return 0;
+    }
+
+    const title = 'New Complaint';
+    const targetLabel = complaintData.target_user_name || 'user';
+    const leadLabel = complaintData.lead_name || `lead #${complaintData.lead_id}`;
+    const message = `A complaint titled "${complaintData.title}" was added for ${targetLabel} on lead "${leadLabel}".`;
+
+    return await this.createNotificationForUsers(Array.from(recipientIds), {
+      title,
+      message,
+      type: 'urgent',
+      entity_type: 'complaint',
+      entity_id: complaintId
     });
   }
 

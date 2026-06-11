@@ -120,7 +120,7 @@ class ReportsController {
       const filters = {};
       
       // Apply role-based filtering
-      if (role === 'agent') {
+      if (['agent', 'consultant'].includes(role)) {
         // Agents can only see their own reports
         filters.agent_id = userId;
       } else if (role === 'team leader') {
@@ -209,7 +209,7 @@ class ReportsController {
       }
       
       // Check permissions
-      if (role === 'agent') {
+      if (['agent', 'consultant'].includes(role)) {
         // Agents can only view their own reports
         if (report.agent_id !== userId) {
           return res.status(403).json({
@@ -236,7 +236,7 @@ class ReportsController {
         // Team leaders see full data for team agent reports (no filtering)
       } else if (role === 'agent manager') {
         // Agent manager can only see reports for agents
-        if (report.agent_role !== 'agent') {
+        if (!['agent', 'consultant'].includes(report.agent_role)) {
           return res.status(403).json({
             success: false,
             message: 'You can only view reports for agents'
@@ -497,7 +497,7 @@ class ReportsController {
         // Don't parse lead_sources for team leaders since they can't see it
         report.lead_sources = {};
       } else if (role === 'agent manager') {
-        if (report.agent_role !== 'agent') {
+        if (!['agent', 'consultant'].includes(report.agent_role)) {
           return res.status(403).json({
             success: false,
             message: 'You can only export reports for agents'
@@ -615,7 +615,7 @@ class ReportsController {
         // Don't parse lead_sources for team leaders since they can't see it
         report.lead_sources = {};
       } else if (role === 'agent manager') {
-        if (report.agent_role !== 'agent') {
+        if (!['agent', 'consultant'].includes(report.agent_role)) {
           return res.status(403).json({
             success: false,
             message: 'You can only export reports for agents'

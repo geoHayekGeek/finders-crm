@@ -222,7 +222,7 @@ export function LeadsModals({
     if (!user || !viewingLead) return false
     const normalizedRole = normalizeRole(user.role)
     const isAssignedAgent = viewingLead.agent_id === user.id
-    if (normalizedRole === 'agent') return !!isAssignedAgent
+    if (['agent', 'consultant'].includes(normalizedRole)) return !!isAssignedAgent
     // Team leaders can add notes (backend will validate if they can view the lead)
     if (normalizedRole === 'team leader') return true
     // Operations can add on any lead
@@ -1158,7 +1158,7 @@ export function LeadsModals({
 
                     // Check user role and assignment
                     const normalizedUserRole = normalizeRole(user.role);
-                    const canRefer = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') &&
+                    const canRefer = (['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') &&
                                      viewingLead.agent_id === user.id
                     
                     if (!canRefer) {

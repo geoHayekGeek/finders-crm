@@ -272,7 +272,7 @@ export function AddUserModal({ allowedRoles, onClose, onSuccess }: AddUserModalP
                 {formData.role === 'operations' && 'Can manage system operations'}
                 {formData.role === 'agent manager' && 'Can manage agents and sales team'}
                 {normalizeRole(formData.role) === 'team leader' && 'Can manage agents and properties'}
-                {formData.role === 'agent' && 'Can manage assigned properties'}
+                {['agent', 'consultant'].includes(formData.role) && 'Can manage assigned properties'}
                 {formData.role === 'accountant' && 'Can manage financial records and transactions'}
               </p>
             </div>

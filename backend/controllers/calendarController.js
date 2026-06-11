@@ -4,6 +4,7 @@ const Notification = require('../models/notificationModel');
 const User = require('../models/userModel');
 const pool = require('../config/db');
 const ReminderService = require('../services/reminderService');
+const { isAgentLikeRole } = require('../utils/roleUtils');
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 // Converts to space format for consistent comparisons
@@ -40,6 +41,7 @@ const ROLE_HIERARCHY = {
   'agent manager': 3,
   'team leader': 2,
   'agent': 1,
+  'consultant': 1,
   'accountant': 1
 };
 
@@ -959,7 +961,7 @@ const getPropertiesForDropdown = async (req, res) => {
     // All roles can see properties, but with different filtering
     if (roleFilters.canViewAll) {
       properties = await Property.getAllProperties();
-    } else if (roleFilters.role === 'agent') {
+    } else if (isAgentLikeRole(roleFilters.role)) {
       // Agents can only see their own properties and referrals
       properties = await Property.getPropertiesAssignedOrReferredByAgent(userId);
     } else if (roleFilters.role === 'team leader') {

@@ -10,6 +10,7 @@ const ROLES = {
   AGENT_MANAGER: 'agent manager',
   TEAM_LEADER: 'team leader',
   AGENT: 'agent',
+  CONSULTANT: 'consultant',
   ACCOUNTANT: 'accountant',
   HR: 'hr'
 };
@@ -17,16 +18,19 @@ const ROLES = {
 // Role groups for common permission checks
 const ADMIN_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER];
 const MANAGEMENT_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
-const PROPERTY_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER, ROLES.AGENT];
+const AGENT_LIKE_ROLES = [ROLES.AGENT, ROLES.CONSULTANT];
+const PROPERTY_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER, ...AGENT_LIKE_ROLES];
 const PROPERTY_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
 const USER_MANAGE_ROLES = [ROLES.ADMIN, ROLES.HR, ROLES.OPERATIONS_MANAGER];
-const LEAD_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.AGENT, ROLES.TEAM_LEADER];
-const LEAD_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT, ROLES.TEAM_LEADER];
-const VIEWING_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.AGENT, ROLES.TEAM_LEADER];
+const LEAD_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ...AGENT_LIKE_ROLES, ROLES.TEAM_LEADER];
+const LEAD_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ...AGENT_LIKE_ROLES, ROLES.TEAM_LEADER];
+const VIEWING_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ...AGENT_LIKE_ROLES, ROLES.TEAM_LEADER];
 const VIEWING_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
 const AGENT_PERFORMANCE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER];
-const CATEGORY_STATUS_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.AGENT, ROLES.TEAM_LEADER];
+const CATEGORY_STATUS_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ...AGENT_LIKE_ROLES, ROLES.TEAM_LEADER];
 const CATEGORY_STATUS_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER];
+const COMPLAINT_MANAGE_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.HR, ROLES.TEAM_LEADER];
+const COMPLAINT_VIEW_ROLES = [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.HR, ROLES.TEAM_LEADER];
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats
 const normalizeRole = (role) => {
@@ -119,6 +123,19 @@ const PERMISSIONS = {
     dashboard: ['limited_access'],
     categories: ['read'], // Can view categories (needed for properties page functionality)
     statuses: ['read'] // Can view statuses (needed for properties page functionality)
+  },
+
+  consultant: {
+    properties: ['read', 'view_all_filtered'],
+    clients: [],
+    leads: [],
+    viewings: ['create', 'read', 'update', 'view_own'],
+    analytics: [],
+    users: ['read_self'],
+    settings: ['read_self'],
+    dashboard: ['limited_access'],
+    categories: ['read'],
+    statuses: ['read']
   },
   
   // Accountant: No access to properties, categories, statuses, or leads
@@ -711,7 +728,7 @@ const canViewReports = (req, res, next) => {
 
   const role = normalizeRole(req.user.role);
   // Block agents from accessing reports entirely
-  if (role === ROLES.AGENT) {
+  if (AGENT_LIKE_ROLES.includes(role)) {
     logger.security('Reports access denied (agent)', {
       userId: req.user.id,
       role: req.user.role,
@@ -744,6 +761,62 @@ const canViewReports = (req, res, next) => {
   next();
 };
 
+const canViewComplaints = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    logger.security('canViewComplaints called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = normalizeRole(req.user.role);
+  if (COMPLAINT_VIEW_ROLES.includes(role)) {
+    next();
+  } else {
+    logger.security('Complaint viewing access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(403).json({
+      message: 'Access denied. You do not have permission to view complaints.'
+    });
+  }
+};
+
+const canManageComplaints = (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    logger.security('canManageComplaints called without user role', {
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(403).json({ message: 'User role not found' });
+  }
+
+  const role = normalizeRole(req.user.role);
+  if (COMPLAINT_MANAGE_ROLES.includes(role)) {
+    next();
+  } else {
+    logger.security('Complaint management access denied', {
+      userId: req.user.id,
+      role: req.user.role,
+      normalizedRole: role,
+      url: req.url,
+      method: req.method,
+      ip: req.ip
+    });
+    return res.status(403).json({
+      message: 'Access denied. You do not have permission to create complaints.'
+    });
+  }
+};
+
 // Middleware to filter data based on user role
 const filterDataByRole = (req, res, next) => {
   logger.debug('filterDataByRole middleware called', {
@@ -773,13 +846,15 @@ const filterDataByRole = (req, res, next) => {
     canViewAllUsers: USER_MANAGE_ROLES.includes(role),
     canManageCategoriesAndStatuses: CATEGORY_STATUS_MANAGE_ROLES.includes(role),
     canViewCategoriesAndStatuses: CATEGORY_STATUS_VIEW_ROLES.includes(role),
-    canManageLeads: [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS].includes(role),
+    canManageLeads: [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.TEAM_LEADER, ...AGENT_LIKE_ROLES].includes(role),
     canDeleteLeads: ADMIN_ROLES.includes(role),
     canViewLeads: LEAD_VIEW_ROLES.includes(role) && ![ROLES.HR, ROLES.ACCOUNTANT].includes(role),
     canViewClients: [ROLES.ADMIN, ROLES.OPERATIONS_MANAGER, ROLES.OPERATIONS, ROLES.AGENT_MANAGER, ROLES.TEAM_LEADER].includes(role),
     canManageViewings: VIEWING_MANAGE_ROLES.includes(role),
     canViewViewings: VIEWING_VIEW_ROLES.includes(role),
-    canManageAllViewings: VIEWING_MANAGE_ROLES.includes(role)
+    canManageAllViewings: VIEWING_MANAGE_ROLES.includes(role),
+    canViewComplaints: COMPLAINT_VIEW_ROLES.includes(role),
+    canManageComplaints: COMPLAINT_MANAGE_ROLES.includes(role)
   };
 
   logger.debug('Role filters set', { role, userId: req.user.id });
@@ -1029,6 +1104,8 @@ module.exports = {
   canDeleteLeads,
   canViewLeads,
   canViewReports,
+  canViewComplaints,
+  canManageComplaints,
   canViewDCSR,
   canManageDCSR,
   canViewSaleRentSource,

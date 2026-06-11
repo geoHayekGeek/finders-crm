@@ -85,6 +85,7 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
       'agent manager': 'bg-indigo-100 text-indigo-800 border-indigo-200',
       team_leader: 'bg-blue-100 text-blue-800 border-blue-200',
       agent: 'bg-green-100 text-green-800 border-green-200',
+      consultant: 'bg-cyan-100 text-cyan-800 border-cyan-200',
       accountant: 'bg-yellow-100 text-yellow-800 border-yellow-200',
     }
     return colors[role] || 'bg-gray-100 text-gray-800 border-gray-200'
@@ -220,7 +221,7 @@ export function ViewUserModal({ user, onClose, onEdit, onViewDocuments }: ViewUs
             </div>
 
             {/* Agent Assignment Info & Properties/Leads */}
-            {user.role === 'agent' && (
+            {['agent', 'consultant'].includes(user.role) && (
               <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                 <h4 className="text-sm font-medium text-blue-900 mb-3">Agent Status</h4>
                 <div className="space-y-3">

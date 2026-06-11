@@ -10,6 +10,12 @@
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
+const isAgentLikeRole = (role) => {
+  const normalized = normalizeRole(role);
+  return normalized === 'agent' || normalized === 'consultant';
+};
+
 module.exports = {
-  normalizeRole
+  normalizeRole,
+  isAgentLikeRole
 };

@@ -106,6 +106,35 @@ describe('canViewViewingsForProperty', () => {
     })
   })
 
+  describe('when user is a consultant', () => {
+    const consultantUser: User = {
+      id: 12,
+      name: 'Consultant User',
+      email: 'consultant@test.com',
+      role: 'consultant',
+      user_code: 'CON001',
+      is_active: true,
+      created_at: '2024-01-01',
+      updated_at: '2024-01-01'
+    }
+
+    it('should return true for properties assigned to the consultant', () => {
+      const assignedProperty: Property = {
+        ...mockProperty,
+        agent_id: 12
+      }
+      expect(canViewViewingsForProperty(assignedProperty, consultantUser, false)).toBe(true)
+    })
+
+    it('should return false for properties assigned to other users', () => {
+      const otherProperty: Property = {
+        ...mockProperty,
+        agent_id: 77
+      }
+      expect(canViewViewingsForProperty(otherProperty, consultantUser, false)).toBe(false)
+    })
+  })
+
   describe('when user is a team leader', () => {
     const teamLeaderUser: User = {
       id: 10,

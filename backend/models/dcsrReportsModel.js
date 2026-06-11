@@ -414,7 +414,7 @@ async function getAllTeams() {
            FROM team_agents ta 
            WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
          )
-         OR (u.assigned_to = $1 AND u.role = 'agent')
+         OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))
          ORDER BY u.role DESC, u.name ASC`,
         [leader.id]
       );
@@ -477,7 +477,7 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
          FROM team_agents ta 
          WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
        )
-       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))`,
       [teamLeaderId]
     );
     
@@ -570,7 +570,7 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
          FROM team_agents ta 
          WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
        )
-       OR (u.assigned_to = $1 AND u.role = 'agent')
+       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))
        ORDER BY u.role DESC, u.name ASC`,
       [teamLeaderId]
     );
@@ -639,7 +639,7 @@ async function getTeamProperties(teamLeaderId, startDateInput, endDateInput, fil
          FROM team_agents ta 
          WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
        )
-       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))`,
       [teamLeaderId]
     );
     
@@ -756,7 +756,7 @@ async function getTeamLeads(teamLeaderId, startDateInput, endDateInput, filters 
          FROM team_agents ta 
          WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
        )
-       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))`,
       [teamLeaderId]
     );
     
@@ -841,7 +841,7 @@ async function getTeamViewings(teamLeaderId, startDateInput, endDateInput, filte
          FROM team_agents ta 
          WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
        )
-       OR (u.assigned_to = $1 AND u.role = 'agent')`,
+       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))`,
       [teamLeaderId]
     );
     

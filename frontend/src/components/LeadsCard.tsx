@@ -32,7 +32,7 @@ export function LeadsCard({
   const { user } = useAuth()
 
   const normalizedUserRole = normalizeRole(user?.role)
-  const canReferLead = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') &&
+  const canReferLead = ((['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader')) &&
     lead.agent_id === user?.id
 
   return (

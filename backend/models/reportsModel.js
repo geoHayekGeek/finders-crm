@@ -999,7 +999,7 @@ class Report {
 
       // Filter by agent role only (for agent manager)
       if (filters.agent_role_only) {
-        query += ` AND u.role = 'agent'`;
+        query += ` AND u.role IN ('agent', 'consultant')`;
       }
 
       const startDateFilter = filters.start_date || filters.date_from;

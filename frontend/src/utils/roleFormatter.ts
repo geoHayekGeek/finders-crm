@@ -8,6 +8,7 @@ export function formatRole(role: string): string {
   const roleMap: Record<string, string> = {
     'admin': 'Administrator',
     'agent': 'Real Estate Agent',
+    'consultant': 'Consultant',
     'agent manager': 'Agent Manager',
     'operations': 'Operations Staff',
     'operations manager': 'Operations Manager',
@@ -36,6 +37,7 @@ export function getRoleColor(role: string): string {
   const colorMap: Record<string, string> = {
     'admin': 'bg-red-100 text-red-800',
     'agent': 'bg-blue-100 text-blue-800',
+    'consultant': 'bg-cyan-100 text-cyan-800',
     'agent manager': 'bg-purple-100 text-purple-800',
     'operations': 'bg-green-100 text-green-800',
     'operations manager': 'bg-green-100 text-green-800',

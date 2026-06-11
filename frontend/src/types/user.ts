@@ -21,7 +21,7 @@ export interface User {
   id: number
   name: string
   email: string
-  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
+  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'consultant' | 'accountant'
   phone?: string
   dob?: string
   /** Optional HR: planned or actual start in role (never auto-filled) */
@@ -56,7 +56,7 @@ export interface CreateUserFormData {
   name: string
   email: string
   password: string
-  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
+  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'consultant' | 'accountant'
   phone?: string
   dob?: string
   employment_start_date?: string
@@ -67,7 +67,7 @@ export interface CreateUserFormData {
 export interface EditUserFormData {
   name: string
   email: string
-  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'accountant'
+  role: 'admin' | 'operations manager' | 'operations' | 'agent manager' | 'team_leader' | 'agent' | 'consultant' | 'accountant'
   phone?: string
   dob?: string
   employment_start_date?: string

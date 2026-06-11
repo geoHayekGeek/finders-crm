@@ -36,6 +36,7 @@ const ALL_USER_ROLES: User['role'][] = [
   'agent manager',
   'team_leader',
   'agent',
+  'consultant',
   'accountant'
 ]
 
@@ -108,7 +109,7 @@ export default function HRPage() {
     // Team leader: edit self (incl. team roster) or team agents — not other roles
     if (normalizedCurrentUserRole === 'team leader') {
       if (targetUser.id === currentUserId) return true
-      return roleEquals(targetUser.role, 'agent')
+      return roleIn(targetUser.role, ['agent', 'consultant'])
     }
     return false
   }
@@ -120,7 +121,7 @@ export default function HRPage() {
       return true
     }
     if (normalizedCurrentUserRole === 'team leader') {
-      return roleEquals(targetUser.role, 'agent')
+      return roleIn(targetUser.role, ['agent', 'consultant'])
     }
     return false
   }
@@ -162,8 +163,8 @@ export default function HRPage() {
       if (targetUser.id === currentUserId) {
         return ['team_leader']
       }
-      if (roleEquals(targetUser.role, 'agent')) {
-        return ['agent']
+      if (roleIn(targetUser.role, ['agent', 'consultant'])) {
+        return [targetUser.role]
       }
     }
     return []
@@ -344,7 +345,7 @@ export default function HRPage() {
       }
       
       // Count assigned agents
-      if (roleEquals(user.role, 'agent') && user.is_assigned) {
+      if (roleIn(user.role, ['agent', 'consultant']) && user.is_assigned) {
         assignedAgents++
       }
     })
@@ -354,7 +355,7 @@ export default function HRPage() {
       usersByRole: Object.entries(roleCount).map(([role, count]) => ({ role, count })),
       usersByLocation: Object.entries(locationCount).map(([work_location, count]) => ({ work_location, count })),
       assignedAgents,
-      unassignedAgents: (roleCount['agent'] || 0) - assignedAgents
+      unassignedAgents: ((roleCount['agent'] || 0) + (roleCount['consultant'] || 0)) - assignedAgents
     })
   }
 
@@ -723,6 +724,7 @@ export default function HRPage() {
           'agent manager': 'bg-indigo-100 text-indigo-800',
           team_leader: 'bg-blue-100 text-blue-800',
           agent: 'bg-green-100 text-green-800',
+          consultant: 'bg-cyan-100 text-cyan-800',
           accountant: 'bg-yellow-100 text-yellow-800',
         }
         const roleDisplay = user.role ? user.role.replace(/_/g, ' ').toUpperCase() : 'N/A'
@@ -829,7 +831,7 @@ export default function HRPage() {
         const teamLeaderCode = user.team_leader_code
         
         // For agents: show team assignment status
-        if (roleEquals(user.role, 'agent')) {
+        if (roleIn(user.role, ['agent', 'consultant'])) {
           const teamLeaderId = user.assigned_to
           return (
             <div className="flex flex-col gap-1">
@@ -1054,7 +1056,7 @@ export default function HRPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Agents</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {stats.usersByRole?.find((r: any) => roleEquals(r.role, 'agent'))?.count || 0}
+                  {stats.usersByRole?.reduce((sum: number, r: any) => sum + (roleIn(r.role, ['agent', 'consultant']) ? r.count : 0), 0) || 0}
                 </p>
               </div>
             </div>
@@ -1409,7 +1411,7 @@ export default function HRPage() {
           allowedRoles={getEditableRolesForUser(selectedUser)}
           scrollToTeamOnOpen={editScrollToOperationsTeam}
           teamLeaderRestricted={
-            normalizedCurrentUserRole === 'team leader' && roleEquals(selectedUser.role, 'agent')
+            normalizedCurrentUserRole === 'team leader' && roleIn(selectedUser.role, ['agent', 'consultant'])
           }
           onClose={() => {
             setShowEditModal(false)

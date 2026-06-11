@@ -4,6 +4,7 @@ const {
   buildLeadRoleWhereClause,
   isTruthyLeadRole,
 } = require('../utils/leadRoles');
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 
 const LEAD_SELECT_COLUMNS = `
   l.id,
@@ -511,10 +512,9 @@ class Lead {
   }
 
   static async getLeadsForAgent(agentId, userRole) {
-    const normalizeRole = (role) => (role ? role.toLowerCase().replace(/_/g, ' ').trim() : '');
     const normalizedRole = normalizeRole(userRole);
 
-    if (normalizedRole === 'agent') {
+    if (isAgentLikeRole(normalizedRole)) {
       return this.getLeadsAssignedOrReferredByAgent(agentId);
     }
 
@@ -565,7 +565,7 @@ class Lead {
     const result = await pool.query(`
       SELECT id, name, email, role
       FROM users
-      WHERE role IN ('admin', 'operations_manager', 'operations', 'agent', 'team_leader')
+      WHERE role IN ('admin', 'operations_manager', 'operations', 'agent', 'consultant', 'team_leader')
       ORDER BY name
     `);
 

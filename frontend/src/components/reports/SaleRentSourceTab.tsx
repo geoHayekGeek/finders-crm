@@ -110,7 +110,7 @@ export default function SaleRentSourceTab() {
           const agentsList = response.users.filter(
             (u: User) => {
               const normalizedAgentRole = normalizeRole(u.role);
-              return normalizedAgentRole === 'agent' || normalizedAgentRole === 'team leader';
+              return (['agent', 'consultant'].includes(normalizedAgentRole) || normalizedAgentRole === 'team leader');
             }
           )
           setAgents(agentsList)

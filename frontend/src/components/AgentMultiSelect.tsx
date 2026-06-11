@@ -133,6 +133,8 @@ export function AgentMultiSelect({
         return 'bg-blue-100 text-blue-700'
       case 'agent':
         return 'bg-green-100 text-green-700'
+      case 'consultant':
+        return 'bg-cyan-100 text-cyan-700'
       case 'operations':
         return 'bg-orange-100 text-orange-700'
       case 'accountant':

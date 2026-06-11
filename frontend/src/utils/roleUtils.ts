@@ -17,5 +17,8 @@ export const isTeamLeaderRole = (role?: string | null) =>
   normalizeRole(role) === 'team leader'
 
 export const isAgentRole = (role?: string | null) =>
-  normalizeRole(role) === 'agent'
+  ['agent', 'consultant'].includes(normalizeRole(role))
+
+export const isAgentLikeRole = (role?: string | null) =>
+  isAgentRole(role)
 

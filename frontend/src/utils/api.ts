@@ -1,6 +1,7 @@
 import { Property, Category, Status } from '@/types/property'
 import { CalendarLocation } from '@/types/location'
 import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote, LeadsImportResponse } from '@/types/leads'
+import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
@@ -984,6 +985,26 @@ export const notificationsApi = {
     },
     body: JSON.stringify(data),
   })
+}
+
+// Complaints API
+export const complaintsApi = {
+  getAll: (filters: ComplaintFilters = {}, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<ComplaintsResponse>(`/complaints${queryString ? `?${queryString}` : ''}`, {}, token)
+  },
+
+  create: (data: CreateComplaintFormData, token?: AuthToken) =>
+    apiRequest<ComplaintResponse>('/complaints', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }, token)
 }
 
 // Mock data for development (when backend is not available)

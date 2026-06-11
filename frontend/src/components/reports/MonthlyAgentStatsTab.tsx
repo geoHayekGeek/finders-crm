@@ -45,7 +45,7 @@ export default function MonthlyAgentStatsTab() {
   const canDeleteReport = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations'
   const isTeamLeader = normalizedRole === 'team leader'
   const isViewOnly = normalizedRole === 'accountant' || normalizedRole === 'agent manager' || normalizedRole === 'hr'
-  const isLimitedView = normalizedRole === 'agent' // Team leaders can see their team, so don't lock them
+  const isLimitedView = ['agent', 'consultant'].includes(normalizedRole) // Team leaders can see their team, so don't lock them
   const lockedAgentId = isLimitedView && user ? user.id : undefined
 
   // Load data
@@ -323,7 +323,7 @@ export default function MonthlyAgentStatsTab() {
   }
 
   // Only show limited view for agents (not team leaders - they can filter by their team)
-  if (role === 'agent') {
+  if (['agent', 'consultant'].includes(role)) {
     const handleViewEarnings = (report: MonthlyAgentReport) => {
       setSelectedReport(report)
       setShowEarningsModal(true)

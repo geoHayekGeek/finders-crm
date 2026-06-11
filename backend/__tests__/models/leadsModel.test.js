@@ -526,6 +526,7 @@ describe('Lead Model', () => {
           { id: 2, name: 'Ops Manager', role: 'operations_manager' },
           { id: 3, name: 'Ops User', role: 'operations' },
           { id: 4, name: 'Agent', role: 'agent' },
+          { id: 6, name: 'Consultant', role: 'consultant' },
           { id: 5, name: 'Team Leader', role: 'team_leader' }
         ]
       };
@@ -534,13 +535,14 @@ describe('Lead Model', () => {
 
       const result = await Lead.getUsersWhoCanAddLeads();
 
-      expect(result).toHaveLength(5);
+      expect(result).toHaveLength(6);
       expect(mockQuery).toHaveBeenCalled();
       const queryCall = mockQuery.mock.calls[0][0];
       expect(queryCall).toContain('admin');
       expect(queryCall).toContain('operations_manager');
       expect(queryCall).toContain('operations');
       expect(queryCall).toContain('agent');
+      expect(queryCall).toContain('consultant');
       expect(queryCall).toContain('team_leader');
     });
   });
@@ -551,6 +553,15 @@ describe('Lead Model', () => {
       mockQuery.mockResolvedValueOnce(mockLeads);
 
       const result = await Lead.getLeadsForAgent(1, 'agent');
+
+      expect(result).toHaveLength(1);
+    });
+
+    it('should return assigned leads for consultant role', async () => {
+      const mockLeads = { rows: [{ id: 1, agent_id: 1 }] };
+      mockQuery.mockResolvedValueOnce(mockLeads);
+
+      const result = await Lead.getLeadsForAgent(1, 'consultant');
 
       expect(result).toHaveLength(1);
     });

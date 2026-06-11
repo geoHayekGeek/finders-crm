@@ -6,7 +6,7 @@ const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const ReminderService = require('../services/reminderService');
 const logger = require('../utils/logger');
-const { normalizeRole } = require('../utils/roleUtils');
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 
 class ViewingsController {
   // Helper function to find calendar event by viewing ID
@@ -92,7 +92,7 @@ class ViewingsController {
       const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      if (userRole === 'agent') {
+      if (isAgentLikeRole(userRole)) {
         // Agents see only their viewings, with filters
         // If filtering by property_id, verify the property belongs to the agent first
         if (req.query.property_id) {
@@ -266,7 +266,7 @@ class ViewingsController {
       const userRole = normalizeRole(req.user.role);
       const userId = req.user.id;
       
-      if (userRole === 'agent' && viewing.agent_id !== userId) {
+      if (isAgentLikeRole(userRole) && viewing.agent_id !== userId) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to view this viewing'
@@ -336,7 +336,7 @@ class ViewingsController {
       }
       
       // Security: For agents, check if the property belongs to them
-      if (userRole === 'agent') {
+      if (isAgentLikeRole(userRole)) {
         // Check if the property is assigned to this agent
         const propertyCheck = await pool.query(
           'SELECT agent_id FROM properties WHERE id = $1',
@@ -736,7 +736,7 @@ class ViewingsController {
       const userId = req.user.id;
       
       // Check permissions
-      if (userRole === 'agent' && existingViewing.agent_id !== userId) {
+      if (isAgentLikeRole(userRole) && existingViewing.agent_id !== userId) {
         return res.status(403).json({
           success: false,
           message: 'You can only update your own viewings'
@@ -756,7 +756,7 @@ class ViewingsController {
       }
       
       // Agents cannot reassign viewings to others - ALWAYS override agent_id for agents
-      if (userRole === 'agent') {
+      if (isAgentLikeRole(userRole)) {
         if (req.body.agent_id && req.body.agent_id !== userId) {
           logger.security('Agent attempted to reassign viewing to different agent', {
             agentId: userId,
@@ -1066,7 +1066,7 @@ class ViewingsController {
       logger.debug('Getting viewings for agent', { agentId, requestedBy: userId, userRole });
       
       // Permission checks
-      if (userRole === 'agent') {
+      if (isAgentLikeRole(userRole)) {
         // Agents can only view their own viewings
         if (parseInt(agentId) !== userId) {
           return res.status(403).json({
@@ -1141,7 +1141,7 @@ class ViewingsController {
       const userId = req.user.id;
       
       // Check permissions
-      if (userRole === 'agent' && parentViewing.agent_id !== userId) {
+      if (isAgentLikeRole(userRole) && parentViewing.agent_id !== userId) {
         return res.status(403).json({
           success: false,
           message: 'You can only add follow-up viewings to your own viewings'
@@ -1269,7 +1269,7 @@ class ViewingsController {
       const userId = req.user.id;
 
       // Check permissions (same as updating a regular viewing)
-      if (userRole === 'agent' && followUpViewing.agent_id !== userId) {
+      if (isAgentLikeRole(userRole) && followUpViewing.agent_id !== userId) {
         return res.status(403).json({
           success: false,
           message: 'You can only update your own follow-up viewings'

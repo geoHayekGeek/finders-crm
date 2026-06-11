@@ -12,7 +12,7 @@ const {
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const logger = require('../utils/logger');
-const { normalizeRole } = require('../utils/roleUtils');
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 const leadsImportService = require('../services/leadsImport');
 
 const LEAD_ROLE_VALIDATION_MESSAGE = 'Lead must be buyer, seller, or both';
@@ -75,7 +75,7 @@ class LeadsController {
           totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
         };
 
-        if (['agent', 'team leader'].includes(normalizedRole)) {
+        if (['agent', 'consultant', 'team leader'].includes(normalizedRole)) {
           leads = await applySensitiveMaskingForLeadsList(leads, req.user.id, normalizedRole);
         } else if (!['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
           return res.status(403).json({
@@ -85,7 +85,7 @@ class LeadsController {
         }
       } else if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
         leads = await Lead.getAllLeads();
-      } else if (['agent', 'team leader'].includes(normalizedRole)) {
+      } else if (['agent', 'consultant', 'team leader'].includes(normalizedRole)) {
         leads = await Lead.getAllLeads();
         leads = await applySensitiveMaskingForLeadsList(leads, req.user.id, normalizedRole);
       } else {
@@ -134,7 +134,7 @@ class LeadsController {
       let agentScopeIds = null;
       if (
         wantsMyTeam &&
-        (normalizedRole === 'agent' || normalizedRole === 'team leader')
+        (isAgentLikeRole(normalizedRole) || normalizedRole === 'team leader')
       ) {
         agentScopeIds = await User.getTeamPropertyAgentScopeIds(userId, normalizedRole);
       }
@@ -154,10 +154,10 @@ class LeadsController {
           totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
         };
 
-        if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
+        if (isAgentLikeRole(normalizedRole) || normalizedRole === 'team leader') {
           leads = await applySensitiveMaskingForLeadsList(leads, userId, normalizedRole);
         }
-      } else if (normalizedRole === 'agent' || normalizedRole === 'team leader') {
+      } else if (isAgentLikeRole(normalizedRole) || normalizedRole === 'team leader') {
         logger.debug('Agent or team leader — all leads with filters + sensitive masking', { userId });
         leads = await Lead.getLeadsWithFilters(filterQuery);
         if (wantsMyTeam) {
@@ -214,7 +214,7 @@ class LeadsController {
       // Admin, operations, operations manager, and agent manager have full access to lead data
       if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
         // Full access
-      } else if (['agent', 'team leader'].includes(normalizedRole)) {
+      } else if (['agent', 'consultant', 'team leader'].includes(normalizedRole)) {
         // All leads are visible; sensitive fields masked unless assigned to them / their team
         lead = await applySensitiveMaskingForLeadDetail(lead, userId, normalizedRole);
       } else {
@@ -247,7 +247,7 @@ class LeadsController {
       let leadData = { ...req.body };
       // For agents and team leaders, always set added_by_id to themselves
       // For admin/operations, use provided added_by_id or default to current user
-      if (['agent', 'team leader'].includes(normalizeRole(req.user.role))) {
+      if (['agent', 'consultant', 'team leader'].includes(normalizeRole(req.user.role))) {
         leadData.added_by_id = req.user.id;
       } else if (!leadData.added_by_id) {
         // For other roles, default to current user if not provided
@@ -383,7 +383,7 @@ class LeadsController {
       // Admin, operations, operations manager, and agent manager have full access
       if (['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
         // Full access - no restrictions
-      } else if (normalizedRole === 'agent' && existingLead.agent_id !== userId) {
+      } else if (isAgentLikeRole(normalizedRole) && existingLead.agent_id !== userId) {
         // Agents can only update leads they're assigned to
         return res.status(403).json({
           success: false,
@@ -768,7 +768,7 @@ class LeadsController {
       
       // Admin, operations, operations manager, and agent manager have full access
       if (!['admin', 'operations', 'operations_manager', 'agent_manager'].includes(normalizedRole)) {
-        if (normalizedRole === 'agent') {
+        if (isAgentLikeRole(normalizedRole)) {
           // Agents can view referrals for leads they're assigned to OR leads they referred
           if (lead.agent_id !== userId) {
             // Check if this agent made any referrals for this lead
@@ -933,7 +933,7 @@ class LeadsController {
     }
 
     // Agent sees their own notes + notes from previous agents who had this lead
-    if (role === 'agent') {
+    if (isAgentLikeRole(role)) {
       // Get all agent IDs who have been assigned/referred to this lead
       const leadAgentIds = await LeadsController.getLeadAgentIds(lead.id);
       
@@ -1019,7 +1019,7 @@ class LeadsController {
         canAddNote = true;
       }
       // Agent can add notes if they have access to the lead
-      else if (role === 'agent') {
+      else if (isAgentLikeRole(role)) {
         // Agent can add notes if they are currently assigned to the lead
         // OR if they have been assigned/referred to this lead before
         if (lead.agent_id === userId) {
@@ -1334,7 +1334,7 @@ class LeadsController {
       }
 
       // For agents and team leaders, they can only refer leads assigned to them
-      if (roleFilters.role === 'agent' || roleFilters.role === 'team leader') {
+      if (isAgentLikeRole(roleFilters.role) || roleFilters.role === 'team leader') {
         if (lead.agent_id !== userId) {
           return res.status(403).json({ 
             message: 'Access denied. You can only refer leads that are assigned to you.' 
@@ -1386,7 +1386,7 @@ class LeadsController {
       const userId = req.user.id;
 
       // Only agents and team leaders can have pending referrals
-      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+      if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
         return res.status(403).json({ 
           message: 'Access denied. Only agents and team leaders can have pending referrals.' 
         });
@@ -1412,7 +1412,7 @@ class LeadsController {
       const userId = req.user.id;
 
       // Only agents and team leaders can have pending referrals
-      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+      if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
         return res.json({
           success: true,
           count: 0
@@ -1439,7 +1439,7 @@ class LeadsController {
       const userId = req.user.id;
 
       // Only agents and team leaders can confirm referrals
-      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+      if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
         return res.status(403).json({ 
           message: 'Access denied. Only agents and team leaders can confirm referrals.' 
         });
@@ -1485,7 +1485,7 @@ class LeadsController {
       const userId = req.user.id;
 
       // Only agents and team leaders can reject referrals
-      if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+      if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
         return res.status(403).json({ 
           message: 'Access denied. Only agents and team leaders can reject referrals.' 
         });

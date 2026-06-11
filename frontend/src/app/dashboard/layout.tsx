@@ -5,7 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
-import { normalizeRole } from '@/utils/roleUtils'
+import { normalizeRole, isAgentRole } from '@/utils/roleUtils'
 import { 
   Building2, 
   FileText, 
@@ -25,6 +25,7 @@ import {
   Briefcase,
   Eye,
   BarChart3,
+  CircleAlert,
   LucideIcon
 } from 'lucide-react'
 import NotificationBell from '@/components/NotificationBell'
@@ -71,7 +72,7 @@ export default function DashboardLayout({
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false)
   const { user, logout } = useAuth()
-  const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canViewViewings, role } = usePermissions()
+  const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canViewViewings, canViewComplaints, canManageComplaints, role } = usePermissions()
   const { settings } = useSettings()
   const router = useRouter()
 
@@ -81,7 +82,7 @@ export default function DashboardLayout({
     const normalizedRole = normalizeRole(role)
 
     // For agents: show properties, leads, viewings, calendar (+ HR only when allowed)
-    if (normalizedRole === 'agent') {
+    if (isAgentRole(normalizedRole)) {
       baseNavigation.push({ 
         name: 'Properties', 
         href: '/properties', 
@@ -135,6 +136,15 @@ export default function DashboardLayout({
         alwaysVisible: true,
         hasSubmenu: false,
         submenu: undefined
+      })
+    }
+
+    if (canViewComplaints || canManageComplaints) {
+      baseNavigation.push({
+        name: 'Complaints',
+        href: '/dashboard/complaints',
+        icon: CircleAlert,
+        alwaysVisible: true
       })
     }
 

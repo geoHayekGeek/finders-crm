@@ -35,7 +35,7 @@ export function PropertyCard({ property, onView, onEdit, onDelete }: PropertyCar
   
   // Agents and team leaders can only refer properties that are assigned to them and can be referred
   const normalizedUserRole = normalizeRole(user?.role);
-  const canReferProperty = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
+  const canReferProperty = ((['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader')) && 
                            property.agent_id === user?.id &&
                            (property.status_can_be_referred !== false) // Default to true if not set
   const formatPrice = (price?: number) => {

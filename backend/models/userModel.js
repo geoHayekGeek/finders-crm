@@ -1,5 +1,6 @@
 // models/userModel.js
 const pool = require('../config/db');
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 
 class User {
   static async createUser({
@@ -148,6 +149,17 @@ class User {
   }
 
   static async getUsersByRole(role) {
+    const normalizedRole = normalizeRole(role);
+    if (normalizedRole === 'agent') {
+      const result = await pool.query(
+        `SELECT id, name, email, role, phone, dob, user_code, address, created_at, updated_at
+         FROM users
+         WHERE role IN ('agent', 'consultant')
+         ORDER BY name`
+      );
+      return result.rows;
+    }
+
     const result = await pool.query(
       `SELECT id, name, email, role, phone, dob, user_code, address, created_at, updated_at FROM users WHERE role = $1 ORDER BY name`,
       [role]
@@ -237,7 +249,7 @@ class User {
       
       // Check if agent exists
       const agentCheck = await client.query(
-        `SELECT is_assigned, assigned_to FROM users WHERE id = $1 AND role = 'agent'`,
+      `SELECT is_assigned, assigned_to FROM users WHERE id = $1 AND role IN ('agent', 'consultant')`,
         [agentId]
       );
       
@@ -341,7 +353,7 @@ class User {
   static async isAgentOnTeamLeader(teamLeaderId, agentUserId) {
     const result = await pool.query(
       `SELECT 1 FROM team_agents ta
-       INNER JOIN users u ON u.id = ta.agent_id AND u.role = 'agent'
+       INNER JOIN users u ON u.id = ta.agent_id AND u.role IN ('agent', 'consultant')
        WHERE ta.team_leader_id = $1 AND ta.agent_id = $2 AND ta.is_active = TRUE`,
       [teamLeaderId, agentUserId]
     );
@@ -476,7 +488,7 @@ class User {
       const agents = await User.getTeamLeaderAgents(userId);
       return [userId, ...agents.map((a) => a.id)];
     }
-    if (normalizedRole === 'agent') {
+    if (isAgentLikeRole(normalizedRole)) {
       const assigned = await pool.query(
         `SELECT assigned_to FROM users WHERE id = $1`,
         [userId]
@@ -497,7 +509,7 @@ class User {
     const result = await pool.query(
       `SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.address, ta.assigned_at
        FROM users u
-       INNER JOIN users agent ON agent.id = $1 AND agent.role = 'agent'
+       INNER JOIN users agent ON agent.id = $1 AND agent.role IN ('agent', 'consultant')
        LEFT JOIN team_agents ta ON ta.team_leader_id = u.id AND ta.agent_id = $1 AND ta.is_active = TRUE
        WHERE u.id = agent.assigned_to
        LIMIT 1`,
@@ -527,7 +539,7 @@ class User {
       query = `
         SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.is_assigned, u.assigned_to, u.address
         FROM users u
-        WHERE u.role = 'agent' 
+        WHERE u.role IN ('agent', 'consultant') 
           AND (u.is_assigned = FALSE OR u.assigned_to = $1)
         ORDER BY u.name
       `;
@@ -537,7 +549,7 @@ class User {
       query = `
         SELECT u.id, u.name, u.email, u.role, u.phone, u.user_code, u.is_assigned, u.assigned_to, u.address
         FROM users u
-        WHERE u.role = 'agent'
+        WHERE u.role IN ('agent', 'consultant')
         ORDER BY u.name
       `;
       params = [];

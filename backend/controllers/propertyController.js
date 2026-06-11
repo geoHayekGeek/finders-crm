@@ -7,7 +7,7 @@ const Notification = require('../models/notificationModel');
 const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 const logger = require('../utils/logger');
-const { normalizeRole } = require('../utils/roleUtils');
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 const { isClosureStatus } = require('../utils/propertyStatusUtils');
 const propertyImportService = require('../services/propertyImport');
 
@@ -107,7 +107,7 @@ const getAllProperties = async (req, res) => {
         totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
       };
 
-      if (roleFilters.role === 'agent') {
+      if (isAgentLikeRole(roleFilters.role)) {
         properties = properties.map(property => {
           if (property.agent_id !== req.user.id) {
             return {
@@ -141,7 +141,7 @@ const getAllProperties = async (req, res) => {
     } else if (roleFilters.canViewAll) {
       // Admin, operations manager, operations, agent manager can see all properties with full owner details
       properties = await Property.getAllProperties();
-    } else if (roleFilters.role === 'agent') {
+    } else if (isAgentLikeRole(roleFilters.role)) {
       // Agents can see all properties but owner details are filtered
       properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
       
@@ -232,7 +232,7 @@ const getPropertiesWithFilters = async (req, res) => {
     if (
       wantsMyTeam &&
       !roleFilters.canViewAll &&
-      (roleFilters.role === 'agent' || roleFilters.role === 'team leader')
+      (isAgentLikeRole(roleFilters.role) || roleFilters.role === 'team leader')
     ) {
       teamScopeIds = await User.getTeamPropertyAgentScopeIds(req.user.id, roleFilters.role);
     }
@@ -256,7 +256,7 @@ const getPropertiesWithFilters = async (req, res) => {
         totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
       };
 
-      if (roleFilters.role === 'agent') {
+      if (isAgentLikeRole(roleFilters.role)) {
         properties = properties.map(property => {
           if (property.agent_id !== req.user.id) {
             return {
@@ -290,7 +290,7 @@ const getPropertiesWithFilters = async (req, res) => {
     } else if (roleFilters.canViewAll) {
       // Admin, operations manager, operations, agent manager can see all properties with full owner details
       properties = await Property.getAllProperties();
-    } else if (roleFilters.role === 'agent') {
+    } else if (isAgentLikeRole(roleFilters.role)) {
       // Agents can see all properties but owner details are filtered
       properties = await Property.getAllPropertiesWithFilteredOwnerDetails(roleFilters.role, req.user.id);
       
@@ -340,7 +340,7 @@ const getPropertiesWithFilters = async (req, res) => {
     if (!usePaginatedQuery && (
       wantsMyTeam &&
       !roleFilters.canViewAll &&
-      (roleFilters.role === 'agent' || roleFilters.role === 'team leader')
+      (isAgentLikeRole(roleFilters.role) || roleFilters.role === 'team leader')
     )) {
       const scopeIds = teamScopeIds || await User.getTeamPropertyAgentScopeIds(req.user.id, roleFilters.role);
       properties = properties.filter((p) => scopeIds.includes(p.agent_id));
@@ -736,7 +736,7 @@ const getPropertyById = async (req, res) => {
     if (roleFilters.canViewAll) {
       // Admin, operations manager, operations, agent manager can see all owner details
       // No filtering needed
-    } else if (roleFilters.role === 'agent') {
+    } else if (isAgentLikeRole(roleFilters.role)) {
       // Agents can only see owner details for properties assigned to them
       if (property.agent_id !== req.user.id) {
         property.owner_name = 'Hidden';
@@ -829,7 +829,7 @@ const createProperty = async (req, res) => {
       // Agent manager can only assign to agents
       if (agent_id) {
         const assignedUser = await User.findById(agent_id);
-        if (!assignedUser || assignedUser.role !== 'agent') {
+        if (!assignedUser || !isAgentLikeRole(assignedUser.role)) {
           return res.status(400).json({ 
             message: 'Agent manager can only assign properties to agents' 
           });
@@ -1013,7 +1013,7 @@ const updateProperty = async (req, res) => {
     }
 
     // Check if agent can update this property
-    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+    if (isAgentLikeRole(roleFilters.role) && property.agent_id !== req.user.id) {
       return res.status(403).json({ 
         message: 'Access denied. You can only update properties assigned to you.' 
       });
@@ -1022,7 +1022,7 @@ const updateProperty = async (req, res) => {
     // Agent managers can only update properties assigned to their agents
     if (roleFilters.role === 'agent manager') {
       const assignedUser = await User.findById(property.agent_id);
-      if (!assignedUser || assignedUser.role !== 'agent') {
+      if (!assignedUser || !isAgentLikeRole(assignedUser.role)) {
         return res.status(403).json({ 
           message: 'Access denied. You can only update properties assigned to agents.' 
         });
@@ -1231,7 +1231,7 @@ const deleteProperty = async (req, res) => {
     }
 
     // Agents can only delete properties assigned to them
-    if (roleFilters && roleFilters.role === 'agent' && property.agent_id !== req.user?.id) {
+    if (roleFilters && isAgentLikeRole(roleFilters.role) && property.agent_id !== req.user?.id) {
       return res.status(403).json({
         message: 'Access denied. You can only delete properties assigned to you.'
       });
@@ -1329,7 +1329,7 @@ const getPropertiesByAgent = async (req, res) => {
     // Agent managers can only view properties assigned to agents
     if (roleFilters.role === 'agent manager') {
       const assignedUser = await User.findById(agentId);
-      if (!assignedUser || assignedUser.role !== 'agent') {
+      if (!assignedUser || !isAgentLikeRole(assignedUser.role)) {
         return res.status(403).json({ 
           message: 'Access denied. You can only view properties assigned to agents.' 
         });
@@ -1368,7 +1368,7 @@ const updatePropertyImages = async (req, res) => {
     }
 
     // Check if agent can update this property
-    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+    if (isAgentLikeRole(roleFilters.role) && property.agent_id !== req.user.id) {
       return res.status(403).json({ 
         message: 'Access denied. You can only update properties assigned to you.' 
       });
@@ -1417,7 +1417,7 @@ const addImageToGallery = async (req, res) => {
     }
 
     // Check if agent can update this property
-    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+    if (isAgentLikeRole(roleFilters.role) && property.agent_id !== req.user.id) {
       return res.status(403).json({ 
         message: 'Access denied. You can only update properties assigned to you.' 
       });
@@ -1466,7 +1466,7 @@ const removeImageFromGallery = async (req, res) => {
     }
 
     // Check if agent can update this property
-    if (roleFilters.role === 'agent' && property.agent_id !== req.user.id) {
+    if (isAgentLikeRole(roleFilters.role) && property.agent_id !== req.user.id) {
       return res.status(403).json({ 
         message: 'Access denied. You can only update properties assigned to you.' 
       });
@@ -1628,7 +1628,7 @@ const referPropertyToAgent = async (req, res) => {
     }
 
     // For agents and team leaders, they can only refer properties assigned to them
-    if (roleFilters.role === 'agent' || roleFilters.role === 'team leader') {
+    if (isAgentLikeRole(roleFilters.role) || roleFilters.role === 'team leader') {
       if (property.agent_id !== userId) {
         return res.status(403).json({ 
           message: 'Access denied. You can only refer properties that are assigned to you.' 
@@ -1687,7 +1687,7 @@ const getPendingReferrals = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can have pending referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+    if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
       return res.status(403).json({ 
         message: 'Access denied. Only agents and team leaders can have pending referrals.' 
       });
@@ -1713,7 +1713,7 @@ const getPendingReferralsCount = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can have pending referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+    if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
       return res.json({
         success: true,
         count: 0
@@ -1740,7 +1740,7 @@ const confirmReferral = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can confirm referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+    if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
       return res.status(403).json({ 
         message: 'Access denied. Only agents and team leaders can confirm referrals.' 
       });
@@ -1796,7 +1796,7 @@ const rejectReferral = async (req, res) => {
     const userId = req.user.id;
 
     // Only agents and team leaders can reject referrals
-    if (roleFilters.role !== 'agent' && roleFilters.role !== 'team leader') {
+    if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
       return res.status(403).json({ 
         message: 'Access denied. Only agents and team leaders can reject referrals.' 
       });

@@ -154,7 +154,7 @@ const getAgentPerformanceAnalytics = async (timeRange) => {
       END) as avg_sale_price
     FROM users u
     LEFT JOIN properties p ON u.id = p.agent_id AND p.created_at >= $1
-    WHERE u.role = 'agent'
+    WHERE u.role IN ('agent', 'consultant')
     GROUP BY u.id, u.name, u.role
     ORDER BY properties_sold DESC, total_properties DESC
     LIMIT 10
@@ -170,7 +170,7 @@ const getAgentPerformanceAnalytics = async (timeRange) => {
       COUNT(CASE WHEN p.status = 'For Sale' THEN 1 END) as active_listings
     FROM users u
     LEFT JOIN properties p ON u.id = p.agent_id AND p.created_at >= $1
-    WHERE u.role = 'agent'
+    WHERE u.role IN ('agent', 'consultant')
     GROUP BY u.id, u.name
     ORDER BY total_properties DESC
   `, [timeFilter]);

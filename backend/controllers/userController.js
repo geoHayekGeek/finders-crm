@@ -4,11 +4,7 @@ const userModel = require('../models/userModel');
 const jwtUtil = require('../utils/jwt');
 const logger = require('../utils/logger');
 const { sanitizeInput, sanitizeObject } = require('../utils/sanitize');
-
-// Normalize role to handle both 'operations_manager' and 'operations manager' formats
-// Converts to space format for consistent comparisons
-const normalizeRole = (role) =>
-  role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 
 const OPERATIONS_MANAGER_BLOCKED_ROLES = new Set(['admin', 'accountant']);
 
@@ -1164,7 +1160,7 @@ const assignAgentToTeamLeader = async (req, res) => {
 
     // Verify agent exists and has correct role
     const agent = await userModel.findById(agentId);
-    if (!agent || agent.role !== 'agent') {
+    if (!agent || !isAgentLikeRole(agent.role)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid agent'
@@ -1267,7 +1263,7 @@ const transferAgent = async (req, res) => {
 
     // Verify agent exists and has correct role
     const agent = await userModel.findById(agentId);
-    if (!agent || agent.role !== 'agent') {
+    if (!agent || !isAgentLikeRole(agent.role)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid agent'

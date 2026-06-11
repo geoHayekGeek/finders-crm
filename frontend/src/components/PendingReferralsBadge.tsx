@@ -13,7 +13,7 @@ export function PendingReferralsBadge() {
 
   // Only show for agents and team leaders
   const normalizedUserRole = normalizeRole(user?.role);
-  const shouldShow = normalizedUserRole === 'agent' || normalizedUserRole === 'team leader'
+  const shouldShow = (['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader')
 
   useEffect(() => {
     if (!shouldShow) return

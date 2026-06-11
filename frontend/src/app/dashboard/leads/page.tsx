@@ -553,7 +553,7 @@ useEffect(() => {
   const canReferLead = useCallback((lead: Lead) => {
     if (!user) return false
     // Check user role and assignment
-    const canRefer = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
+    const canRefer = (['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') && 
                      lead.agent_id === user.id
     
     if (!canRefer) {
@@ -1020,7 +1020,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
+                  {(['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') 
                     ? 'My Leads' 
                     : 'Total Leads'}
                 </p>
@@ -1036,7 +1036,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
+                  {(['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') 
                     ? 'New Assigned (7d)' 
                     : 'New (7 Days)'}
                 </p>
@@ -1052,7 +1052,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
+                  {(['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') 
                     ? 'My Avg. Value' 
                     : 'Avg. Value'}
                 </p>
@@ -1070,7 +1070,7 @@ useEffect(() => {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">
-                  {(normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') 
+                  {(['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') 
                     ? 'My Serious Viewings' 
                     : 'Serious Viewings'}
                 </p>

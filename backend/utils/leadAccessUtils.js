@@ -1,5 +1,6 @@
 // Sensitive lead fields: full detail for own / team assignments only (agents & team leaders).
 const User = require('../models/userModel');
+const { isAgentLikeRole } = require('./roleUtils');
 
 /**
  * @param {number} userId
@@ -12,7 +13,7 @@ function canViewSensitiveLeadDetails(userId, normalizedRole, lead, teamScopeIds)
   const aid = Number(lead.agent_id);
   if (Number.isNaN(aid)) return false;
 
-  if (normalizedRole === 'agent') {
+  if (isAgentLikeRole(normalizedRole)) {
     return aid === Number(userId);
   }
   if (normalizedRole === 'team leader') {
@@ -80,7 +81,7 @@ async function applySensitiveMaskingForLeadDetail(lead, userId, normalizedRole) 
   if (normalizedRole === 'team leader') {
     teamScopeIds = await getTeamScopeIdsForLeadAccess(userId, normalizedRole);
   }
-  if (normalizedRole !== 'agent' && normalizedRole !== 'team leader') {
+  if (!isAgentLikeRole(normalizedRole) && normalizedRole !== 'team leader') {
     return lead;
   }
   const full = canViewSensitiveLeadDetails(userId, normalizedRole, lead, teamScopeIds);
@@ -102,7 +103,7 @@ async function sanitizeAgentIdFilterQuery(filterQuery, userId, normalizedRole) {
     return;
   }
   if (MANAGEMENT_ROLES.includes(normalizedRole)) return;
-  if (normalizedRole === 'agent') {
+  if (isAgentLikeRole(normalizedRole)) {
     if (aid !== Number(userId)) delete filterQuery.agent_id;
     return;
   }

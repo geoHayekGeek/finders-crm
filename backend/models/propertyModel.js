@@ -1,5 +1,6 @@
 // models/propertyModel.js
 const pool = require('../config/db');
+const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 const logger = require('../utils/logger');
 const Status = require('./statusModel');
 const {
@@ -635,7 +636,6 @@ class Property {
   // Helper method to check if user can see owner details for a specific property
   static async canUserSeeOwnerDetails(userRole, userId, propertyId) {
     // Normalize role for comparison (handles both 'operations_manager' and 'operations manager' formats)
-    const normalizeRole = (role) => role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
     const normalizedRole = normalizeRole(userRole);
     
     // Admin, operations manager, operations, agent manager can always see owner details
@@ -644,7 +644,7 @@ class Property {
     }
 
     // For agents and team leaders, check specific permissions
-    if (normalizedRole === 'agent') {
+    if (isAgentLikeRole(normalizedRole)) {
       // Agents can see owner details only for properties assigned to them
       const result = await pool.query(
         'SELECT agent_id FROM properties WHERE id = $1',

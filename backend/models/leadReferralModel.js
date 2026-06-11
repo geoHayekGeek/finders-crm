@@ -419,7 +419,7 @@ class LeadReferral {
       const agentRole = normalizeRole(agentResult.rows[0].role);
 
       // Check if agent/team leader role
-      if (agentRole !== 'agent' && agentRole !== 'team leader') {
+      if (!['agent', 'consultant'].includes(agentRole) && agentRole !== 'team leader') {
         throw new Error('Can only refer leads to agents or team leaders');
       }
 

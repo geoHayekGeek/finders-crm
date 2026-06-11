@@ -244,6 +244,12 @@ describe('Permissions Middleware', () => {
       expect(next).toHaveBeenCalled();
     });
 
+    it('should allow consultant to view properties', () => {
+      req.user = { role: 'consultant' };
+      permissions.canViewProperties(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
     it('should allow team_leader to view properties', () => {
       req.user = { role: 'team_leader' };
       permissions.canViewProperties(req, res, next);
@@ -401,6 +407,12 @@ describe('Permissions Middleware', () => {
       expect(next).toHaveBeenCalled();
     });
 
+    it('should allow consultant to manage leads (add leads)', () => {
+      req.user = { role: 'consultant' };
+      permissions.canManageLeads(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
     it('should allow team_leader to manage leads (add leads)', () => {
       req.user = { role: 'team_leader' };
       permissions.canManageLeads(req, res, next);
@@ -417,6 +429,12 @@ describe('Permissions Middleware', () => {
   describe('canViewLeads', () => {
     it('should allow agent to view leads', () => {
       req.user = { role: 'agent' };
+      permissions.canViewLeads(req, res, next);
+      expect(next).toHaveBeenCalled();
+    });
+
+    it('should allow consultant to view leads', () => {
+      req.user = { role: 'consultant' };
       permissions.canViewLeads(req, res, next);
       expect(next).toHaveBeenCalled();
     });
@@ -457,7 +475,9 @@ describe('Permissions Middleware', () => {
         canViewClients: true,
         canManageViewings: true,
         canViewViewings: true,
-        canManageAllViewings: true
+        canManageAllViewings: true,
+        canViewComplaints: true,
+        canManageComplaints: true
       });
       expect(next).toHaveBeenCalled();
     });
@@ -478,13 +498,15 @@ describe('Permissions Middleware', () => {
         canViewAllUsers: false,
         canManageCategoriesAndStatuses: false,
         canViewCategoriesAndStatuses: true,
-        canManageLeads: false,
+        canManageLeads: true,
         canDeleteLeads: false,
         canViewLeads: true,
         canViewClients: false,
         canManageViewings: false,
         canViewViewings: true,
-        canManageAllViewings: false
+        canManageAllViewings: false,
+        canViewComplaints: false,
+        canManageComplaints: false
       });
     });
 

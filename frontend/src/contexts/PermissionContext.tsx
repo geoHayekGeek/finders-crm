@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, ReactNode, useMemo } from 'react'
 import { useAuth } from './AuthContext'
-import { normalizeRole } from '@/utils/roleUtils'
+import { normalizeRole, isAgentRole } from '@/utils/roleUtils'
 
 interface PermissionContextType {
   role: string | null
@@ -22,6 +22,8 @@ interface PermissionContextType {
   canViewAgentPerformance: boolean
   canManageCategoriesAndStatuses: boolean
   canViewCategoriesAndStatuses: boolean
+  canViewComplaints: boolean
+  canManageComplaints: boolean
   hasPermission: (permission: string) => boolean
 }
 
@@ -47,22 +49,24 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
     const canManageProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
     const canDeleteProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager'
     // Accountant and HR should not have access to properties
-    const canViewProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'team leader' || normalizedRole === 'agent'
+    const canViewProperties = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'team leader' || isAgentRole(normalizedRole)
     // Agents and team leaders can add leads, but only admin/operations can edit/delete
-    const canManageLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent' || normalizedRole === 'team leader'
+    const canManageLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || isAgentRole(normalizedRole) || normalizedRole === 'team leader'
     const canImportLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
     const canDeleteLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager'
     // HR and Accountant do not have access to leads
-    const canViewLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'agent' || normalizedRole === 'team leader'
+    const canViewLeads = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || isAgentRole(normalizedRole) || normalizedRole === 'team leader'
     const canManageViewings = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
     // Fix: Align with backend - agents and team leaders can view viewings
-    const canViewViewings = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'agent' || normalizedRole === 'team leader'
+    const canViewViewings = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || isAgentRole(normalizedRole) || normalizedRole === 'team leader'
     const canViewClients = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'team leader'
     const canManageUsers = normalizedRole === 'admin' || normalizedRole === 'hr'
     const canViewFinancial = normalizedRole === 'admin' || normalizedRole === 'operations manager'
     const canViewAgentPerformance = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'agent manager' || normalizedRole === 'team leader'
     const canManageCategoriesAndStatuses = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager'
-    const canViewCategoriesAndStatuses = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || normalizedRole === 'agent' || normalizedRole === 'team leader'
+    const canViewCategoriesAndStatuses = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'agent manager' || isAgentRole(normalizedRole) || normalizedRole === 'team leader'
+    const canViewComplaints = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations' || normalizedRole === 'hr' || normalizedRole === 'team leader'
+    const canManageComplaints = canViewComplaints
 
     return {
       role,
@@ -81,7 +85,9 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
       canViewFinancial,
       canViewAgentPerformance,
       canManageCategoriesAndStatuses,
-      canViewCategoriesAndStatuses
+      canViewCategoriesAndStatuses,
+      canViewComplaints,
+      canManageComplaints
     }
   }, [user?.role])
 
@@ -121,6 +127,10 @@ export function PermissionProvider({ children }: { children: ReactNode }) {
           return permissions.canManageCategoriesAndStatuses
         case 'canViewCategoriesAndStatuses':
           return permissions.canViewCategoriesAndStatuses
+        case 'canViewComplaints':
+          return permissions.canViewComplaints
+        case 'canManageComplaints':
+          return permissions.canManageComplaints
         default:
           return false
       }
@@ -172,4 +182,9 @@ export function RequireCategoryStatusManagement({ children }: { children: ReactN
 export function RequireCategoryStatusAccess({ children }: { children: ReactNode }) {
   const { canViewCategoriesAndStatuses } = usePermissions()
   return canViewCategoriesAndStatuses ? <>{children}</> : null
+}
+
+export function RequireComplaintsAccess({ children }: { children: ReactNode }) {
+  const { canViewComplaints } = usePermissions()
+  return canViewComplaints ? <>{children}</> : null
 }

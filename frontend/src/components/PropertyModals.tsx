@@ -3372,7 +3372,7 @@ export function PropertyModals({
                 {(() => {
                   // Check if user can refer this property
                   const normalizedUserRole = normalizeRole(user?.role);
-                  const canReferProperty = (normalizedUserRole === 'agent' || normalizedUserRole === 'team leader') && 
+                  const canReferProperty = (['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader') && 
                                            viewPropertyData.agent_id === user?.id &&
                                            (viewPropertyData.status_can_be_referred !== false) // Default to true if not set
                   
