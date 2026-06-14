@@ -2,12 +2,10 @@ const ComplaintsController = require('../../controllers/complaintsController');
 const Complaint = require('../../models/complaintModel');
 const Lead = require('../../models/leadsModel');
 const User = require('../../models/userModel');
-const Notification = require('../../models/notificationModel');
 
 jest.mock('../../models/complaintModel');
 jest.mock('../../models/leadsModel');
 jest.mock('../../models/userModel');
-jest.mock('../../models/notificationModel');
 jest.mock('../../utils/logger', () => ({
   error: jest.fn(),
   security: jest.fn(),
@@ -33,7 +31,7 @@ describe('Complaints Controller', () => {
     jest.clearAllMocks();
   });
 
-  it('should create a complaint and notify recipients', async () => {
+  it('should create a complaint', async () => {
     req.body = {
       lead_id: 15,
       target_user_id: 22,
@@ -59,7 +57,6 @@ describe('Complaints Controller', () => {
       target_user_name: 'Agent A',
       target_assigned_to: 9
     });
-    Notification.createComplaintNotification.mockResolvedValue(1);
 
     await ComplaintsController.createComplaint(req, res);
 
@@ -70,14 +67,6 @@ describe('Complaints Controller', () => {
       description: 'The assigned user did not follow up within the agreed time.',
       created_by: 1
     });
-    expect(Notification.createComplaintNotification).toHaveBeenCalledWith(
-      101,
-      expect.objectContaining({
-        target_user_name: 'Agent A',
-        target_user_role: 'agent'
-      }),
-      1
-    );
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -113,7 +102,6 @@ describe('Complaints Controller', () => {
       target_user_name: 'Team Lead A',
       target_assigned_to: null
     });
-    Notification.createComplaintNotification.mockResolvedValue(1);
 
     await ComplaintsController.createComplaint(req, res);
 
@@ -181,6 +169,32 @@ describe('Complaints Controller', () => {
     expect(res.json).toHaveBeenCalledWith({
       success: true,
       data: [{ id: 1 }],
+      count: 1
+    });
+  });
+
+  it('should scope complaints for agents to their own complaints', async () => {
+    req.user = { id: 9, role: 'agent' };
+    req.query = {
+      search: 'follow',
+      targetRole: 'agent',
+      leadId: '15'
+    };
+
+    Complaint.getComplaints.mockResolvedValue([{ id: 2 }]);
+
+    await ComplaintsController.getAllComplaints(req, res);
+
+    expect(User.getTeamLeaderAgents).not.toHaveBeenCalled();
+    expect(Complaint.getComplaints).toHaveBeenCalledWith({
+      search: 'follow',
+      targetRole: 'agent',
+      leadId: 15,
+      targetUserId: 9
+    });
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: [{ id: 2 }],
       count: 1
     });
   });

@@ -1,7 +1,6 @@
 const Complaint = require('../models/complaintModel');
 const Lead = require('../models/leadsModel');
 const User = require('../models/userModel');
-const Notification = require('../models/notificationModel');
 const logger = require('../utils/logger');
 const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 
@@ -12,13 +11,18 @@ function normalizeId(value) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-function buildTargetSearchScope(userId, role, teamAgents) {
+function buildComplaintVisibilityScope(userId, role, teamAgents) {
   if (role === 'team leader') {
     const ids = new Set([userId]);
     (teamAgents || []).forEach((user) => ids.add(user.id));
-    return Array.from(ids);
+    return { targetUserIds: Array.from(ids) };
   }
-  return null;
+
+  if (isAgentLikeRole(role)) {
+    return { targetUserId: userId };
+  }
+
+  return {};
 }
 
 class ComplaintsController {
@@ -28,14 +32,14 @@ class ComplaintsController {
 
       const teamAgents =
         role === 'team leader' ? await User.getTeamLeaderAgents(req.user.id) : [];
-      const targetUserIds = buildTargetSearchScope(req.user.id, role, teamAgents);
+      const complaintScope = buildComplaintVisibilityScope(req.user.id, role, teamAgents);
 
       const complaints = await Complaint.getComplaints({
         search: req.query.search,
         targetRole: req.query.targetRole ? normalizeRole(req.query.targetRole) : null,
         leadId: normalizeId(req.query.leadId),
         targetUserId: normalizeId(req.query.targetUserId),
-        targetUserIds
+        ...complaintScope
       });
 
       res.json({
@@ -123,12 +127,6 @@ class ComplaintsController {
         description,
         created_by: req.user.id
       });
-
-      try {
-        await Notification.createComplaintNotification(complaint.id, complaint, req.user.id);
-      } catch (notificationError) {
-        logger.error('Error creating complaint notifications', notificationError);
-      }
 
       res.status(201).json({
         success: true,

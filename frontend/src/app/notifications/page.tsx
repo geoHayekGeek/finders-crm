@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { ArrowLeft, Check, CheckCheck, Trash2, Filter, Search, Calendar, User, Building2, AlertCircle, Info, Star } from 'lucide-react'
+import { useCallback, useState, useEffect } from 'react'
+import { ArrowLeft, Check, CheckCheck, Trash2, Search, User, Building2, AlertCircle, Info } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
@@ -28,7 +28,7 @@ const NotificationsPage = () => {
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest')
 
   // Fetch notifications from API
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       setLoading(true)
       console.log('🔔 Fetching all notifications with token:', token ? 'present' : 'missing')
@@ -45,19 +45,19 @@ const NotificationsPage = () => {
       console.log('📤 Notifications response:', data)
 
       if (data.success) {
-        setNotifications(data.data)
+        setNotifications((data.data || []).filter((notification: Notification) => notification.entity_type !== 'complaint'))
       }
     } catch (error) {
       console.error('Error fetching notifications:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
 
   // Fetch notifications on component mount
   useEffect(() => {
     fetchNotifications()
-  }, [])
+  }, [fetchNotifications])
 
   const markAsRead = async (id: number) => {
     try {

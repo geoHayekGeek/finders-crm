@@ -43,7 +43,8 @@ const COMPLAINT_VIEW_ROLES = [
   ROLES.OPERATIONS,
   ROLES.AGENT_MANAGER,
   ROLES.HR,
-  ROLES.TEAM_LEADER
+  ROLES.TEAM_LEADER,
+  ...AGENT_LIKE_ROLES
 ];
 
 // Normalize role to handle both 'operations_manager' and 'operations manager' formats

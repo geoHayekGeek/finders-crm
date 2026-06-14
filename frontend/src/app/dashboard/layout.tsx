@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -23,7 +23,6 @@ import {
   Tag,
   Circle,
   Briefcase,
-  Eye,
   BarChart3,
   CircleAlert,
   LucideIcon
@@ -31,8 +30,9 @@ import {
 import NotificationBell from '@/components/NotificationBell'
 import { PendingReferralsBadge } from '@/components/PendingReferralsBadge'
 import { PendingLeadReferralsBadge } from '@/components/PendingLeadReferralsBadge'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { complaintsApi } from '@/utils/api'
+import { getComplaintBadgeCount, getComplaintViewedKey } from '@/utils/complaintVisibility'
 
 interface NavigationSubmenuItem {
   name: string
@@ -45,6 +45,7 @@ interface NavigationItem {
   href: string
   icon: LucideIcon
   alwaysVisible: boolean
+  badgeCount?: number
   hasSubmenu?: boolean
   submenu?: NavigationSubmenuItem[]
 }
@@ -71,17 +72,87 @@ export default function DashboardLayout({
   const [propertiesMenuOpen, setPropertiesMenuOpen] = useState(false)
   const [leadsMenuOpen, setLeadsMenuOpen] = useState(false)
   const [calendarMenuOpen, setCalendarMenuOpen] = useState(false)
-  const { user, logout } = useAuth()
-  const { canAccessHR, canManageProperties, canViewProperties, canManageUsers, canViewFinancial, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canViewViewings, canViewComplaints, canManageComplaints, role } = usePermissions()
+  const [complaintBadgeCount, setComplaintBadgeCount] = useState(0)
+  const { user, token, logout } = useAuth()
+  const { canAccessHR, canViewProperties, canViewAgentPerformance, canViewCategoriesAndStatuses, canManageCategoriesAndStatuses, canViewLeads, canViewComplaints, canManageComplaints, role } = usePermissions()
   const { settings } = useSettings()
-  const router = useRouter()
+  const complaintViewKey = getComplaintViewedKey(user?.id)
+  const canSeeComplaints = canViewComplaints || canManageComplaints
+
+  const renderBadge = (count?: number, compact = false) => {
+    if (!count || count <= 0) {
+      return null
+    }
+
+    const badgeText = count > 99 ? '99+' : String(count)
+
+    if (compact) {
+      return (
+        <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
+          {badgeText}
+        </span>
+      )
+    }
+
+    return (
+      <span className="ml-auto inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+        {badgeText}
+      </span>
+    )
+  }
+
+  useEffect(() => {
+    if (!token || !canSeeComplaints || !complaintViewKey || !user?.id) {
+      setComplaintBadgeCount(0)
+      return
+    }
+
+    let cancelled = false
+
+    const loadComplaintBadgeCount = async () => {
+      try {
+        const response = await complaintsApi.getAll({}, token)
+
+        if (!response.success || cancelled) {
+          return
+        }
+
+        setComplaintBadgeCount(getComplaintBadgeCount(response.data || [], user.id))
+      } catch {
+        // Keep the last known badge count if the request fails
+      }
+    }
+
+    const handleRefreshComplaints = () => {
+      void loadComplaintBadgeCount()
+    }
+
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === complaintViewKey) {
+        void loadComplaintBadgeCount()
+      }
+    }
+
+    void loadComplaintBadgeCount()
+
+    const interval = window.setInterval(loadComplaintBadgeCount, 60000)
+    window.addEventListener('complaints:refresh', handleRefreshComplaints)
+    window.addEventListener('storage', handleStorageChange)
+
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      window.removeEventListener('complaints:refresh', handleRefreshComplaints)
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [token, canSeeComplaints, complaintViewKey, user?.id])
 
   // Permission-based navigation
   const getNavigation = (): NavigationItem[] => {
     const baseNavigation: NavigationItem[] = []
     const normalizedRole = normalizeRole(role)
 
-    // For agents: show properties, leads, viewings, calendar (+ HR only when allowed)
+    // For agents: show properties, leads, calendar, complaints (+ HR only when allowed)
     if (isAgentRole(normalizedRole)) {
       baseNavigation.push({ 
         name: 'Properties', 
@@ -94,8 +165,17 @@ export default function DashboardLayout({
         href: '/dashboard/leads', 
         icon: FileText, 
         alwaysVisible: true
-      })
+      }) 
       baseNavigation.push({ name: 'Calendar', href: '/dashboard/calendar', icon: Calendar, alwaysVisible: true })
+      if (canSeeComplaints) {
+        baseNavigation.push({
+          name: 'Complaints',
+          href: '/dashboard/complaints',
+          icon: CircleAlert,
+          alwaysVisible: true,
+          badgeCount: complaintBadgeCount
+        })
+      }
       if (canAccessHR) {
         baseNavigation.push({ name: 'HR', href: '/dashboard/hr', icon: Briefcase, alwaysVisible: true })
       }
@@ -144,7 +224,8 @@ export default function DashboardLayout({
         name: 'Complaints',
         href: '/dashboard/complaints',
         icon: CircleAlert,
-        alwaysVisible: true
+        alwaysVisible: true,
+        badgeCount: complaintBadgeCount
       })
     }
 
@@ -266,7 +347,8 @@ export default function DashboardLayout({
                       className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                     >
                       <item.icon className="mr-3 h-5 w-5 text-gray-400 group-hover:text-gray-500" />
-                      {item.name}
+                      <span className="min-w-0 flex-1">{item.name}</span>
+                      {renderBadge(item.badgeCount)}
                     </Link>
                   )}
                 </div>
@@ -393,7 +475,10 @@ export default function DashboardLayout({
                           className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
                           title={item.name}
                         >
-                          <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                          <span className="relative flex-shrink-0">
+                            <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500" />
+                            {renderBadge(item.badgeCount, true)}
+                          </span>
                         </Link>
                       )
                   ) : (
@@ -402,10 +487,14 @@ export default function DashboardLayout({
                       className="group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors duration-200"
                       title={!sidebarExpanded ? item.name : undefined}
                     >
-                      <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500 flex-shrink-0" />
+                      <span className="relative flex-shrink-0">
+                        <item.icon className="h-5 w-5 text-gray-400 group-hover:text-gray-500" />
+                        {!sidebarExpanded && renderBadge(item.badgeCount, true)}
+                      </span>
                       {sidebarExpanded && (
-                        <span className="ml-3 transition-opacity duration-300">{item.name}</span>
+                        <span className="ml-3 flex-1 transition-opacity duration-300">{item.name}</span>
                       )}
+                      {sidebarExpanded && renderBadge(item.badgeCount)}
                     </Link>
                   )}
                 </div>

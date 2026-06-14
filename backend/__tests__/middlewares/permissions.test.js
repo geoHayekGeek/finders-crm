@@ -459,6 +459,17 @@ describe('Permissions Middleware', () => {
       expect(next).toHaveBeenCalled();
     });
 
+    it('should allow agent to view complaints but not manage them', () => {
+      req.user = { role: 'agent' };
+      permissions.canViewComplaints(req, res, next);
+      expect(next).toHaveBeenCalled();
+
+      jest.clearAllMocks();
+
+      permissions.canManageComplaints(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
     it('should allow agent manager to view and manage complaints', () => {
       req.user = { role: 'agent manager' };
       permissions.canViewComplaints(req, res, next);
@@ -524,7 +535,7 @@ describe('Permissions Middleware', () => {
         canManageViewings: false,
         canViewViewings: true,
         canManageAllViewings: false,
-        canViewComplaints: false,
+        canViewComplaints: true,
         canManageComplaints: false
       });
     });

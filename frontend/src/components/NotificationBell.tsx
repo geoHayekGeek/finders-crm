@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, X, Check, AlertCircle, Info, Star, Calendar, User, Building2 } from 'lucide-react'
+import { Bell, X, Check, AlertCircle, Info, User, Building2 } from 'lucide-react'
 import { notificationsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
@@ -34,10 +34,13 @@ const NotificationBell = () => {
       const response = await notificationsApi.getAll()
 
       if (response.success) {
-        setNotifications(response.data)
-        setUnreadCount(response.unreadCount)
+        const visibleNotifications = (response.data || []).filter(
+          (notification) => notification.entity_type !== 'complaint'
+        )
+        setNotifications(visibleNotifications)
+        setUnreadCount(visibleNotifications.filter((notification) => !notification.is_read).length)
       }
-    } catch (error) {
+    } catch {
       // Error handled silently - notifications will remain empty
     } finally {
       setLoading(false)
@@ -80,7 +83,7 @@ const NotificationBell = () => {
         )
       )
       setUnreadCount(prev => Math.max(0, prev - 1))
-    } catch (error) {
+    } catch {
       // Error handled silently - notification will remain unread
     }
   }
@@ -95,7 +98,7 @@ const NotificationBell = () => {
         prev.map(notification => ({ ...notification, is_read: true }))
       )
       setUnreadCount(0)
-    } catch (error) {
+    } catch {
       // Error handled silently - notifications will remain unread
     }
   }

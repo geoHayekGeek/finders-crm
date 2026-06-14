@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Plus, Search, Users, FileText, CalendarDays, UserCheck, Eye, Trash2 } from 'lucide-react'
 import { RequireComplaintsAccess, usePermissions } from '@/contexts/PermissionContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -12,9 +12,10 @@ import ComplaintDetailsModal from '@/components/complaints/ComplaintDetailsModal
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { formatRole, getRoleColor } from '@/utils/roleFormatter'
 import { normalizeRole } from '@/utils/roleUtils'
+import { markComplaintAsViewed } from '@/utils/complaintVisibility'
 
 export default function ComplaintsPage() {
-  const { token, isAuthenticated } = useAuth()
+  const { token, isAuthenticated, user } = useAuth()
   const { canManageComplaints } = usePermissions()
   const { showSuccess, showError } = useToast()
 
@@ -29,19 +30,7 @@ export default function ComplaintsPage() {
   const [deletingComplaint, setDeletingComplaint] = useState(false)
   const loadRequestRef = useRef(0)
 
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      void loadComplaints()
-    }
-  }, [isAuthenticated, token])
-
-  useEffect(() => {
-    return () => {
-      loadRequestRef.current += 1
-    }
-  }, [])
-
-  async function loadComplaints() {
+  const loadComplaints = useCallback(async () => {
     if (!token) {
       setError('You must be logged in to view complaints')
       setLoading(false)
@@ -70,9 +59,22 @@ export default function ComplaintsPage() {
         setLoading(false)
       }
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    if (isAuthenticated && token && user?.id) {
+      void loadComplaints()
+    }
+  }, [isAuthenticated, token, user?.id, loadComplaints])
+
+  useEffect(() => {
+    return () => {
+      loadRequestRef.current += 1
+    }
+  }, [])
 
   const handleViewComplaint = (complaint: Complaint) => {
+    markComplaintAsViewed(user?.id, complaint.id)
     setSelectedComplaint(complaint)
   }
 
@@ -95,6 +97,7 @@ export default function ComplaintsPage() {
           setSelectedComplaint(null)
         }
         setComplaintToDelete(null)
+        window.dispatchEvent(new Event('complaints:refresh'))
         showSuccess('Complaint deleted successfully')
       } else {
         showError(response.message || 'Failed to delete complaint')
