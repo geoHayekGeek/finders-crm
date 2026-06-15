@@ -43,6 +43,9 @@ class PropertyReferral {
         u.role as employee_role,
         r.date,
         r.external,
+        r.admin_status,
+        r.admin_reviewed_by_user_id,
+        r.admin_reviewed_at,
         r.status,
         r.referred_to_agent_id,
         r.referred_by_user_id,
@@ -402,7 +405,7 @@ class PropertyReferral {
    * @param {number} referredByUserId - The user ID making the referral
    * @returns {Promise<Object>} The created referral record
    */
-  static async referPropertyToAgent(propertyId, referredToAgentId, referredByUserId) {
+  static async referPropertyToAgent(propertyId, referredToAgentId, referredByUserId, options = {}) {
     const client = await pool.connect();
     
     try {
@@ -462,6 +465,8 @@ class PropertyReferral {
         throw new Error('A pending referral already exists for this property to this agent');
       }
 
+      const requiresAdminApproval = options.requiresAdminApproval !== false;
+
       // Get the referrer's (Omar's) name for the referral record
       const referrerResult = await client.query(
         'SELECT name FROM users WHERE id = $1',
@@ -482,9 +487,10 @@ class PropertyReferral {
           external, 
           status, 
           referred_to_agent_id, 
-          referred_by_user_id
+          referred_by_user_id,
+          admin_status
         )
-        VALUES ($1, $2, $3, $4, CURRENT_DATE, FALSE, 'pending', $5, $6)
+        VALUES ($1, $2, $3, $4, CURRENT_DATE, FALSE, 'pending', $5, $6, $7)
         RETURNING *`,
         [
           propertyId,
@@ -492,7 +498,8 @@ class PropertyReferral {
           referrerName, // Name of the person who made the referral
           'employee',
           referredToAgentId, // referred_to_agent_id (Ali)
-          referredByUserId // referred_by_user_id (Omar)
+          referredByUserId, // referred_by_user_id (Omar)
+          requiresAdminApproval ? 'pending' : 'approved'
         ]
       );
 
@@ -533,6 +540,10 @@ class PropertyReferral {
       // Check if referral is pending
       if (referral.status !== 'pending') {
         throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      if ((referral.admin_status || 'approved') !== 'approved') {
+        throw new Error('Referral is awaiting admin approval');
       }
 
       // Check if the user confirming is the one being referred to
@@ -606,6 +617,10 @@ class PropertyReferral {
         throw new Error(`Referral is already ${referral.status}`);
       }
 
+      if ((referral.admin_status || 'approved') !== 'approved') {
+        throw new Error('Referral is awaiting admin approval');
+      }
+
       // Check if the user rejecting is the one being referred to
       if (referral.referred_to_agent_id !== rejectedByUserId) {
         throw new Error('Only the referred agent can reject this referral');
@@ -641,11 +656,17 @@ class PropertyReferral {
         r.id,
         r.property_id,
         r.status,
+        r.admin_status,
+        r.admin_reviewed_by_user_id,
+        r.admin_reviewed_at,
         r.date,
         r.created_at,
         r.referred_by_user_id,
+        r.referred_to_agent_id,
         u.name as referred_by_name,
         u.role as referred_by_role,
+        rt.name as referred_to_name,
+        rt.role as referred_to_role,
         p.reference_number,
         p.location,
         p.property_type,
@@ -659,6 +680,7 @@ class PropertyReferral {
        LEFT JOIN properties p ON r.property_id = p.id
        LEFT JOIN statuses s ON p.status_id = s.id
        LEFT JOIN users u ON r.referred_by_user_id = u.id
+       LEFT JOIN users rt ON r.referred_to_agent_id = rt.id
        LEFT JOIN categories c ON p.category_id = c.id
        WHERE r.referred_to_agent_id = $1 
          AND r.status = 'pending'
@@ -682,6 +704,160 @@ class PropertyReferral {
       [userId]
     );
     return parseInt(result.rows[0].count, 10);
+  }
+
+  /**
+   * Get all pending referrals waiting for admin approval
+   * @returns {Promise<Array>}
+   */
+  static async getPendingAdminReferrals() {
+    const result = await pool.query(
+      `SELECT 
+        r.id,
+        r.property_id,
+        r.status,
+        r.admin_status,
+        r.admin_reviewed_by_user_id,
+        r.admin_reviewed_at,
+        r.date,
+        r.created_at,
+        r.referred_by_user_id,
+        r.referred_to_agent_id,
+        u.name as referred_by_name,
+        u.role as referred_by_role,
+        rt.name as referred_to_name,
+        rt.role as referred_to_role,
+        p.reference_number,
+        p.location,
+        p.property_type,
+        p.price,
+        p.status_id,
+        s.name as status_name,
+        s.color as status_color,
+        p.main_image,
+        c.name as category_name
+       FROM referrals r
+       LEFT JOIN properties p ON r.property_id = p.id
+       LEFT JOIN statuses s ON p.status_id = s.id
+       LEFT JOIN users u ON r.referred_by_user_id = u.id
+       LEFT JOIN users rt ON r.referred_to_agent_id = rt.id
+       LEFT JOIN categories c ON p.category_id = c.id
+       WHERE r.admin_status = 'pending'
+         AND r.status = 'pending'
+       ORDER BY r.created_at DESC`
+    );
+    return result.rows;
+  }
+
+  /**
+   * Get count of referrals waiting for admin approval
+   * @returns {Promise<number>}
+   */
+  static async getPendingAdminReferralsCount() {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM referrals
+       WHERE admin_status = 'pending'
+         AND status = 'pending'`
+    );
+    return parseInt(result.rows[0].count, 10);
+  }
+
+  /**
+   * Approve a referral after admin review
+   */
+  static async approveReferralByAdmin(referralId, reviewedByUserId) {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const referralResult = await client.query(
+        `SELECT * FROM referrals WHERE id = $1`,
+        [referralId]
+      );
+
+      const referral = referralResult.rows[0];
+      if (!referral) {
+        throw new Error('Referral not found');
+      }
+
+      if (referral.status !== 'pending') {
+        throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      if ((referral.admin_status || 'approved') !== 'pending') {
+        throw new Error('Referral has already been reviewed');
+      }
+
+      const result = await client.query(
+        `UPDATE referrals
+         SET admin_status = 'approved',
+             admin_reviewed_by_user_id = $2,
+             admin_reviewed_at = NOW(),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [referralId, reviewedByUserId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Reject a referral during admin review
+   */
+  static async rejectReferralByAdmin(referralId, reviewedByUserId) {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const referralResult = await client.query(
+        `SELECT * FROM referrals WHERE id = $1`,
+        [referralId]
+      );
+
+      const referral = referralResult.rows[0];
+      if (!referral) {
+        throw new Error('Referral not found');
+      }
+
+      if (referral.status !== 'pending') {
+        throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      if ((referral.admin_status || 'approved') !== 'pending') {
+        throw new Error('Referral has already been reviewed');
+      }
+
+      const result = await client.query(
+        `UPDATE referrals
+         SET status = 'rejected',
+             admin_status = 'rejected',
+             admin_reviewed_by_user_id = $2,
+             admin_reviewed_at = NOW(),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [referralId, reviewedByUserId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
 

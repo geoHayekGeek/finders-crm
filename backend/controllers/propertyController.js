@@ -1,6 +1,7 @@
 // controllers/propertyController.js
 const Property = require('../models/propertyModel');
 const PropertyReferral = require('../models/propertyReferralModel');
+const Settings = require('../models/settingsModel');
 const Status = require('../models/statusModel');
 const User = require('../models/userModel');
 const Notification = require('../models/notificationModel');
@@ -8,6 +9,7 @@ const CalendarEvent = require('../models/calendarEventModel');
 const { uploadSingle, uploadMultiple, handleUploadError } = require('../middlewares/fileUpload');
 const logger = require('../utils/logger');
 const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
+const { sanitizePropertyReferralsForViewer } = require('../utils/referralVisibility');
 const { isClosureStatus } = require('../utils/propertyStatusUtils');
 const propertyImportService = require('../services/propertyImport');
 
@@ -26,6 +28,23 @@ const filterCreatedByInfo = (properties, userRole) => {
   return properties.map(property => {
     const { created_by, created_by_name, created_by_role, ...rest } = property;
     return rest;
+  });
+};
+
+const applyPropertyReferralVisibility = (properties, viewerId, viewerRole) => {
+  if (!Array.isArray(properties)) {
+    return properties;
+  }
+
+  return properties.map((property) => {
+    if (!property?.referrals) {
+      return property;
+    }
+
+    return {
+      ...property,
+      referrals: sanitizePropertyReferralsForViewer(property.referrals, viewerId, viewerRole)
+    };
   });
 };
 
@@ -192,6 +211,7 @@ const getAllProperties = async (req, res) => {
 
     // Filter created_by info based on role
     properties = filterCreatedByInfo(properties, roleFilters.role);
+    properties = applyPropertyReferralVisibility(properties, req.user.id, roleFilters.role);
 
     res.json({
       success: true,
@@ -336,6 +356,7 @@ const getPropertiesWithFilters = async (req, res) => {
 
     // Filter created_by info based on role
     properties = filterCreatedByInfo(properties, roleFilters.role);
+    properties = applyPropertyReferralVisibility(properties, req.user.id, roleFilters.role);
 
     if (!usePaginatedQuery && (
       wantsMyTeam &&
@@ -759,7 +780,11 @@ const getPropertyById = async (req, res) => {
     }
 
     // Filter created_by info based on role
-    const filteredProperty = filterCreatedByInfo([property], roleFilters.role)[0];
+    const filteredProperty = applyPropertyReferralVisibility(
+      filterCreatedByInfo([property], roleFilters.role),
+      req.user.id,
+      roleFilters.role
+    )[0];
 
     res.json({
       success: true,
@@ -1643,22 +1668,45 @@ const referPropertyToAgent = async (req, res) => {
       });
     }
 
+    const requiresAdminApproval = await Settings.isReferralAdminApprovalEnabled();
+
     // Create the referral
     const referral = await PropertyReferral.referPropertyToAgent(
       parseInt(id),
       parseInt(referred_to_agent_id),
-      userId
+      userId,
+      { requiresAdminApproval }
     );
 
     // Create notification for the referred agent (JWT has id/role only — load name from DB)
     try {
       const referrer = await User.findById(userId);
       const referrerLabel = referrer?.name || 'A colleague';
+      const referredToUser = await User.findById(parseInt(referred_to_agent_id));
+      const referredToLabel = referredToUser?.name || 'the selected user';
+
+      if (requiresAdminApproval) {
+        const admins = await User.getUsersByRole('admin');
+        const adminIds = admins.map((admin) => admin.id).filter(Boolean);
+
+        if (adminIds.length > 0) {
+          await Notification.createNotificationForUsers(adminIds, {
+            type: 'info',
+            title: 'Property Referral Awaiting Approval',
+            message: `${referrerLabel} referred a property to ${referredToLabel}. Admin approval is required before the recipient can view the details.`,
+            entity_type: 'property',
+            entity_id: parseInt(id)
+          });
+        }
+      }
+
       await Notification.createNotification({
         user_id: parseInt(referred_to_agent_id),
         type: 'info',
-        title: 'New Property Referral',
-        message: `${referrerLabel} referred property ${property.reference_number} to you`,
+        title: requiresAdminApproval ? 'Property Referral Pending Approval' : 'New Property Referral',
+        message: requiresAdminApproval
+          ? `${referrerLabel} referred a property to you. It is waiting for admin approval before the details are shown.`
+          : `${referrerLabel} referred property ${property.reference_number} to you`,
         entity_type: 'property',
         entity_id: parseInt(id)
       });
@@ -1685,6 +1733,17 @@ const getPendingReferrals = async (req, res) => {
   try {
     const { roleFilters } = req;
     const userId = req.user.id;
+    const normalizedRole = normalizeRole(roleFilters.role);
+
+    if (normalizedRole === 'admin') {
+      const pendingReferrals = await PropertyReferral.getPendingAdminReferrals();
+
+      return res.json({
+        success: true,
+        data: pendingReferrals,
+        count: pendingReferrals.length
+      });
+    }
 
     // Only agents and team leaders can have pending referrals
     if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1693,7 +1752,11 @@ const getPendingReferrals = async (req, res) => {
       });
     }
 
-    const pendingReferrals = await PropertyReferral.getPendingReferralsForUser(userId);
+    const pendingReferrals = sanitizePropertyReferralsForViewer(
+      await PropertyReferral.getPendingReferralsForUser(userId),
+      userId,
+      roleFilters.role
+    );
 
     res.json({
       success: true,
@@ -1711,6 +1774,16 @@ const getPendingReferralsCount = async (req, res) => {
   try {
     const { roleFilters } = req;
     const userId = req.user.id;
+    const normalizedRole = normalizeRole(roleFilters.role);
+
+    if (normalizedRole === 'admin') {
+      const count = await PropertyReferral.getPendingAdminReferralsCount();
+
+      return res.json({
+        success: true,
+        count
+      });
+    }
 
     // Only agents and team leaders can have pending referrals
     if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1738,6 +1811,33 @@ const confirmReferral = async (req, res) => {
     const { id } = req.params;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const normalizedRole = normalizeRole(roleFilters.role);
+
+    if (normalizedRole === 'admin') {
+      const referral = await PropertyReferral.approveReferralByAdmin(parseInt(id), userId);
+      const property = await Property.getPropertyById(referral.property_id);
+
+      try {
+        if (referral.referred_to_agent_id) {
+          await Notification.createNotification({
+            user_id: referral.referred_to_agent_id,
+            type: 'info',
+            title: 'Property Referral Approved',
+            message: `An admin approved a property referral for ${property.reference_number}. You can now review the details and decide whether to accept or reject it.`,
+            entity_type: 'property',
+            entity_id: referral.property_id
+          });
+        }
+      } catch (notifError) {
+        logger.error('Error creating notification', notifError);
+      }
+
+      return res.json({
+        success: true,
+        data: referral,
+        message: 'Referral approved successfully'
+      });
+    }
 
     // Only agents and team leaders can confirm referrals
     if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1782,8 +1882,14 @@ const confirmReferral = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error confirming referral', error);
-    res.status(500).json({ 
-      message: error.message || 'Server error' 
+    const errorMessage = error.message || 'Server error';
+    const conflictMessage =
+      errorMessage.includes('awaiting admin approval') ||
+      errorMessage.includes('already been reviewed') ||
+      errorMessage.startsWith('Referral is already');
+    const statusCode = conflictMessage ? 409 : 500;
+    res.status(statusCode).json({ 
+      message: errorMessage
     });
   }
 };
@@ -1794,6 +1900,44 @@ const rejectReferral = async (req, res) => {
     const { id } = req.params;
     const { roleFilters } = req;
     const userId = req.user.id;
+    const normalizedRole = normalizeRole(roleFilters.role);
+
+    if (normalizedRole === 'admin') {
+      const referral = await PropertyReferral.rejectReferralByAdmin(parseInt(id), userId);
+      const property = await Property.getPropertyById(referral.property_id);
+
+      try {
+        const referrerId =
+          referral.referred_by_user_id != null
+            ? referral.referred_by_user_id
+            : referral.employee_id;
+
+        if (
+          referrerId != null &&
+          parseInt(String(referrerId), 10) !== parseInt(String(userId), 10)
+        ) {
+          const responder = await User.findById(userId);
+          const responderLabel = responder?.name?.trim() || 'An admin';
+          const refLabel = property?.reference_number?.trim() || 'this property';
+          await Notification.createNotification({
+            user_id: parseInt(String(referrerId), 10),
+            type: 'warning',
+            title: 'Property Referral Declined by Admin',
+            message: `${responderLabel} declined your referral for property ${refLabel}.`,
+            entity_type: 'property',
+            entity_id: referral.property_id
+          });
+        }
+      } catch (notifError) {
+        logger.error('Error creating notification', notifError);
+      }
+
+      return res.json({
+        success: true,
+        data: referral,
+        message: 'Referral rejected by admin successfully'
+      });
+    }
 
     // Only agents and team leaders can reject referrals
     if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1839,8 +1983,14 @@ const rejectReferral = async (req, res) => {
     });
   } catch (error) {
     logger.error('Error rejecting referral', error);
-    res.status(500).json({ 
-      message: error.message || 'Server error' 
+    const errorMessage = error.message || 'Server error';
+    const conflictMessage =
+      errorMessage.includes('awaiting admin approval') ||
+      errorMessage.includes('already been reviewed') ||
+      errorMessage.startsWith('Referral is already');
+    const statusCode = conflictMessage ? 409 : 500;
+    res.status(statusCode).json({ 
+      message: errorMessage
     });
   }
 };

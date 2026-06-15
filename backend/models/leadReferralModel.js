@@ -43,6 +43,9 @@ class LeadReferral {
         u.role as agent_role,
         lr.referral_date,
         lr.external,
+        lr.admin_status,
+        lr.admin_reviewed_by_user_id,
+        lr.admin_reviewed_at,
         lr.status,
         lr.referred_to_agent_id,
         lr.referred_by_user_id,
@@ -394,7 +397,7 @@ class LeadReferral {
    * @param {number} referredByUserId - The user ID making the referral
    * @returns {Promise<Object>} The created referral record
    */
-  static async referLeadToAgent(leadId, referredToAgentId, referredByUserId) {
+  static async referLeadToAgent(leadId, referredToAgentId, referredByUserId, options = {}) {
     const client = await pool.connect();
     
     try {
@@ -436,6 +439,8 @@ class LeadReferral {
         throw new Error('A pending referral already exists for this lead to this agent');
       }
 
+      const requiresAdminApproval = options.requiresAdminApproval !== false;
+
       // Get the referrer's name for the referral record
       const referrerResult = await client.query(
         'SELECT name FROM users WHERE id = $1',
@@ -455,9 +460,10 @@ class LeadReferral {
           external, 
           status, 
           referred_to_agent_id, 
-          referred_by_user_id
+          referred_by_user_id,
+          admin_status
         )
-        VALUES ($1, $2, $3, $4, $5, FALSE, 'pending', $6, $7)
+        VALUES ($1, $2, $3, $4, $5, FALSE, 'pending', $6, $7, $8)
         RETURNING *`,
         [
           leadId,
@@ -466,7 +472,8 @@ class LeadReferral {
           'employee',
           new Date(),
           referredToAgentId, // referred_to_agent_id
-          referredByUserId // referred_by_user_id
+          referredByUserId, // referred_by_user_id
+          requiresAdminApproval ? 'pending' : 'approved'
         ]
       );
 
@@ -507,6 +514,10 @@ class LeadReferral {
       // Check if referral is pending
       if (referral.status !== 'pending') {
         throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      if ((referral.admin_status || 'approved') !== 'approved') {
+        throw new Error('Referral is awaiting admin approval');
       }
 
       // Check if the user confirming is the one being referred to
@@ -580,6 +591,10 @@ class LeadReferral {
         throw new Error(`Referral is already ${referral.status}`);
       }
 
+      if ((referral.admin_status || 'approved') !== 'approved') {
+        throw new Error('Referral is awaiting admin approval');
+      }
+
       // Check if the user rejecting is the one being referred to
       if (referral.referred_to_agent_id !== rejectedByUserId) {
         throw new Error('Only the referred agent can reject this referral');
@@ -615,17 +630,24 @@ class LeadReferral {
         lr.id,
         lr.lead_id,
         lr.status,
+        lr.admin_status,
+        lr.admin_reviewed_by_user_id,
+        lr.admin_reviewed_at,
         lr.referral_date,
         lr.created_at,
         lr.referred_by_user_id,
+        lr.referred_to_agent_id,
         u.name as referred_by_name,
         u.role as referred_by_role,
+        rt.name as referred_to_name,
+        rt.role as referred_to_role,
         l.customer_name,
         l.phone_number,
         l.notes
        FROM lead_referrals lr
        LEFT JOIN leads l ON lr.lead_id = l.id
        LEFT JOIN users u ON lr.referred_by_user_id = u.id
+       LEFT JOIN users rt ON lr.referred_to_agent_id = rt.id
        WHERE lr.referred_to_agent_id = $1 
          AND lr.status = 'pending'
        ORDER BY lr.created_at DESC`,
@@ -648,6 +670,152 @@ class LeadReferral {
       [userId]
     );
     return parseInt(result.rows[0].count, 10);
+  }
+
+  /**
+   * Get all pending referrals waiting for admin approval
+   * @returns {Promise<Array>}
+   */
+  static async getPendingAdminReferrals() {
+    const result = await pool.query(
+      `SELECT 
+        lr.id,
+        lr.lead_id,
+        lr.status,
+        lr.admin_status,
+        lr.admin_reviewed_by_user_id,
+        lr.admin_reviewed_at,
+        lr.referral_date,
+        lr.created_at,
+        lr.referred_by_user_id,
+        lr.referred_to_agent_id,
+        u.name as referred_by_name,
+        u.role as referred_by_role,
+        rt.name as referred_to_name,
+        rt.role as referred_to_role,
+        l.customer_name,
+        l.phone_number,
+        l.notes
+       FROM lead_referrals lr
+       LEFT JOIN leads l ON lr.lead_id = l.id
+       LEFT JOIN users u ON lr.referred_by_user_id = u.id
+       LEFT JOIN users rt ON lr.referred_to_agent_id = rt.id
+       WHERE lr.admin_status = 'pending'
+         AND lr.status = 'pending'
+       ORDER BY lr.created_at DESC`
+    );
+    return result.rows;
+  }
+
+  /**
+   * Get count of referrals waiting for admin approval
+   * @returns {Promise<number>}
+   */
+  static async getPendingAdminReferralsCount() {
+    const result = await pool.query(
+      `SELECT COUNT(*) as count
+       FROM lead_referrals
+       WHERE admin_status = 'pending'
+         AND status = 'pending'`
+    );
+    return parseInt(result.rows[0].count, 10);
+  }
+
+  /**
+   * Approve a lead referral after admin review
+   */
+  static async approveReferralByAdmin(referralId, reviewedByUserId) {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const referralResult = await client.query(
+        `SELECT * FROM lead_referrals WHERE id = $1`,
+        [referralId]
+      );
+
+      const referral = referralResult.rows[0];
+      if (!referral) {
+        throw new Error('Referral not found');
+      }
+
+      if (referral.status !== 'pending') {
+        throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      if ((referral.admin_status || 'approved') !== 'pending') {
+        throw new Error('Referral has already been reviewed');
+      }
+
+      const result = await client.query(
+        `UPDATE lead_referrals
+         SET admin_status = 'approved',
+             admin_reviewed_by_user_id = $2,
+             admin_reviewed_at = NOW(),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [referralId, reviewedByUserId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Reject a lead referral during admin review
+   */
+  static async rejectReferralByAdmin(referralId, reviewedByUserId) {
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      const referralResult = await client.query(
+        `SELECT * FROM lead_referrals WHERE id = $1`,
+        [referralId]
+      );
+
+      const referral = referralResult.rows[0];
+      if (!referral) {
+        throw new Error('Referral not found');
+      }
+
+      if (referral.status !== 'pending') {
+        throw new Error(`Referral is already ${referral.status}`);
+      }
+
+      if ((referral.admin_status || 'approved') !== 'pending') {
+        throw new Error('Referral has already been reviewed');
+      }
+
+      const result = await client.query(
+        `UPDATE lead_referrals
+         SET status = 'rejected',
+             admin_status = 'rejected',
+             admin_reviewed_by_user_id = $2,
+             admin_reviewed_at = NOW(),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING *`,
+        [referralId, reviewedByUserId]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
 

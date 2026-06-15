@@ -5,6 +5,7 @@ import { X, User, Building2 } from 'lucide-react'
 import { Property } from '@/types/property'
 import { usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { useSettings } from '@/contexts/SettingsContext'
 import { useToast } from '@/contexts/ToastContext'
 import { normalizeRole } from '@/utils/roleUtils'
 
@@ -33,6 +34,7 @@ export function ReferPropertyModal({
   const [loading, setLoading] = useState(false)
   const [fetchingAgents, setFetchingAgents] = useState(false)
   const { token, user } = useAuth()
+  const { settings } = useSettings()
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -79,8 +81,15 @@ export function ReferPropertyModal({
       if (data.success) {
         const selectedAgent = agents.find(a => a.id === selectedAgentId)
         const agentName = selectedAgent?.name || 'the selected agent'
-        showToast('success', `Property ${property.reference_number} has been successfully referred to ${agentName}. They will receive a notification and can confirm or reject the referral.`)
+        if (settings.referral_requires_admin_approval) {
+          showToast('success', `Property ${property.reference_number} has been referred to ${agentName}. Admin approval is required before the recipient can see the details.`)
+        } else {
+          showToast('success', `Property ${property.reference_number} has been successfully referred to ${agentName}. They will receive a notification and can confirm or reject the referral.`)
+        }
         setSelectedAgentId('')
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('referrals:refresh'))
+        }
         onSuccess?.()
         onClose()
       } else {

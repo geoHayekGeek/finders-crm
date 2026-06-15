@@ -18,6 +18,7 @@ interface SystemSettings {
   reminder_1_day_before: boolean
   reminder_same_day: boolean
   reminder_1_hour_before: boolean
+  referral_requires_admin_approval: boolean
   email_from_name: string
   email_from_address: string
 }
@@ -42,6 +43,7 @@ const defaultSettings: SystemSettings = {
   reminder_1_day_before: true,
   reminder_same_day: true,
   reminder_1_hour_before: true,
+  referral_requires_admin_approval: true,
   email_from_name: 'Finders CRM',
   email_from_address: 'noreply@finderscrm.com'
 }
@@ -105,6 +107,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
         reminder_1_day_before: settingsObj.reminder_1_day_before === 'true',
         reminder_same_day: settingsObj.reminder_same_day === 'true',
         reminder_1_hour_before: settingsObj.reminder_1_hour_before === 'true',
+        referral_requires_admin_approval: settingsObj.referral_requires_admin_approval !== 'false',
         email_from_name: settingsObj.email_from_name || defaultSettings.email_from_name,
         email_from_address: settingsObj.email_from_address || defaultSettings.email_from_address
       }

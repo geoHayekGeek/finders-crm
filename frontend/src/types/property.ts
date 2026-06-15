@@ -7,8 +7,17 @@ export interface Referral {
   created_at?: string // Timestamp when the referral was created
   external?: boolean // Whether the referral is external (no longer earns commission)
   status?: 'pending' | 'confirmed' | 'rejected' // Status for property referrals
+  admin_status?: 'pending' | 'approved' | 'rejected'
+  admin_reviewed_by_user_id?: number | null
+  admin_reviewed_at?: string | null
   referred_to_agent_id?: number // Agent/team leader the property is referred to
   referred_by_user_id?: number // User who made the referral
+  referred_to_name?: string
+  referred_to_role?: string
+  referred_by_name?: string
+  referred_by_role?: string
+  visibility_state?: 'visible' | 'awaiting_admin_approval' | 'declined_by_admin'
+  is_redacted_for_admin_approval?: boolean
 }
 
 // Structured property details

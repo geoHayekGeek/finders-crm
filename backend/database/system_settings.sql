@@ -46,7 +46,8 @@ INSERT INTO system_settings (setting_key, setting_value, setting_type, descripti
 ('enable_viewings', 'true', 'boolean', 'Enable viewings feature', 'features'),
 ('enable_properties', 'true', 'boolean', 'Enable properties feature', 'features'),
 ('enable_leads', 'true', 'boolean', 'Enable leads feature', 'features'),
-('enable_calendar', 'true', 'boolean', 'Enable calendar feature', 'features')
+('enable_calendar', 'true', 'boolean', 'Enable calendar feature', 'features'),
+('referral_requires_admin_approval', 'true', 'boolean', 'Require admin approval before referral details are visible to the recipient', 'features')
 
 ON CONFLICT (setting_key) DO NOTHING;
 

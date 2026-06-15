@@ -199,6 +199,9 @@ class Lead {
               'referral_date', lr.referral_date,
               'external', lr.external,
               'status', lr.status,
+              'admin_status', lr.admin_status,
+              'admin_reviewed_by_user_id', lr.admin_reviewed_by_user_id,
+              'admin_reviewed_at', lr.admin_reviewed_at,
               'referred_to_agent_id', lr.referred_to_agent_id,
               'referred_by_user_id', lr.referred_by_user_id,
               'referred_by_name', referred_by.name,
@@ -301,7 +304,12 @@ class Lead {
               'type', lr.type,
               'agent_name', ref_agent.name,
               'referral_date', lr.referral_date,
-              'external', lr.external
+              'external', lr.external,
+              'admin_status', lr.admin_status,
+              'admin_reviewed_by_user_id', lr.admin_reviewed_by_user_id,
+              'admin_reviewed_at', lr.admin_reviewed_at,
+              'referred_to_agent_id', lr.referred_to_agent_id,
+              'referred_by_user_id', lr.referred_by_user_id
             ) ORDER BY lr.referral_date DESC
           ) FILTER (WHERE lr.id IS NOT NULL),
           '[]'::json

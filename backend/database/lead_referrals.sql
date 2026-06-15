@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS lead_referrals (
   type VARCHAR(20) NOT NULL DEFAULT 'employee' CHECK (type IN ('employee', 'custom')),
   referral_date TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
   external BOOLEAN DEFAULT FALSE NOT NULL,
+  admin_status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (admin_status IN ('pending', 'approved', 'rejected')),
+  admin_reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  admin_reviewed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   
@@ -23,10 +26,14 @@ CREATE INDEX IF NOT EXISTS idx_lead_referrals_agent_id ON lead_referrals(agent_i
 CREATE INDEX IF NOT EXISTS idx_lead_referrals_date ON lead_referrals(referral_date);
 CREATE INDEX IF NOT EXISTS idx_lead_referrals_external ON lead_referrals(external);
 CREATE INDEX IF NOT EXISTS idx_lead_referrals_type ON lead_referrals(type);
+CREATE INDEX IF NOT EXISTS idx_lead_referrals_admin_status ON lead_referrals(admin_status);
+CREATE INDEX IF NOT EXISTS idx_lead_referrals_admin_reviewed_by_user_id ON lead_referrals(admin_reviewed_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_lead_referrals_pending_admin_review ON lead_referrals(admin_status, referral_date) WHERE admin_status = 'pending';
 
 -- Add comments to document the columns
 COMMENT ON COLUMN lead_referrals.external IS 'Indicates whether the referral is external (no longer earns commission). Set to true when the lead is re-referred to another agent after 1 month from the original referral date.';
 COMMENT ON COLUMN lead_referrals.referral_date IS 'Date when the agent was assigned/referred to this lead';
+COMMENT ON COLUMN lead_referrals.admin_status IS 'Admin approval state for referred leads: pending (awaiting approval), approved (visible to the recipient), rejected (declined by admin)';
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_lead_referrals_updated_at()

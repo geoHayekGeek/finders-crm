@@ -10,8 +10,17 @@ export interface LeadReferral {
   referral_date: string
   external: boolean
   status?: 'pending' | 'confirmed' | 'rejected' // Status for lead referrals
+  admin_status?: 'pending' | 'approved' | 'rejected'
+  admin_reviewed_by_user_id?: number | null
+  admin_reviewed_at?: string | null
   referred_to_agent_id?: number // Agent/team leader the lead is referred to
   referred_by_user_id?: number // User who made the referral
+  referred_to_name?: string
+  referred_to_role?: string
+  referred_by_name?: string
+  referred_by_role?: string
+  visibility_state?: 'visible' | 'awaiting_admin_approval' | 'declined_by_admin'
+  is_redacted_for_admin_approval?: boolean
   created_at?: string
   updated_at?: string
 }

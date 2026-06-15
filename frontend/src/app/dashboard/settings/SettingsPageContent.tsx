@@ -115,11 +115,13 @@ export default function SettingsPageContent() {
   const [commissionTeamLeader, setCommissionTeamLeader] = useState('1')
   const [commissionAdministration, setCommissionAdministration] = useState('4')
   const [operationsManagerShareOfAdmin, setOperationsManagerShareOfAdmin] = useState('0.5')
+  const [referralRequiresAdminApproval, setReferralRequiresAdminApproval] = useState(true)
 
   const tabs = [
     { id: 'company', name: 'Company & Branding', icon: Building2 },
     { id: 'smtp', name: 'Email Configuration', icon: Mail },
     { id: 'commissions', name: 'Commissions', icon: Shield },
+    { id: 'referrals', name: 'Referrals', icon: User },
   ]
 
   // Load settings on mount
@@ -211,6 +213,7 @@ export default function SettingsPageContent() {
       setCommissionTeamLeader(settingsObj.commission_team_leader_percentage ?? '1')
       setCommissionAdministration(settingsObj.commission_administration_percentage ?? '4')
       setOperationsManagerShareOfAdmin(settingsObj.commission_operations_manager_share_of_admin ?? '0.5')
+      setReferralRequiresAdminApproval(settingsObj.referral_requires_admin_approval !== 'false')
     } catch (error) {
       showToast('error', 'Failed to load settings. Please refresh the page.')
     } finally {
@@ -258,7 +261,8 @@ export default function SettingsPageContent() {
         { key: 'commission_referral_external_percentage', value: commissionReferralExtended },
         { key: 'commission_team_leader_percentage', value: commissionTeamLeader },
         { key: 'commission_administration_percentage', value: commissionAdministration },
-        { key: 'commission_operations_manager_share_of_admin', value: operationsManagerShareOfAdmin }
+        { key: 'commission_operations_manager_share_of_admin', value: operationsManagerShareOfAdmin },
+        { key: 'referral_requires_admin_approval', value: referralRequiresAdminApproval.toString() }
       ]
       
       // Get CSRF token for the request
@@ -935,6 +939,54 @@ export default function SettingsPageContent() {
                     placeholder="0.5"
                   />
                   <p className="text-xs text-gray-500">Fixed commission taken directly from the administration commission. The operations manager also participates in sharing the remaining administration commission with other operations employees.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Referrals Tab */}
+          {activeTab === 'referrals' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-medium text-gray-900">Referral Approval Workflow</h3>
+                <p className="text-sm text-gray-500">
+                  Control whether new agent-to-agent referrals must be reviewed by admin before the recipient can see the property or lead details.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-blue-600" />
+                      <h4 className="text-base font-semibold text-gray-900">Require admin approval for referrals</h4>
+                    </div>
+                    <p className="text-sm text-gray-600 max-w-2xl">
+                      When enabled, a referral created by an agent or team leader is first routed to admin review. The recipient sees a notification that something was referred to them, but the property or lead details stay hidden until an admin approves it.
+                    </p>
+                    <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                        <CheckCircle className="h-4 w-4" />
+                        Admin approval on
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-gray-700">
+                        <XCircle className="h-4 w-4" />
+                        Direct visibility off
+                      </span>
+                    </div>
+                  </div>
+
+                  <label className="inline-flex cursor-pointer items-center gap-3 rounded-full border border-gray-200 bg-gray-50 px-4 py-2">
+                    <span className="text-sm font-medium text-gray-700">
+                      {referralRequiresAdminApproval ? 'Enabled' : 'Disabled'}
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={referralRequiresAdminApproval}
+                      onChange={(e) => setReferralRequiresAdminApproval(e.target.checked)}
+                      className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                  </label>
                 </div>
               </div>
             </div>

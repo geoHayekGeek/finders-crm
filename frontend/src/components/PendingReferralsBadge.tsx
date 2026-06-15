@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { UserPlus, X } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { PendingReferralsModal } from './PendingReferralsModal'
 import { normalizeRole } from '@/utils/roleUtils'
@@ -11,9 +11,8 @@ export function PendingReferralsBadge() {
   const [isOpen, setIsOpen] = useState(false)
   const { token, user } = useAuth()
 
-  // Only show for agents and team leaders
   const normalizedUserRole = normalizeRole(user?.role);
-  const shouldShow = (['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader')
+  const shouldShow = normalizedUserRole === 'admin' || ['agent', 'consultant'].includes(normalizedUserRole) || normalizedUserRole === 'team leader'
 
   useEffect(() => {
     if (!shouldShow) return
@@ -35,9 +34,28 @@ export function PendingReferralsBadge() {
 
     fetchPendingCount()
 
+    const handleReferralRefresh = () => {
+      fetchPendingCount()
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchPendingCount()
+      }
+    }
+
     // Refresh every 30 seconds
     const interval = setInterval(fetchPendingCount, 30000)
-    return () => clearInterval(interval)
+    window.addEventListener('referrals:refresh', handleReferralRefresh)
+    window.addEventListener('focus', handleReferralRefresh)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('referrals:refresh', handleReferralRefresh)
+      window.removeEventListener('focus', handleReferralRefresh)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [shouldShow, token])
 
   if (!shouldShow || pendingCount === 0) return null
@@ -47,8 +65,12 @@ export function PendingReferralsBadge() {
       <button
         onClick={() => setIsOpen(true)}
         className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-colors duration-200 focus:outline-none"
-        aria-label="Pending Referrals"
-        title={`${pendingCount} pending referral${pendingCount !== 1 ? 's' : ''}`}
+        aria-label={normalizedUserRole === 'admin' ? 'Referral approvals' : 'Pending Referrals'}
+        title={
+          normalizedUserRole === 'admin'
+            ? `${pendingCount} referral approval${pendingCount !== 1 ? 's' : ''} awaiting review`
+            : `${pendingCount} pending referral${pendingCount !== 1 ? 's' : ''}`
+        }
       >
         <UserPlus className="h-6 w-6" />
         {/* Badge with count */}

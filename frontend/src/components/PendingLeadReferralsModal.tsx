@@ -10,14 +10,22 @@ interface PendingLeadReferral {
   id: number
   lead_id: number
   status: string
+  admin_status?: 'pending' | 'approved' | 'rejected'
+  admin_reviewed_by_user_id?: number | null
+  admin_reviewed_at?: string | null
   referral_date: string
   created_at: string
   referred_by_user_id: number
   referred_by_name: string
   referred_by_role: string
-  customer_name: string
-  phone_number: string
+  referred_to_agent_id?: number
+  referred_to_name?: string
+  referred_to_role?: string
+  customer_name?: string | null
+  phone_number?: string | null
   notes?: string
+  visibility_state?: 'visible' | 'awaiting_admin_approval' | 'declined_by_admin'
+  is_redacted_for_admin_approval?: boolean
 }
 
 interface PendingLeadReferralsModalProps {
@@ -34,7 +42,8 @@ export function PendingLeadReferralsModal({
   const [referrals, setReferrals] = useState<PendingLeadReferral[]>([])
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState<number | null>(null)
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const isAdmin = normalizeRole(user?.role) === 'admin'
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -78,7 +87,14 @@ export function PendingLeadReferralsModal({
       if (data.success) {
         const referral = referrals.find(r => r.id === referralId)
         const leadName = referral?.customer_name || 'the lead'
-        showToast('success', `Referral confirmed successfully! Lead ${leadName} has been assigned to you. You can now manage this lead.`)
+        if (isAdmin) {
+          showToast('success', `Referral approved successfully. Lead ${leadName} is now visible to the recipient.`)
+        } else {
+          showToast('success', `Referral confirmed successfully! Lead ${leadName} has been assigned to you. You can now manage this lead.`)
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('referrals:refresh'))
+        }
         fetchPendingReferrals()
         onUpdate?.()
       } else {
@@ -86,7 +102,7 @@ export function PendingLeadReferralsModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      showToast('error', 'Failed to confirm the referral due to a network error. Please check your connection and try again.')
+      showToast('error', error instanceof Error ? error.message : 'Failed to confirm the referral. Please try again.')
     } finally {
       setProcessing(null)
     }
@@ -106,7 +122,14 @@ export function PendingLeadReferralsModal({
       if (data.success) {
         const referral = referrals.find(r => r.id === referralId)
         const leadName = referral?.customer_name || 'the lead'
-        showToast('success', `Referral rejected. The referrer has been notified that you declined the referral for lead ${leadName}.`)
+        if (isAdmin) {
+          showToast('success', `Referral rejected by admin for lead ${leadName}.`)
+        } else {
+          showToast('success', `Referral rejected. The referrer has been notified that you declined the referral for lead ${leadName}.`)
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('referrals:refresh'))
+        }
         fetchPendingReferrals()
         onUpdate?.()
       } else {
@@ -114,7 +137,7 @@ export function PendingLeadReferralsModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      showToast('error', 'Failed to reject the referral due to a network error. Please check your connection and try again.')
+      showToast('error', error instanceof Error ? error.message : 'Failed to reject the referral. Please try again.')
     } finally {
       setProcessing(null)
     }
@@ -148,9 +171,11 @@ export function PendingLeadReferralsModal({
                 <User className="h-5 w-5 text-orange-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Pending Lead Referrals</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {isAdmin ? 'Lead Referral Approvals' : 'Pending Lead Referrals'}
+                </h2>
                 <p className="text-sm text-gray-500">
-                  {referrals.length} referral{referrals.length !== 1 ? 's' : ''} awaiting your confirmation
+                  {referrals.length} referral{referrals.length !== 1 ? 's' : ''} {isAdmin ? 'awaiting admin review' : 'awaiting your confirmation'}
                 </p>
               </div>
             </div>
@@ -176,78 +201,186 @@ export function PendingLeadReferralsModal({
               </div>
             ) : (
               <div className="space-y-4">
-                {referrals.map((referral) => (
-                  <div
-                    key={referral.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex gap-4">
-                      {/* Lead Info */}
-                      <div className="flex-shrink-0">
-                        <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <UserCircle className="h-8 w-8 text-gray-400" />
-                        </div>
-                      </div>
+                {referrals.map((referral) => {
+                  const awaitingAdminApproval =
+                    referral.visibility_state === 'awaiting_admin_approval' ||
+                    referral.admin_status === 'pending'
+                  const actionableForRecipient = !isAdmin && !awaitingAdminApproval
 
-                      {/* Lead Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <div className="mb-1">
-                              <span className="font-semibold text-lg text-gray-900">
-                                {referral.customer_name}
-                              </span>
-                            </div>
-                            <div className="flex items-center text-sm text-gray-600 mb-1">
-                              <Phone className="h-4 w-4 mr-1" />
-                              {referral.phone_number}
-                            </div>
-                            {referral.notes && (
-                              <div className="text-sm text-gray-600 mt-2">
-                                {referral.notes}
+                  return (
+                    <div
+                      key={referral.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="flex gap-4">
+                        {/* Lead Info */}
+                        <div className="flex-shrink-0">
+                          <div className={`w-24 h-24 rounded-lg flex items-center justify-center ${awaitingAdminApproval && !isAdmin ? 'bg-amber-50 border border-amber-100' : 'bg-gray-100'}`}>
+                            <UserCircle className={`h-8 w-8 ${awaitingAdminApproval && !isAdmin ? 'text-amber-400' : 'text-gray-400'}`} />
+                          </div>
+                        </div>
+
+                        {/* Lead Details */}
+                        <div className="flex-1 min-w-0">
+                          {isAdmin ? (
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <div className="mb-1 flex items-center gap-2">
+                                    <span className="font-semibold text-lg text-gray-900">
+                                      {referral.customer_name || 'Pending lead referral'}
+                                    </span>
+                                    <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                      Pending admin review
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center text-sm text-gray-600 mb-1">
+                                    <Phone className="h-4 w-4 mr-1" />
+                                    {referral.phone_number || 'Hidden until approved'}
+                                  </div>
+                                  {referral.notes && (
+                                    <div className="text-sm text-gray-600 mt-2">
+                                      {referral.notes}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-right text-sm text-gray-600">
+                                  <div className="font-medium text-gray-900">
+                                    To {referral.referred_to_name || 'the selected user'}
+                                  </div>
+                                  <div>Referred by {referral.referred_by_name}</div>
+                                </div>
                               </div>
-                            )}
-                          </div>
+
+                              {/* Referred By */}
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <User className="h-4 w-4 mr-1" />
+                                  <span>
+                                    Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
+                                    {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
+                                  </span>
+                                </div>
+                                <div className="flex items-center text-xs text-gray-500 mt-1">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  {formatDate(referral.created_at)}
+                                </div>
+                              </div>
+                            </div>
+                          ) : awaitingAdminApproval ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                  Awaiting admin approval
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <p className="font-medium text-gray-900">A colleague referred a lead to you.</p>
+                                <p className="mt-1">
+                                  The lead details are hidden until an admin approves the referral.
+                                </p>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <User className="h-4 w-4 mr-1" />
+                                <span>
+                                  Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
+                                  {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
+                                </span>
+                              </div>
+                              <div className="flex items-center text-xs text-gray-500 mt-1">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {formatDate(referral.created_at)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <div className="mb-1">
+                                    <span className="font-semibold text-lg text-gray-900">
+                                      {referral.customer_name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center text-sm text-gray-600 mb-1">
+                                    <Phone className="h-4 w-4 mr-1" />
+                                    {referral.phone_number}
+                                  </div>
+                                  {referral.notes && (
+                                    <div className="text-sm text-gray-600 mt-2">
+                                      {referral.notes}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Referred By */}
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <User className="h-4 w-4 mr-1" />
+                                  <span>
+                                    Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
+                                    {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
+                                  </span>
+                                </div>
+                                <div className="flex items-center text-xs text-gray-500 mt-1">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  {formatDate(referral.created_at)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {/* Referred By */}
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <User className="h-4 w-4 mr-1" />
-                            <span>
-                              Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
-                              {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
-                            </span>
-                          </div>
-                          <div className="flex items-center text-xs text-gray-500 mt-1">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {formatDate(referral.created_at)}
-                          </div>
+                        {/* Actions */}
+                        <div className="flex-shrink-0 flex flex-col gap-2">
+                          {isAdmin ? (
+                            <>
+                              <button
+                                onClick={() => handleConfirm(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <Check className="h-4 w-4" />
+                                {processing === referral.id ? 'Approving...' : 'Approve'}
+                              </button>
+                              <button
+                                onClick={() => handleReject(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                {processing === referral.id ? 'Rejecting...' : 'Decline'}
+                              </button>
+                            </>
+                          ) : actionableForRecipient ? (
+                            <>
+                              <button
+                                onClick={() => handleConfirm(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <Check className="h-4 w-4" />
+                                {processing === referral.id ? 'Confirming...' : 'Confirm'}
+                              </button>
+                              <button
+                                onClick={() => handleReject(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                {processing === referral.id ? 'Rejecting...' : 'Reject'}
+                              </button>
+                            </>
+                          ) : (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                              Awaiting admin review
+                            </div>
+                          )}
                         </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex-shrink-0 flex flex-col gap-2">
-                        <button
-                          onClick={() => handleConfirm(referral.id)}
-                          disabled={processing === referral.id}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                          <Check className="h-4 w-4" />
-                          {processing === referral.id ? 'Confirming...' : 'Confirm'}
-                        </button>
-                        <button
-                          onClick={() => handleReject(referral.id)}
-                          disabled={processing === referral.id}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          {processing === referral.id ? 'Rejecting...' : 'Reject'}
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>

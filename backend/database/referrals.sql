@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS referrals (
   employee_id INTEGER NULL,
   date DATE NOT NULL,
   external BOOLEAN DEFAULT FALSE NOT NULL,
+  admin_status VARCHAR(20) NOT NULL DEFAULT 'approved' CHECK (admin_status IN ('pending', 'approved', 'rejected')),
+  admin_reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  admin_reviewed_at TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   
@@ -17,9 +20,15 @@ CREATE TABLE IF NOT EXISTS referrals (
 
 -- Add external column if it doesn't exist (for existing tables)
 ALTER TABLE referrals ADD COLUMN IF NOT EXISTS external BOOLEAN DEFAULT FALSE NOT NULL;
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS admin_status VARCHAR(20) DEFAULT 'approved' NOT NULL;
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS admin_reviewed_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE referrals ADD COLUMN IF NOT EXISTS admin_reviewed_at TIMESTAMP WITH TIME ZONE;
 
 -- Create index for external column
 CREATE INDEX IF NOT EXISTS idx_referrals_external ON referrals(external);
+CREATE INDEX IF NOT EXISTS idx_referrals_admin_status ON referrals(admin_status);
+CREATE INDEX IF NOT EXISTS idx_referrals_admin_reviewed_by_user_id ON referrals(admin_reviewed_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_referrals_pending_admin_review ON referrals(admin_status, created_at) WHERE admin_status = 'pending';
 
 -- Add referrals column to properties table if it doesn't exist
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS referrals_count INTEGER DEFAULT 0;

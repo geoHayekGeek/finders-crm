@@ -1,6 +1,7 @@
 // controllers/leadsController.js
 const Lead = require('../models/leadsModel');
 const LeadReferral = require('../models/leadReferralModel');
+const Settings = require('../models/settingsModel');
 const Notification = require('../models/notificationModel');
 const LeadNote = require('../models/leadNotesModel');
 const User = require('../models/userModel');
@@ -9,6 +10,7 @@ const {
   applySensitiveMaskingForLeadDetail,
   sanitizeAgentIdFilterQuery
 } = require('../utils/leadAccessUtils');
+const { sanitizeLeadReferralsForViewer } = require('../utils/referralVisibility');
 const { validationResult } = require('express-validator');
 const pool = require('../config/db');
 const logger = require('../utils/logger');
@@ -33,6 +35,23 @@ function respondWithLeadRoleValidationError(res) {
     ],
   });
 }
+
+const applyLeadReferralVisibility = (leads, viewerId, viewerRole) => {
+  if (!Array.isArray(leads)) {
+    return leads;
+  }
+
+  return leads.map((lead) => {
+    if (!lead?.referrals) {
+      return lead;
+    }
+
+    return {
+      ...lead,
+      referrals: sanitizeLeadReferralsForViewer(lead.referrals, viewerId, viewerRole)
+    };
+  });
+};
 
 class LeadsController {
   static parsePagination(query = {}) {
@@ -77,6 +96,7 @@ class LeadsController {
 
         if (['agent', 'consultant', 'team leader'].includes(normalizedRole)) {
           leads = await applySensitiveMaskingForLeadsList(leads, req.user.id, normalizedRole);
+          leads = applyLeadReferralVisibility(leads, req.user.id, normalizedRole);
         } else if (!['admin', 'operations', 'operations manager', 'agent manager'].includes(normalizedRole)) {
           return res.status(403).json({
             success: false,
@@ -88,9 +108,12 @@ class LeadsController {
       } else if (['agent', 'consultant', 'team leader'].includes(normalizedRole)) {
         leads = await Lead.getAllLeads();
         leads = await applySensitiveMaskingForLeadsList(leads, req.user.id, normalizedRole);
+        leads = applyLeadReferralVisibility(leads, req.user.id, normalizedRole);
       } else {
         leads = await Lead.getLeadsForAgent(req.user.id, normalizedRole);
       }
+
+      leads = applyLeadReferralVisibility(leads, req.user.id, normalizedRole);
       
       res.json({
         success: true,
@@ -156,6 +179,7 @@ class LeadsController {
 
         if (isAgentLikeRole(normalizedRole) || normalizedRole === 'team leader') {
           leads = await applySensitiveMaskingForLeadsList(leads, userId, normalizedRole);
+          leads = applyLeadReferralVisibility(leads, userId, normalizedRole);
         }
       } else if (isAgentLikeRole(normalizedRole) || normalizedRole === 'team leader') {
         logger.debug('Agent or team leader — all leads with filters + sensitive masking', { userId });
@@ -169,10 +193,13 @@ class LeadsController {
           );
         }
         leads = await applySensitiveMaskingForLeadsList(leads, userId, normalizedRole);
+        leads = applyLeadReferralVisibility(leads, userId, normalizedRole);
       } else {
         logger.debug('Admin/Manager/Operations user - direct filtering');
         leads = await Lead.getLeadsWithFilters(filterQuery);
       }
+
+      leads = applyLeadReferralVisibility(leads, userId, normalizedRole);
       
       logger.debug('Final leads count', { count: leads.length });
       
@@ -217,6 +244,7 @@ class LeadsController {
       } else if (['agent', 'consultant', 'team leader'].includes(normalizedRole)) {
         // All leads are visible; sensitive fields masked unless assigned to them / their team
         lead = await applySensitiveMaskingForLeadDetail(lead, userId, normalizedRole);
+        lead = applyLeadReferralVisibility([lead], userId, normalizedRole)[0];
       } else {
         return res.status(403).json({
           success: false,
@@ -812,7 +840,11 @@ class LeadsController {
         }
       }
 
-      const referrals = await LeadReferral.getReferralsByLeadId(parseInt(id));
+      const referrals = sanitizeLeadReferralsForViewer(
+        await LeadReferral.getReferralsByLeadId(parseInt(id)),
+        userId,
+        normalizedRole
+      );
 
       res.json({
         success: true,
@@ -1342,22 +1374,45 @@ class LeadsController {
         }
       }
 
+      const requiresAdminApproval = await Settings.isReferralAdminApprovalEnabled();
+
       // Create the referral
       const referral = await LeadReferral.referLeadToAgent(
         parseInt(id),
         parseInt(referred_to_agent_id),
-        userId
+        userId,
+        { requiresAdminApproval }
       );
 
       // Create notification for the referred agent (JWT has id/role only — load name from DB)
       try {
         const referrer = await User.findById(userId);
         const referrerLabel = referrer?.name || 'A colleague';
+        const referredToUser = await User.findById(parseInt(referred_to_agent_id));
+        const referredToLabel = referredToUser?.name || 'the selected user';
+
+        if (requiresAdminApproval) {
+          const admins = await User.getUsersByRole('admin');
+          const adminIds = admins.map((admin) => admin.id).filter(Boolean);
+
+          if (adminIds.length > 0) {
+            await Notification.createNotificationForUsers(adminIds, {
+              type: 'info',
+              title: 'Lead Referral Awaiting Approval',
+              message: `${referrerLabel} referred a lead to ${referredToLabel}. Admin approval is required before the recipient can view the details.`,
+              entity_type: 'lead',
+              entity_id: parseInt(id)
+            });
+          }
+        }
+
         await Notification.createNotification({
           user_id: parseInt(referred_to_agent_id),
           type: 'info',
-          title: 'New Lead Referral',
-          message: `${referrerLabel} referred lead ${lead.customer_name} to you`,
+          title: requiresAdminApproval ? 'Lead Referral Pending Approval' : 'New Lead Referral',
+          message: requiresAdminApproval
+            ? `${referrerLabel} referred a lead to you. It is waiting for admin approval before the details are shown.`
+            : `${referrerLabel} referred lead ${lead.customer_name} to you`,
           entity_type: 'lead',
           entity_id: parseInt(id)
         });
@@ -1384,6 +1439,17 @@ class LeadsController {
     try {
       const { roleFilters } = req;
       const userId = req.user.id;
+      const normalizedRole = normalizeRole(roleFilters.role);
+
+      if (normalizedRole === 'admin') {
+        const pendingReferrals = await LeadReferral.getPendingAdminReferrals();
+
+        return res.json({
+          success: true,
+          data: pendingReferrals,
+          count: pendingReferrals.length
+        });
+      }
 
       // Only agents and team leaders can have pending referrals
       if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1392,7 +1458,11 @@ class LeadsController {
         });
       }
 
-      const pendingReferrals = await LeadReferral.getPendingReferralsForUser(userId);
+      const pendingReferrals = sanitizeLeadReferralsForViewer(
+        await LeadReferral.getPendingReferralsForUser(userId),
+        userId,
+        roleFilters.role
+      );
 
       res.json({
         success: true,
@@ -1410,6 +1480,16 @@ class LeadsController {
     try {
       const { roleFilters } = req;
       const userId = req.user.id;
+      const normalizedRole = normalizeRole(roleFilters.role);
+
+      if (normalizedRole === 'admin') {
+        const count = await LeadReferral.getPendingAdminReferralsCount();
+
+        return res.json({
+          success: true,
+          count
+        });
+      }
 
       // Only agents and team leaders can have pending referrals
       if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1437,6 +1517,33 @@ class LeadsController {
       const { id } = req.params;
       const { roleFilters } = req;
       const userId = req.user.id;
+      const normalizedRole = normalizeRole(roleFilters.role);
+
+      if (normalizedRole === 'admin') {
+        const referral = await LeadReferral.approveReferralByAdmin(parseInt(id), userId);
+        const lead = await Lead.getLeadById(referral.lead_id);
+
+        try {
+          if (referral.referred_to_agent_id) {
+            await Notification.createNotification({
+              user_id: referral.referred_to_agent_id,
+              type: 'info',
+              title: 'Lead Referral Approved',
+              message: `An admin approved a lead referral for ${lead.customer_name}. You can now review the details and decide whether to accept or reject it.`,
+              entity_type: 'lead',
+              entity_id: referral.lead_id
+            });
+          }
+        } catch (notifError) {
+          logger.error('Error creating notification', notifError);
+        }
+
+        return res.json({
+          success: true,
+          data: referral,
+          message: 'Referral approved successfully'
+        });
+      }
 
       // Only agents and team leaders can confirm referrals
       if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1471,8 +1578,14 @@ class LeadsController {
       });
     } catch (error) {
       logger.error('Error confirming referral', error);
-      res.status(500).json({ 
-        message: error.message || 'Server error' 
+      const errorMessage = error.message || 'Server error';
+      const conflictMessage =
+        errorMessage.includes('awaiting admin approval') ||
+        errorMessage.includes('already been reviewed') ||
+        errorMessage.startsWith('Referral is already');
+      const statusCode = conflictMessage ? 409 : 500;
+      res.status(statusCode).json({ 
+        message: errorMessage
       });
     }
   }
@@ -1483,6 +1596,43 @@ class LeadsController {
       const { id } = req.params;
       const { roleFilters } = req;
       const userId = req.user.id;
+      const normalizedRole = normalizeRole(roleFilters.role);
+
+      if (normalizedRole === 'admin') {
+        const referral = await LeadReferral.rejectReferralByAdmin(parseInt(id), userId);
+        const lead = await Lead.getLeadById(referral.lead_id);
+
+        try {
+          const referrerId =
+            referral.referred_by_user_id != null
+              ? referral.referred_by_user_id
+              : referral.agent_id;
+
+          if (
+            referrerId != null &&
+            parseInt(String(referrerId), 10) !== parseInt(String(userId), 10)
+          ) {
+            const responder = await User.findById(userId);
+            const responderLabel = responder?.name?.trim() || 'An admin';
+            await Notification.createNotification({
+              user_id: parseInt(String(referrerId), 10),
+              type: 'warning',
+              title: 'Lead Referral Declined by Admin',
+              message: `${responderLabel} declined your referral for lead ${lead.customer_name}.`,
+              entity_type: 'lead',
+              entity_id: referral.lead_id
+            });
+          }
+        } catch (notifError) {
+          logger.error('Error creating notification', notifError);
+        }
+
+        return res.json({
+          success: true,
+          data: referral,
+          message: 'Referral rejected by admin successfully'
+        });
+      }
 
       // Only agents and team leaders can reject referrals
       if (!isAgentLikeRole(roleFilters.role) && roleFilters.role !== 'team leader') {
@@ -1518,8 +1668,14 @@ class LeadsController {
       });
     } catch (error) {
       logger.error('Error rejecting referral', error);
-      res.status(500).json({ 
-        message: error.message || 'Server error' 
+      const errorMessage = error.message || 'Server error';
+      const conflictMessage =
+        errorMessage.includes('awaiting admin approval') ||
+        errorMessage.includes('already been reviewed') ||
+        errorMessage.startsWith('Referral is already');
+      const statusCode = conflictMessage ? 409 : 500;
+      res.status(statusCode).json({ 
+        message: errorMessage
       });
     }
   }

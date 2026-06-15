@@ -202,6 +202,14 @@ class SettingsModel {
     const setting = await this.getByKey(settingKey);
     return setting ? this.convertValue(setting.setting_value, setting.setting_type) : true;
   }
+
+  /**
+   * Check whether referral approvals must go through admin review first
+   */
+  static async isReferralAdminApprovalEnabled() {
+    const setting = await this.getByKey('referral_requires_admin_approval');
+    return setting ? this.convertValue(setting.setting_value, setting.setting_type) : true;
+  }
 }
 
 module.exports = SettingsModel;

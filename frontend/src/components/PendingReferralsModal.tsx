@@ -11,20 +11,28 @@ interface PendingReferral {
   id: number
   property_id: number
   status: string
+  admin_status?: 'pending' | 'approved' | 'rejected'
+  admin_reviewed_by_user_id?: number | null
+  admin_reviewed_at?: string | null
   date: string
   created_at: string
   referred_by_user_id: number
   referred_by_name: string
   referred_by_role: string
-  reference_number: string
-  location: string
-  property_type: string
-  price: number
-  status_id: number
-  status_name: string
-  status_color: string
-  main_image?: string
-  category_name: string
+  referred_to_agent_id?: number
+  referred_to_name?: string
+  referred_to_role?: string
+  reference_number?: string | null
+  location?: string | null
+  property_type?: string | null
+  price?: number | null
+  status_id?: number | null
+  status_name?: string | null
+  status_color?: string | null
+  main_image?: string | null
+  category_name?: string | null
+  visibility_state?: 'visible' | 'awaiting_admin_approval' | 'declined_by_admin'
+  is_redacted_for_admin_approval?: boolean
 }
 
 interface PendingReferralsModalProps {
@@ -41,7 +49,9 @@ export function PendingReferralsModal({
   const [referrals, setReferrals] = useState<PendingReferral[]>([])
   const [loading, setLoading] = useState(false)
   const [processing, setProcessing] = useState<number | null>(null)
-  const { token } = useAuth()
+  const { token, user } = useAuth()
+  const normalizedUserRole = normalizeRole(user?.role)
+  const isAdmin = normalizedUserRole === 'admin'
   const { showToast } = useToast()
 
   useEffect(() => {
@@ -85,7 +95,14 @@ export function PendingReferralsModal({
       if (data.success) {
         const referral = referrals.find(r => r.id === referralId)
         const propertyRef = referral?.reference_number || 'the property'
-        showToast('success', `Referral confirmed successfully! Property ${propertyRef} has been assigned to you. You can now manage this property.`)
+        if (isAdmin) {
+          showToast('success', `Referral approved successfully. Property ${propertyRef} is now visible to the recipient.`)
+        } else {
+          showToast('success', `Referral confirmed successfully! Property ${propertyRef} has been assigned to you. You can now manage this property.`)
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('referrals:refresh'))
+        }
         fetchPendingReferrals()
         onUpdate?.()
       } else {
@@ -93,7 +110,7 @@ export function PendingReferralsModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      showToast('error', 'Failed to confirm the referral due to a network error. Please check your connection and try again.')
+      showToast('error', error instanceof Error ? error.message : 'Failed to confirm the referral. Please try again.')
     } finally {
       setProcessing(null)
     }
@@ -113,7 +130,14 @@ export function PendingReferralsModal({
       if (data.success) {
         const referral = referrals.find(r => r.id === referralId)
         const propertyRef = referral?.reference_number || 'the property'
-        showToast('success', `Referral rejected. The referrer has been notified that you declined the referral for property ${propertyRef}.`)
+        if (isAdmin) {
+          showToast('success', `Referral rejected by admin for property ${propertyRef}.`)
+        } else {
+          showToast('success', `Referral rejected. The referrer has been notified that you declined the referral for property ${propertyRef}.`)
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('referrals:refresh'))
+        }
         fetchPendingReferrals()
         onUpdate?.()
       } else {
@@ -121,13 +145,13 @@ export function PendingReferralsModal({
         showToast('error', errorMessage)
       }
     } catch (error) {
-      showToast('error', 'Failed to reject the referral due to a network error. Please check your connection and try again.')
+      showToast('error', error instanceof Error ? error.message : 'Failed to reject the referral. Please try again.')
     } finally {
       setProcessing(null)
     }
   }
 
-  const formatPrice = (price?: number) => {
+  const formatPrice = (price?: number | null) => {
     if (!price) return 'Price on request'
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -165,9 +189,11 @@ export function PendingReferralsModal({
                 <User className="h-5 w-5 text-orange-600" />
               </div>
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Pending Referrals</h2>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {isAdmin ? 'Referral Approvals' : 'Pending Referrals'}
+                </h2>
                 <p className="text-sm text-gray-500">
-                  {referrals.length} referral{referrals.length !== 1 ? 's' : ''} awaiting your confirmation
+                  {referrals.length} referral{referrals.length !== 1 ? 's' : ''} {isAdmin ? 'awaiting admin review' : 'awaiting your confirmation'}
                 </p>
               </div>
             </div>
@@ -193,90 +219,213 @@ export function PendingReferralsModal({
               </div>
             ) : (
               <div className="space-y-4">
-                {referrals.map((referral) => (
-                  <div
-                    key={referral.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
-                  >
-                    <div className="flex gap-4">
-                      {/* Property Image */}
-                      <div className="flex-shrink-0">
-                        {referral.main_image ? (
-                          <img
-                            src={getFullImageUrl(referral.main_image)}
-                            alt={referral.reference_number}
-                            className="w-24 h-24 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                            <Building2 className="h-8 w-8 text-gray-400" />
-                          </div>
-                        )}
-                      </div>
+                {referrals.map((referral) => {
+                  const awaitingAdminApproval =
+                    referral.visibility_state === 'awaiting_admin_approval' ||
+                    referral.admin_status === 'pending'
+                  const actionableForRecipient = !isAdmin && !awaitingAdminApproval
 
-                      {/* Property Details */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-mono text-sm font-semibold text-gray-900">
-                                {referral.reference_number}
-                              </span>
-                              <span
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                                style={{ backgroundColor: referral.status_color }}
+                  return (
+                    <div
+                      key={referral.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                    >
+                      <div className="flex gap-4">
+                        {/* Property Image */}
+                        <div className="flex-shrink-0">
+                          {isAdmin && referral.main_image ? (
+                            <img
+                              src={getFullImageUrl(referral.main_image)}
+                              alt={referral.reference_number || 'Referral property'}
+                              className="w-24 h-24 object-cover rounded-lg"
+                            />
+                          ) : awaitingAdminApproval ? (
+                            <div className="w-24 h-24 bg-amber-50 rounded-lg flex items-center justify-center border border-amber-100">
+                              <Building2 className="h-8 w-8 text-amber-400" />
+                            </div>
+                          ) : referral.main_image ? (
+                            <img
+                              src={getFullImageUrl(referral.main_image)}
+                              alt={referral.reference_number || 'Referral property'}
+                              className="w-24 h-24 object-cover rounded-lg"
+                            />
+                          ) : (
+                            <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <Building2 className="h-8 w-8 text-gray-400" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Property Details */}
+                        <div className="flex-1 min-w-0">
+                          {isAdmin ? (
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-mono text-sm font-semibold text-gray-900">
+                                      {referral.reference_number || 'Pending referral'}
+                                    </span>
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                                      style={{ backgroundColor: referral.status_color || '#6B7280' }}
+                                    >
+                                      {referral.status_name}
+                                    </span>
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                                      Pending admin review
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center text-sm text-gray-600 mb-1">
+                                    <MapPin className="h-4 w-4 mr-1" />
+                                    {referral.location || 'No location provided'}
+                                  </div>
+                                  <div className="text-lg font-semibold text-green-600">
+                                    {formatPrice(referral.price)}
+                                  </div>
+                                </div>
+                                <div className="text-right text-sm text-gray-600">
+                                  <div className="font-medium text-gray-900">
+                                    To {referral.referred_to_name || 'the selected user'}
+                                  </div>
+                                  <div>
+                                    Referred by {referral.referred_by_name}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2">
+                                <div className="rounded-lg bg-gray-50 px-3 py-2">
+                                  <span className="font-medium text-gray-900">Property Type:</span>{' '}
+                                  {referral.property_type || 'Unknown'}
+                                </div>
+                                <div className="rounded-lg bg-gray-50 px-3 py-2">
+                                  <span className="font-medium text-gray-900">Category:</span>{' '}
+                                  {referral.category_name || 'Unknown'}
+                                </div>
+                              </div>
+                              <div className="flex items-center text-xs text-gray-500">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {formatDate(referral.created_at)}
+                              </div>
+                            </div>
+                          ) : awaitingAdminApproval ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                  Awaiting admin approval
+                                </span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                <p className="font-medium text-gray-900">A colleague referred a property to you.</p>
+                                <p className="mt-1">
+                                  The details are hidden until an admin approves the referral.
+                                </p>
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <User className="h-4 w-4 mr-1" />
+                                <span>
+                                  Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
+                                  {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
+                                </span>
+                              </div>
+                              <div className="flex items-center text-xs text-gray-500">
+                                <Calendar className="h-3 w-3 mr-1" />
+                                {formatDate(referral.created_at)}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-mono text-sm font-semibold text-gray-900">
+                                      {referral.reference_number}
+                                    </span>
+                                    <span
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                                      style={{ backgroundColor: referral.status_color || '#6B7280' }}
+                                    >
+                                      {referral.status_name}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center text-sm text-gray-600 mb-1">
+                                    <MapPin className="h-4 w-4 mr-1" />
+                                    {referral.location}
+                                  </div>
+                                  <div className="text-lg font-semibold text-green-600">
+                                    {formatPrice(referral.price)}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Referred By */}
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="flex items-center text-sm text-gray-600">
+                                  <User className="h-4 w-4 mr-1" />
+                                  <span>
+                                    Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
+                                    {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
+                                  </span>
+                                </div>
+                                <div className="flex items-center text-xs text-gray-500 mt-1">
+                                  <Calendar className="h-3 w-3 mr-1" />
+                                  {formatDate(referral.created_at)}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex-shrink-0 flex flex-col gap-2">
+                          {isAdmin ? (
+                            <>
+                              <button
+                                onClick={() => handleConfirm(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
                               >
-                                {referral.status_name}
-                              </span>
+                                <Check className="h-4 w-4" />
+                                {processing === referral.id ? 'Approving...' : 'Approve'}
+                              </button>
+                              <button
+                                onClick={() => handleReject(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                {processing === referral.id ? 'Rejecting...' : 'Decline'}
+                              </button>
+                            </>
+                          ) : actionableForRecipient ? (
+                            <>
+                              <button
+                                onClick={() => handleConfirm(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <Check className="h-4 w-4" />
+                                {processing === referral.id ? 'Confirming...' : 'Confirm'}
+                              </button>
+                              <button
+                                onClick={() => handleReject(referral.id)}
+                                disabled={processing === referral.id}
+                                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                {processing === referral.id ? 'Rejecting...' : 'Reject'}
+                              </button>
+                            </>
+                          ) : (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                              Awaiting admin review
                             </div>
-                            <div className="flex items-center text-sm text-gray-600 mb-1">
-                              <MapPin className="h-4 w-4 mr-1" />
-                              {referral.location}
-                            </div>
-                            <div className="text-lg font-semibold text-green-600">
-                              {formatPrice(referral.price)}
-                            </div>
-                          </div>
+                          )}
                         </div>
-
-                        {/* Referred By */}
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <div className="flex items-center text-sm text-gray-600">
-                            <User className="h-4 w-4 mr-1" />
-                            <span>
-                              Referred by <span className="font-medium text-gray-900">{referral.referred_by_name}</span>
-                              {' '}({normalizeRole(referral.referred_by_role) === 'team leader' ? 'Team Leader' : 'Agent'})
-                            </span>
-                          </div>
-                          <div className="flex items-center text-xs text-gray-500 mt-1">
-                            <Calendar className="h-3 w-3 mr-1" />
-                            {formatDate(referral.created_at)}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex-shrink-0 flex flex-col gap-2">
-                        <button
-                          onClick={() => handleConfirm(referral.id)}
-                          disabled={processing === referral.id}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                          <Check className="h-4 w-4" />
-                          {processing === referral.id ? 'Confirming...' : 'Confirm'}
-                        </button>
-                        <button
-                          onClick={() => handleReject(referral.id)}
-                          disabled={processing === referral.id}
-                          className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          {processing === referral.id ? 'Rejecting...' : 'Reject'}
-                        </button>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )}
           </div>
