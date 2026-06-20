@@ -35,7 +35,8 @@ describe('Operations Commission Report', () => {
     it('should create an operations commission report successfully with valid data', async () => {
       req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        commission_percentage: 2.5
       };
 
       const mockReport = {
@@ -59,7 +60,8 @@ describe('Operations Commission Report', () => {
 
       expect(operationsCommissionModel.createReport).toHaveBeenCalledWith(
         '2024-01-01',
-        '2024-01-31'
+        '2024-01-31',
+        2.5
       );
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
@@ -97,10 +99,26 @@ describe('Operations Commission Report', () => {
       });
     });
 
+    it('should return 400 when commission_percentage is missing', async () => {
+      req.body = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      await operationsCommissionController.createReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Commission percentage is required'
+      });
+    });
+
     it('should return 400 when year is less than 2000', async () => {
       req.body = {
         start_date: '1999-01-01',
-        end_date: '1999-01-31'
+        end_date: '1999-01-31',
+        commission_percentage: 4.0
       };
 
       const error = new Error('Year must be 2000 or later. Selected date range results in year 1999. Please select a date range starting from 2000 or later.');
@@ -118,7 +136,8 @@ describe('Operations Commission Report', () => {
     it('should successfully create report with year greater than 2100 (future dates)', async () => {
       req.body = {
         start_date: '2101-01-01',
-        end_date: '2101-01-31'
+        end_date: '2101-01-31',
+        commission_percentage: 4.0
       };
 
       const mockReport = {
@@ -152,7 +171,8 @@ describe('Operations Commission Report', () => {
     it('should successfully create report with year 2000 (minimum boundary)', async () => {
       req.body = {
         start_date: '2000-01-01',
-        end_date: '2000-01-31'
+        end_date: '2000-01-31',
+        commission_percentage: 4.0
       };
 
       const mockReport = {
@@ -186,7 +206,8 @@ describe('Operations Commission Report', () => {
     it('should successfully create report with year 2100', async () => {
       req.body = {
         start_date: '2100-12-01',
-        end_date: '2100-12-31'
+        end_date: '2100-12-31',
+        commission_percentage: 4.0
       };
 
       const mockReport = {
@@ -220,7 +241,8 @@ describe('Operations Commission Report', () => {
     it('should return 400 when date format is invalid', async () => {
       req.body = {
         start_date: 'invalid-date',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        commission_percentage: 4.0
       };
 
       await operationsCommissionController.createReport(req, res);
@@ -235,7 +257,8 @@ describe('Operations Commission Report', () => {
     it('should return 400 when end_date is before start_date', async () => {
       req.body = {
         start_date: '2024-01-31',
-        end_date: '2024-01-01'
+        end_date: '2024-01-01',
+        commission_percentage: 4.0
       };
 
       await operationsCommissionController.createReport(req, res);
@@ -250,7 +273,8 @@ describe('Operations Commission Report', () => {
     it('should return 409 when report already exists', async () => {
       req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        commission_percentage: 4.0
       };
 
       // Mock pool.query for duplicate check (returns existing report)
@@ -268,7 +292,8 @@ describe('Operations Commission Report', () => {
     it('should handle database errors', async () => {
       req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        commission_percentage: 4.0
       };
 
       // Mock pool.query for duplicate check (returns empty = no duplicates)
@@ -744,4 +769,3 @@ describe('Operations Commission Report', () => {
     });
   });
 });
-

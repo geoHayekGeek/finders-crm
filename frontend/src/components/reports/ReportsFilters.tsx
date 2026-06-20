@@ -13,16 +13,20 @@ interface ReportsFiltersProps {
   filters: ReportFiltersType
   setFilters: (filters: ReportFiltersType) => void
   onClearFilters: () => void
+  mode?: 'agent' | 'team'
   agentFilterDisabled?: boolean
   lockedAgentId?: number
+  lockedTeamLeaderId?: number
 }
 
 export default function ReportsFilters({
   filters,
   setFilters,
   onClearFilters,
+  mode = 'agent',
   agentFilterDisabled = false,
-  lockedAgentId
+  lockedAgentId,
+  lockedTeamLeaderId
 }: ReportsFiltersProps) {
   const { token, user } = useAuth()
   const { role } = usePermissions()
@@ -33,44 +37,48 @@ export default function ReportsFilters({
     if (token) {
       loadAgents()
     }
-  }, [token, role, user?.id])
+  }, [token, role, user?.id, mode])
 
   const loadAgents = async () => {
     if (!token) return
 
     try {
+      const response = await usersApi.getAll(token)
+      if (!response.success) {
+        return
+      }
+
+      const normalizedRole = normalizeRole(role)
+      if (mode === 'team') {
+        const teamLeadersList = response.users.filter(
+          (u: User) => normalizeRole(u.role) === 'team leader'
+        )
+        setAgents(teamLeadersList)
+        return
+      }
+
       // If user is a team leader, load only their team agents + themselves
-      const normalizedRole = normalizeRole(role);
       if (normalizedRole === 'team leader' && user?.id) {
         const response = await usersApi.getTeamLeaderAgents(user.id, token)
         if (response.success) {
-          // Include the team leader themselves in the list
           const teamAgents = response.agents || []
-          // Add team leader to the list if not already included
           const allAgents = [
             { id: user.id, name: user.name, user_code: (user as any).user_code || '', role: 'team_leader' } as User,
             ...teamAgents
           ]
-          // Remove duplicates based on ID
           const uniqueAgents = allAgents.filter((agent, index, self) =>
             index === self.findIndex(a => a.id === agent.id)
           )
           setAgents(uniqueAgents)
         }
-      } else {
-        // For other roles, load all agents and team leaders
-        const response = await usersApi.getAll(token)
-        if (response.success) {
-          // Filter to only show agents and team leaders
-          const agentsList = response.users.filter(
-            (u: User) => {
-              const normalizedAgentRole = normalizeRole(u.role);
-              return (['agent', 'consultant'].includes(normalizedAgentRole) || normalizedAgentRole === 'team leader');
-            }
-          )
-          setAgents(agentsList)
-        }
+        return
       }
+
+      const agentsList = response.users.filter((u: User) => {
+        const normalizedAgentRole = normalizeRole(u.role);
+        return (['agent', 'consultant'].includes(normalizedAgentRole) || normalizedAgentRole === 'team leader');
+      })
+      setAgents(agentsList)
     } catch (error) {
       // Error handled silently - agents list will remain empty
     }
@@ -83,6 +91,8 @@ export default function ReportsFilters({
   const hasActiveFilters = Object.values(filters).some(
     value => value !== undefined && value !== null && value !== ''
   )
+  const selectedAgentId = mode === 'team' ? filters.team_leader_id : filters.agent_id
+  const lockedSelectedId = mode === 'team' ? lockedTeamLeaderId : lockedAgentId
 
   const rangeFormatter = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
@@ -99,7 +109,7 @@ export default function ReportsFilters({
       ? rangeFormatter.format(new Date(filters.end_date))
       : 'End'
 
-    return `${start} → ${end}`
+    return `${start} - ${end}`
   }
 
   return (
@@ -121,27 +131,33 @@ export default function ReportsFilters({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Agent Filter */}
+        {/* Agent / Team Filter */}
         <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:border-blue-300 transition-colors">
           <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-blue-500" />
-            Focus on an agent
+            {mode === 'team' ? 'Focus on a team' : 'Focus on an agent'}
           </label>
           <select
-            value={lockedAgentId ?? filters.agent_id ?? ''}
-            onChange={(e) => handleFilterChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
+            value={lockedSelectedId ?? selectedAgentId ?? ''}
+            onChange={(e) => handleFilterChange(
+              mode === 'team' ? 'team_leader_id' : 'agent_id',
+              e.target.value ? parseInt(e.target.value) : undefined
+            )}
             className="w-full appearance-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white disabled:bg-gray-100 disabled:text-gray-500"
-            disabled={agentFilterDisabled || !!lockedAgentId}
+            disabled={agentFilterDisabled || !!lockedAgentId || !!lockedTeamLeaderId}
           >
-            <option value="">All Agents</option>
-            {(lockedAgentId ? agents.filter(agent => agent.id === lockedAgentId) : agents).map((agent) => (
+            <option value="">{mode === 'team' ? 'All Teams' : 'All Agents'}</option>
+            {(lockedSelectedId
+              ? agents.filter(agent => agent.id === lockedSelectedId)
+              : agents
+            ).map((agent) => (
               <option key={agent.id} value={agent.id}>
                 {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
               </option>
             ))}
-            {lockedAgentId && !agents.find(agent => agent.id === lockedAgentId) && (
-              <option value={lockedAgentId}>
-                Agent #{lockedAgentId}
+            {lockedSelectedId && !agents.find(agent => agent.id === lockedSelectedId) && (
+              <option value={lockedSelectedId}>
+                {mode === 'team' ? `Team #${lockedSelectedId}` : `Agent #${lockedSelectedId}`}
               </option>
             )}
           </select>
@@ -162,7 +178,7 @@ export default function ReportsFilters({
               max={filters.end_date || undefined}
             />
             <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
-              —
+              -
             </div>
             <input
               type="date"
@@ -178,17 +194,20 @@ export default function ReportsFilters({
       {/* Active Filters Summary */}
       {hasActiveFilters && (
         <div className="mt-4 flex flex-wrap gap-2">
-          {filters.agent_id && (
+          {selectedAgentId ? (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-              Agent: {agents.find(a => a.id === filters.agent_id)?.name || filters.agent_id}
+              {mode === 'team'
+                ? `Team: ${agents.find(a => a.id === selectedAgentId)?.name || selectedAgentId}`
+                : `Agent: ${agents.find(a => a.id === selectedAgentId)?.name || selectedAgentId}`
+              }
               <button
-                onClick={() => handleFilterChange('agent_id', undefined)}
+                onClick={() => handleFilterChange(mode === 'team' ? 'team_leader_id' : 'agent_id', undefined)}
                 className="ml-2 text-blue-600 hover:text-blue-800"
               >
                 <X className="h-3 w-3" />
               </button>
             </span>
-          )}
+          ) : null}
           {(filters.start_date || filters.end_date) && (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
               Range: {formatRangeLabel()}
@@ -208,4 +227,3 @@ export default function ReportsFilters({
     </div>
   )
 }
-

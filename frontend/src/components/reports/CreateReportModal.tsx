@@ -105,6 +105,25 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     }
   }
 
+  const downloadReportExcel = async (reportId: number, agentName: string) => {
+    const blob = await reportsApi.exportToExcel(reportId, token)
+    const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    const start = new Date(formData.start_date)
+    const end = new Date(formData.end_date)
+    const safeStart = formatter.format(start).replace(/[, ]/g, '-')
+    const safeEnd = formatter.format(end).replace(/[, ]/g, '-')
+    const filename = `Report_${agentName.replace(/\s+/g, '_')}_${safeStart}_to_${safeEnd}.xlsx`
+
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }
+
   const calculatePreview = async () => {
     try {
       setCalculating(true)
@@ -198,7 +217,21 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           agent_id: formData.agent_id,
           start_date: formData.start_date,
           end_date: formData.end_date,
-          boosts: formData.boosts
+          boosts: formData.boosts,
+          listings_count: editableData.listings_count,
+          lead_sources: editableData.lead_sources,
+          viewings_count: editableData.viewings_count,
+          sales_count: editableData.sales_count,
+          sales_amount: editableData.sales_amount,
+          agent_commission: editableData.agent_commission,
+          finders_commission: editableData.finders_commission,
+          team_leader_commission: editableData.team_leader_commission,
+          administration_commission: editableData.administration_commission,
+          total_commission: editableData.total_commission,
+          referral_received_count: editableData.referral_received_count,
+          referral_received_commission: editableData.referral_received_commission,
+          referrals_on_properties_count: editableData.referrals_on_properties_count,
+          referrals_on_properties_commission: editableData.referrals_on_properties_commission
         },
         token
       )
@@ -210,15 +243,27 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           editableData.viewings_count !== previewData.viewings_count ||
           editableData.sales_count !== previewData.sales_count ||
           editableData.sales_amount !== previewData.sales_amount ||
+          editableData.agent_commission !== previewData.agent_commission ||
+          editableData.finders_commission !== previewData.finders_commission ||
+          editableData.team_leader_commission !== previewData.team_leader_commission ||
+          editableData.administration_commission !== previewData.administration_commission ||
+          editableData.total_commission !== previewData.total_commission ||
+          editableData.referral_received_count !== previewData.referral_received_count ||
+          editableData.referral_received_commission !== previewData.referral_received_commission ||
+          editableData.referrals_on_properties_count !== previewData.referrals_on_properties_count ||
+          editableData.referrals_on_properties_commission !== previewData.referrals_on_properties_commission ||
           JSON.stringify(editableData.lead_sources) !== JSON.stringify(previewData.lead_sources)
         )
 
-        if (hasManualEdits) {
-          // For now, we'll just show success. In a full implementation,
-          // you'd add an endpoint to accept manual overrides
-          showSuccess('Report created successfully with custom values')
-        } else {
-          showSuccess('Report created successfully')
+        try {
+          await downloadReportExcel(response.data.id, response.data.agent_name || 'Agent')
+          if (hasManualEdits) {
+            showSuccess('Report created and downloaded successfully with custom values')
+          } else {
+            showSuccess('Report created and downloaded successfully')
+          }
+        } catch (downloadError) {
+          showError('Report was saved, but the Excel download failed. You can export it from the reports list.')
         }
         
         onSuccess()
@@ -267,7 +312,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1 sticky top-0 bg-white rounded-t-lg z-10">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-lg z-10">
           <h2 className="text-xl font-semibold text-gray-900">Create Agent Report</h2>
           <button
             onClick={onClose}
@@ -315,7 +360,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                     ))}
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
-                    ▼
+                    v
                   </div>
                 </div>
               </div>
@@ -343,7 +388,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                   </div>
 
                   <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
-                    —
+                    -
                   </div>
 
                   <div className="relative">
@@ -655,19 +700,19 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="inline-flex items-center justify-center px-4 py-2 min-w-[120px] border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !formData.agent_id || calculating}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center px-4 py-2 min-w-[150px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating...' : 'Create Report'}
             </button>

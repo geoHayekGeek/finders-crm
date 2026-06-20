@@ -7,6 +7,12 @@ function toDbValue(value) {
   return String(value);
 }
 
+function assertNotCommissionKey(key) {
+  if (typeof key === 'string' && key.startsWith('commission_')) {
+    throw new Error('Commission settings have been removed and cannot be modified');
+  }
+}
+
 class SettingsModel {
   /**
    * Get all settings
@@ -15,6 +21,7 @@ class SettingsModel {
     const result = await pool.query(
       `SELECT setting_key, setting_value, setting_type, description, category
        FROM system_settings
+       WHERE setting_key NOT LIKE 'commission_%'
        ORDER BY category, setting_key`
     );
     return result.rows;
@@ -28,6 +35,7 @@ class SettingsModel {
       `SELECT setting_key, setting_value, setting_type, description, category
        FROM system_settings
        WHERE category = $1
+       AND setting_key NOT LIKE 'commission_%'
        ORDER BY setting_key`,
       [category]
     );
@@ -41,7 +49,8 @@ class SettingsModel {
     const result = await pool.query(
       `SELECT setting_key, setting_value, setting_type, description, category
        FROM system_settings
-       WHERE setting_key = $1`,
+       WHERE setting_key = $1
+       AND setting_key NOT LIKE 'commission_%'`,
       [key]
     );
     return result.rows[0] || null;
@@ -54,7 +63,8 @@ class SettingsModel {
     const result = await pool.query(
       `SELECT setting_key, setting_value, setting_type, description, category
        FROM system_settings
-       WHERE setting_key = ANY($1)`,
+       WHERE setting_key = ANY($1)
+       AND setting_key NOT LIKE 'commission_%'`,
       [keys]
     );
     return result.rows;
@@ -64,6 +74,8 @@ class SettingsModel {
    * Update a single setting (upsert: creates the row if missing — plain UPDATE is silent when no row exists)
    */
   static async update(key, value) {
+    assertNotCommissionKey(key);
+
     const result = await pool.query(
       `INSERT INTO system_settings (setting_key, setting_value)
        VALUES ($1, $2)
@@ -86,6 +98,8 @@ class SettingsModel {
       
       const updated = [];
       for (const { key, value } of settings) {
+        assertNotCommissionKey(key);
+
         const result = await client.query(
           `INSERT INTO system_settings (setting_key, setting_value)
            VALUES ($1, $2)
@@ -115,6 +129,7 @@ class SettingsModel {
    */
   static async create(data) {
     const { setting_key, setting_value, setting_type = 'string', description, category = 'general' } = data;
+    assertNotCommissionKey(setting_key);
     
     const result = await pool.query(
       `INSERT INTO system_settings (setting_key, setting_value, setting_type, description, category)

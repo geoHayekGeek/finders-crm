@@ -91,7 +91,7 @@ async function createReport(req, res) {
   try {
     console.log('📊 Creating operations commission report:', req.body);
     
-    const { start_date, end_date } = req.body;
+    const { start_date, end_date, commission_percentage } = req.body;
     
     if (!start_date || !end_date) {
       return res.status(400).json({
@@ -100,8 +100,16 @@ async function createReport(req, res) {
       });
     }
 
+    if (commission_percentage === undefined || commission_percentage === null || commission_percentage === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Commission percentage is required'
+      });
+    }
+
     const startDate = new Date(start_date);
     const endDate = new Date(end_date);
+    const commissionPercentageNumber = parseFloat(commission_percentage);
 
     if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
       return res.status(400).json({
@@ -114,6 +122,13 @@ async function createReport(req, res) {
       return res.status(400).json({
         success: false,
         message: 'End date cannot be before start date'
+      });
+    }
+
+    if (Number.isNaN(commissionPercentageNumber) || commissionPercentageNumber < 0 || commissionPercentageNumber > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Commission percentage must be between 0 and 100'
       });
     }
 
@@ -146,7 +161,7 @@ async function createReport(req, res) {
       });
     }
     
-    const report = await operationsCommissionModel.createReport(startDateStr, endDateStr);
+    const report = await operationsCommissionModel.createReport(startDateStr, endDateStr, commissionPercentageNumber);
     
     console.log('✅ Operations commission report created successfully:', report.id);
     
@@ -221,11 +236,19 @@ async function updateReport(req, res) {
         message: 'All fields are required'
       });
     }
+
+    const commissionPercentageNumber = parseFloat(commission_percentage);
+    if (Number.isNaN(commissionPercentageNumber) || commissionPercentageNumber < 0 || commissionPercentageNumber > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Commission percentage must be between 0 and 100'
+      });
+    }
     
     const report = await operationsCommissionModel.updateReport(
       parseInt(id),
       {
-        commission_percentage: parseFloat(commission_percentage),
+        commission_percentage: commissionPercentageNumber,
         total_properties_count: parseInt(total_properties_count),
         total_sales_count: parseInt(total_sales_count),
         total_rent_count: parseInt(total_rent_count),
@@ -420,4 +443,3 @@ module.exports = {
   exportReportToExcel,
   exportReportToPDF
 };
-

@@ -1,12 +1,13 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar } from 'lucide-react'
+import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar, Users } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { normalizeRole } from '@/utils/roleUtils'
 import MonthlyAgentStatsTab from '@/components/reports/MonthlyAgentStatsTab'
+import TeamReportsTab from '@/components/reports/TeamReportsTab'
 import DCSRTab from '@/components/reports/DCSRTab'
 import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
 import SaleRentSourceTab from '@/components/reports/SaleRentSourceTab'
@@ -15,6 +16,7 @@ import OperationsDailyTab from '@/components/reports/OperationsDailyTab'
 // Tab configuration
 type TabId =
   | 'monthly-agent-stats'
+  | 'team-monthly-stats'
   | 'dcsr-report'
   | 'operations-commission'
   | 'sale-rent-source'
@@ -37,6 +39,12 @@ const TABS: Tab[] = [
     name: 'Monthly Agent Statistics',
     icon: BarChart3,
     description: 'View and manage monthly performance reports for each agent'
+  },
+  {
+    id: 'team-monthly-stats',
+    name: 'Team Reports',
+    icon: Users,
+    description: 'Generate one team summary and drill into each agent report'
   },
   {
     id: 'dcsr-report',
@@ -71,25 +79,25 @@ function ReportsPageContent() {
   const availableTabs = useMemo(() => {
     const normalizedRole = normalizeRole(role);
     // Agents are blocked from accessing this page entirely (handled by ProtectedRoute)
-    // Accountant and hr can only see Monthly Agent Statistics
-    if (normalizedRole === 'accountant' || normalizedRole === 'hr') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats')
+    // Accountant can view agent and team reports
+    if (normalizedRole === 'accountant') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats')
     }
-    // Team leaders can see Monthly Agent Statistics and DCSR Report (but limited to their team)
-    if (normalizedRole === 'team leader') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'dcsr-report')
-    }
-    // Agent manager can see Monthly Agent Statistics and Sale & Rent Source (read only)
-    if (normalizedRole === 'agent manager') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source')
-    }
-    // Operations can see Monthly Agent Statistics, Sale & Rent Source, Operations Commission (read only), and Operations Daily
-    if (normalizedRole === 'operations') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
-    }
-    // HR can see Monthly Agent Statistics and Operations Commission
+    // HR can view agent, team, and operations commission reports
     if (normalizedRole === 'hr') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'operations-commission')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'operations-commission')
+    }
+    // Team leaders can see Monthly Agent Statistics, Team Reports, and DCSR Report (but limited to their team)
+    if (normalizedRole === 'team leader') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'dcsr-report')
+    }
+    // Agent manager can see Monthly Agent Statistics, Team Reports, and Sale & Rent Source (read only)
+    if (normalizedRole === 'agent manager') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'sale-rent-source')
+    }
+    // Operations can see Monthly Agent Statistics, Team Reports, Sale & Rent Source, Operations Commission (read only), and Operations Daily
+    if (normalizedRole === 'operations') {
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
     }
     // Admin and operations manager can see all tabs
     return TABS
@@ -171,6 +179,8 @@ function ReportsPageContent() {
         {/* Tab Content */}
         <div className="p-6">
           {activeTab === 'monthly-agent-stats' && <MonthlyAgentStatsTab />}
+
+          {activeTab === 'team-monthly-stats' && <TeamReportsTab />}
           
           {activeTab === 'dcsr-report' && <DCSRTab />}
           
@@ -222,4 +232,3 @@ export default function ReportsPage() {
     </ProtectedRoute>
   )
 }
-

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS monthly_agent_reports (
   -- Sales amount (auto-calculated from closed properties)
   sales_amount DECIMAL(15,2) DEFAULT 0,
   
-  -- Commission calculations (auto-calculated based on settings)
+  -- Commission amounts (manually entered on the report)
   agent_commission DECIMAL(15,2) DEFAULT 0,
   finders_commission DECIMAL(15,2) DEFAULT 0,
   referral_commission DECIMAL(15,2) DEFAULT 0,
@@ -81,12 +81,11 @@ COMMENT ON COLUMN monthly_agent_reports.viewings_count IS 'Number of viewings co
 COMMENT ON COLUMN monthly_agent_reports.boosts IS 'Manual field for boosts in dollars (can be edited)';
 COMMENT ON COLUMN monthly_agent_reports.sales_count IS 'Number of sales closed in this month';
 COMMENT ON COLUMN monthly_agent_reports.sales_amount IS 'Total sales amount from closed properties';
-COMMENT ON COLUMN monthly_agent_reports.agent_commission IS 'Agent commission calculated from settings';
-COMMENT ON COLUMN monthly_agent_reports.finders_commission IS 'Finders commission calculated from settings';
-COMMENT ON COLUMN monthly_agent_reports.referral_commission IS 'Referral commission calculated from settings';
-COMMENT ON COLUMN monthly_agent_reports.team_leader_commission IS 'Team leader commission calculated from settings';
-COMMENT ON COLUMN monthly_agent_reports.administration_commission IS 'Administration commission calculated from settings';
-COMMENT ON COLUMN monthly_agent_reports.total_commission IS 'Total of all commissions';
+COMMENT ON COLUMN monthly_agent_reports.agent_commission IS 'Agent commission amount entered manually on the report';
+COMMENT ON COLUMN monthly_agent_reports.finders_commission IS 'Finders commission amount entered manually on the report';
+COMMENT ON COLUMN monthly_agent_reports.referral_commission IS 'Legacy referral commission field kept for compatibility';
+COMMENT ON COLUMN monthly_agent_reports.team_leader_commission IS 'Team leader commission amount entered manually on the report';
+COMMENT ON COLUMN monthly_agent_reports.administration_commission IS 'Administration commission amount entered manually on the report';
+COMMENT ON COLUMN monthly_agent_reports.total_commission IS 'Total commission amount entered manually on the report';
 COMMENT ON COLUMN monthly_agent_reports.referral_received_count IS 'Number of referrals received by this agent';
 COMMENT ON COLUMN monthly_agent_reports.referral_received_commission IS 'Commission earned from referrals received';
-

@@ -53,22 +53,14 @@ function normalizeDateRange(startDateInput, endDateInput) {
  * @param {Date|string} endDateInput
  * @returns {Promise<Object>} - Calculated commission data
  */
-async function calculateCommissionData(startDateInput, endDateInput) {
+async function calculateCommissionData(startDateInput, endDateInput, commissionPercentageInput = 0) {
   const client = await pool.connect();
   
   try {
     const { startDateUtc, endDateUtc, startDateStr, endDateStr } = normalizeDateRange(startDateInput, endDateInput);
-
-    // Get operations commission percentage from settings
-    const settingsResult = await client.query(
-      `SELECT setting_value 
-       FROM system_settings 
-       WHERE setting_key = 'commission_administration_percentage'`
-    );
-    
-    const commissionPercentage = settingsResult.rows[0]?.setting_value 
-      ? parseFloat(settingsResult.rows[0].setting_value) 
-      : 4.0; // Default 4%
+    const commissionPercentage = Number.isFinite(parseFloat(commissionPercentageInput))
+      ? parseFloat(commissionPercentageInput)
+      : 0;
     
     // Get all closed properties (sold or rented) in the specified range
     const propertiesResult = await client.query(
@@ -147,9 +139,10 @@ async function calculateCommissionData(startDateInput, endDateInput) {
  * Create a new operations commission report
  * @param {string} start_date - Inclusive start date
  * @param {string} end_date - Inclusive end date
+ * @param {number|string} commissionPercentageInput - Manual commission percentage for the report
  * @returns {Promise<Object>} - Created report
  */
-async function createReport(start_date, end_date) {
+async function createReport(start_date, end_date, commissionPercentageInput = 0) {
   const { startDateUtc, endDateUtc, startDateStr, endDateStr } = normalizeDateRange(start_date, end_date);
   const month = startDateUtc.getUTCMonth() + 1;
   const year = startDateUtc.getUTCFullYear();
@@ -159,7 +152,11 @@ async function createReport(start_date, end_date) {
     throw new Error(`Year must be 2000 or later. Selected date range results in year ${year}. Please select a date range starting from 2000 or later.`);
   }
 
-  const calculatedData = await calculateCommissionData(startDateUtc, endDateUtc);
+  const commissionPercentage = Number.isFinite(parseFloat(commissionPercentageInput))
+    ? parseFloat(commissionPercentageInput)
+    : 0;
+
+  const calculatedData = await calculateCommissionData(startDateUtc, endDateUtc, commissionPercentage);
   
   const result = await pool.query(
     `INSERT INTO operations_commission_reports 
@@ -252,7 +249,7 @@ async function getReportById(id) {
   const endDate = report.end_date || new Date(Date.UTC(report.year, report.month, 0)).toISOString().split('T')[0];
 
   // Get the detailed property list for this report
-  const calculatedData = await calculateCommissionData(startDate, endDate);
+  const calculatedData = await calculateCommissionData(startDate, endDate, report.commission_percentage);
   
   return {
     ...report,
@@ -303,7 +300,7 @@ async function updateReport(id, data) {
   const { start_date, end_date, month, year } = result.rows[0];
   const startRange = start_date || new Date(Date.UTC(year, month - 1, 1)).toISOString().split('T')[0];
   const endRange = end_date || new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-  const calculatedData = await calculateCommissionData(startRange, endRange);
+  const calculatedData = await calculateCommissionData(startRange, endRange, result.rows[0].commission_percentage);
   
   return {
     ...result.rows[0],
@@ -329,7 +326,7 @@ async function recalculateReport(id) {
   const { start_date, end_date, month, year } = report.rows[0];
   const startRange = start_date || new Date(Date.UTC(year, month - 1, 1)).toISOString().split('T')[0];
   const endRange = end_date || new Date(Date.UTC(year, month, 0)).toISOString().split('T')[0];
-  const calculatedData = await calculateCommissionData(startRange, endRange);
+  const calculatedData = await calculateCommissionData(startRange, endRange, report.rows[0].commission_percentage);
   
   const result = await pool.query(
     `UPDATE operations_commission_reports 

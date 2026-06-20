@@ -403,7 +403,7 @@ export default function OperationsCommissionTab() {
             </h3>
             <p className="text-sm text-blue-700">
               Reports show operations commission from all closed properties (sales and rentals) inside the selected window. 
-              Commission percentage is automatically fetched from system settings.
+              Commission percentage is entered manually for each report.
             </p>
           </div>
         </div>

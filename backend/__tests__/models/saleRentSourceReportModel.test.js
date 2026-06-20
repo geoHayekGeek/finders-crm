@@ -33,9 +33,6 @@ describe('Sale Rent Source Report Model', () => {
 
       mockClient.query
         .mockResolvedValueOnce({
-          rows: [{ setting_value: '1.0' }]
-        }) // settings
-        .mockResolvedValueOnce({
           rows: [
             {
               property_id: 1,
@@ -44,6 +41,7 @@ describe('Sale Rent Source Report Model', () => {
               reference_number: 'P001',
               property_type: 'sale',
               price: 100000,
+              property_commission: 1000,
               reference_source_name_display: 'Website',
               client_name: 'Test Client'
             },
@@ -54,6 +52,7 @@ describe('Sale Rent Source Report Model', () => {
               reference_number: 'P002',
               property_type: 'rent',
               price: 50000,
+              property_commission: 500,
               reference_source_name_display: 'Referral',
               client_name: 'Test Client 2'
             }
@@ -66,20 +65,18 @@ describe('Sale Rent Source Report Model', () => {
       expect(result.length).toBe(2);
       expect(result[0].sold_rented).toBe('Sold');
       expect(result[1].sold_rented).toBe('Rented');
-      expect(result[0].finders_commission).toBe(1000); // 1% of 100000
+      expect(result[0].finders_commission).toBe(1000); // manual property commission
       expect(mockClient.release).toHaveBeenCalled();
     });
 
-    it('should use default finders percentage if not in settings', async () => {
+    it('should use 0 when no manual property commission is stored', async () => {
       const filters = {
         agent_id: 1,
         start_date: '2024-01-01',
         end_date: '2024-01-31'
       };
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [] }) // no settings
-        .mockResolvedValueOnce({ rows: [] }); // no properties
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no properties
 
       const result = await saleRentSourceReportModel.getSaleRentSourceData(filters);
 
@@ -140,7 +137,6 @@ describe('Sale Rent Source Report Model', () => {
       };
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '1.0' }] })
         .mockResolvedValueOnce({
           rows: [{
             property_id: 1,
@@ -149,6 +145,7 @@ describe('Sale Rent Source Report Model', () => {
             reference_number: 'P001',
             property_type: 'sale',
             price: 100000,
+            property_commission: 0,
             reference_source_name_display: 'None', // COALESCE returns 'None' when both sources are null
             client_name: 'Test Client'
           }]
@@ -167,7 +164,6 @@ describe('Sale Rent Source Report Model', () => {
       };
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '1.5' }] })
         .mockResolvedValueOnce({
           rows: [{
             property_id: 1,
@@ -176,6 +172,7 @@ describe('Sale Rent Source Report Model', () => {
             reference_number: 'P001',
             property_type: 'sale',
             price: 100000,
+            property_commission: 1500,
             reference_source_name_display: 'Website',
             client_name: 'Test Client'
           }]
@@ -187,4 +184,3 @@ describe('Sale Rent Source Report Model', () => {
     });
   });
 });
-

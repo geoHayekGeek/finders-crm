@@ -80,17 +80,11 @@ const getSettingsByCategory = async (req, res) => {
 };
 
 // Validate setting value based on key
+const isCommissionSettingKey = (key) => typeof key === 'string' && key.startsWith('commission_');
+
 const validateSettingValue = (key, value) => {
   if (value === undefined || value === null) {
     return { valid: false, error: 'Value is required' };
-  }
-
-  // Commission percentage validation (0-100)
-  if (key.includes('commission') && key.includes('percentage')) {
-    const numValue = parseFloat(value);
-    if (isNaN(numValue) || numValue < 0 || numValue > 100) {
-      return { valid: false, error: 'Commission percentage must be between 0 and 100' };
-    }
   }
 
   // Email validation
@@ -126,13 +120,20 @@ const updateSetting = async (req, res) => {
     let { value } = req.body;
 
     // Sanitize key and value
-    const sanitizedKey = sanitizeInput(key);
-    value = typeof value === 'string' ? sanitizeInput(value) : value;
+  const sanitizedKey = sanitizeInput(key);
+  value = typeof value === 'string' ? sanitizeInput(value) : value;
 
-    if (value === undefined) {
+  if (value === undefined) {
       return res.status(400).json({
         success: false,
         message: 'Value is required'
+    });
+  }
+
+    if (isCommissionSettingKey(sanitizedKey)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Commission settings have been removed and cannot be modified'
       });
     }
 
@@ -203,6 +204,13 @@ const updateMultipleSettings = async (req, res) => {
 
       const sanitizedKey = sanitizeInput(setting.key);
       const sanitizedValue = typeof setting.value === 'string' ? sanitizeInput(setting.value) : setting.value;
+
+      if (isCommissionSettingKey(sanitizedKey)) {
+        return res.status(400).json({
+          success: false,
+          message: `Commission setting "${sanitizedKey}" has been removed and cannot be modified`
+        });
+      }
 
       // Validate setting value
       const validation = validateSettingValue(sanitizedKey, sanitizedValue);

@@ -23,7 +23,7 @@ export interface MonthlyAgentReport {
   sales_count: number
   sales_amount: number
   
-  // Commissions (calculated)
+  // Commissions (manual entry)
   agent_commission: number
   finders_commission: number
   /** @deprecated Use referrals_on_properties_commission instead */
@@ -48,6 +48,7 @@ export interface MonthlyAgentReport {
 
 export interface ReportFilters {
   agent_id?: number
+  team_leader_id?: number
   start_date?: string
   end_date?: string
 }
@@ -57,6 +58,22 @@ export interface CreateReportData {
   start_date: string
   end_date: string
   boosts?: number
+  listings_count?: number
+  lead_sources?: { [key: string]: number }
+  viewings_count?: number
+  sales_count?: number
+  sales_amount?: number
+  agent_commission?: number
+  finders_commission?: number
+  /** @deprecated Use referrals_on_properties_commission instead */
+  referral_commission?: number
+  team_leader_commission?: number
+  administration_commission?: number
+  total_commission?: number
+  referral_received_count?: number
+  referral_received_commission?: number
+  referrals_on_properties_count?: number
+  referrals_on_properties_commission?: number
 }
 
 export interface UpdateReportData {
@@ -80,10 +97,57 @@ export interface UpdateReportData {
 }
 
 export interface ReportFormData {
-  agent_id: number | undefined
+  agent_id?: number
+  team_leader_id?: number
   start_date: string
   end_date: string
   boosts: number
+}
+
+export interface TeamMonthlyReport {
+  id: number
+  team_leader_id: number
+  team_leader_name: string
+  team_leader_code?: string
+  team_leader_role?: string
+  month?: number
+  year?: number
+  start_date: string
+  end_date: string
+  agent_count: number
+  listings_count: number
+  lead_sources: { [key: string]: number }
+  viewings_count: number
+  boosts: number
+  sales_count: number
+  sales_amount: number
+  agent_commission: number
+  finders_commission: number
+  /** @deprecated Use referrals_on_properties_commission instead */
+  referral_commission: number
+  team_leader_commission: number
+  administration_commission: number
+  total_commission: number
+  referral_received_count: number
+  referral_received_commission: number
+  referrals_on_properties_count: number
+  referrals_on_properties_commission: number
+  agent_reports: MonthlyAgentReport[]
+  created_at: string
+  updated_at: string
+  created_by?: number
+}
+
+export interface TeamReportFilters {
+  team_leader_id?: number
+  start_date?: string
+  end_date?: string
+}
+
+export interface CreateTeamReportData {
+  team_leader_id: number
+  start_date: string
+  end_date: string
 }
 
 // DCSR (Daily Client/Sales Report) Types - Company-wide totals
@@ -183,6 +247,7 @@ export interface OperationsCommissionFilters {
 export interface CreateOperationsCommissionData {
   start_date: string
   end_date: string
+  commission_percentage: number
 }
 
 export interface UpdateOperationsCommissionData {

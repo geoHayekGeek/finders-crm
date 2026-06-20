@@ -4,7 +4,7 @@ import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, C
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, ReportFilters, CreateReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
+import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
 // For client-side code, only NEXT_PUBLIC_* variables are available
@@ -1388,6 +1388,68 @@ export const reportsApi = {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
       throw new Error(errorData.message || 'Failed to export report to PDF')
+    }
+
+    return response.blob()
+  },
+
+  // Get all team monthly reports with optional filters
+  getAllTeam: (filters: TeamReportFilters = {}, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: TeamMonthlyReport[]; count: number; message: string }>(
+      `/reports/team${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  // Get a single team report by ID
+  getTeamById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: TeamMonthlyReport; message: string }>(
+    `/reports/team/${id}`,
+    {},
+    token
+  ),
+
+  // Create a team report
+  createTeam: (data: CreateTeamReportData, token?: AuthToken) => apiRequest<{ success: boolean; data: TeamMonthlyReport; message: string }>(
+    '/reports/team',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Delete a team report
+  deleteTeam: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(
+    `/reports/team/${id}`,
+    {
+      method: 'DELETE',
+    },
+    token
+  ),
+
+  // Export team report to Excel
+  exportTeamToExcel: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+
+    const response = await fetch(`${API_BASE_URL}/reports/team/${id}/export/excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export team report' }))
+      throw new Error(errorData.message || 'Failed to export team report to Excel')
     }
 
     return response.blob()

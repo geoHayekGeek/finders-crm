@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const ReportsController = require('../controllers/reportsController');
+const TeamReportsController = require('../controllers/teamReportsController');
 const { authenticateToken, canViewReports, canViewSaleRentSource } = require('../middlewares/permissions');
 
 // All routes require authentication and block agents
@@ -95,6 +96,41 @@ router.get('/monthly/:id/export/excel', ReportsController.exportReportToExcel);
  * @access  Private
  */
 router.get('/monthly/:id/export/pdf', ReportsController.exportReportToPDF);
+
+/**
+ * @route   GET /api/reports/team
+ * @desc    Get all team monthly reports with optional filters
+ * @access  Private (Admin, Operations Manager, Operations, Agent Manager, Team Leader, HR, Accountant)
+ */
+router.get('/team', TeamReportsController.getAllTeamMonthlyReports);
+
+/**
+ * @route   GET /api/reports/team/:id
+ * @desc    Get a single team monthly report by ID
+ * @access  Private
+ */
+router.get('/team/:id', TeamReportsController.getTeamMonthlyReportById);
+
+/**
+ * @route   POST /api/reports/team
+ * @desc    Create a new team monthly report
+ * @access  Private
+ */
+router.post('/team', TeamReportsController.createTeamMonthlyReport);
+
+/**
+ * @route   DELETE /api/reports/team/:id
+ * @desc    Delete a team monthly report
+ * @access  Private
+ */
+router.delete('/team/:id', TeamReportsController.deleteTeamMonthlyReport);
+
+/**
+ * @route   GET /api/reports/team/:id/export/excel
+ * @desc    Export a team monthly report to Excel
+ * @access  Private
+ */
+router.get('/team/:id/export/excel', TeamReportsController.exportTeamMonthlyReportToExcel);
 
 module.exports = router;
 

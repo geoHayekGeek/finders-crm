@@ -24,14 +24,11 @@ describe('Operations Commission Model', () => {
   });
 
   describe('calculateCommissionData', () => {
-    it('should calculate commission data for a date range', async () => {
+    it('should calculate commission data for a date range using the provided percentage', async () => {
       const startDate = '2024-01-01';
       const endDate = '2024-01-31';
 
       mockClient.query
-        .mockResolvedValueOnce({
-          rows: [{ setting_value: '4.0' }]
-        }) // settings
         .mockResolvedValueOnce({
           rows: [
             { id: 1, reference_number: 'P001', property_type: 'sale', price: 100000, closed_date: '2024-01-15' },
@@ -39,7 +36,7 @@ describe('Operations Commission Model', () => {
           ]
         }); // properties
 
-      const result = await operationsCommissionModel.calculateCommissionData(startDate, endDate);
+      const result = await operationsCommissionModel.calculateCommissionData(startDate, endDate, 4.0);
 
       expect(result).toBeDefined();
       expect(result.commission_percentage).toBe(4.0);
@@ -50,17 +47,16 @@ describe('Operations Commission Model', () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
 
-    it('should use default commission percentage if not in settings', async () => {
+    it('should default commission percentage to 0 when not provided', async () => {
       const startDate = '2024-01-01';
       const endDate = '2024-01-31';
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [] }) // no settings
         .mockResolvedValueOnce({ rows: [] }); // no properties
 
       const result = await operationsCommissionModel.calculateCommissionData(startDate, endDate);
 
-      expect(result.commission_percentage).toBe(4.0);
+      expect(result.commission_percentage).toBe(0);
     });
 
     it('should throw error for invalid date range', async () => {
@@ -79,7 +75,6 @@ describe('Operations Commission Model', () => {
       const endDate = '2024-01-31';
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
         .mockResolvedValueOnce({ rows: [] }); // no properties
 
       mockQuery.mockResolvedValue({
@@ -99,7 +94,7 @@ describe('Operations Commission Model', () => {
         }]
       });
 
-      const result = await operationsCommissionModel.createReport(startDate, endDate);
+      const result = await operationsCommissionModel.createReport(startDate, endDate, 4.0);
 
       expect(result).toBeDefined();
       expect(result.month).toBe(1);
@@ -110,12 +105,10 @@ describe('Operations Commission Model', () => {
       const startDate = '1999-01-01';
       const endDate = '1999-01-31';
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
-        .mockResolvedValueOnce({ rows: [] }); // no properties
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no properties
 
       await expect(
-        operationsCommissionModel.createReport(startDate, endDate)
+        operationsCommissionModel.createReport(startDate, endDate, 4.0)
       ).rejects.toThrow('Year must be 2000 or later');
     });
 
@@ -123,9 +116,7 @@ describe('Operations Commission Model', () => {
       const startDate = '2101-01-01';
       const endDate = '2101-01-31';
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
-        .mockResolvedValueOnce({ rows: [] }); // no properties
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no properties
 
       mockQuery.mockResolvedValue({
         rows: [{
@@ -144,7 +135,7 @@ describe('Operations Commission Model', () => {
         }]
       });
 
-      const result = await operationsCommissionModel.createReport(startDate, endDate);
+      const result = await operationsCommissionModel.createReport(startDate, endDate, 4.0);
 
       expect(result).toBeDefined();
       expect(result.year).toBe(2101);
@@ -154,9 +145,7 @@ describe('Operations Commission Model', () => {
       const startDate = '2000-01-01';
       const endDate = '2000-01-31';
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
-        .mockResolvedValueOnce({ rows: [] }); // no properties
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no properties
 
       mockQuery.mockResolvedValue({
         rows: [{
@@ -175,7 +164,7 @@ describe('Operations Commission Model', () => {
         }]
       });
 
-      const result = await operationsCommissionModel.createReport(startDate, endDate);
+      const result = await operationsCommissionModel.createReport(startDate, endDate, 4.0);
 
       expect(result).toBeDefined();
       expect(result.year).toBe(2000);
@@ -185,9 +174,7 @@ describe('Operations Commission Model', () => {
       const startDate = '2100-12-01';
       const endDate = '2100-12-31';
 
-      mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
-        .mockResolvedValueOnce({ rows: [] }); // no properties
+      mockClient.query.mockResolvedValueOnce({ rows: [] }); // no properties
 
       mockQuery.mockResolvedValue({
         rows: [{
@@ -206,7 +193,7 @@ describe('Operations Commission Model', () => {
         }]
       });
 
-      const result = await operationsCommissionModel.createReport(startDate, endDate);
+      const result = await operationsCommissionModel.createReport(startDate, endDate, 4.0);
 
       expect(result).toBeDefined();
       expect(result.year).toBe(2100);
@@ -264,7 +251,6 @@ describe('Operations Commission Model', () => {
         });
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
         .mockResolvedValueOnce({ rows: [] });
 
       const result = await operationsCommissionModel.getReportById(reportId);
@@ -319,7 +305,6 @@ describe('Operations Commission Model', () => {
         });
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
         .mockResolvedValueOnce({ rows: [] });
 
       const result = await operationsCommissionModel.updateReport(reportId, updateData);
@@ -358,7 +343,6 @@ describe('Operations Commission Model', () => {
         });
 
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ setting_value: '4.0' }] })
         .mockResolvedValueOnce({ rows: [] });
 
       const result = await operationsCommissionModel.recalculateReport(reportId);
@@ -394,4 +378,3 @@ describe('Operations Commission Model', () => {
     });
   });
 });
-

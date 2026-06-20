@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_operations_commission_reports_created_at ON opera
 COMMENT ON TABLE operations_commission_reports IS 'Monthly reports showing operations commission from all closed properties';
 COMMENT ON COLUMN operations_commission_reports.month IS 'Month of the report (1-12)';
 COMMENT ON COLUMN operations_commission_reports.year IS 'Year of the report';
-COMMENT ON COLUMN operations_commission_reports.commission_percentage IS 'Operations commission percentage used for calculations';
+COMMENT ON COLUMN operations_commission_reports.commission_percentage IS 'Operations commission percentage entered manually for the report';
 COMMENT ON COLUMN operations_commission_reports.total_properties_count IS 'Total number of closed properties in the month';
 COMMENT ON COLUMN operations_commission_reports.total_sales_count IS 'Total number of sold properties';
 COMMENT ON COLUMN operations_commission_reports.total_rent_count IS 'Total number of rented properties';

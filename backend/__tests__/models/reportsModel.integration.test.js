@@ -79,18 +79,6 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
     }
     testSourceId = sourceResult.rows[0]?.id;
 
-    // Set up commission settings
-    await pool.query(`
-      INSERT INTO system_settings (setting_key, setting_value) 
-      VALUES 
-        ('commission_agent_percentage', '2'),
-        ('commission_finders_percentage', '1'),
-        ('commission_referral_internal_percentage', '0.5'),
-        ('commission_referral_external_percentage', '2'),
-        ('commission_team_leader_percentage', '1'),
-        ('commission_administration_percentage', '4')
-      ON CONFLICT (setting_key) DO UPDATE SET setting_value = EXCLUDED.setting_value
-    `);
   });
 
   beforeEach(async () => {
@@ -286,7 +274,7 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
   });
 
   describe('Report Accuracy - Commission Calculations', () => {
-    it('should accurately calculate all commission types', async () => {
+    it('should store manually entered commission amounts', async () => {
       const salesAmount = 500000;
       
       // Create test sale
@@ -309,37 +297,24 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           agent_id: testAgentId,
           start_date: testDateRange.start,
           end_date: testDateRange.end,
-          boosts: 0
+          boosts: 0,
+          agent_commission: 10000,
+          finders_commission: 5000,
+          team_leader_commission: 5000,
+          administration_commission: 20000,
+          referrals_on_properties_commission: 1500,
+          total_commission: 41500
         },
         testUserId
       );
 
-      // Verify commission calculations
-      // Agent: 2% of 500000 = 10000
+      // Verify manual commission values were preserved
       expect(parseFloat(report.agent_commission)).toBe(10000);
-      
-      // Finders: 1% of 500000 = 5000
       expect(parseFloat(report.finders_commission)).toBe(5000);
-      
-      // Note: referral_commission removed - use referrals_on_properties_commission instead
-      
-      // Team Leader: 1% of 500000 = 5000
       expect(parseFloat(report.team_leader_commission)).toBe(5000);
-      
-      // Administration: 4% of 500000 = 20000
       expect(parseFloat(report.administration_commission)).toBe(20000);
-
-      // Total commission should equal sum of all commissions (excluding referral_commission which was removed)
-      // Note: total_commission includes referrals_on_properties_commission
-      // Verify total matches sum
-      const calculatedSum = 
-        parseFloat(report.agent_commission) +
-        parseFloat(report.finders_commission) +
-        parseFloat(report.team_leader_commission) +
-        parseFloat(report.administration_commission) +
-        parseFloat(report.referrals_on_properties_commission || 0);
-      
-      expect(Math.abs(calculatedSum - parseFloat(report.total_commission))).toBeLessThan(0.01);
+      expect(parseFloat(report.referrals_on_properties_commission)).toBe(1500);
+      expect(parseFloat(report.total_commission)).toBe(41500);
 
       // Cleanup
       await pool.query('DELETE FROM properties WHERE id = $1', [sale.rows[0].id]);
@@ -367,12 +342,17 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           agent_id: testAgentId,
           start_date: testDateRange.start,
           end_date: testDateRange.end,
-          boosts: 0
+          boosts: 0,
+          agent_commission: 24691.36,
+          finders_commission: 12345.67,
+          team_leader_commission: 12345.67,
+          administration_commission: 24691.34,
+          total_commission: 74074.04
         },
         testUserId
       );
 
-      // Verify all commissions are properly rounded
+      // Verify all commissions are stored with at most 2 decimal places
       const commissions = [
         report.agent_commission,
         report.finders_commission,
@@ -436,13 +416,13 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           agent_id: referringAgentId,
           start_date: testDateRange.start,
           end_date: testDateRange.end,
-          boosts: 0
+          boosts: 0,
+          referral_received_commission: 2000
         },
         testUserId
       );
 
-      // Verify referral commission
-      // Internal rate: 0.5% of 400000 = 2000
+      // Verify manual referral commission value was preserved
       expect(report.referral_received_count).toBe(1);
       expect(parseFloat(report.referral_received_commission)).toBe(2000);
 
@@ -491,13 +471,13 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
           agent_id: referringAgentId,
           start_date: testDateRange.start,
           end_date: testDateRange.end,
-          boosts: 0
+          boosts: 0,
+          referral_received_commission: 8000
         },
         testUserId
       );
 
-      // Verify referral commission
-      // External rate: 2% of 400000 = 8000
+      // Verify manual referral commission value was preserved
       expect(report.referral_received_count).toBe(1);
       expect(parseFloat(report.referral_received_commission)).toBe(8000);
 

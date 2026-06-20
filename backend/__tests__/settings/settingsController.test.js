@@ -137,6 +137,20 @@ describe('Settings Controller', () => {
       expect(Settings.update).not.toHaveBeenCalled();
     });
 
+    it('should reject commission settings', async () => {
+      req.params = { key: 'commission_agent_percentage' };
+      req.body = { value: '2' };
+
+      await settingsController.updateSetting(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Commission settings have been removed and cannot be modified'
+      });
+      expect(Settings.update).not.toHaveBeenCalled();
+    });
+
     it('should handle errors', async () => {
       req.params = { key: 'company_name' };
       req.body = { value: 'New Company Name' };
@@ -187,6 +201,24 @@ describe('Settings Controller', () => {
       expect(res.json).toHaveBeenCalledWith({
         success: false,
         message: 'Settings must be an array'
+      });
+      expect(Settings.updateMultiple).not.toHaveBeenCalled();
+    });
+
+    it('should reject commission settings in bulk updates', async () => {
+      req.body = {
+        settings: [
+          { key: 'company_name', value: 'New Company Name' },
+          { key: 'commission_agent_percentage', value: '2' }
+        ]
+      };
+
+      await settingsController.updateMultipleSettings(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Commission setting "commission_agent_percentage" has been removed and cannot be modified'
       });
       expect(Settings.updateMultiple).not.toHaveBeenCalled();
     });

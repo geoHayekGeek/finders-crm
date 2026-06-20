@@ -34,7 +34,7 @@ class ReportsController {
         });
       }
       
-      const { agent_id, start_date, end_date, boosts } = req.body;
+      const { agent_id, start_date, end_date } = req.body;
       
       // Validation
       if (!agent_id || !start_date || !end_date) {
@@ -61,10 +61,7 @@ class ReportsController {
         });
       }
 
-      const report = await Report.createMonthlyReport(
-        { agent_id, start_date, end_date, boosts },
-        req.user.id
-      );
+      const report = await Report.createMonthlyReport(req.body, req.user.id);
 
       logger.debug('Report created successfully', { reportId: report.id });
       

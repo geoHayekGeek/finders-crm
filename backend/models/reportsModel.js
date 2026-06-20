@@ -21,6 +21,32 @@ function roundMoney(value) {
   return Math.round(value * 100) / 100;
 }
 
+function normalizeNumericInput(value, fallback = 0) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeLeadSourcesInput(value, fallback = {}) {
+  if (value === undefined || value === null) {
+    return JSON.stringify(fallback || {});
+  }
+
+  if (typeof value === 'string') {
+    try {
+      JSON.parse(value);
+      return value;
+    } catch (error) {
+      return JSON.stringify(fallback || {});
+    }
+  }
+
+  return JSON.stringify(value);
+}
+
 class Report {
   /**
    * Create a new agent report for a date range
@@ -150,6 +176,36 @@ class Report {
       // Calculate report data
       const calculatedData = await this.calculateReportData(agent_id, normalizedStart, normalizedEnd);
 
+      const resolvedValues = {
+        listings_count: reportData.listings_count !== undefined
+          ? parseInt(reportData.listings_count, 10) || 0
+          : calculatedData.listings_count,
+        lead_sources: normalizeLeadSourcesInput(reportData.lead_sources, calculatedData.lead_sources),
+        viewings_count: reportData.viewings_count !== undefined
+          ? parseInt(reportData.viewings_count, 10) || 0
+          : calculatedData.viewings_count,
+        sales_count: reportData.sales_count !== undefined
+          ? parseInt(reportData.sales_count, 10) || 0
+          : calculatedData.sales_count,
+        sales_amount: reportData.sales_amount !== undefined
+          ? normalizeNumericInput(reportData.sales_amount, calculatedData.sales_amount)
+          : calculatedData.sales_amount,
+        agent_commission: reportData.agent_commission !== undefined ? normalizeNumericInput(reportData.agent_commission) : 0,
+        finders_commission: reportData.finders_commission !== undefined ? normalizeNumericInput(reportData.finders_commission) : 0,
+        referral_commission: 0,
+        team_leader_commission: reportData.team_leader_commission !== undefined ? normalizeNumericInput(reportData.team_leader_commission) : 0,
+        administration_commission: reportData.administration_commission !== undefined ? normalizeNumericInput(reportData.administration_commission) : 0,
+        total_commission: reportData.total_commission !== undefined ? normalizeNumericInput(reportData.total_commission) : 0,
+        referral_received_count: reportData.referral_received_count !== undefined
+          ? parseInt(reportData.referral_received_count, 10) || 0
+          : calculatedData.referral_received_count,
+        referral_received_commission: reportData.referral_received_commission !== undefined ? normalizeNumericInput(reportData.referral_received_commission) : 0,
+        referrals_on_properties_count: reportData.referrals_on_properties_count !== undefined
+          ? parseInt(reportData.referrals_on_properties_count, 10) || 0
+          : calculatedData.referrals_on_properties_count,
+        referrals_on_properties_commission: reportData.referrals_on_properties_commission !== undefined ? normalizeNumericInput(reportData.referrals_on_properties_commission) : 0
+      };
+
       // Insert new report
       const result = await pool.query(
         `INSERT INTO monthly_agent_reports (
@@ -206,22 +262,22 @@ class Report {
           derivedYear,
           startDateStr,
           endDateStr,
-          boosts,
-          calculatedData.listings_count,
-          JSON.stringify(calculatedData.lead_sources),
-          calculatedData.viewings_count,
-          calculatedData.sales_count,
-          calculatedData.sales_amount,
-          calculatedData.agent_commission,
-          calculatedData.finders_commission,
-          0, // referral_commission - set to 0 (removed, use referrals_on_properties_commission instead)
-          calculatedData.team_leader_commission,
-          calculatedData.administration_commission,
-          calculatedData.total_commission,
-          calculatedData.referral_received_count,
-          calculatedData.referral_received_commission,
-          calculatedData.referrals_on_properties_count,
-          calculatedData.referrals_on_properties_commission,
+          normalizeNumericInput(boosts),
+          resolvedValues.listings_count,
+          resolvedValues.lead_sources,
+          resolvedValues.viewings_count,
+          resolvedValues.sales_count,
+          resolvedValues.sales_amount,
+          resolvedValues.agent_commission,
+          resolvedValues.finders_commission,
+          resolvedValues.referral_commission,
+          resolvedValues.team_leader_commission,
+          resolvedValues.administration_commission,
+          resolvedValues.total_commission,
+          resolvedValues.referral_received_count,
+          resolvedValues.referral_received_commission,
+          resolvedValues.referrals_on_properties_count,
+          resolvedValues.referrals_on_properties_commission,
           createdBy
         ]
       );
@@ -242,19 +298,6 @@ class Report {
    */
   static async calculateReportData(agentId, startDateInput, endDateInput) {
     try {
-      // Get commission settings
-      const commissionsResult = await pool.query(
-        `SELECT setting_key, setting_value FROM system_settings 
-         WHERE setting_key IN ('commission_agent_percentage', 'commission_finders_percentage', 'commission_referral_internal_percentage', 
-                               'commission_referral_external_percentage', 'commission_team_leader_percentage', 'commission_administration_percentage')`
-      );
-      
-      const commissions = {};
-      commissionsResult.rows.forEach(row => {
-        const key = row.setting_key.replace('commission_', '').replace('_percentage', '');
-        commissions[key] = parseFloat(row.setting_value) || 0;
-      });
-
       const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
       const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
 
@@ -351,242 +394,65 @@ class Report {
       const sales_count = parseInt(salesResult.rows[0].count) || 0;
       const sales_amount = parseFloat(salesResult.rows[0].total_amount) || 0;
 
-      // 5. Calculate commissions based on sales amount
-      // Round to 2 decimal places to avoid floating point precision issues
-      const agent_commission = roundMoney((sales_amount * (commissions.agent || 2)) / 100);
-      const finders_commission = roundMoney((sales_amount * (commissions.finders || 1)) / 100);
-      // Note: referral_commission removed - use referrals_on_properties_commission instead (calculated from actual referrals)
-      const team_leader_commission = roundMoney((sales_amount * (commissions.team_leader || 1)) / 100);
-      const administration_commission = roundMoney((sales_amount * (commissions.administration || 4)) / 100);
-      // Note: total_commission will be calculated after referrals_on_properties_commission
-
-      // 6. Calculate referral commission from two sources:
-      // A) Property referrals - where this agent referred a property
-      // B) Lead referrals - where this agent referred the owner (lead) of a property
-      //
-      // Referral Commission Logic (30-day rule):
-      // - If X refers to Y: X is internal (gets internal commission rate)
-      // - If within 30 days, Y refers to Z: X stays internal, Y becomes internal (both get internal rate)
-      // - If after 30 days, Y refers to Z: Y becomes internal, X becomes external (Y gets internal rate, X gets external rate)
-      // The external flag is set by applyExternalRuleToPropertyReferrals/applyExternalRuleToLeadReferrals
-      // which marks referrals as external if they're more than 30 days older than the most recent referral
-      
-      console.log(`  📊 Step 5: Calculating property referrals commission...`);
-      // 6A. Property Referrals Commission
-      // Calculate commission with internal/external rates:
-      // - external = TRUE → uses external commission rate (commission_referral_external_percentage, default 2%)
-      // - external = FALSE or NULL → uses internal commission rate (commission_referral_internal_percentage, default 0.5%)
-      let propertyReferralsResult;
-      try {
-        propertyReferralsResult = await pool.query(
-          `WITH referral_commissions AS (
-             SELECT 
-               r.id as referral_id,
-               r.external,
-               p.id as property_id,
-               p.price,
-               CASE 
-                 WHEN (r.external = TRUE) THEN p.price * $4 / 100
-                 ELSE p.price * $5 / 100
-               END as commission
-             FROM properties p
-             INNER JOIN referrals r ON p.id = r.property_id
-             WHERE r.employee_id = $1 
-             AND p.closed_date >= $2::date 
-             AND p.closed_date <= $3::date
-             AND p.status_id IN (
-               ${CLOSURE_STATUS_ID_SUBQUERY}
-             )
-           )
-           SELECT 
-             COUNT(DISTINCT referral_id) as referral_count,
-             COUNT(DISTINCT property_id) as property_count,
-             COALESCE(SUM(commission), 0) as total_commission,
-             (SELECT COALESCE(SUM(price), 0) FROM (SELECT DISTINCT property_id, price FROM referral_commissions) AS distinct_properties) as total_amount
-           FROM referral_commissions`,
-          [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
-        );
-      } catch (error) {
-        // If external column doesn't exist, query without it
-        if (error.code === '42703' || error.message.includes('external')) {
-          propertyReferralsResult = await pool.query(
-            `WITH referral_commissions AS (
-               SELECT 
-                 r.id as referral_id,
-                 r.external,
-                 p.id as property_id,
-                 p.price,
-                 CASE 
-                   WHEN (r.external = TRUE) THEN p.price * $4 / 100
-                   ELSE p.price * $5 / 100
-                 END as commission
-               FROM properties p
-               INNER JOIN referrals r ON p.id = r.property_id
-               WHERE r.employee_id = $1 
-               AND p.closed_date >= $2::date 
-               AND p.closed_date <= $3::date
-               AND p.status_id IN (
-                 ${CLOSURE_STATUS_ID_SUBQUERY}
-               )
-             )
-             SELECT 
-               COUNT(DISTINCT referral_id) as referral_count,
-               COUNT(DISTINCT property_id) as property_count,
-               COALESCE(SUM(commission), 0) as total_commission,
-               (SELECT COALESCE(SUM(price), 0) FROM (SELECT DISTINCT property_id, price FROM referral_commissions) AS distinct_properties) as total_amount
-             FROM referral_commissions`,
-            [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
-          );
-        } else {
-          throw error;
-        }
-      }
-      const property_referral_count = parseInt(propertyReferralsResult.rows[0].property_count) || 0;
-      const property_referral_commission = roundMoney(parseFloat(propertyReferralsResult.rows[0].total_commission) || 0);
-      const property_referral_amount = parseFloat(propertyReferralsResult.rows[0].total_amount) || 0;
-      const property_referral_referral_count = parseInt(propertyReferralsResult.rows[0].referral_count) || 0;
-      console.log(`  ✓ Property referrals: ${property_referral_referral_count} referral(s) on ${property_referral_count} property/properties, $${property_referral_amount}, commission: $${property_referral_commission}`);
-      
-      // Debug: Log individual referral details
-      const referralDetails = await pool.query(
+      // 5. Count referrals given by this agent and referrals on this agent's properties.
+      // Commission amounts are now entered manually in the report UI.
+      console.log(`  📊 Step 5: Counting property referrals...`);
+      const propertyReferralsResult = await pool.query(
         `SELECT 
-           r.id,
-           r.external,
-           r.employee_id,
-           r.name as referral_name,
-           r.type as referral_type,
-           p.id as property_id,
-           p.price,
-           p.closed_date,
-           p.status_id,
-           s.code as status_code,
-           s.name as status_name,
-           CASE 
-             WHEN (r.external = TRUE) THEN p.price * $4 / 100
-             ELSE p.price * $5 / 100
-           END as commission
+           COUNT(DISTINCT r.id) as referral_count,
+           COUNT(DISTINCT p.id) as property_count
          FROM properties p
          INNER JOIN referrals r ON p.id = r.property_id
-         LEFT JOIN statuses s ON p.status_id = s.id
          WHERE r.employee_id = $1 
          AND p.closed_date >= $2::date 
          AND p.closed_date <= $3::date
          AND p.status_id IN (
            ${CLOSURE_STATUS_ID_SUBQUERY}
-         )
-         ORDER BY r.id`,
-        [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
+         )`,
+        [agentId, startDateStr, endDateStr]
       );
-      console.log(`  📋 Referral details (${referralDetails.rows.length} found):`, referralDetails.rows.map(r => ({
-        referral_id: r.id,
-        referral_name: r.referral_name,
-        referral_type: r.referral_type,
-        external: r.external,
-        employee_id: r.employee_id,
-        property_id: r.property_id,
-        property_price: r.price,
-        closed_date: r.closed_date,
-        status_code: r.status_code,
-        status_name: r.status_name,
-        commission: r.commission
-      })));
-      
-      // Additional debug: Check if there are any referrals for this agent that might not match the criteria
-      if (referralDetails.rows.length === 0 && property_referral_referral_count === 0) {
-        const allReferralsDebug = await pool.query(
-          `SELECT 
-             r.id,
-             r.employee_id,
-             r.external,
-             r.name,
-             p.id as property_id,
-             p.agent_id as property_agent_id,
-             p.closed_date,
-             p.status_id,
-             s.code as status_code
-           FROM referrals r
-           INNER JOIN properties p ON r.property_id = p.id
-           LEFT JOIN statuses s ON p.status_id = s.id
-           WHERE r.employee_id = $1
-           ORDER BY p.closed_date DESC
-           LIMIT 10`,
-          [agentId]
-        );
-        console.log(`  🔍 Debug: Found ${allReferralsDebug.rows.length} total referrals for agent ${agentId} (regardless of date/status):`, allReferralsDebug.rows.map(r => ({
-          referral_id: r.id,
-          employee_id: r.employee_id,
-          property_id: r.property_id,
-          property_agent_id: r.property_agent_id,
-          closed_date: r.closed_date,
-          status_code: r.status_code,
-          external: r.external
-        })));
-      }
+      const property_referral_count = parseInt(propertyReferralsResult.rows[0].property_count) || 0;
+      const property_referral_referral_count = parseInt(propertyReferralsResult.rows[0].referral_count) || 0;
+      console.log(`  ✓ Property referrals: ${property_referral_referral_count} referral(s) on ${property_referral_count} property/properties`);
 
-      // 6B. Lead Referrals Commission
-      console.log(`  📊 Step 6: Calculating lead referrals commission...`);
-      // Calculate commission with internal/external rates:
-      // - external = TRUE → uses external commission rate (commission_referral_external_percentage, default 2%)
-      // - external = FALSE or NULL → uses internal commission rate (commission_referral_internal_percentage, default 0.5%)
-      // Same 30-day rule applies: referrals more than 30 days older than the most recent referral are marked as external
+      console.log(`  📊 Step 6: Counting lead referrals...`);
       let leadReferralsResult;
       try {
         leadReferralsResult = await pool.query(
-          `WITH lead_referral_commissions AS (
-             SELECT 
-               lr.id as referral_id,
-               lr.external,
-               p.id as property_id,
-               p.price,
-               CASE 
-                 WHEN (lr.external = TRUE) THEN p.price * $4 / 100
-                 ELSE p.price * $5 / 100
-               END as commission
-             FROM properties p
-             INNER JOIN leads l ON p.owner_id = l.id
-             INNER JOIN lead_referrals lr ON l.id = lr.lead_id
-             WHERE lr.agent_id = $1 
-             AND p.closed_date >= $2::date 
-             AND p.closed_date <= $3::date
-             AND p.status_id IN (
-               ${CLOSURE_STATUS_ID_SUBQUERY}
-             )
-           )
-           SELECT 
-             COUNT(DISTINCT referral_id) as referral_count,
-             COUNT(DISTINCT property_id) as property_count,
-             COALESCE(SUM(commission), 0) as total_commission,
-             (SELECT COALESCE(SUM(price), 0) FROM (SELECT DISTINCT property_id, price FROM lead_referral_commissions) AS distinct_properties) as total_amount
-           FROM lead_referral_commissions`,
-          [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
+          `SELECT 
+             COUNT(DISTINCT lr.id) as referral_count,
+             COUNT(DISTINCT p.id) as property_count
+           FROM properties p
+           INNER JOIN leads l ON p.owner_id = l.id
+           INNER JOIN lead_referrals lr ON l.id = lr.lead_id
+           WHERE lr.agent_id = $1 
+           AND p.closed_date >= $2::date 
+           AND p.closed_date <= $3::date
+           AND p.status_id IN (
+             ${CLOSURE_STATUS_ID_SUBQUERY}
+           )`,
+          [agentId, startDateStr, endDateStr]
         );
       } catch (error) {
-        // If external column doesn't exist or lead_referrals table doesn't exist, set to 0
-        if (error.code === '42703' || error.code === '42P01' || error.message.includes('external') || error.message.includes('lead_referrals')) {
-          leadReferralsResult = { rows: [{ referral_count: 0, property_count: 0, total_commission: 0, total_amount: 0 }] };
+        if (error.code === '42703' || error.code === '42P01' || error.message.includes('lead_referrals')) {
+          leadReferralsResult = { rows: [{ referral_count: 0, property_count: 0 }] };
         } else {
           throw error;
         }
       }
       const lead_referral_count = parseInt(leadReferralsResult.rows[0].property_count) || 0;
-      const lead_referral_commission = roundMoney(parseFloat(leadReferralsResult.rows[0].total_commission) || 0);
-      const lead_referral_amount = parseFloat(leadReferralsResult.rows[0].total_amount) || 0;
       const lead_referral_referral_count = parseInt(leadReferralsResult.rows[0].referral_count) || 0;
-      console.log(`  ✓ Lead referrals: ${lead_referral_referral_count} referral(s) on ${lead_referral_count} property/properties, $${lead_referral_amount}, commission: $${lead_referral_commission}`);
+      console.log(`  ✓ Lead referrals: ${lead_referral_referral_count} referral(s) on ${lead_referral_count} property/properties`);
 
-      // Total referral commission from both sources
-      // Count the actual number of referrals, not the number of properties
+      // Total referral count from both sources
       const referral_received_count = property_referral_referral_count + lead_referral_referral_count;
-      const referral_received_amount = property_referral_amount + lead_referral_amount;
-      const referral_received_commission = roundMoney(property_referral_commission + lead_referral_commission);
 
-      // 7. Calculate referrals ON this agent's properties (people who referred TO this agent)
+      // 7. Count referrals ON this agent's properties (people who referred TO this agent)
       // Count ALL referrals (internal and external) on agent's properties that closed in the date range
       // Use p.closed_date, not r.date, because we want referrals on properties that closed in the period
-      console.log(`  📊 Step 7: Calculating referrals on agent's properties...`);
+      console.log(`  📊 Step 7: Counting referrals on agent's properties...`);
       let referralsCountResult;
       try {
-        // Try using r.date first, but if it filters out valid referrals, fall back to p.closed_date
         referralsCountResult = await pool.query(
           `SELECT COUNT(r.id) as count
            FROM referrals r
@@ -622,109 +488,13 @@ class Report {
       }
       
       const referrals_on_properties_count = parseInt(referralsCountResult.rows[0].count) || 0;
-      
-      // Calculate commission for referrals on agent's properties with internal/external rates
-      // This is commission paid TO referrers of this agent's properties
-      // - external = TRUE → uses external commission rate (commission_referral_external_percentage, default 2%)
-      // - external = FALSE or NULL → uses internal commission rate (commission_referral_internal_percentage, default 0.5%)
-      // Use p.closed_date, not r.date, because we want referrals on properties that closed in the period
-      let referralsAmountResult;
-      try {
-        referralsAmountResult = await pool.query(
-          `SELECT 
-             COALESCE(SUM(
-               CASE 
-                 WHEN (r.external = TRUE) THEN p.price * $4 / 100
-                 ELSE p.price * $5 / 100
-               END
-             ), 0) as total_commission,
-             COALESCE(SUM(p.price), 0) as total_amount
-           FROM referrals r
-           INNER JOIN properties p ON r.property_id = p.id
-           LEFT JOIN statuses s ON p.status_id = s.id
-           WHERE p.agent_id = $1
-           AND p.closed_date >= $2::date 
-           AND p.closed_date <= $3::date
-           AND p.status_id IN (
-             ${CLOSURE_STATUS_ID_SUBQUERY}
-           )`,
-          [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
-        );
-      } catch (error) {
-        // If date column doesn't exist, fallback to old behavior
-        if (error.code === '42703' || error.message.includes('date')) {
-          referralsAmountResult = await pool.query(
-            `SELECT 
-               COALESCE(SUM(
-                 CASE 
-                   WHEN (r.external = TRUE) THEN p.price * $4 / 100
-                   ELSE p.price * $5 / 100
-                 END
-               ), 0) as total_commission,
-               COALESCE(SUM(p.price), 0) as total_amount
-             FROM referrals r
-             INNER JOIN properties p ON r.property_id = p.id
-             LEFT JOIN statuses s ON p.status_id = s.id
-             WHERE p.agent_id = $1
-             AND p.closed_date >= $2::date 
-             AND p.closed_date <= $3::date
-             AND p.status_id IN (
-               ${CLOSURE_STATUS_ID_SUBQUERY}
-             )`,
-            [agentId, startDateStr, endDateStr, commissions.referral_external || 2, commissions.referral_internal || 0.5]
-          );
-        } else {
-          // If error is not date-related, set default empty result
-          referralsAmountResult = { rows: [{ total_commission: 0, total_amount: 0 }] };
-        }
-      }
-      
-      // Ensure referralsAmountResult is defined
-      if (!referralsAmountResult || !referralsAmountResult.rows || referralsAmountResult.rows.length === 0) {
-        referralsAmountResult = { rows: [{ total_commission: 0, total_amount: 0 }] };
-      }
-      
-      const referrals_on_properties_amount = parseFloat(referralsAmountResult.rows[0].total_amount) || 0;
-      const referrals_on_properties_commission = roundMoney(parseFloat(referralsAmountResult.rows[0].total_commission) || 0);
-
-      // Calculate total commission including referrals on properties commission
-      // Sum all individual commissions and round to 2 decimal places
-      // Note: referral_commission removed - referrals_on_properties_commission handles all referral commissions
-      let total_commission = roundMoney(
-        agent_commission + 
-        finders_commission + 
-        team_leader_commission + 
-        administration_commission + 
-        referrals_on_properties_commission
-      );
-      
-      // Validation: Verify total matches sum of individual commissions
-      const calculatedSum = roundMoney(
-        agent_commission + 
-        finders_commission + 
-        team_leader_commission + 
-        administration_commission + 
-        referrals_on_properties_commission
-      );
-      
-      // Log calculation details for debugging
-      console.log('💰 Commission Calculation Details:', {
-        sales_amount,
-        agent_commission,
-        finders_commission,
-        team_leader_commission,
-        administration_commission,
-        referrals_on_properties_commission,
-        calculatedSum,
-        total_commission,
-        difference: Math.abs(calculatedSum - total_commission)
-      });
-      
-      // Ensure total matches the sum (should be identical with proper rounding)
-      if (Math.abs(calculatedSum - total_commission) > 0.01) {
-        console.warn('⚠️ Warning: Total commission does not match sum of individual commissions. Using calculated sum.');
-        total_commission = calculatedSum;
-      }
+      const agent_commission = 0;
+      const finders_commission = 0;
+      const team_leader_commission = 0;
+      const administration_commission = 0;
+      const total_commission = 0;
+      const referral_received_commission = 0;
+      const referrals_on_properties_commission = 0;
 
       console.log(`✅ Report calculation completed for agent ${agentId}`);
       
@@ -916,20 +686,12 @@ class Report {
           viewings_count = $3,
           sales_count = $4,
           sales_amount = $5,
-          agent_commission = $6,
-          finders_commission = $7,
-          referral_commission = 0,
-          team_leader_commission = $8,
-          administration_commission = $9,
-          total_commission = $10,
-          referral_received_count = $11,
-          referral_received_commission = $12,
-          referrals_on_properties_count = $13,
-          referrals_on_properties_commission = $14,
-          start_date = COALESCE(start_date, $15::date),
-          end_date = COALESCE(end_date, $16::date),
+          referral_received_count = $6,
+          referrals_on_properties_count = $7,
+          start_date = COALESCE(start_date, $8::date),
+          end_date = COALESCE(end_date, $9::date),
           updated_at = NOW()
-        WHERE id = $17
+        WHERE id = $10
         RETURNING *`,
         [
           calculatedData.listings_count,
@@ -937,15 +699,8 @@ class Report {
           calculatedData.viewings_count,
           calculatedData.sales_count,
           calculatedData.sales_amount,
-          calculatedData.agent_commission,
-          calculatedData.finders_commission,
-          calculatedData.team_leader_commission,
-          calculatedData.administration_commission,
-          calculatedData.total_commission,
           calculatedData.referral_received_count,
-          calculatedData.referral_received_commission,
           calculatedData.referrals_on_properties_count,
-          calculatedData.referrals_on_properties_commission,
           recalculationStart || null,
           recalculationEnd || null,
           reportId

@@ -56,17 +56,6 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date }) {
     const startDateStr = startDateUtc.toISOString().split('T')[0];
     const endDateStr = endDateUtc.toISOString().split('T')[0];
 
-    // Get Finders commission percentage from settings
-    const settingsResult = await client.query(
-      `SELECT setting_value 
-       FROM system_settings 
-       WHERE setting_key = 'commission_finders'`
-    );
-
-    const findersPercentage = settingsResult.rows[0]?.setting_value
-      ? parseFloat(settingsResult.rows[0].setting_value)
-      : 1.0; // Default 1%
-
     // Fetch all closed properties for this agent in the period
     // IMPORTANT: "Source" must come from the owner lead's reference_source_id,
     // NOT from contact_source or viewing leads. The source represents where the 
@@ -82,6 +71,7 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date }) {
         p.owner_id,
         p.owner_name AS property_owner_name,
         p.phone_number AS property_phone,
+        COALESCE(p.commission, 0) AS property_commission,
         -- First try direct owner_id link
         l.id AS lead_id,
         l.customer_name AS lead_customer_name,
@@ -124,10 +114,10 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date }) {
     
     const rows = result.rows || [];
 
-    // Enrich rows with Sold/Rented label and Finders commission
+    // Enrich rows with Sold/Rented label and the manually entered commission
     const enriched = rows.map(row => {
       const price = parseFloat(row.price) || 0;
-      const finders_commission = roundMoney((price * (findersPercentage || 0)) / 100);
+      const finders_commission = roundMoney(parseFloat(row.property_commission) || 0);
 
       let sold_rented = '';
       if (row.property_type) {

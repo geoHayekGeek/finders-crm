@@ -28,7 +28,8 @@ export default function CreateOperationsCommissionModal({
 
   const [formData, setFormData] = useState({
     start_date: defaultStartDate,
-    end_date: defaultEndDate
+    end_date: defaultEndDate,
+    commission_percentage: 0
   })
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState<any>(null)
@@ -39,7 +40,7 @@ export default function CreateOperationsCommissionModal({
       calculatePreview()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.start_date, formData.end_date, isOpen])
+  }, [formData.start_date, formData.end_date, formData.commission_percentage, isOpen])
 
   const calculatePreview = async () => {
     if (!token) return
@@ -127,9 +128,37 @@ export default function CreateOperationsCommissionModal({
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-700">
               This will create a report showing the total operations commission from all closed properties 
-              (sales and rentals) for the selected date range. The commission percentage is automatically 
-              fetched from system settings.
+              (sales and rentals) for the selected date range. Enter the commission percentage manually 
+              and the report will calculate the total from that rate.
             </p>
+          </div>
+
+          {/* Commission Rate */}
+          <div>
+            <h4 className="text-sm font-medium text-gray-900 mb-3">Commission Rate</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Commission Percentage (%)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={formData.commission_percentage}
+                  onChange={(e) => {
+                    const value = parseFloat(e.target.value)
+                    setFormData(prev => ({
+                      ...prev,
+                      commission_percentage: Number.isNaN(value) ? 0 : value
+                    }))
+                  }}
+                  className="w-full px-3 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 bg-white"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           {/* Report Period */}
@@ -143,7 +172,7 @@ export default function CreateOperationsCommissionModal({
                   const value = e.target.value || defaultStartDate
                   setFormData(prev => {
                     if (value && prev.end_date && value > prev.end_date) {
-                      return { start_date: value, end_date: value }
+                      return { ...prev, start_date: value, end_date: value }
                     }
                     return { ...prev, start_date: value }
                   })
@@ -162,7 +191,7 @@ export default function CreateOperationsCommissionModal({
                   const value = e.target.value || defaultEndDate
                   setFormData(prev => {
                     if (value && prev.start_date && value < prev.start_date) {
-                      return { start_date: value, end_date: value }
+                      return { ...prev, start_date: value, end_date: value }
                     }
                     return { ...prev, end_date: value }
                   })
@@ -191,7 +220,7 @@ export default function CreateOperationsCommissionModal({
                 <button
                   type="button"
                   key={preset.label}
-                  onClick={() => setFormData({ start_date: preset.start, end_date: preset.end })}
+                  onClick={() => setFormData(prev => ({ ...prev, start_date: preset.start, end_date: preset.end }))}
                   className="px-3 py-1 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
                 >
                   {preset.label}
@@ -265,4 +294,3 @@ export default function CreateOperationsCommissionModal({
     </div>
   )
 }
-
