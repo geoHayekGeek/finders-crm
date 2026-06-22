@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw, FileSpreadsheet, Eye, Trash2, Users, Building2 } from 'lucide-react'
 import { TeamMonthlyReport, TeamReportFilters } from '@/types/reports'
 import { reportsApi } from '@/utils/api'
@@ -13,6 +13,13 @@ import CreateTeamReportModal from './CreateTeamReportModal'
 import { normalizeRole } from '@/utils/roleUtils'
 import { formatCurrency } from '@/utils/formatters'
 import ViewTeamReportModal from './ViewTeamReportModal'
+import {
+  reportIconActionBlueButton,
+  reportIconActionGreenButton,
+  reportIconActionRedButton,
+  reportToolbarPrimaryButton,
+  reportToolbarSecondaryButton
+} from './reportStyles'
 
 export default function TeamReportsTab() {
   const { token, user } = useAuth()
@@ -33,11 +40,25 @@ export default function TeamReportsTab() {
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [reportToDelete, setReportToDelete] = useState<number | null>(null)
 
+  const loadReports = useCallback(async () => {
+    try {
+      setLoading(true)
+      const response = await reportsApi.getAllTeam(filters, token)
+      if (response.success) {
+        setReports(response.data)
+      }
+    } catch (error: any) {
+      showError(error.message || 'Failed to load team reports')
+    } finally {
+      setLoading(false)
+    }
+  }, [filters, token, showError])
+
   useEffect(() => {
     if (token) {
       loadReports()
     }
-  }, [token, filters])
+  }, [loadReports, token])
 
   useEffect(() => {
     if (normalizedRole === 'team leader' && user?.id) {
@@ -51,20 +72,6 @@ export default function TeamReportsTab() {
       return
     }
     setFilters(next)
-  }
-
-  const loadReports = async () => {
-    try {
-      setLoading(true)
-      const response = await reportsApi.getAllTeam(filters, token)
-      if (response.success) {
-        setReports(response.data)
-      }
-    } catch (error: any) {
-      showError(error.message || 'Failed to load team reports')
-    } finally {
-      setLoading(false)
-    }
   }
 
   const handleDelete = async (reportId: number) => {
@@ -149,30 +156,25 @@ export default function TeamReportsTab() {
         lockedTeamLeaderId={lockedTeamLeaderId}
       />
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {canCreateReport && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={reportToolbarPrimaryButton}
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="h-4 w-4" />
               Create Team Report
             </button>
           )}
           <button
             onClick={loadReports}
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className={reportToolbarSecondaryButton}
           >
-            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
-        </div>
-
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Users className="h-4 w-4" />
-          Team snapshots with per-agent tabs
         </div>
       </div>
 
@@ -273,23 +275,26 @@ export default function TeamReportsTab() {
                     <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => handleViewReport(report)}
-                        className="text-blue-600 hover:text-blue-900"
+                        className={reportIconActionBlueButton}
                         title="View Details"
+                        aria-label={`View team report for ${report.team_leader_name}`}
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleExportExcel(report.id)}
-                        className="text-green-600 hover:text-green-900"
+                        className={reportIconActionGreenButton}
                         title="Export to Excel"
+                        aria-label={`Export team report for ${report.team_leader_name} to Excel`}
                       >
                         <FileSpreadsheet className="h-4 w-4" />
                       </button>
                       {canDeleteReport && (
                         <button
                           onClick={() => handleDelete(report.id)}
-                          className="text-red-600 hover:text-red-900"
+                          className={reportIconActionRedButton}
                           title="Delete"
+                          aria-label={`Delete team report for ${report.team_leader_name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

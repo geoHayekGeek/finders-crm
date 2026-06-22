@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Edit, Trash2, Eye } from 'lucide-react'
 import { MonthlyAgentReport, ReportFilters } from '@/types/reports'
 import { reportsApi } from '@/utils/api'
@@ -15,6 +15,15 @@ import EditReportModal from './EditReportModal'
 import AgentEarningsModal from './AgentEarningsModal'
 import ViewReportModal from './ViewReportModal'
 import { formatCurrency } from '@/utils/formatters'
+import {
+  reportIconActionBlueButton,
+  reportIconActionGrayButton,
+  reportIconActionGreenButton,
+  reportIconActionPurpleButton,
+  reportIconActionRedButton,
+  reportToolbarPrimaryButton,
+  reportToolbarSecondaryButton
+} from './reportStyles'
 
 export default function MonthlyAgentStatsTab() {
   const { token, user } = useAuth()
@@ -44,43 +53,11 @@ export default function MonthlyAgentStatsTab() {
   const canEditReport = canCreateReport // Same permissions for edit/delete
   const canDeleteReport = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations'
   const isTeamLeader = normalizedRole === 'team leader'
-  const isViewOnly = normalizedRole === 'accountant' || normalizedRole === 'agent manager' || normalizedRole === 'hr'
   const isLimitedView = ['agent', 'consultant'].includes(normalizedRole) // Team leaders can see their team, so don't lock them
   const lockedAgentId = isLimitedView && user ? user.id : undefined
 
   // Load data
-  useEffect(() => {
-    if (token) {
-      loadReports()
-      loadLeadSources()
-    }
-  }, [token, filters])
-
-  useEffect(() => {
-    if (lockedAgentId) {
-      setFilters(prev =>
-        prev.agent_id === lockedAgentId ? prev : { ...prev, agent_id: lockedAgentId }
-      )
-    } else {
-      setFilters(prev => {
-        if (prev.agent_id === undefined) {
-          return prev
-        }
-        const { agent_id, ...rest } = prev
-        return rest
-      })
-    }
-  }, [lockedAgentId])
-
-  const setFiltersSafe = (next: ReportFilters) => {
-    if (lockedAgentId) {
-      setFilters({ ...next, agent_id: lockedAgentId })
-    } else {
-      setFilters(next)
-    }
-  }
-
-  const loadReports = async () => {
+  const loadReports = useCallback(async () => {
     try {
       setLoading(true)
       const response = await reportsApi.getAll(filters, token)
@@ -93,9 +70,9 @@ export default function MonthlyAgentStatsTab() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [filters, token, showError])
 
-  const loadLeadSources = async () => {
+  const loadLeadSources = useCallback(async () => {
     try {
       const response = await reportsApi.getLeadSources(token)
       if (response.success) {
@@ -103,6 +80,38 @@ export default function MonthlyAgentStatsTab() {
       }
     } catch (error: any) {
       console.error('Error loading lead sources:', error)
+    }
+  }, [token])
+
+  useEffect(() => {
+    if (token) {
+      loadReports()
+      loadLeadSources()
+    }
+  }, [loadLeadSources, loadReports, token])
+
+  useEffect(() => {
+    if (lockedAgentId) {
+      setFilters(prev =>
+        prev.agent_id === lockedAgentId ? prev : { ...prev, agent_id: lockedAgentId }
+      )
+    } else {
+      setFilters(prev => {
+        if (prev.agent_id === undefined) {
+          return prev
+        }
+        const rest = { ...prev }
+        delete rest.agent_id
+        return rest
+      })
+    }
+  }, [lockedAgentId])
+
+  const setFiltersSafe = (next: ReportFilters) => {
+    if (lockedAgentId) {
+      setFilters({ ...next, agent_id: lockedAgentId })
+    } else {
+      setFilters(next)
     }
   }
 
@@ -323,7 +332,7 @@ export default function MonthlyAgentStatsTab() {
   }
 
   // Only show limited view for agents (not team leaders - they can filter by their team)
-  if (['agent', 'consultant'].includes(role)) {
+  if (['agent', 'consultant'].includes(normalizedRole)) {
     const handleViewEarnings = (report: MonthlyAgentReport) => {
       setSelectedReport(report)
       setShowEarningsModal(true)
@@ -345,9 +354,9 @@ export default function MonthlyAgentStatsTab() {
           <button
             onClick={loadReports}
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className={reportToolbarSecondaryButton}
           >
-            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
@@ -443,39 +452,39 @@ export default function MonthlyAgentStatsTab() {
   }
 
   return (
-    <div className="space-y-6">
-      <ReportsFilters
-        filters={filters}
+      <div className="space-y-6">
+        <ReportsFilters
+          filters={filters}
         setFilters={setFiltersSafe}
         onClearFilters={() => setFilters({})}
       />
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {canCreateReport && (
             <button
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className={reportToolbarPrimaryButton}
             >
-              <Plus className="h-5 w-5 mr-2" />
+              <Plus className="h-4 w-4" />
               Create Report
             </button>
           )}
           <button
             onClick={loadReports}
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className={reportToolbarSecondaryButton}
           >
-            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
 
         <button
           onClick={exportToCSV}
-          className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+          className={reportToolbarSecondaryButton}
         >
-          <Download className="h-5 w-5 mr-2" />
+          <Download className="h-4 w-4" />
           Export CSV
         </button>
       </div>
@@ -613,16 +622,18 @@ export default function MonthlyAgentStatsTab() {
                       <div className="flex items-center justify-center space-x-2">
                         <button
                           onClick={() => handleViewReport(report)}
-                          className="text-blue-600 hover:text-blue-900"
+                          className={reportIconActionBlueButton}
                           title="View Details"
+                          aria-label={`View report for ${report.agent_name}`}
                         >
                           <Eye className="h-4 w-4" />
                         </button>
                         {canEditReport && (
                           <button
                             onClick={() => handleEditReport(report)}
-                            className="text-gray-600 hover:text-gray-900"
+                            className={reportIconActionGrayButton}
                             title="Edit"
+                            aria-label={`Edit report for ${report.agent_name}`}
                           >
                             <Edit className="h-4 w-4" />
                           </button>
@@ -630,31 +641,35 @@ export default function MonthlyAgentStatsTab() {
                         {canEditReport && (
                           <button
                             onClick={() => handleRecalculate(report.id)}
-                            className="text-blue-600 hover:text-blue-900"
+                            className={reportIconActionBlueButton}
                             title="Recalculate"
+                            aria-label={`Recalculate report for ${report.agent_name}`}
                           >
                             <RefreshCw className="h-4 w-4" />
                           </button>
                         )}
                         <button
                           onClick={() => handleExportExcel(report.id)}
-                          className="text-green-600 hover:text-green-900"
+                          className={reportIconActionGreenButton}
                           title="Export to Excel"
+                          aria-label={`Export report for ${report.agent_name} to Excel`}
                         >
                           <FileSpreadsheet className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleExportPDF(report.id)}
-                          className="text-purple-600 hover:text-purple-900"
+                          className={reportIconActionPurpleButton}
                           title="Export to PDF"
+                          aria-label={`Export report for ${report.agent_name} to PDF`}
                         >
                           <FileText className="h-4 w-4" />
                         </button>
                         {canDeleteReport && (
                           <button
                             onClick={() => handleDelete(report.id)}
-                            className="text-red-600 hover:text-red-900"
+                            className={reportIconActionRedButton}
                             title="Delete"
+                            aria-label={`Delete report for ${report.agent_name}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>

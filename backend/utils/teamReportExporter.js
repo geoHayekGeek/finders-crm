@@ -205,7 +205,7 @@ function populateReportWorksheet(worksheet, report, options = {}) {
 
 async function exportTeamReportToExcel(report) {
   const workbook = new ExcelJS.Workbook();
-  const summarySheet = workbook.addWorksheet('Team Summary');
+  const summarySheet = workbook.addWorksheet('Team Report');
   populateReportWorksheet(summarySheet, report, {
     titlePrefix: 'Team Report',
     includeTeamOverview: true

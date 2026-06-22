@@ -1,13 +1,11 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar, Users } from 'lucide-react'
-import { useAuth } from '@/contexts/AuthContext'
+import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar } from 'lucide-react'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { normalizeRole } from '@/utils/roleUtils'
-import MonthlyAgentStatsTab from '@/components/reports/MonthlyAgentStatsTab'
-import TeamReportsTab from '@/components/reports/TeamReportsTab'
+import AgentTeamReportsTab from '@/components/reports/AgentTeamReportsTab'
 import DCSRTab from '@/components/reports/DCSRTab'
 import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
 import SaleRentSourceTab from '@/components/reports/SaleRentSourceTab'
@@ -16,7 +14,6 @@ import OperationsDailyTab from '@/components/reports/OperationsDailyTab'
 // Tab configuration
 type TabId =
   | 'monthly-agent-stats'
-  | 'team-monthly-stats'
   | 'dcsr-report'
   | 'operations-commission'
   | 'sale-rent-source'
@@ -36,15 +33,9 @@ interface Tab {
 const TABS: Tab[] = [
   {
     id: 'monthly-agent-stats',
-    name: 'Monthly Agent Statistics',
+    name: 'Agent & Team Reports',
     icon: BarChart3,
-    description: 'View and manage monthly performance reports for each agent'
-  },
-  {
-    id: 'team-monthly-stats',
-    name: 'Team Reports',
-    icon: Users,
-    description: 'Generate one team summary and drill into each agent report'
+    description: 'View and manage individual monthly reports plus team summaries'
   },
   {
     id: 'dcsr-report',
@@ -73,31 +64,30 @@ const TABS: Tab[] = [
 ]
 
 function ReportsPageContent() {
-  const { user } = useAuth()
   const { role } = usePermissions()
 
   const availableTabs = useMemo(() => {
     const normalizedRole = normalizeRole(role);
     // Agents are blocked from accessing this page entirely (handled by ProtectedRoute)
-    // Accountant can view agent and team reports
+    // Accountant can view the combined agent/team reports
     if (normalizedRole === 'accountant') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats')
     }
-    // HR can view agent, team, and operations commission reports
+    // HR can view agent/team reports and operations commission reports
     if (normalizedRole === 'hr') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'operations-commission')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'operations-commission')
     }
-    // Team leaders can see Monthly Agent Statistics, Team Reports, and DCSR Report (but limited to their team)
+    // Team leaders can see the combined reports tab and DCSR Report (but limited to their team)
     if (normalizedRole === 'team leader') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'dcsr-report')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'dcsr-report')
     }
-    // Agent manager can see Monthly Agent Statistics, Team Reports, and Sale & Rent Source (read only)
+    // Agent manager can see the combined reports tab and Sale & Rent Source (read only)
     if (normalizedRole === 'agent manager') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'sale-rent-source')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source')
     }
-    // Operations can see Monthly Agent Statistics, Team Reports, Sale & Rent Source, Operations Commission (read only), and Operations Daily
+    // Operations can see the combined reports tab, Sale & Rent Source, Operations Commission (read only), and Operations Daily
     if (normalizedRole === 'operations') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'team-monthly-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
     }
     // Admin and operations manager can see all tabs
     return TABS
@@ -128,8 +118,8 @@ function ReportsPageContent() {
 
       {/* Tab Navigation */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-        <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+        <div className="border-b border-gray-200 overflow-x-auto">
+          <nav className="-mb-px flex min-w-max gap-8 px-6" aria-label="Tabs">
             {availableTabs.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
@@ -141,7 +131,7 @@ function ReportsPageContent() {
                   onClick={() => !isDisabled && setActiveTab(tab.id)}
                   disabled={isDisabled}
                   className={`
-                    group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                    group inline-flex shrink-0 items-center gap-2 border-b-2 px-1 py-4 text-sm font-medium transition-colors
                     ${isActive
                       ? 'border-blue-500 text-blue-600'
                       : isDisabled
@@ -153,7 +143,7 @@ function ReportsPageContent() {
                 >
                   <Icon
                     className={`
-                      mr-2 h-5 w-5
+                      h-5 w-5
                       ${isActive
                         ? 'text-blue-500'
                         : isDisabled
@@ -178,9 +168,7 @@ function ReportsPageContent() {
 
         {/* Tab Content */}
         <div className="p-6">
-          {activeTab === 'monthly-agent-stats' && <MonthlyAgentStatsTab />}
-
-          {activeTab === 'team-monthly-stats' && <TeamReportsTab />}
+          {activeTab === 'monthly-agent-stats' && <AgentTeamReportsTab />}
           
           {activeTab === 'dcsr-report' && <DCSRTab />}
           
