@@ -56,8 +56,12 @@ function getDisplayName(report) {
 }
 
 function addSection(worksheet, currentRowRef, title, data, options = {}) {
-  const { highlightLastRow = false, sectionWidth = 2 } = options;
-  const { currentRow } = currentRowRef;
+  const { highlightLastRow = false } = options;
+  const currentRow = currentRowRef.current;
+
+  if (!Number.isInteger(currentRow) || currentRow < 1) {
+    throw new Error('Invalid section row');
+  }
 
   worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
   const sectionCell = worksheet.getCell(`A${currentRow}`);

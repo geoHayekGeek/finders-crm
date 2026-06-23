@@ -109,6 +109,11 @@ describe('Team Report Exporter', () => {
     expect(workbook.addWorksheet).toHaveBeenCalledWith('Agent 1 - Alice Agent')
     expect(workbook.addWorksheet).toHaveBeenCalledWith('Agent 2 - Bob Agent')
     expect(workbook.xlsx.writeBuffer).toHaveBeenCalled()
+    sheets.forEach((worksheet) => {
+      worksheet.mergeCells.mock.calls.forEach(([range]) => {
+        expect(range).not.toContain('undefined')
+      })
+    })
     expect(buffer).toBeInstanceOf(Buffer)
   })
 })
