@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, AlertCircle, RefreshCw, CalendarRange } from 'lucide-react'
+import { X, AlertCircle, RefreshCw, CalendarRange, Users } from 'lucide-react'
 import { ReportFormData, MonthlyAgentReport } from '@/types/reports'
 import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -313,7 +313,10 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full my-8">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-lg z-10">
-          <h2 className="text-xl font-semibold text-gray-900">Create Agent Report</h2>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Create Agent Report</h2>
+            <p className="text-sm text-gray-600 mt-1">Creates one summary workbook and a sheet for the selected agent.</p>
+          </div>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -336,52 +339,46 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           )}
 
           {/* Selection Section */}
-          <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-200 rounded-lg p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wider">Choose what to generate</h3>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Agent Selection */}
+          <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-200 rounded-lg p-5 shadow-sm space-y-4">
+            <div className="space-y-4">
               <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:border-blue-300 transition-colors">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Agent <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <select
-                    value={formData.agent_id || ''}
-                    onChange={(e) => handleChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
-                    required
-                    className="w-full appearance-none px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                  >
-                    <option value="">Select an agent...</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400">
-                    v
-                  </div>
-                </div>
+                <select
+                  value={formData.agent_id || ''}
+                  onChange={(e) => handleChange('agent_id', e.target.value ? parseInt(e.target.value) : undefined)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                >
+                  <option value="">Select an agent...</option>
+                  {agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-3 text-sm text-gray-500">
+                  Choose the agent that will get one saved report and one Excel sheet.
+                </p>
               </div>
 
-              {/* Date Range Selection */}
-              <div className="lg:col-span-2 bg-white rounded-lg border border-blue-200 p-4 shadow-sm hover:border-blue-400 transition-colors">
+              <div className="bg-white rounded-lg border border-blue-200 p-4 shadow-sm hover:border-blue-400 transition-colors">
                 <label className="block text-sm font-medium text-blue-900 mb-3 flex items-center gap-2">
                   <CalendarRange className="h-4 w-4 text-blue-600" />
                   Reporting window <span className="text-red-500">*</span>
                 </label>
-                
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-xs uppercase tracking-wide text-blue-500 font-semibold">
+
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <label className="pl-1 text-xs uppercase tracking-wide text-blue-500 font-semibold">
                       From
-                    </span>
+                    </label>
                     <input
                       type="date"
                       value={formData.start_date}
                       onChange={(e) => handleChange('start_date', e.target.value || undefined)}
-                      className="mt-5 w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                       max={formData.end_date || undefined}
                       required
                     />
@@ -391,15 +388,15 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                     -
                   </div>
 
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-xs uppercase tracking-wide text-blue-500 font-semibold">
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <label className="pl-1 text-xs uppercase tracking-wide text-blue-500 font-semibold">
                       To
-                    </span>
+                    </label>
                     <input
                       type="date"
                       value={formData.end_date}
                       onChange={(e) => handleChange('end_date', e.target.value || undefined)}
-                      className="mt-5 w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                       min={formData.start_date || undefined}
                       required
                     />
@@ -434,6 +431,18 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
                       {preset.label}
                     </button>
                   ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <Users className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-blue-900">What gets created?</p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    One saved agent report plus one Excel sheet for the selected agent.
+                  </p>
                 </div>
               </div>
             </div>

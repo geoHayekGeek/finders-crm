@@ -65,12 +65,13 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
     try {
       const response = await usersApi.getTeamLeaders(token)
       if (response.success) {
-        const leadersWithTeams = (response.teamLeaders || [])
+        const allTeamLeaders = (response.teamLeaders || [])
           .filter((u: User) => normalizeRole(u.role) === 'team leader')
-          .filter((u: User) => (u.agent_count ?? 0) > 0)
-        setTeamLeaders(leadersWithTeams)
-        if (leadersWithTeams.length === 0) {
-          setError('No teams with active agents are available for reporting.')
+          .sort((a: User, b: User) => (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' }))
+
+        setTeamLeaders(allTeamLeaders)
+        if (allTeamLeaders.length === 0) {
+          setError('No teams are available for reporting.')
         }
       }
     } catch {
@@ -226,7 +227,7 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
           )}
 
           <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-200 rounded-lg p-5 shadow-sm space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="space-y-4">
               <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm hover:border-blue-300 transition-colors">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Team Leader <span className="text-red-500">*</span>
@@ -244,24 +245,27 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
                     </option>
                   ))}
                 </select>
+                <p className="mt-3 text-sm text-gray-500">
+                  Choose the team that will get one summary sheet plus one sheet for each active agent.
+                </p>
               </div>
 
-              <div className="lg:col-span-2 bg-white rounded-lg border border-blue-200 p-4 shadow-sm hover:border-blue-400 transition-colors">
+              <div className="bg-white rounded-lg border border-blue-200 p-4 shadow-sm hover:border-blue-400 transition-colors">
                 <label className="block text-sm font-medium text-blue-900 mb-3 flex items-center gap-2">
                   <CalendarRange className="h-4 w-4 text-blue-600" />
                   Reporting window <span className="text-red-500">*</span>
                 </label>
 
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-xs uppercase tracking-wide text-blue-500 font-semibold">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-4 items-end">
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <label className="pl-1 text-xs uppercase tracking-wide text-blue-500 font-semibold">
                       From
-                    </span>
+                    </label>
                     <input
                       type="date"
                       value={formData.start_date}
                       onChange={(e) => handleChange('start_date', e.target.value || undefined)}
-                      className="mt-5 w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                       max={formData.end_date || undefined}
                       required
                     />
@@ -271,15 +275,15 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
                     -
                   </div>
 
-                  <div className="relative">
-                    <span className="absolute left-3 top-2 text-xs uppercase tracking-wide text-blue-500 font-semibold">
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <label className="pl-1 text-xs uppercase tracking-wide text-blue-500 font-semibold">
                       To
-                    </span>
+                    </label>
                     <input
                       type="date"
                       value={formData.end_date}
                       onChange={(e) => handleChange('end_date', e.target.value || undefined)}
-                      className="mt-5 w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+                      className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
                       min={formData.start_date || undefined}
                       required
                     />
