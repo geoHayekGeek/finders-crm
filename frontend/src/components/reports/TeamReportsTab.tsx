@@ -112,7 +112,14 @@ export default function TeamReportsTab() {
         throw new Error('Team report not found')
       }
 
-      const blob = await reportsApi.exportTeamToExcelFromData(report, token)
+      let blob: Blob
+
+      try {
+        blob = await reportsApi.exportTeamToExcel(reportId, token)
+      } catch {
+        blob = await reportsApi.exportTeamToExcelFromData(report, token)
+      }
+
       const filename = `Team_Report_${formatRangeSlug(report)}.xlsx`
 
       const url = window.URL.createObjectURL(blob)

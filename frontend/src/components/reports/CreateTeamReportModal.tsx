@@ -98,7 +98,14 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
   }
 
   const downloadExcel = async (report: TeamMonthlyReport) => {
-    const blob = await reportsApi.exportTeamToExcelFromData(report, token)
+    let blob: Blob
+
+    try {
+      blob = await reportsApi.exportTeamToExcel(report.id, token)
+    } catch {
+      blob = await reportsApi.exportTeamToExcelFromData(report, token)
+    }
+
     const start = new Date(report.start_date)
     const end = new Date(report.end_date)
     const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
