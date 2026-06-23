@@ -8,6 +8,16 @@ import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 
+function sanitizeFilenamePart(value: string, fallback: string) {
+  const safe = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return safe || fallback
+}
+
 interface CreateTeamReportModalProps {
   onClose: () => void
   onSuccess: () => void
@@ -91,7 +101,7 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
     const start = new Date(formData.start_date)
     const end = new Date(formData.end_date)
     const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-    const slug = `${teamName.replace(/\s+/g, '_')}_${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
+    const slug = `${sanitizeFilenamePart(teamName, 'Team')}_${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -147,7 +157,7 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
 
       if (response.success) {
         try {
-          await downloadExcel(response.data.id, response.data.team_leader_name || 'Team')
+          await downloadExcel(response.data.id, response.data.team_leader_code || response.data.team_leader_name || 'Team')
           showSuccess('Team report created and downloaded successfully')
         } catch {
           showError('Team report was saved, but the Excel download failed. You can export it from the reports list.')

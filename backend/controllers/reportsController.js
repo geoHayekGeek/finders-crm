@@ -7,6 +7,7 @@ const {
   exportSaleRentSourceToExcel,
   exportSaleRentSourceToPDF
 } = require('../utils/saleRentSourceReportExporter');
+const { buildAttachmentFilename } = require('../utils/filenameUtils');
 const pool = require('../config/db');
 const logger = require('../utils/logger');
 
@@ -541,7 +542,11 @@ class ReportsController {
         return `${formatter.format(startDate).replace(/[, ]/g, '-')}_to_${formatter.format(endDate).replace(/[, ]/g, '-')}`;
       };
 
-      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${formatRangeLabel()}.xlsx`;
+      const filename = buildAttachmentFilename(
+        'Report',
+        [report.agent_code || report.agent_name || 'Agent', formatRangeLabel()],
+        'xlsx'
+      );
       
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -659,7 +664,11 @@ class ReportsController {
         return `${formatter.format(startDate).replace(/[, ]/g, '-')}_to_${formatter.format(endDate).replace(/[, ]/g, '-')}`;
       };
 
-      const filename = `Report_${report.agent_name.replace(/\s+/g, '_')}_${formatRangeLabel()}.pdf`;
+      const filename = buildAttachmentFilename(
+        'Report',
+        [report.agent_code || report.agent_name || 'Agent', formatRangeLabel()],
+        'pdf'
+      );
       
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

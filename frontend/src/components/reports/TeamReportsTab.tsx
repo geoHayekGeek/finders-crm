@@ -21,6 +21,16 @@ import {
   reportToolbarSecondaryButton
 } from './reportStyles'
 
+function sanitizeFilenamePart(value: string, fallback: string) {
+  const safe = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return safe || fallback
+}
+
 export default function TeamReportsTab() {
   const { token, user } = useAuth()
   const { role } = usePermissions()
@@ -121,7 +131,7 @@ export default function TeamReportsTab() {
     const start = report.start_date ? new Date(report.start_date) : new Date(report.year ?? new Date().getFullYear(), (report.month ?? 1) - 1, 1)
     const end = report.end_date ? new Date(report.end_date) : new Date(report.year ?? new Date().getFullYear(), report.month ?? 1, 0)
     const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
-    const teamName = (report.team_leader_name || 'Team').replace(/\s+/g, '_')
+    const teamName = sanitizeFilenamePart(report.team_leader_code || report.team_leader_name || 'Team', 'Team')
     return `${teamName}_${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
   }
 

@@ -105,7 +105,7 @@ describe('Team Report Exporter', () => {
     })
 
     expect(ExcelJS.Workbook).toHaveBeenCalled()
-    expect(workbook.addWorksheet).toHaveBeenCalledWith('Team Summary')
+    expect(workbook.addWorksheet).toHaveBeenCalledWith('Team Report')
     expect(workbook.addWorksheet).toHaveBeenCalledWith('Agent 1 - Alice Agent')
     expect(workbook.addWorksheet).toHaveBeenCalledWith('Agent 2 - Bob Agent')
     expect(workbook.xlsx.writeBuffer).toHaveBeenCalled()

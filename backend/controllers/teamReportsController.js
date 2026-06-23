@@ -2,6 +2,7 @@ const TeamReport = require('../models/teamReportsModel');
 const { exportTeamReportToExcel } = require('../utils/teamReportExporter');
 const { normalizeRole } = require('../utils/roleUtils');
 const logger = require('../utils/logger');
+const { buildAttachmentFilename } = require('../utils/filenameUtils');
 
 function formatRangeLabel(report) {
   const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
@@ -233,7 +234,14 @@ class TeamReportsController {
       }
 
       const buffer = await exportTeamReportToExcel(report);
-      const filename = `Team_Report_${(report.team_leader_name || 'Team').replace(/\s+/g, '_')}_${formatRangeLabel(report)}.xlsx`;
+      const filename = buildAttachmentFilename(
+        'Team_Report',
+        [
+          report.team_leader_code || report.team_leader_name || 'Team',
+          formatRangeLabel(report)
+        ],
+        'xlsx'
+      );
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
