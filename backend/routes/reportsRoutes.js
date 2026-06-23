@@ -132,5 +132,12 @@ router.delete('/team/:id', TeamReportsController.deleteTeamMonthlyReport);
  */
 router.get('/team/:id/export/excel', TeamReportsController.exportTeamMonthlyReportToExcel);
 
+/**
+ * @route   POST /api/reports/team/export/excel
+ * @desc    Export a team monthly report payload to Excel
+ * @access  Private
+ */
+router.post('/team/export/excel', TeamReportsController.exportTeamMonthlyReportToExcelFromPayload);
+
 module.exports = router;
 

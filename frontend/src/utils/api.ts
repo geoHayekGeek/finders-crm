@@ -1,9 +1,9 @@
 import { Property, Category, Status } from '@/types/property'
 import { CalendarLocation } from '@/types/location'
-import { Lead, LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote, LeadsImportResponse } from '@/types/leads'
+import { LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateLeadFormData, LeadReferralsResponse, AgentReferralStatsResponse, LeadNotesResponse, LeadNote, LeadsImportResponse } from '@/types/leads'
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
-import { Viewing, ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
+import { ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
 import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
@@ -103,7 +103,7 @@ async function getCSRFToken(forceRefresh = false): Promise<string | null> {
         return csrfToken
       }
     }
-  } catch (error) {
+  } catch {
     // Silently fail - CSRF token fetch errors shouldn't break the app
   }
   
@@ -1452,6 +1452,28 @@ export const reportsApi = {
       headers: {
         'Authorization': `Bearer ${authToken}`,
       },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export team report' }))
+      throw new Error(errorData.message || 'Failed to export team report to Excel')
+    }
+
+    return response.blob()
+  },
+
+  // Export team report payload to Excel without reloading it by ID
+  exportTeamToExcelFromData: async (report: TeamMonthlyReport, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+
+    const response = await fetch(`${API_BASE_URL}/reports/team/export/excel`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ report }),
     })
 
     if (!response.ok) {

@@ -5,6 +5,7 @@ import { X, AlertCircle, RefreshCw, CalendarRange, Users, Download } from 'lucid
 import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { TeamMonthlyReport } from '@/types/reports'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 
@@ -96,11 +97,12 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
     setError(null)
   }
 
-  const downloadExcel = async (reportId: number, teamName: string) => {
-    const blob = await reportsApi.exportTeamToExcel(reportId, token)
-    const start = new Date(formData.start_date)
-    const end = new Date(formData.end_date)
+  const downloadExcel = async (report: TeamMonthlyReport) => {
+    const blob = await reportsApi.exportTeamToExcelFromData(report, token)
+    const start = new Date(report.start_date)
+    const end = new Date(report.end_date)
     const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    const teamName = report.team_leader_code || report.team_leader_name || 'Team'
     const slug = `${sanitizeFilenamePart(teamName, 'Team')}_${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -157,7 +159,7 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
 
       if (response.success) {
         try {
-          await downloadExcel(response.data.id, response.data.team_leader_code || response.data.team_leader_name || 'Team')
+          await downloadExcel(response.data)
           showSuccess('Team report created and downloaded successfully')
         } catch {
           showError('Team report was saved, but the Excel download failed. You can export it from the reports list.')

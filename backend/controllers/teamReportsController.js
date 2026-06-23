@@ -4,6 +4,42 @@ const { normalizeRole } = require('../utils/roleUtils');
 const logger = require('../utils/logger');
 const { buildAttachmentFilename } = require('../utils/filenameUtils');
 
+function parseJsonValue(value, fallback) {
+  if (value === undefined || value === null) {
+    return fallback;
+  }
+
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      return fallback;
+    }
+  }
+
+  return value;
+}
+
+function normalizeTeamReportForExcel(report) {
+  if (!report) {
+    return null;
+  }
+
+  const agentReports = parseJsonValue(report.agent_reports, []);
+  const normalizedAgentReports = Array.isArray(agentReports)
+    ? agentReports.map((agentReport) => ({
+      ...agentReport,
+      lead_sources: parseJsonValue(agentReport?.lead_sources, {})
+    }))
+    : [];
+
+  return {
+    ...report,
+    lead_sources: parseJsonValue(report.lead_sources, {}),
+    agent_reports: normalizedAgentReports
+  };
+}
+
 function formatRangeLabel(report) {
   const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
   const endDate = report.end_date ? new Date(report.end_date) : new Date(report.year, report.month, 0);
@@ -217,7 +253,9 @@ class TeamReportsController {
     try {
       const { id } = req.params;
       const role = normalizeRole(req.user.role);
-      const report = await TeamReport.getTeamMonthlyReportById(parseInt(id, 10));
+      const report = normalizeTeamReportForExcel(
+        await TeamReport.getTeamMonthlyReportById(parseInt(id, 10))
+      );
 
       if (!report) {
         return res.status(404).json({
@@ -247,6 +285,49 @@ class TeamReportsController {
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
     } catch (error) {
+      logger.error('Error exporting team report to Excel', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export team report to Excel',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  static async exportTeamMonthlyReportToExcelFromPayload(req, res) {
+    try {
+      const role = normalizeRole(req.user.role);
+      const report = normalizeTeamReportForExcel(req.body?.report || req.body);
+
+      if (!report) {
+        return res.status(400).json({
+          success: false,
+          message: 'Team report data is required'
+        });
+      }
+
+      if (role === 'team leader' && report.team_leader_id !== req.user.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'You can only export your own team reports'
+        });
+      }
+
+      const buffer = await exportTeamReportToExcel(report);
+      const filename = buildAttachmentFilename(
+        'Team_Report',
+        [
+          report.team_leader_code || report.team_leader_name || 'Team',
+          formatRangeLabel(report)
+        ],
+        'xlsx'
+      );
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } catch (error) {
+      logger.error('Error exporting team report payload to Excel', error);
       res.status(500).json({
         success: false,
         message: 'Failed to export team report to Excel',
