@@ -431,6 +431,13 @@ export const usersApi = {
     }, token)
   },
 
+  // Get all team leaders
+  async getTeamLeaders(token: string): Promise<{ success: boolean; teamLeaders: any[] }> {
+    return apiRequest(`/users/team-leaders`, {
+      method: 'GET',
+    }, token)
+  },
+
   // Get team leader's agents
   async getTeamLeaderAgents(teamLeaderId: number, token: string): Promise<{ success: boolean; agents: any[] }> {
     return apiRequest(`/users/team-leaders/${teamLeaderId}/agents`, {

@@ -520,10 +520,24 @@ class User {
 
   static async getTeamLeaders() {
     const result = await pool.query(
-      `SELECT id, name, email, role, phone, user_code, address, created_at, updated_at 
-       FROM users 
-       WHERE role = 'team_leader' 
-       ORDER BY name`
+      `SELECT
+         u.id,
+         u.name,
+         u.email,
+         u.role,
+         u.phone,
+         u.user_code,
+         u.address,
+         u.created_at,
+         u.updated_at,
+         COUNT(ta.agent_id)::integer AS agent_count
+       FROM users u
+       LEFT JOIN team_agents ta
+         ON ta.team_leader_id = u.id
+        AND ta.is_active = TRUE
+       WHERE u.role = 'team_leader' 
+       GROUP BY u.id, u.name, u.email, u.role, u.phone, u.user_code, u.address, u.created_at, u.updated_at
+       ORDER BY u.name`
     );
     return result.rows;
   }

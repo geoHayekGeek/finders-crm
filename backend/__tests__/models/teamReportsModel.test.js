@@ -41,6 +41,7 @@ describe('Team Reports Model', () => {
       })
 
       pool.query
+        .mockResolvedValueOnce({ rows: [{ table_name: 'team_monthly_reports' }] })
         .mockResolvedValueOnce({
           rows: [{ id: 7, name: 'Leader One', user_code: 'TL1', role: 'team leader' }]
         })
@@ -131,6 +132,7 @@ describe('Team Reports Model', () => {
 
   describe('getAllTeamMonthlyReports', () => {
     it('returns parsed team report rows', async () => {
+      pool.query.mockResolvedValueOnce({ rows: [{ table_name: 'team_monthly_reports' }] })
       pool.query.mockResolvedValueOnce({
         rows: [{
           id: 1,

@@ -80,6 +80,13 @@ class ReportsController {
         });
       }
 
+      if (error.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'A report already exists for this agent and date range'
+        });
+      }
+
       // Handle year constraint violation
       if (error.code === '23514' && error.constraint?.includes('year_check')) {
         return res.status(400).json({

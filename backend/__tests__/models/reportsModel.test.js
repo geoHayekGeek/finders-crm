@@ -89,6 +89,7 @@ describe('Report Model', () => {
 
     it('should create a report using manual commission fields', async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // ensureMonthlyAgentReportSchema
         .mockResolvedValueOnce({ rows: [] }) // ensureExternalColumnExists
         .mockResolvedValueOnce({ rows: [] }) // existing report check
         .mockResolvedValueOnce({ rows: [] }) // properties with referrals

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { X, AlertCircle, RefreshCw, CalendarRange, Users, Download } from 'lucide-react'
 import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -43,31 +43,35 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
   })
 
   useEffect(() => {
-    if (token) {
-      loadTeamLeaders()
-    }
-  }, [token])
-
-  useEffect(() => {
     if (lockedTeamLeaderId) {
       setFormData(prev => prev.team_leader_id === lockedTeamLeaderId ? prev : { ...prev, team_leader_id: lockedTeamLeaderId })
     }
   }, [lockedTeamLeaderId])
 
-  const loadTeamLeaders = async () => {
+  const loadTeamLeaders = useCallback(async () => {
     if (!token) return
 
     try {
-      const response = await usersApi.getAll(token)
+      const response = await usersApi.getTeamLeaders(token)
       if (response.success) {
-        setTeamLeaders(
-          response.users.filter((u: User) => normalizeRole(u.role) === 'team leader')
-        )
+        const leadersWithTeams = (response.teamLeaders || [])
+          .filter((u: User) => normalizeRole(u.role) === 'team leader')
+          .filter((u: User) => (u.agent_count ?? 0) > 0)
+        setTeamLeaders(leadersWithTeams)
+        if (leadersWithTeams.length === 0) {
+          setError('No teams with active agents are available for reporting.')
+        }
       }
-    } catch (error) {
+    } catch {
       // Team leaders list remains empty if loading fails
     }
-  }
+  }, [token])
+
+  useEffect(() => {
+    if (token) {
+      loadTeamLeaders()
+    }
+  }, [loadTeamLeaders, token])
 
   const handleChange = (field: keyof TeamReportFormState, value: any) => {
     setFormData(prev => {
@@ -145,7 +149,7 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
         try {
           await downloadExcel(response.data.id, response.data.team_leader_name || 'Team')
           showSuccess('Team report created and downloaded successfully')
-        } catch (downloadError) {
+        } catch {
           showError('Team report was saved, but the Excel download failed. You can export it from the reports list.')
         }
         onSuccess()

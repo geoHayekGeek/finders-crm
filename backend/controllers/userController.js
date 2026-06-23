@@ -861,6 +861,7 @@ const getTeamLeaders = async (req, res) => {
         role: teamLeader.role,
         phone: teamLeader.phone,
         user_code: teamLeader.user_code,
+        agent_count: teamLeader.agent_count || 0,
         created_at: teamLeader.created_at,
         updated_at: teamLeader.updated_at
       }))

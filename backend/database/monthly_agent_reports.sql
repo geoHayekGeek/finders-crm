@@ -38,6 +38,10 @@ CREATE TABLE IF NOT EXISTS monthly_agent_reports (
   -- Referral received (for agents who received referrals)
   referral_received_count INTEGER DEFAULT 0,
   referral_received_commission DECIMAL(15,2) DEFAULT 0,
+
+  -- Referrals on properties (referrals received on this agent's own listings)
+  referrals_on_properties_count INTEGER DEFAULT 0,
+  referrals_on_properties_commission DECIMAL(15,2) DEFAULT 0,
   
   -- Metadata
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

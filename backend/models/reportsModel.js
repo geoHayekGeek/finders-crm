@@ -16,6 +16,19 @@ async function ensureExternalColumnExists() {
   }
 }
 
+// Keep the agent report schema aligned with the fields the model writes.
+async function ensureMonthlyAgentReportSchema() {
+  try {
+    await pool.query(`
+      ALTER TABLE monthly_agent_reports
+      ADD COLUMN IF NOT EXISTS referrals_on_properties_count INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS referrals_on_properties_commission DECIMAL(15,2) DEFAULT 0
+    `);
+  } catch (error) {
+    // If the table is unavailable or already up to date, let the main flow continue.
+  }
+}
+
 // Helper function to round monetary values to 2 decimal places
 function roundMoney(value) {
   return Math.round(value * 100) / 100;
@@ -56,6 +69,7 @@ class Report {
    */
   static async createMonthlyReport(reportData, createdBy) {
     // Ensure external column exists
+    await ensureMonthlyAgentReportSchema();
     await ensureExternalColumnExists();
 
     const {
@@ -98,6 +112,15 @@ class Report {
       const startDateStr = normalizedStart.toISOString().split('T')[0];
       const endDateStr = normalizedEnd.toISOString().split('T')[0];
 
+      // Derive month/year (legacy columns) from the start date for backwards compatibility
+      const derivedMonth = normalizedStart.getUTCMonth() + 1;
+      const derivedYear = normalizedStart.getUTCFullYear();
+
+      // Validate year constraint (must be >= 2000, no upper limit)
+      if (derivedYear < 2000) {
+        throw new Error(`Year must be 2000 or later. Selected date range results in year ${derivedYear}. Please select a date range starting from 2000 or later.`);
+      }
+
       // Check if report already exists for this exact range
       const existing = await pool.query(
         'SELECT id FROM monthly_agent_reports WHERE agent_id = $1 AND start_date = $2::date AND end_date = $3::date',
@@ -106,15 +129,6 @@ class Report {
 
       if (existing.rows.length > 0) {
         throw new Error('Report already exists for this agent and date range');
-      }
-
-      // Derive month/year (legacy columns) from the start date for backwards compatibility
-      const derivedMonth = normalizedStart.getUTCMonth() + 1;
-      const derivedYear = normalizedStart.getUTCFullYear();
-
-      // Validate year constraint (must be >= 2000, no upper limit)
-      if (derivedYear < 2000) {
-        throw new Error(`Year must be 2000 or later. Selected date range results in year ${derivedYear}. Please select a date range starting from 2000 or later.`);
       }
 
       // Apply external rule to all properties and leads for this agent before calculating

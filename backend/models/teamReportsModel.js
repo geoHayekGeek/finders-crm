@@ -1,6 +1,13 @@
+const fs = require('fs');
+const path = require('path');
 const pool = require('../config/db');
 const User = require('./userModel');
 const Report = require('./reportsModel');
+
+const TEAM_MONTHLY_REPORTS_SCHEMA_SQL = fs.readFileSync(
+  path.join(__dirname, '..', 'database', 'migrations', 'add_team_monthly_reports.sql'),
+  'utf8'
+);
 
 function normalizeDateRange(startDateInput, endDateInput) {
   if (!startDateInput || !endDateInput) {
@@ -100,6 +107,18 @@ function sumField(agentReports, field) {
   return agentReports.reduce((total, report) => total + toNumber(report[field]), 0);
 }
 
+async function ensureTeamMonthlyReportsSchema() {
+  const tableCheck = await pool.query(
+    `SELECT to_regclass('public.team_monthly_reports') AS table_name`
+  );
+
+  if (tableCheck.rows[0]?.table_name) {
+    return;
+  }
+
+  await pool.query(TEAM_MONTHLY_REPORTS_SCHEMA_SQL);
+}
+
 async function buildAgentSnapshot(agent, startDateInput, endDateInput) {
   const calculatedData = await Report.calculateReportData(agent.id, startDateInput, endDateInput);
   return {
@@ -131,6 +150,8 @@ async function buildAgentSnapshot(agent, startDateInput, endDateInput) {
 }
 
 async function createTeamMonthlyReport(reportData, createdBy) {
+  await ensureTeamMonthlyReportsSchema();
+
   const {
     team_leader_id,
     start_date,
@@ -267,10 +288,12 @@ async function createTeamMonthlyReport(reportData, createdBy) {
     ]
   );
 
-  return getTeamMonthlyReportById(result.rows[0].id);
+  return getTeamMonthlyReportById(result.rows[0].id, { skipEnsure: true });
 }
 
 async function getAllTeamMonthlyReports(filters = {}) {
+  await ensureTeamMonthlyReportsSchema();
+
   let query = `
     SELECT
       r.*,
@@ -312,7 +335,11 @@ async function getAllTeamMonthlyReports(filters = {}) {
   return result.rows.map(normalizeReportRow);
 }
 
-async function getTeamMonthlyReportById(id) {
+async function getTeamMonthlyReportById(id, options = {}) {
+  if (!options.skipEnsure) {
+    await ensureTeamMonthlyReportsSchema();
+  }
+
   const result = await pool.query(
     `SELECT
       r.*,
@@ -329,6 +356,8 @@ async function getTeamMonthlyReportById(id) {
 }
 
 async function deleteTeamMonthlyReport(id) {
+  await ensureTeamMonthlyReportsSchema();
+
   const result = await pool.query(
     'DELETE FROM team_monthly_reports WHERE id = $1 RETURNING *',
     [id]

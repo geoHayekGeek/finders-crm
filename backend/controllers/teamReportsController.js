@@ -1,6 +1,7 @@
 const TeamReport = require('../models/teamReportsModel');
 const { exportTeamReportToExcel } = require('../utils/teamReportExporter');
 const { normalizeRole } = require('../utils/roleUtils');
+const logger = require('../utils/logger');
 
 function formatRangeLabel(report) {
   const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
@@ -45,6 +46,8 @@ class TeamReportsController {
         message: 'Team report created successfully'
       });
     } catch (error) {
+      logger.error('Error creating team report', error);
+
       if (error.message?.includes('already exists')) {
         return res.status(409).json({
           success: false,
@@ -52,8 +55,26 @@ class TeamReportsController {
         });
       }
 
-      if (error.message?.includes('Year must be')) {
-        return res.status(400).json({
+      if (error.code === '23505') {
+        return res.status(409).json({
+          success: false,
+          message: 'A team report already exists for this team and date range'
+        });
+      }
+
+      if (
+        error.message?.includes('Year must be') ||
+        error.message?.includes('Start date and end date are required') ||
+        error.message?.includes('Invalid date format') ||
+        error.message?.includes('End date cannot be before start date') ||
+        error.message?.includes('Team leader not found') ||
+        error.message?.includes('Team leader has no active agents')
+      ) {
+        const statusCode = error.message?.includes('Team leader not found')
+          ? 404
+          : 400;
+
+        return res.status(statusCode).json({
           success: false,
           message: error.message
         });
