@@ -23,26 +23,82 @@ describe('DCSR Report Exporter', () => {
   describe('exportDCSRToExcel', () => {
     it('should export DCSR report to Excel successfully', async () => {
       const mockWorkbook = {
-        addWorksheet: jest.fn().mockReturnValue({
-          columns: [],
-          mergeCells: jest.fn(),
-          getCell: jest.fn().mockReturnValue({
-            value: null,
-            font: {},
-            alignment: {},
-            fill: {}
-          })
-        }),
+        addWorksheet: jest.fn(),
         xlsx: {
           writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
         }
       };
 
+      const mockWorksheet = {
+        columns: [],
+        pageSetup: {},
+        mergeCells: jest.fn(),
+        getCell: jest.fn().mockReturnValue({
+          value: null,
+          font: {},
+          alignment: {},
+          fill: {},
+          border: {},
+          numFmt: null
+        })
+      };
+
+      mockWorkbook.addWorksheet.mockReturnValue(mockWorksheet);
       ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
 
-      const result = await dcsrExporter.exportDCSRToExcel(mockReport);
+      const result = await dcsrExporter.exportDCSRToExcel(mockReport, {
+        team_breakdown: [
+          {
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            agent_breakdown: [
+              {
+                id: 1,
+                name: 'Ali Ayash',
+                user_code: 'AA',
+                role: 'team_leader',
+                listings_count: 10,
+                leads_count: 20,
+                sales_count: 5,
+                rent_count: 2,
+                viewings_count: 7
+              },
+              {
+                id: 2,
+                name: 'Ara Markarian',
+                user_code: 'AM',
+                role: 'agent',
+                listings_count: 4,
+                leads_count: 8,
+                sales_count: 1,
+                rent_count: 0,
+                viewings_count: 3
+              }
+            ]
+          }
+        ]
+      }, {
+        operations_breakdown: [
+          { id: 11, name: 'Elsy Wehbe', user_code: 'EW', role: 'operations_manager', leads_count: 0 },
+          { id: 12, name: 'Melissa Atallah', user_code: 'MA', role: 'operations', leads_count: 516 },
+          { id: 13, name: 'Gaelle Chamoun', user_code: 'GC', role: 'operations', leads_count: 561 }
+        ],
+        total_leads_count: 1077,
+        total_operations_users: 3
+      });
 
       expect(mockWorkbook.addWorksheet).toHaveBeenCalledWith('DCSR Report');
+      expect(mockWorkbook.addWorksheet).toHaveBeenCalledTimes(1);
+      expect(mockWorksheet.mergeCells).toHaveBeenCalledWith('A2:A3');
+      expect(mockWorksheet.mergeCells).toHaveBeenCalledWith('C2:D2');
+      expect(mockWorksheet.mergeCells).toHaveBeenCalledWith('E2:F2');
+      expect(mockWorksheet.mergeCells).toHaveBeenCalledWith('G2:G3');
+      expect(mockWorksheet.mergeCells).toHaveBeenCalledWith('A6:B6');
+      expect(mockWorksheet.mergeCells).toHaveBeenCalledWith('J9:K9');
+      expect(mockWorksheet.getCell).toHaveBeenCalledWith(2, 10);
+      expect(mockWorksheet.getCell).toHaveBeenCalledWith(2, 11);
+      expect(mockWorksheet.getCell).toHaveBeenCalledWith(2, 12);
       expect(mockWorkbook.xlsx.writeBuffer).toHaveBeenCalled();
       expect(result).toBeInstanceOf(Buffer);
     });
@@ -50,12 +106,15 @@ describe('DCSR Report Exporter', () => {
     it('should format DCSR report data correctly', async () => {
       const mockWorksheet = {
         columns: [],
+        pageSetup: {},
         mergeCells: jest.fn(),
         getCell: jest.fn().mockReturnValue({
           value: null,
           font: {},
           alignment: {},
-          fill: {}
+          fill: {},
+          border: {},
+          numFmt: null
         })
       };
 
@@ -68,31 +127,36 @@ describe('DCSR Report Exporter', () => {
 
       ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
 
-      await dcsrExporter.exportDCSRToExcel(mockReport);
+      await dcsrExporter.exportDCSRToExcel(mockReport, {
+        team_breakdown: []
+      }, {
+        operations_breakdown: [],
+        total_leads_count: 0,
+        total_operations_users: 0
+      });
 
       expect(mockWorksheet.getCell).toHaveBeenCalled();
       expect(mockWorksheet.mergeCells).toHaveBeenCalled();
     });
 
-    it('should add an operations worksheet that matches the requested table shape', async () => {
+    it('should keep the operations table on the same worksheet', async () => {
       const createWorksheetMock = () => ({
         columns: [],
+        pageSetup: {},
         mergeCells: jest.fn(),
         getCell: jest.fn().mockReturnValue({
           value: null,
           font: {},
           alignment: {},
           fill: {},
-          border: {}
+          border: {},
+          numFmt: null
         })
       });
 
-      const companyWorksheet = createWorksheetMock();
-      const operationsWorksheet = createWorksheetMock();
+      const worksheet = createWorksheetMock();
       const mockWorkbook = {
-        addWorksheet: jest.fn()
-          .mockReturnValueOnce(companyWorksheet)
-          .mockReturnValueOnce(operationsWorksheet),
+        addWorksheet: jest.fn().mockReturnValue(worksheet),
         xlsx: {
           writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
         }
@@ -110,13 +174,34 @@ describe('DCSR Report Exporter', () => {
         total_operations_users: 3
       };
 
-      const result = await dcsrExporter.exportDCSRToExcel(mockReport, operationsData);
+      const result = await dcsrExporter.exportDCSRToExcel(mockReport, {
+        team_breakdown: [
+          {
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            agent_breakdown: [
+              {
+                id: 1,
+                name: 'Ali Ayash',
+                user_code: 'AA',
+                role: 'team_leader',
+                listings_count: 12,
+                leads_count: 95,
+                sales_count: 0,
+                rent_count: 0,
+                viewings_count: 33
+              }
+            ]
+          }
+        ]
+      }, operationsData);
 
-      expect(mockWorkbook.addWorksheet).toHaveBeenNthCalledWith(2, 'Operations Leads');
-      expect(operationsWorksheet.mergeCells).toHaveBeenCalledWith('A8:B8');
-      expect(operationsWorksheet.getCell).toHaveBeenCalledWith(1, 1);
-      expect(operationsWorksheet.getCell).toHaveBeenCalledWith(1, 2);
-      expect(operationsWorksheet.getCell).toHaveBeenCalledWith(1, 3);
+      expect(mockWorkbook.addWorksheet).toHaveBeenCalledTimes(1);
+      expect(worksheet.mergeCells).toHaveBeenCalledWith('J9:K9');
+      expect(worksheet.getCell).toHaveBeenCalledWith(2, 10);
+      expect(worksheet.getCell).toHaveBeenCalledWith(2, 11);
+      expect(worksheet.getCell).toHaveBeenCalledWith(2, 12);
       expect(result).toBeInstanceOf(Buffer);
     });
   });

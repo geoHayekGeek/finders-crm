@@ -348,19 +348,42 @@ async function exportDCSRReportToExcel(req, res) {
       });
     }
 
-    let operationsData = {
-      operations_breakdown: [],
-      total_leads_count: 0,
-      total_operations_users: 0
-    };
+    const [companyBreakdownResult, operationsResult] = await Promise.allSettled([
+      dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData(report.start_date, report.end_date),
+      dcsrReportsModel.calculateOperationsDCSRData(report.start_date, report.end_date)
+    ]);
 
-    try {
-      operationsData = await dcsrReportsModel.calculateOperationsDCSRData(report.start_date, report.end_date);
-    } catch (operationsError) {
-      console.error('Error calculating operations data for DCSR Excel export:', operationsError);
+    const companyBreakdownData = companyBreakdownResult.status === 'fulfilled'
+      ? companyBreakdownResult.value
+      : {
+          team_breakdown: [],
+          agent_breakdown: [],
+          team_count: 0,
+          agent_count: 0,
+          listings_count: 0,
+          leads_count: 0,
+          sales_count: 0,
+          rent_count: 0,
+          viewings_count: 0
+        };
+
+    const operationsData = operationsResult.status === 'fulfilled'
+      ? operationsResult.value
+      : {
+          operations_breakdown: [],
+          total_leads_count: 0,
+          total_operations_users: 0
+        };
+
+    if (companyBreakdownResult.status === 'rejected') {
+      console.error('Error calculating company agent breakdown for DCSR Excel export:', companyBreakdownResult.reason);
     }
 
-    const buffer = await exportDCSRToExcel(report, operationsData);
+    if (operationsResult.status === 'rejected') {
+      console.error('Error calculating operations data for DCSR Excel export:', operationsResult.reason);
+    }
+
+    const buffer = await exportDCSRToExcel(report, companyBreakdownData, operationsData);
     
     const formatRangeLabel = () => {
       const start = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);

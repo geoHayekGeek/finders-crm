@@ -663,6 +663,17 @@ describe('DCSR Report', () => {
 
   describe('exportDCSRReportToExcel', () => {
     beforeEach(() => {
+      dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData.mockResolvedValue({
+        team_breakdown: [],
+        agent_breakdown: [],
+        team_count: 0,
+        agent_count: 0,
+        listings_count: 0,
+        leads_count: 0,
+        sales_count: 0,
+        rent_count: 0,
+        viewings_count: 0
+      });
       dcsrReportsModel.calculateOperationsDCSRData.mockResolvedValue({
         operations_breakdown: [],
         total_leads_count: 0,
@@ -687,9 +698,21 @@ describe('DCSR Report', () => {
       await dcsrReportsController.exportDCSRReportToExcel(req, res);
 
       expect(dcsrReportsModel.getDCSRReportById).toHaveBeenCalledWith(1);
+      expect(dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
       expect(dcsrReportsModel.calculateOperationsDCSRData).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
       expect(exportDCSRToExcel).toHaveBeenCalledWith(
         mockReport,
+        expect.objectContaining({
+          team_breakdown: [],
+          agent_breakdown: [],
+          team_count: 0,
+          agent_count: 0,
+          listings_count: 0,
+          leads_count: 0,
+          sales_count: 0,
+          rent_count: 0,
+          viewings_count: 0
+        }),
         expect.objectContaining({
           operations_breakdown: [],
           total_leads_count: 0,

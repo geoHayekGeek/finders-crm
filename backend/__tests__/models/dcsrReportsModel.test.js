@@ -133,6 +133,217 @@ describe('DCSR Reports Model', () => {
     });
   });
 
+  describe('calculateCompanyDCSRAgentBreakdownData', () => {
+    it('should calculate company-wide sales-side breakdown grouped by team', async () => {
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-31');
+
+      mockClient.query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              name: 'Ali Ayash',
+              user_code: 'AA',
+              role: 'team_leader',
+              assigned_to: null,
+              assigned_team_leader_id: null,
+              assigned_team_leader_name: null,
+              assigned_team_leader_code: null
+            },
+            {
+              id: 2,
+              name: 'Ara Markarian',
+              user_code: 'AM',
+              role: 'agent',
+              assigned_to: 1,
+              assigned_team_leader_id: 1,
+              assigned_team_leader_name: 'Ali Ayash',
+              assigned_team_leader_code: 'AA'
+            },
+            {
+              id: 3,
+              name: 'Sana Keserwany',
+              user_code: 'SK',
+              role: 'consultant',
+              assigned_to: null,
+              assigned_team_leader_id: null,
+              assigned_team_leader_name: null,
+              assigned_team_leader_code: null
+            }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '5' },
+            { agent_id: 2, count: '3' },
+            { agent_id: 3, count: '1' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '20' },
+            { agent_id: 2, count: '10' },
+            { agent_id: 3, count: '4' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '2' },
+            { agent_id: 2, count: '1' },
+            { agent_id: 3, count: '0' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '0' },
+            { agent_id: 2, count: '1' },
+            { agent_id: 3, count: '0' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '7' },
+            { agent_id: 2, count: '5' },
+            { agent_id: 3, count: '2' }
+          ]
+        });
+
+      const result = await dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData(startDate, endDate);
+
+      expect(result).toEqual({
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        team_breakdown: [
+          {
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            agent_breakdown: [
+              {
+                id: 1,
+                name: 'Ali Ayash',
+                user_code: 'AA',
+                role: 'team_leader',
+                team_leader_id: 1,
+                team_leader_name: 'Ali Ayash',
+                team_leader_code: 'AA',
+                is_team_leader: true,
+                listings_count: 5,
+                leads_count: 20,
+                sales_count: 2,
+                rent_count: 0,
+                viewings_count: 7
+              },
+              {
+                id: 2,
+                name: 'Ara Markarian',
+                user_code: 'AM',
+                role: 'agent',
+                team_leader_id: 1,
+                team_leader_name: 'Ali Ayash',
+                team_leader_code: 'AA',
+                is_team_leader: false,
+                listings_count: 3,
+                leads_count: 10,
+                sales_count: 1,
+                rent_count: 1,
+                viewings_count: 5
+              }
+            ],
+            listings_count: 8,
+            leads_count: 30,
+            sales_count: 3,
+            rent_count: 1,
+            viewings_count: 12
+          },
+          {
+            team_leader_id: null,
+            team_leader_name: 'Unassigned',
+            team_leader_code: null,
+            agent_breakdown: [
+              {
+                id: 3,
+                name: 'Sana Keserwany',
+                user_code: 'SK',
+                role: 'consultant',
+                team_leader_id: null,
+                team_leader_name: 'Unassigned',
+                team_leader_code: null,
+                is_team_leader: false,
+                listings_count: 1,
+                leads_count: 4,
+                sales_count: 0,
+                rent_count: 0,
+                viewings_count: 2
+              }
+            ],
+            listings_count: 1,
+            leads_count: 4,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 2
+          }
+        ],
+        agent_breakdown: [
+          {
+            id: 1,
+            name: 'Ali Ayash',
+            user_code: 'AA',
+            role: 'team_leader',
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            is_team_leader: true,
+            listings_count: 5,
+            leads_count: 20,
+            sales_count: 2,
+            rent_count: 0,
+            viewings_count: 7
+          },
+          {
+            id: 2,
+            name: 'Ara Markarian',
+            user_code: 'AM',
+            role: 'agent',
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            is_team_leader: false,
+            listings_count: 3,
+            leads_count: 10,
+            sales_count: 1,
+            rent_count: 1,
+            viewings_count: 5
+          },
+          {
+            id: 3,
+            name: 'Sana Keserwany',
+            user_code: 'SK',
+            role: 'consultant',
+            team_leader_id: null,
+            team_leader_name: 'Unassigned',
+            team_leader_code: null,
+            is_team_leader: false,
+            listings_count: 1,
+            leads_count: 4,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 2
+          }
+        ],
+        team_count: 2,
+        agent_count: 3,
+        listings_count: 9,
+        leads_count: 34,
+        sales_count: 3,
+        rent_count: 1,
+        viewings_count: 14
+      });
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+  });
+
   describe('createDCSRReport', () => {
     it('should create a new DCSR report', async () => {
       const reportData = {
