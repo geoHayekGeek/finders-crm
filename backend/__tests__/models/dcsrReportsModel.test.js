@@ -78,6 +78,61 @@ describe('DCSR Reports Model', () => {
     });
   });
 
+  describe('calculateOperationsDCSRData', () => {
+    it('should calculate operations leads by user for a date range', async () => {
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-31');
+
+      mockClient.query
+        .mockResolvedValueOnce({
+          rows: [
+            { id: 11, name: 'Elsy Wehbe', user_code: 'EW', role: 'operations_manager' },
+            { id: 12, name: 'Melissa Atallah', user_code: 'MA', role: 'operations' },
+            { id: 13, name: 'Gaelle Chamoun', user_code: 'GC', role: 'operations' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { added_by_id: 11, count: '0' },
+            { added_by_id: 12, count: '516' },
+            { added_by_id: 13, count: '561' }
+          ]
+        });
+
+      const result = await dcsrReportsModel.calculateOperationsDCSRData(startDate, endDate);
+
+      expect(result).toEqual({
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        operations_breakdown: [
+          { id: 11, name: 'Elsy Wehbe', user_code: 'EW', role: 'operations_manager', leads_count: 0 },
+          { id: 12, name: 'Melissa Atallah', user_code: 'MA', role: 'operations', leads_count: 516 },
+          { id: 13, name: 'Gaelle Chamoun', user_code: 'GC', role: 'operations', leads_count: 561 }
+        ],
+        total_leads_count: 1077,
+        total_operations_users: 3
+      });
+      expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    it('should return zeros when no operations users exist', async () => {
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      mockClient.query.mockResolvedValueOnce({ rows: [] });
+
+      const result = await dcsrReportsModel.calculateOperationsDCSRData(startDate, endDate);
+
+      expect(result).toEqual({
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        operations_breakdown: [],
+        total_leads_count: 0,
+        total_operations_users: 0
+      });
+    });
+  });
+
   describe('createDCSRReport', () => {
     it('should create a new DCSR report', async () => {
       const reportData = {

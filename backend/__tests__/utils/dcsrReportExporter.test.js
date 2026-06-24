@@ -73,6 +73,52 @@ describe('DCSR Report Exporter', () => {
       expect(mockWorksheet.getCell).toHaveBeenCalled();
       expect(mockWorksheet.mergeCells).toHaveBeenCalled();
     });
+
+    it('should add an operations worksheet that matches the requested table shape', async () => {
+      const createWorksheetMock = () => ({
+        columns: [],
+        mergeCells: jest.fn(),
+        getCell: jest.fn().mockReturnValue({
+          value: null,
+          font: {},
+          alignment: {},
+          fill: {},
+          border: {}
+        })
+      });
+
+      const companyWorksheet = createWorksheetMock();
+      const operationsWorksheet = createWorksheetMock();
+      const mockWorkbook = {
+        addWorksheet: jest.fn()
+          .mockReturnValueOnce(companyWorksheet)
+          .mockReturnValueOnce(operationsWorksheet),
+        xlsx: {
+          writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
+        }
+      };
+
+      ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
+
+      const operationsData = {
+        operations_breakdown: [
+          { id: 1, name: 'Elsy Wehbe', user_code: 'EW', role: 'operations_manager', leads_count: 0 },
+          { id: 2, name: 'Melissa Atallah', user_code: 'MA', role: 'operations', leads_count: 516 },
+          { id: 3, name: 'Gaelle Chamoun', user_code: 'GC', role: 'operations', leads_count: 561 }
+        ],
+        total_leads_count: 1077,
+        total_operations_users: 3
+      };
+
+      const result = await dcsrExporter.exportDCSRToExcel(mockReport, operationsData);
+
+      expect(mockWorkbook.addWorksheet).toHaveBeenNthCalledWith(2, 'Operations Leads');
+      expect(operationsWorksheet.mergeCells).toHaveBeenCalledWith('A8:B8');
+      expect(operationsWorksheet.getCell).toHaveBeenCalledWith(1, 1);
+      expect(operationsWorksheet.getCell).toHaveBeenCalledWith(1, 2);
+      expect(operationsWorksheet.getCell).toHaveBeenCalledWith(1, 3);
+      expect(result).toBeInstanceOf(Buffer);
+    });
   });
 
   describe('exportDCSRToPDF', () => {

@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, AlertCircle, RefreshCw, Users, Building2, Table } from 'lucide-react'
-import { DCSRMonthlyReport } from '@/types/reports'
+import { X, AlertCircle, RefreshCw, Users, Building2, Table, ClipboardList } from 'lucide-react'
+import { DCSRMonthlyReport, DCSRPreviewData } from '@/types/reports'
 import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -12,6 +12,7 @@ import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
 import DCSRAgentBreakdownTable from './DCSRAgentBreakdownTable'
+import DCSROperationsBreakdownTable from './DCSROperationsBreakdownTable'
 
 interface ViewDCSRModalProps {
   report: DCSRMonthlyReport
@@ -28,9 +29,12 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
   const normalizedRole = normalizeRole(role);
   const isTeamLeader = normalizedRole === 'team leader'
 
-  const [activeTab, setActiveTab] = useState<'company' | 'team'>('company')
+  const [activeTab, setActiveTab] = useState<'company' | 'operations' | 'team'>('company')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [operationsPreviewData, setOperationsPreviewData] = useState<DCSRPreviewData | null>(null)
+  const [loadingOperationsPreview, setLoadingOperationsPreview] = useState(false)
+  const operationsPreviewRequestIdRef = useRef(0)
   
   // Team breakdown state
   const [teamLeaders, setTeamLeaders] = useState<User[]>([])
@@ -129,6 +133,43 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
       }
     } catch (error) {
       // Error handled silently - categories list will remain empty
+    }
+  }
+
+  const loadOperationsPreview = async () => {
+    if (!startDate || !endDate) return
+
+    const requestId = ++operationsPreviewRequestIdRef.current
+
+    try {
+      setLoadingOperationsPreview(true)
+      setError(null)
+
+      const response = await dcsrApi.preview(
+        {
+          start_date: startDate,
+          end_date: endDate
+        },
+        token
+      )
+
+      if (requestId !== operationsPreviewRequestIdRef.current) {
+        return
+      }
+
+      if (response.success) {
+        setOperationsPreviewData(response.data)
+      }
+    } catch (error: any) {
+      if (requestId !== operationsPreviewRequestIdRef.current) {
+        return
+      }
+
+      setError(error.message || 'Failed to load operations preview')
+    } finally {
+      if (requestId === operationsPreviewRequestIdRef.current) {
+        setLoadingOperationsPreview(false)
+      }
     }
   }
 
@@ -280,6 +321,13 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTeamLeaderId, startDate, endDate, token, activeTab, showAllTeams, teamViewTab, propertyFilters, leadFilters, viewingFilters, detailedViewTab, isTeamLeader, user])
 
+  useEffect(() => {
+    if (activeTab === 'operations' && startDate && endDate && token) {
+      loadOperationsPreview()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, startDate, endDate, token])
+
   const formatRangeDisplay = () => {
     if (report.start_date && report.end_date) {
       const start = new Date(report.start_date)
@@ -327,6 +375,20 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
                 Company-wide
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('operations')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'operations'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Operations
               </div>
             </button>
             <button
@@ -447,13 +509,15 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
           )}
 
           {/* Loading Indicator */}
-          {(loading || loadingTeamBreakdown) && (
+          {(loading || loadingTeamBreakdown || (activeTab === 'operations' && loadingOperationsPreview)) && (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mr-3" />
               <span className="text-gray-600">
-                {activeTab === 'company' 
-                  ? 'Loading report data...'
-                  : 'Loading team breakdown...'}
+                {activeTab === 'team'
+                  ? 'Loading team breakdown...'
+                  : activeTab === 'operations'
+                    ? 'Loading operations breakdown...'
+                    : 'Loading report data...'}
               </span>
             </div>
           )}
@@ -549,6 +613,17 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'operations' && operationsPreviewData && !loadingOperationsPreview && (
+            <div className="space-y-4">
+              <DCSROperationsBreakdownTable
+                title="Operations Leads Added"
+                subtitle="Each row shows leads added by an operations user for the selected reporting window."
+                rows={operationsPreviewData.operations_breakdown}
+                totalLeads={operationsPreviewData.operations_total_leads}
+              />
             </div>
           )}
 
@@ -787,6 +862,21 @@ export default function ViewDCSRModal({ report, onClose, onSuccess }: ViewDCSRMo
                     {showAllTeams
                       ? 'Click "All Teams Summary" to view all teams breakdown with unassigned listings.'
                       : 'Select a team leader or click "All Teams Summary" to view team breakdown data.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'operations' && !operationsPreviewData && !loadingOperationsPreview && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <AlertCircle className="h-5 w-5 text-slate-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-slate-700">
+                    Select a reporting window to see how many leads operations added for each operations user.
                   </p>
                 </div>
               </div>

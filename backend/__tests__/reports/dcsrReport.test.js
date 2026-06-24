@@ -426,6 +426,76 @@ describe('DCSR Report', () => {
     });
   });
 
+  describe('previewDCSRReport', () => {
+    it('should return company and operations preview data', async () => {
+      req.body = {
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      };
+
+      dcsrReportsModel.normalizeDateRange.mockReturnValue({
+        startDateUtc: new Date('2024-01-01T00:00:00Z'),
+        endDateUtc: new Date('2024-01-31T23:59:59Z'),
+        startDateStr: '2024-01-01',
+        endDateStr: '2024-01-31'
+      });
+
+      dcsrReportsModel.calculateDCSRData.mockResolvedValue({
+        listings_count: 10,
+        leads_count: 5,
+        sales_count: 2,
+        rent_count: 1,
+        viewings_count: 4
+      });
+
+      dcsrReportsModel.calculateOperationsDCSRData.mockResolvedValue({
+        operations_breakdown: [
+          {
+            id: 7,
+            name: 'Ops User',
+            user_code: 'OP7',
+            role: 'operations',
+            leads_count: 3
+          }
+        ],
+        total_leads_count: 3,
+        total_operations_users: 1
+      });
+
+      await dcsrReportsController.previewDCSRReport(req, res);
+
+      expect(dcsrReportsModel.normalizeDateRange).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
+      expect(dcsrReportsModel.calculateDCSRData).toHaveBeenCalled();
+      expect(dcsrReportsModel.calculateOperationsDCSRData).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: {
+          start_date: '2024-01-01',
+          end_date: '2024-01-31',
+          month: 1,
+          year: 2024,
+          listings_count: 10,
+          leads_count: 5,
+          sales_count: 2,
+          rent_count: 1,
+          viewings_count: 4,
+          operations_breakdown: [
+            {
+              id: 7,
+              name: 'Ops User',
+              user_code: 'OP7',
+              role: 'operations',
+              leads_count: 3
+            }
+          ],
+          operations_total_leads: 3,
+          operations_total_users: 1
+        },
+        message: 'DCSR preview calculated successfully'
+      });
+    });
+  });
+
   describe('updateDCSRReport', () => {
     it('should update DCSR report successfully', async () => {
       req.params = { id: '1' };
@@ -592,6 +662,14 @@ describe('DCSR Report', () => {
   });
 
   describe('exportDCSRReportToExcel', () => {
+    beforeEach(() => {
+      dcsrReportsModel.calculateOperationsDCSRData.mockResolvedValue({
+        operations_breakdown: [],
+        total_leads_count: 0,
+        total_operations_users: 0
+      });
+    });
+
     it('should export DCSR report to Excel successfully', async () => {
       req.params = { id: '1' };
       const mockReport = {
@@ -609,7 +687,15 @@ describe('DCSR Report', () => {
       await dcsrReportsController.exportDCSRReportToExcel(req, res);
 
       expect(dcsrReportsModel.getDCSRReportById).toHaveBeenCalledWith(1);
-      expect(exportDCSRToExcel).toHaveBeenCalledWith(mockReport);
+      expect(dcsrReportsModel.calculateOperationsDCSRData).toHaveBeenCalledWith('2024-01-01', '2024-01-31');
+      expect(exportDCSRToExcel).toHaveBeenCalledWith(
+        mockReport,
+        expect.objectContaining({
+          operations_breakdown: [],
+          total_leads_count: 0,
+          total_operations_users: 0
+        })
+      );
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('DCSR_Report_'));
       expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.xlsx'));
@@ -864,7 +950,7 @@ describe('DCSR Report', () => {
         1,
         '2024-01-01',
         '2024-01-31',
-        { status: 'active' }
+        {}
       );
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({

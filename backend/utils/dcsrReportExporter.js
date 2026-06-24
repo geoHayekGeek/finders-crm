@@ -4,7 +4,7 @@ const PDFDocument = require('pdfkit');
 /**
  * Export DCSR report to Excel
  */
-async function exportDCSRToExcel(report) {
+async function exportDCSRToExcel(report, operationsData = null) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('DCSR Report');
 
@@ -75,6 +75,70 @@ async function exportDCSRToExcel(report) {
   addSection('Viewings', [
     ['Total Viewings', report.viewings_count]
   ], 'FFA855F7'); // Purple
+
+  if (operationsData && Array.isArray(operationsData.operations_breakdown)) {
+    const operationsSheet = workbook.addWorksheet('Operations Leads');
+
+    operationsSheet.columns = [
+      { width: 6 },
+      { width: 28 },
+      { width: 12 }
+    ];
+
+    const applyBorder = (cell) => {
+      cell.border = {
+        top: { style: 'thin' },
+        left: { style: 'thin' },
+        bottom: { style: 'thin' },
+        right: { style: 'thin' }
+      };
+      cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    };
+
+    let currentRow = 1;
+    const headers = ['#', 'ADMIN', 'CALLS'];
+    headers.forEach((header, index) => {
+      const cell = operationsSheet.getCell(currentRow, index + 1);
+      cell.value = header;
+      cell.font = { bold: true };
+      applyBorder(cell);
+    });
+
+    currentRow++;
+
+    const visibleRows = Math.max(operationsData.operations_breakdown.length, 6);
+    for (let index = 0; index < visibleRows; index += 1) {
+      const row = operationsData.operations_breakdown[index] || {
+        name: '',
+        leads_count: 0
+      };
+
+      const numberCell = operationsSheet.getCell(currentRow, 1);
+      numberCell.value = index + 1;
+      applyBorder(numberCell);
+
+      const nameCell = operationsSheet.getCell(currentRow, 2);
+      nameCell.value = String(row.name || '').toUpperCase();
+      applyBorder(nameCell);
+
+      const callsCell = operationsSheet.getCell(currentRow, 3);
+      callsCell.value = row.leads_count || 0;
+      applyBorder(callsCell);
+
+      currentRow++;
+    }
+
+    operationsSheet.mergeCells(`A${currentRow}:B${currentRow}`);
+    const totalLabelCell = operationsSheet.getCell(`A${currentRow}`);
+    totalLabelCell.value = 'Total';
+    totalLabelCell.font = { bold: true };
+    applyBorder(totalLabelCell);
+
+    const totalValueCell = operationsSheet.getCell(`C${currentRow}`);
+    totalValueCell.value = operationsData.total_leads_count || 0;
+    totalValueCell.font = { bold: true };
+    applyBorder(totalValueCell);
+  }
 
   // Return buffer
   return await workbook.xlsx.writeBuffer();

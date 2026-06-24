@@ -110,6 +110,80 @@ async function calculateDCSRData(startDateInput, endDateInput) {
 }
 
 /**
+ * Calculate DCSR operations breakdown for a specific date range.
+ * Counts leads added by operations staff, grouped by user.
+ * @param {Date|string} startDateInput
+ * @param {Date|string} endDateInput
+ * @returns {Promise<object>}
+ */
+async function calculateOperationsDCSRData(startDateInput, endDateInput) {
+  const client = await pool.connect();
+
+  try {
+    const { startDateStr, endDateStr } = normalizeDateRange(startDateInput, endDateInput);
+
+    const operationsUsersResult = await client.query(
+      `SELECT id, name, user_code, role
+       FROM users
+       WHERE role IN ('operations', 'operations_manager', 'operations manager')
+       ORDER BY name ASC`
+    );
+
+    const operationsUsers = operationsUsersResult.rows;
+
+    if (operationsUsers.length === 0) {
+      return {
+        start_date: startDateStr,
+        end_date: endDateStr,
+        operations_breakdown: [],
+        total_leads_count: 0,
+        total_operations_users: 0
+      };
+    }
+
+    const operationsUserIds = operationsUsers.map(user => user.id);
+
+    const leadsResult = await client.query(
+      `SELECT l.added_by_id, COUNT(*)::integer AS count
+       FROM leads l
+       WHERE l.added_by_id = ANY($1::int[])
+       AND DATE(l.date) >= $2::date
+       AND DATE(l.date) <= $3::date
+       GROUP BY l.added_by_id`,
+      [operationsUserIds, startDateStr, endDateStr]
+    );
+
+    const countsByUserId = leadsResult.rows.reduce((lookup, row) => {
+      lookup.set(row.added_by_id, parseInt(row.count, 10) || 0);
+      return lookup;
+    }, new Map());
+
+    const operationsBreakdown = operationsUsers.map(user => ({
+      id: user.id,
+      name: user.name,
+      user_code: user.user_code,
+      role: user.role,
+      leads_count: countsByUserId.get(user.id) || 0
+    }));
+
+    const totalLeadsCount = operationsBreakdown.reduce(
+      (sum, row) => sum + (row.leads_count || 0),
+      0
+    );
+
+    return {
+      start_date: startDateStr,
+      end_date: endDateStr,
+      operations_breakdown: operationsBreakdown,
+      total_leads_count: totalLeadsCount,
+      total_operations_users: operationsUsers.length
+    };
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Normalize and validate a provided date range
  * @param {Date|string} startDateInput 
  * @param {Date|string} endDateInput 
@@ -929,6 +1003,7 @@ module.exports = {
   getTeamLeads,
   getTeamViewings,
   normalizeDateRange,
+  calculateOperationsDCSRData,
   createDCSRReport,
   getAllDCSRReports,
   getDCSRReportById,

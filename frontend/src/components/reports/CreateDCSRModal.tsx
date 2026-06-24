@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, AlertCircle, RefreshCw, Users, Building2, Table } from 'lucide-react'
-import { DCSRFormData, DCSRMonthlyReport } from '@/types/reports'
+import { X, AlertCircle, RefreshCw, Users, Building2, Table, ClipboardList } from 'lucide-react'
+import { DCSRFormData, DCSRPreviewData } from '@/types/reports'
 import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -11,6 +11,7 @@ import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
 import DCSRAgentBreakdownTable from './DCSRAgentBreakdownTable'
+import DCSROperationsBreakdownTable from './DCSROperationsBreakdownTable'
 
 interface CreateDCSRModalProps {
   onClose: () => void
@@ -22,11 +23,11 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
   const { showSuccess, showError } = useToast()
   const router = useRouter()
 
-  const [activeTab, setActiveTab] = useState<'company' | 'team'>('company')
+  const [activeTab, setActiveTab] = useState<'company' | 'operations' | 'team'>('company')
   const [loading, setLoading] = useState(false)
   const [calculating, setCalculating] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [previewData, setPreviewData] = useState<Partial<DCSRMonthlyReport> | null>(null)
+  const [previewData, setPreviewData] = useState<DCSRPreviewData | null>(null)
   
   // Team breakdown state
   const [teamLeaders, setTeamLeaders] = useState<User[]>([])
@@ -112,9 +113,9 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     }
   }
 
-  // Calculate preview when the company date range changes
+  // Calculate preview when the company or operations date range changes
   useEffect(() => {
-    if (activeTab === 'company' && formData.start_date && formData.end_date && token) {
+    if ((activeTab === 'company' || activeTab === 'operations') && formData.start_date && formData.end_date && token) {
       calculatePreview()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -301,6 +302,10 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     e.preventDefault()
     setError(null)
 
+    if (activeTab !== 'company') {
+      return
+    }
+
     try {
       setLoading(true)
       
@@ -413,6 +418,20 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             </button>
             <button
               type="button"
+              onClick={() => setActiveTab('operations')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'operations'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <ClipboardList className="h-4 w-4" />
+                Operations
+              </div>
+            </button>
+            <button
+              type="button"
               onClick={() => setActiveTab('team')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'team'
@@ -444,7 +463,11 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
           {/* Selection Section */}
           <div className="bg-gradient-to-r from-blue-50 via-white to-blue-50 border border-blue-200 rounded-lg p-5 shadow-sm">
             <h3 className="text-sm font-semibold text-blue-900 mb-4 uppercase tracking-wider">
-              {activeTab === 'company' ? 'Reporting window (company-wide)' : 'Reporting window (team breakdown)'}
+              {activeTab === 'company'
+                ? 'Reporting window (company-wide)'
+                : activeTab === 'operations'
+                  ? 'Reporting window (operations)'
+                  : 'Reporting window (team breakdown)'}
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
@@ -501,9 +524,11 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             </div>
 
             <p className="mt-3 text-xs text-blue-700 leading-relaxed">
-              {activeTab === 'company' 
+              {activeTab === 'company'
                 ? 'We automatically prevent overlapping duplicates. Pick the exact days you want to analyse—even multi-month windows are allowed.'
-                : 'Select a team leader to view their team\'s aggregated data for the selected date range.'}
+                : activeTab === 'operations'
+                  ? 'Use the same window to see how many leads operations added, grouped by operations user.'
+                  : 'Select a team leader to view their team\'s aggregated data for the selected date range.'}
             </p>
           </div>
 
@@ -569,13 +594,13 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
           )}
 
           {/* Calculating Indicator */}
-          {(calculating || loadingTeamBreakdown) && (
+          {(((activeTab === 'company' || activeTab === 'operations') && calculating) || loadingTeamBreakdown) && (
             <div className="flex items-center justify-center py-8">
               <RefreshCw className="h-8 w-8 animate-spin text-blue-600 mr-3" />
               <span className="text-gray-600">
-                {activeTab === 'company' 
-                  ? 'Calculating values from database...'
-                  : 'Loading team breakdown...'}
+                {activeTab === 'team'
+                  ? 'Loading team breakdown...'
+                  : 'Calculating values from database...'}
               </span>
             </div>
           )}
@@ -671,6 +696,18 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                   />
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Operations View */}
+          {activeTab === 'operations' && previewData && !calculating && (
+            <div className="space-y-4">
+              <DCSROperationsBreakdownTable
+                title="Operations Leads Added"
+                subtitle="Each row shows leads added by an operations user for the selected reporting window."
+                rows={previewData.operations_breakdown}
+                totalLeads={previewData.operations_total_leads}
+              />
             </div>
           )}
 
@@ -944,6 +981,21 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
                 <div className="ml-3">
                   <p className="text-sm text-blue-700">
                     Select a reporting window to see company-wide calculated values. All fields will be editable.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'operations' && !previewData && !calculating && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <AlertCircle className="h-5 w-5 text-slate-600" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-slate-700">
+                    Select a reporting window to see how many leads operations added for each operations user.
                   </p>
                 </div>
               </div>

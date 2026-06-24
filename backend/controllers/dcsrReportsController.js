@@ -177,6 +177,18 @@ async function previewDCSRReport(req, res) {
 
     const calculatedData = await dcsrReportsModel.calculateDCSRData(startDateUtc, endDateUtc);
 
+    let operationsData = {
+      operations_breakdown: [],
+      total_leads_count: 0,
+      total_operations_users: 0
+    };
+
+    try {
+      operationsData = await dcsrReportsModel.calculateOperationsDCSRData(startDateUtc, endDateUtc);
+    } catch (operationsError) {
+      console.error('Error calculating operations DCSR preview:', operationsError);
+    }
+
     res.json({
       success: true,
       data: {
@@ -184,7 +196,10 @@ async function previewDCSRReport(req, res) {
         end_date: endDateStr,
         month: startDateUtc.getUTCMonth() + 1,
         year,
-        ...calculatedData
+        ...calculatedData,
+        operations_breakdown: operationsData.operations_breakdown,
+        operations_total_leads: operationsData.total_leads_count,
+        operations_total_users: operationsData.total_operations_users
       },
       message: 'DCSR preview calculated successfully'
     });
@@ -333,7 +348,19 @@ async function exportDCSRReportToExcel(req, res) {
       });
     }
 
-    const buffer = await exportDCSRToExcel(report);
+    let operationsData = {
+      operations_breakdown: [],
+      total_leads_count: 0,
+      total_operations_users: 0
+    };
+
+    try {
+      operationsData = await dcsrReportsModel.calculateOperationsDCSRData(report.start_date, report.end_date);
+    } catch (operationsError) {
+      console.error('Error calculating operations data for DCSR Excel export:', operationsError);
+    }
+
+    const buffer = await exportDCSRToExcel(report, operationsData);
     
     const formatRangeLabel = () => {
       const start = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);

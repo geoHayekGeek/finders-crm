@@ -4,7 +4,7 @@ import { LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateL
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
+import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
 // For client-side code, only NEXT_PUBLIC_* variables are available
@@ -1596,7 +1596,7 @@ export const dcsrApi = {
   ),
 
   // Preview DCSR calculations without creating a report
-  preview: (data: CreateDCSRData, token?: AuthToken) => apiRequest<{ success: boolean; data: Partial<DCSRMonthlyReport>; message: string }>(
+  preview: (data: CreateDCSRData, token?: AuthToken) => apiRequest<{ success: boolean; data: DCSRPreviewData; message: string }>(
     '/dcsr-reports/monthly/preview',
     {
       method: 'POST',

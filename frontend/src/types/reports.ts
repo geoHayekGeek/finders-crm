@@ -175,6 +175,29 @@ export interface DCSRMonthlyReport {
   created_by?: number
 }
 
+export interface DCSROperationsBreakdownRow {
+  id: number
+  name: string
+  user_code: string | null
+  role: string
+  leads_count: number
+}
+
+export interface DCSRPreviewData {
+  start_date: string
+  end_date: string
+  month: number
+  year: number
+  listings_count: number
+  leads_count: number
+  sales_count: number
+  rent_count: number
+  viewings_count: number
+  operations_breakdown: DCSROperationsBreakdownRow[]
+  operations_total_leads: number
+  operations_total_users: number
+}
+
 export interface DCSRAgentBreakdownRow {
   id: number
   name: string
