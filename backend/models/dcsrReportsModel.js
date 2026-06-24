@@ -3,7 +3,6 @@
 
 const pool = require('../config/db');
 const { isClosureStatusSql } = require('../utils/propertyStatusUtils');
-const { normalizeRole } = require('../utils/roleUtils');
 
 /**
  * Calculate DCSR report data for a specific date range (company-wide totals)
@@ -193,250 +192,64 @@ async function calculateOperationsDCSRData(startDateInput, endDateInput) {
  * @returns {Promise<object>}
  */
 async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInput) {
-  const client = await pool.connect();
+  const { startDateUtc, endDateUtc, startDateStr, endDateStr } = normalizeDateRange(startDateInput, endDateInput);
 
-  try {
-    const { startDateUtc, endDateUtc, startDateStr, endDateStr } = normalizeDateRange(startDateInput, endDateInput);
+  const teams = await getAllTeams();
 
-    const membersResult = await client.query(
-      `SELECT DISTINCT
-         u.id,
-         u.name,
-         u.user_code,
-         u.role,
-         u.assigned_to,
-         ta.team_leader_id AS assigned_team_leader_id,
-         tl.name AS assigned_team_leader_name,
-         tl.user_code AS assigned_team_leader_code
-       FROM users u
-       LEFT JOIN team_agents ta
-         ON ta.agent_id = u.id
-        AND ta.is_active = TRUE
-       LEFT JOIN users tl
-         ON tl.id = COALESCE(ta.team_leader_id, u.assigned_to)
-       WHERE COALESCE(u.is_active, TRUE) = TRUE
-         AND LOWER(REPLACE(u.role, '_', ' ')) IN ('agent', 'consultant', 'team leader')
-       ORDER BY
-         COALESCE(tl.name, 'Unassigned'),
-         CASE WHEN LOWER(REPLACE(u.role, '_', ' ')) = 'team leader' THEN 0 ELSE 1 END,
-         u.name ASC`
-    );
-
-    const companyMembers = membersResult.rows.map((row) => {
-      const normalizedRole = normalizeRole(row.role);
-      const teamLeaderId = normalizedRole === 'team leader'
-        ? row.id
-        : (row.assigned_team_leader_id ?? row.assigned_to ?? null);
-
-      return {
-        id: row.id,
-        name: row.name,
-        user_code: row.user_code,
-        role: row.role,
-        team_leader_id: teamLeaderId,
-        team_leader_name: normalizedRole === 'team leader'
-          ? row.name
-          : row.assigned_team_leader_name || 'Unassigned',
-        team_leader_code: normalizedRole === 'team leader'
-          ? row.user_code || null
-          : row.assigned_team_leader_code || null
-      };
-    });
-
-    const companyMemberIds = companyMembers.map((member) => member.id);
-
-    if (companyMemberIds.length === 0) {
-      return {
-        start_date: startDateStr,
-        end_date: endDateStr,
-        team_breakdown: [],
-        agent_breakdown: [],
-        team_count: 0,
-        agent_count: 0,
-        listings_count: 0,
-        leads_count: 0,
-        sales_count: 0,
-        rent_count: 0,
-        viewings_count: 0
-      };
-    }
-
-    const listingsResult = await client.query(
-      `SELECT p.agent_id, COUNT(*)::integer AS count
-       FROM properties p
-       WHERE p.agent_id = ANY($1::int[])
-       AND p.created_at >= $2::timestamp
-       AND p.created_at <= $3::timestamp
-       GROUP BY p.agent_id`,
-      [companyMemberIds, startDateUtc.toISOString(), endDateUtc.toISOString()]
-    );
-
-    const leadsResult = await client.query(
-      `SELECT l.agent_id, COUNT(*)::integer AS count
-       FROM leads l
-       WHERE l.agent_id = ANY($1::int[])
-       AND DATE(l.date) >= $2::date
-       AND DATE(l.date) <= $3::date
-       GROUP BY l.agent_id`,
-      [companyMemberIds, startDateStr, endDateStr]
-    );
-
-    const salesResult = await client.query(
-      `SELECT p.agent_id, COUNT(*)::integer AS count
-       FROM properties p
-       INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.agent_id = ANY($1::int[])
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
-       AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'sale'
-       GROUP BY p.agent_id`,
-      [companyMemberIds, startDateStr, endDateStr]
-    );
-
-    const rentResult = await client.query(
-      `SELECT p.agent_id, COUNT(*)::integer AS count
-       FROM properties p
-       INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.agent_id = ANY($1::int[])
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
-       AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'rent'
-       GROUP BY p.agent_id`,
-      [companyMemberIds, startDateStr, endDateStr]
-    );
-
-    const viewingsResult = await client.query(
-      `SELECT v.agent_id, COUNT(*)::integer AS count
-       FROM viewings v
-       WHERE v.agent_id = ANY($1::int[])
-       AND v.viewing_date >= $2::date
-       AND v.viewing_date <= $3::date
-       GROUP BY v.agent_id`,
-      [companyMemberIds, startDateStr, endDateStr]
-    );
-
-    const listingsLookup = buildCountLookup(listingsResult.rows);
-    const leadsLookup = buildCountLookup(leadsResult.rows);
-    const salesLookup = buildCountLookup(salesResult.rows);
-    const rentLookup = buildCountLookup(rentResult.rows);
-    const viewingsLookup = buildCountLookup(viewingsResult.rows);
-
-    const agentBreakdown = companyMembers.map((member) => {
-      const normalizedRole = normalizeRole(member.role);
-
-      return {
-        id: member.id,
-        name: member.name,
-        user_code: member.user_code,
-        role: member.role,
-        team_leader_id: member.team_leader_id,
-        team_leader_name: member.team_leader_name,
-        team_leader_code: member.team_leader_code,
-        is_team_leader: normalizedRole === 'team leader',
-        listings_count: listingsLookup.get(member.id) || 0,
-        leads_count: leadsLookup.get(member.id) || 0,
-        sales_count: salesLookup.get(member.id) || 0,
-        rent_count: rentLookup.get(member.id) || 0,
-        viewings_count: viewingsLookup.get(member.id) || 0
-      };
-    });
-
-    const teamGroups = new Map();
-
-    agentBreakdown.forEach((row) => {
-      const groupKey = row.team_leader_id ?? 'unassigned';
-
-      if (!teamGroups.has(groupKey)) {
-        teamGroups.set(groupKey, {
-          team_leader_id: row.team_leader_id,
-          team_leader_name: row.team_leader_id ? row.team_leader_name : 'Unassigned',
-          team_leader_code: row.team_leader_id ? row.team_leader_code || null : null,
-          agent_breakdown: []
-        });
-      }
-
-      teamGroups.get(groupKey).agent_breakdown.push(row);
-    });
-
-    const teamBreakdown = Array.from(teamGroups.values()).map((team) => {
-      const orderedAgents = [...team.agent_breakdown].sort((a, b) => {
-        const aIsLeader = team.team_leader_id && a.id === team.team_leader_id ? 0 : 1;
-        const bIsLeader = team.team_leader_id && b.id === team.team_leader_id ? 0 : 1;
-
-        if (aIsLeader !== bIsLeader) {
-          return aIsLeader - bIsLeader;
-        }
-
-        return a.name.localeCompare(b.name);
-      });
-
-      const totals = orderedAgents.reduce((acc, row) => {
-        acc.listings_count += row.listings_count || 0;
-        acc.leads_count += row.leads_count || 0;
-        acc.sales_count += row.sales_count || 0;
-        acc.rent_count += row.rent_count || 0;
-        acc.viewings_count += row.viewings_count || 0;
-        return acc;
-      }, {
-        listings_count: 0,
-        leads_count: 0,
-        sales_count: 0,
-        rent_count: 0,
-        viewings_count: 0
-      });
-
-      return {
-        team_leader_id: team.team_leader_id,
-        team_leader_name: team.team_leader_name,
-        team_leader_code: team.team_leader_code,
-        agent_breakdown: orderedAgents,
-        listings_count: totals.listings_count,
-        leads_count: totals.leads_count,
-        sales_count: totals.sales_count,
-        rent_count: totals.rent_count,
-        viewings_count: totals.viewings_count
-      };
-    }).sort((a, b) => {
-      if (a.team_leader_name === 'Unassigned') return 1;
-      if (b.team_leader_name === 'Unassigned') return -1;
-      return a.team_leader_name.localeCompare(b.team_leader_name);
-    });
-
-    const totals = agentBreakdown.reduce((acc, row) => {
-      acc.listings_count += row.listings_count || 0;
-      acc.leads_count += row.leads_count || 0;
-      acc.sales_count += row.sales_count || 0;
-      acc.rent_count += row.rent_count || 0;
-      acc.viewings_count += row.viewings_count || 0;
-      return acc;
-    }, {
+  if (!Array.isArray(teams) || teams.length === 0) {
+    return {
+      start_date: startDateStr,
+      end_date: endDateStr,
+      team_breakdown: [],
+      agent_breakdown: [],
+      team_count: 0,
+      agent_count: 0,
       listings_count: 0,
       leads_count: 0,
       sales_count: 0,
       rent_count: 0,
       viewings_count: 0
-    });
-
-    return {
-      start_date: startDateStr,
-      end_date: endDateStr,
-      team_breakdown: teamBreakdown,
-      agent_breakdown: teamBreakdown.flatMap((team) => team.agent_breakdown),
-      team_count: teamBreakdown.length,
-      agent_count: agentBreakdown.length,
-      listings_count: totals.listings_count,
-      leads_count: totals.leads_count,
-      sales_count: totals.sales_count,
-      rent_count: totals.rent_count,
-      viewings_count: totals.viewings_count
     };
-  } finally {
-    client.release();
   }
+
+  const teamBreakdown = await Promise.all(
+    teams.map(async (team) => calculateTeamDCSRData(
+      team.team_leader_id,
+      startDateUtc,
+      endDateUtc
+    ))
+  );
+
+  const agentBreakdown = teamBreakdown.flatMap((team) => team.agent_breakdown || []);
+
+  const totals = teamBreakdown.reduce((acc, team) => {
+    acc.listings_count += team.listings_count || 0;
+    acc.leads_count += team.leads_count || 0;
+    acc.sales_count += team.sales_count || 0;
+    acc.rent_count += team.rent_count || 0;
+    acc.viewings_count += team.viewings_count || 0;
+    return acc;
+  }, {
+    listings_count: 0,
+    leads_count: 0,
+    sales_count: 0,
+    rent_count: 0,
+    viewings_count: 0
+  });
+
+  return {
+    start_date: startDateStr,
+    end_date: endDateStr,
+    team_breakdown: teamBreakdown,
+    agent_breakdown: agentBreakdown,
+    team_count: teamBreakdown.length,
+    agent_count: agentBreakdown.length,
+    listings_count: totals.listings_count,
+    leads_count: totals.leads_count,
+    sales_count: totals.sales_count,
+    rent_count: totals.rent_count,
+    viewings_count: totals.viewings_count
+  };
 }
 
 /**
@@ -480,13 +293,6 @@ function normalizeDateRange(startDateInput, endDateInput) {
     startDateStr: startDateUtc.toISOString().split('T')[0],
     endDateStr: endDateUtc.toISOString().split('T')[0]
   };
-}
-
-function buildCountLookup(rows, keyField = 'agent_id', valueField = 'count') {
-  return rows.reduce((lookup, row) => {
-    lookup.set(row[keyField], parseInt(row[valueField], 10) || 0);
-    return lookup;
-  }, new Map());
 }
 
 /**
@@ -734,7 +540,7 @@ async function getAllTeams() {
     const teamLeadersResult = await client.query(
       `SELECT id, name, user_code, role
        FROM users
-       WHERE role = 'team_leader'
+       WHERE LOWER(REPLACE(role, '_', ' ')) = 'team leader'
        ORDER BY name ASC`
     );
     
