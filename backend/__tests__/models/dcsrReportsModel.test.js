@@ -138,68 +138,78 @@ describe('DCSR Reports Model', () => {
       const startDate = new Date('2024-01-01');
       const endDate = new Date('2024-01-31');
 
-      const teamListClient = {
-        query: jest.fn()
-          .mockResolvedValueOnce({
-            rows: [
-              {
-                id: 1,
-                name: 'Ali Ayash',
-                user_code: 'AA',
-                role: 'team_leader'
-              }
-            ]
-          })
-          .mockResolvedValueOnce({
-            rows: [
-              { id: 1, name: 'Ali Ayash', user_code: 'AA', role: 'team_leader' },
-              { id: 2, name: 'Ara Markarian', user_code: 'AM', role: 'agent' }
-            ]
-          }),
-        release: jest.fn()
-      };
-
       mockClient.query
         .mockResolvedValueOnce({
           rows: [
-            { id: 1, name: 'Ali Ayash', user_code: 'AA', role: 'team_leader' },
-            { id: 2, name: 'Ara Markarian', user_code: 'AM', role: 'agent' }
+            {
+              id: 1,
+              name: 'Ali Ayash',
+              user_code: 'AA',
+              role: 'team_leader',
+              assigned_to: null,
+              assigned_team_leader_id: null,
+              assigned_team_leader_name: null,
+              assigned_team_leader_code: null
+            },
+            {
+              id: 2,
+              name: 'Ara Markarian',
+              user_code: 'AM',
+              role: 'agent',
+              assigned_to: 1,
+              assigned_team_leader_id: 1,
+              assigned_team_leader_name: 'Ali Ayash',
+              assigned_team_leader_code: 'AA'
+            },
+            {
+              id: 3,
+              name: 'Sana Keserwany',
+              user_code: 'SK',
+              role: 'consultant',
+              assigned_to: null,
+              assigned_team_leader_id: null,
+              assigned_team_leader_name: null,
+              assigned_team_leader_code: null
+            }
           ]
         })
         .mockResolvedValueOnce({
           rows: [
             { agent_id: 1, count: '5' },
-            { agent_id: 2, count: '3' }
+            { agent_id: 2, count: '3' },
+            { agent_id: 3, count: '1' }
           ]
         })
         .mockResolvedValueOnce({
           rows: [
             { agent_id: 1, count: '20' },
-            { agent_id: 2, count: '10' }
+            { agent_id: 2, count: '10' },
+            { agent_id: 3, count: '4' }
           ]
         })
         .mockResolvedValueOnce({
           rows: [
             { agent_id: 1, count: '2' },
-            { agent_id: 2, count: '1' }
+            { agent_id: 2, count: '1' },
+            { agent_id: 3, count: '0' }
           ]
         })
         .mockResolvedValueOnce({
           rows: [
             { agent_id: 1, count: '0' },
-            { agent_id: 2, count: '1' }
+            { agent_id: 2, count: '1' },
+            { agent_id: 3, count: '0' }
           ]
         })
         .mockResolvedValueOnce({
           rows: [
             { agent_id: 1, count: '7' },
-            { agent_id: 2, count: '5' }
+            { agent_id: 2, count: '5' },
+            { agent_id: 3, count: '2' }
           ]
         });
 
-      pool.connect
-        .mockResolvedValueOnce(teamListClient)
-        .mockResolvedValueOnce(mockClient);
+      pool.connect.mockResolvedValueOnce(mockClient);
 
       const result = await dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData(startDate, endDate);
 
@@ -211,16 +221,16 @@ describe('DCSR Reports Model', () => {
             team_leader_id: 1,
             team_leader_name: 'Ali Ayash',
             team_leader_code: 'AA',
-            team_members: [
-              { id: 1, name: 'Ali Ayash', user_code: 'AA', role: 'team_leader' },
-              { id: 2, name: 'Ara Markarian', user_code: 'AM', role: 'agent' }
-            ],
             agent_breakdown: [
               {
                 id: 1,
                 name: 'Ali Ayash',
                 user_code: 'AA',
                 role: 'team_leader',
+                team_leader_id: 1,
+                team_leader_name: 'Ali Ayash',
+                team_leader_code: 'AA',
+                is_team_leader: true,
                 listings_count: 5,
                 leads_count: 20,
                 sales_count: 2,
@@ -232,6 +242,10 @@ describe('DCSR Reports Model', () => {
                 name: 'Ara Markarian',
                 user_code: 'AM',
                 role: 'agent',
+                team_leader_id: 1,
+                team_leader_name: 'Ali Ayash',
+                team_leader_code: 'AA',
+                is_team_leader: false,
                 listings_count: 3,
                 leads_count: 10,
                 sales_count: 1,
@@ -244,6 +258,33 @@ describe('DCSR Reports Model', () => {
             sales_count: 3,
             rent_count: 1,
             viewings_count: 12
+          },
+          {
+            team_leader_id: null,
+            team_leader_name: 'Unassigned',
+            team_leader_code: null,
+            agent_breakdown: [
+              {
+                id: 3,
+                name: 'Sana Keserwany',
+                user_code: 'SK',
+                role: 'consultant',
+                team_leader_id: null,
+                team_leader_name: 'Unassigned',
+                team_leader_code: null,
+                is_team_leader: false,
+                listings_count: 1,
+                leads_count: 4,
+                sales_count: 0,
+                rent_count: 0,
+                viewings_count: 2
+              }
+            ],
+            listings_count: 1,
+            leads_count: 4,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 2
           }
         ],
         agent_breakdown: [
@@ -252,6 +293,10 @@ describe('DCSR Reports Model', () => {
             name: 'Ali Ayash',
             user_code: 'AA',
             role: 'team_leader',
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            is_team_leader: true,
             listings_count: 5,
             leads_count: 20,
             sales_count: 2,
@@ -263,22 +308,40 @@ describe('DCSR Reports Model', () => {
             name: 'Ara Markarian',
             user_code: 'AM',
             role: 'agent',
+            team_leader_id: 1,
+            team_leader_name: 'Ali Ayash',
+            team_leader_code: 'AA',
+            is_team_leader: false,
             listings_count: 3,
             leads_count: 10,
             sales_count: 1,
             rent_count: 1,
             viewings_count: 5
+          },
+          {
+            id: 3,
+            name: 'Sana Keserwany',
+            user_code: 'SK',
+            role: 'consultant',
+            team_leader_id: null,
+            team_leader_name: 'Unassigned',
+            team_leader_code: null,
+            is_team_leader: false,
+            listings_count: 1,
+            leads_count: 4,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 2
           }
         ],
-        team_count: 1,
-        agent_count: 2,
-        listings_count: 8,
-        leads_count: 30,
+        team_count: 2,
+        agent_count: 3,
+        listings_count: 9,
+        leads_count: 34,
         sales_count: 3,
         rent_count: 1,
-        viewings_count: 12
+        viewings_count: 14
       });
-      expect(teamListClient.release).toHaveBeenCalled();
       expect(mockClient.release).toHaveBeenCalled();
     });
   });
