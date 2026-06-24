@@ -3,6 +3,7 @@
 import { Fragment, useMemo, type ReactNode } from 'react'
 import { BadgeCheck, Eye, Home, PhoneCall, Users } from 'lucide-react'
 import { DCSRTeamBreakdown } from '@/types/reports'
+import { normalizeRole } from '@/utils/roleUtils'
 
 interface DCSRAgentBreakdownTableProps {
   title: string
@@ -17,6 +18,11 @@ type TeamAccent = {
   chip: string
   chipText: string
   badge: string
+  panel: string
+  panelBorder: string
+  value: string
+  iconBg: string
+  iconText: string
 }
 
 const TEAM_ACCENTS: TeamAccent[] = [
@@ -25,42 +31,72 @@ const TEAM_ACCENTS: TeamAccent[] = [
     soft: 'bg-blue-50',
     chip: 'bg-blue-100',
     chipText: 'text-blue-900',
-    badge: 'bg-blue-100 text-blue-800'
+    badge: 'bg-blue-100 text-blue-800',
+    panel: 'bg-gradient-to-br from-blue-50 via-white to-blue-100/60',
+    panelBorder: 'border-blue-100',
+    value: 'text-blue-900',
+    iconBg: 'bg-blue-100',
+    iconText: 'text-blue-700'
   },
   {
     border: 'border-l-violet-500',
     soft: 'bg-violet-50',
     chip: 'bg-violet-100',
     chipText: 'text-violet-900',
-    badge: 'bg-violet-100 text-violet-800'
+    badge: 'bg-violet-100 text-violet-800',
+    panel: 'bg-gradient-to-br from-violet-50 via-white to-violet-100/60',
+    panelBorder: 'border-violet-100',
+    value: 'text-violet-900',
+    iconBg: 'bg-violet-100',
+    iconText: 'text-violet-700'
   },
   {
     border: 'border-l-emerald-500',
     soft: 'bg-emerald-50',
     chip: 'bg-emerald-100',
     chipText: 'text-emerald-900',
-    badge: 'bg-emerald-100 text-emerald-800'
+    badge: 'bg-emerald-100 text-emerald-800',
+    panel: 'bg-gradient-to-br from-emerald-50 via-white to-emerald-100/60',
+    panelBorder: 'border-emerald-100',
+    value: 'text-emerald-900',
+    iconBg: 'bg-emerald-100',
+    iconText: 'text-emerald-700'
   },
   {
     border: 'border-l-amber-500',
     soft: 'bg-amber-50',
     chip: 'bg-amber-100',
     chipText: 'text-amber-900',
-    badge: 'bg-amber-100 text-amber-800'
+    badge: 'bg-amber-100 text-amber-800',
+    panel: 'bg-gradient-to-br from-amber-50 via-white to-amber-100/60',
+    panelBorder: 'border-amber-100',
+    value: 'text-amber-900',
+    iconBg: 'bg-amber-100',
+    iconText: 'text-amber-700'
   },
   {
     border: 'border-l-rose-500',
     soft: 'bg-rose-50',
     chip: 'bg-rose-100',
     chipText: 'text-rose-900',
-    badge: 'bg-rose-100 text-rose-800'
+    badge: 'bg-rose-100 text-rose-800',
+    panel: 'bg-gradient-to-br from-rose-50 via-white to-rose-100/60',
+    panelBorder: 'border-rose-100',
+    value: 'text-rose-900',
+    iconBg: 'bg-rose-100',
+    iconText: 'text-rose-700'
   },
   {
     border: 'border-l-cyan-500',
     soft: 'bg-cyan-50',
     chip: 'bg-cyan-100',
     chipText: 'text-cyan-900',
-    badge: 'bg-cyan-100 text-cyan-800'
+    badge: 'bg-cyan-100 text-cyan-800',
+    panel: 'bg-gradient-to-br from-cyan-50 via-white to-cyan-100/60',
+    panelBorder: 'border-cyan-100',
+    value: 'text-cyan-900',
+    iconBg: 'bg-cyan-100',
+    iconText: 'text-cyan-700'
   }
 ]
 
@@ -80,23 +116,61 @@ function MetricCard({
   tone: 'blue' | 'violet' | 'emerald' | 'amber' | 'rose' | 'cyan'
 }) {
   const toneClasses = {
-    blue: 'bg-blue-50 text-blue-900 border-blue-100',
-    violet: 'bg-violet-50 text-violet-900 border-violet-100',
-    emerald: 'bg-emerald-50 text-emerald-900 border-emerald-100',
-    amber: 'bg-amber-50 text-amber-900 border-amber-100',
-    rose: 'bg-rose-50 text-rose-900 border-rose-100',
-    cyan: 'bg-cyan-50 text-cyan-900 border-cyan-100'
+    blue: {
+      panel: 'bg-gradient-to-br from-blue-50 via-white to-blue-100/60',
+      border: 'border-blue-100',
+      value: 'text-blue-900',
+      iconBg: 'bg-blue-100',
+      iconText: 'text-blue-700'
+    },
+    violet: {
+      panel: 'bg-gradient-to-br from-violet-50 via-white to-violet-100/60',
+      border: 'border-violet-100',
+      value: 'text-violet-900',
+      iconBg: 'bg-violet-100',
+      iconText: 'text-violet-700'
+    },
+    emerald: {
+      panel: 'bg-gradient-to-br from-emerald-50 via-white to-emerald-100/60',
+      border: 'border-emerald-100',
+      value: 'text-emerald-900',
+      iconBg: 'bg-emerald-100',
+      iconText: 'text-emerald-700'
+    },
+    amber: {
+      panel: 'bg-gradient-to-br from-amber-50 via-white to-amber-100/60',
+      border: 'border-amber-100',
+      value: 'text-amber-900',
+      iconBg: 'bg-amber-100',
+      iconText: 'text-amber-700'
+    },
+    rose: {
+      panel: 'bg-gradient-to-br from-rose-50 via-white to-rose-100/60',
+      border: 'border-rose-100',
+      value: 'text-rose-900',
+      iconBg: 'bg-rose-100',
+      iconText: 'text-rose-700'
+    },
+    cyan: {
+      panel: 'bg-gradient-to-br from-cyan-50 via-white to-cyan-100/60',
+      border: 'border-cyan-100',
+      value: 'text-cyan-900',
+      iconBg: 'bg-cyan-100',
+      iconText: 'text-cyan-700'
+    }
   }[tone]
 
   return (
-    <div className={`rounded-xl border p-3 ${toneClasses}`}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+    <div className={`flex h-full min-h-[108px] flex-col justify-between overflow-hidden rounded-2xl border px-4 py-3 shadow-sm ring-1 ring-white/60 ${toneClasses.panel} ${toneClasses.border}`}>
+      <div className="flex items-center gap-2">
+        <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${toneClasses.iconBg} ${toneClasses.iconText}`}>
+          {icon}
+        </span>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
           {label}
         </p>
-        <span className="text-slate-400">{icon}</span>
       </div>
-      <div className="mt-2 text-2xl font-semibold leading-none">
+      <div className={`mt-4 text-[30px] font-semibold leading-none tracking-[-0.04em] ${toneClasses.value}`}>
         {formatNumber(value)}
       </div>
     </div>
@@ -139,7 +213,7 @@ export default function DCSRAgentBreakdownTable({
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-4">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
               Detailed breakdown
@@ -160,7 +234,7 @@ export default function DCSRAgentBreakdownTable({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-3 xl:grid-cols-6">
             <MetricCard label="Teams" value={summary.teamCount} icon={<Users className="h-4 w-4" />} tone="violet" />
             <MetricCard label="Agents" value={summary.agentCount} icon={<Users className="h-4 w-4" />} tone="blue" />
             <MetricCard label="Listings" value={summary.listings} icon={<Home className="h-4 w-4" />} tone="blue" />
