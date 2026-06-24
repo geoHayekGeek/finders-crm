@@ -151,6 +151,62 @@ async function createDCSRReport(req, res) {
 }
 
 /**
+ * Calculate a DCSR preview without persisting a report
+ * POST /api/dcsr-reports/monthly/preview
+ */
+async function previewDCSRReport(req, res) {
+  try {
+    const { start_date, end_date } = req.body;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    const { startDateUtc, endDateUtc, startDateStr, endDateStr } = dcsrReportsModel.normalizeDateRange(start_date, end_date);
+    const year = startDateUtc.getUTCFullYear();
+
+    if (year < 2020) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be 2020 or later. Please select a date range starting from 2020 or later.'
+      });
+    }
+
+    const calculatedData = await dcsrReportsModel.calculateDCSRData(startDateUtc, endDateUtc);
+
+    res.json({
+      success: true,
+      data: {
+        start_date: startDateStr,
+        end_date: endDateStr,
+        month: startDateUtc.getUTCMonth() + 1,
+        year,
+        ...calculatedData
+      },
+      message: 'DCSR preview calculated successfully'
+    });
+  } catch (error) {
+    console.error('Error calculating DCSR preview:', error);
+
+    if (error.message?.includes('Start date and end date are required') || error.message?.includes('Invalid date')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate DCSR preview',
+      error: error.message
+    });
+  }
+}
+
+/**
  * Update a DCSR report
  * PUT /api/dcsr-reports/monthly/:id
  */
@@ -778,6 +834,7 @@ module.exports = {
   getAllDCSRReports,
   getDCSRReportById,
   createDCSRReport,
+  previewDCSRReport,
   updateDCSRReport,
   recalculateDCSRReport,
   deleteDCSRReport,

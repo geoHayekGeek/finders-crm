@@ -1595,6 +1595,16 @@ export const dcsrApi = {
     token
   ),
 
+  // Preview DCSR calculations without creating a report
+  preview: (data: CreateDCSRData, token?: AuthToken) => apiRequest<{ success: boolean; data: Partial<DCSRMonthlyReport>; message: string }>(
+    '/dcsr-reports/monthly/preview',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
   // Update a DCSR report
   update: (id: number, data: UpdateDCSRData, token?: AuthToken) => apiRequest<{ success: boolean; data: DCSRMonthlyReport; message: string }>(
     `/dcsr-reports/monthly/${id}`,

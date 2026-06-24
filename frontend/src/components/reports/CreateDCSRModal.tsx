@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, AlertCircle, RefreshCw, Users, Building2, Table } from 'lucide-react'
 import { DCSRFormData, DCSRMonthlyReport } from '@/types/reports'
@@ -10,6 +10,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
+import DCSRAgentBreakdownTable from './DCSRAgentBreakdownTable'
 
 interface CreateDCSRModalProps {
   onClose: () => void
@@ -34,6 +35,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
   const [loadingTeamBreakdown, setLoadingTeamBreakdown] = useState(false)
   const [allTeamsBreakdown, setAllTeamsBreakdown] = useState<any>(null)
   const [showAllTeams, setShowAllTeams] = useState(false)
+  const previewRequestIdRef = useRef(0)
   
   // Detailed view state
   const [teamViewTab, setTeamViewTab] = useState<'overview' | 'detailed'>('overview')
@@ -110,7 +112,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
     }
   }
 
-  // Calculate preview when month/year changes (company-wide)
+  // Calculate preview when the company date range changes
   useEffect(() => {
     if (activeTab === 'company' && formData.start_date && formData.end_date && token) {
       calculatePreview()
@@ -253,12 +255,13 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
   }
 
   const calculatePreview = async () => {
+    const requestId = ++previewRequestIdRef.current
+
     try {
       setCalculating(true)
       setError(null)
       
-      // Create a temporary report to get calculated values
-      const tempReport = await dcsrApi.create(
+      const preview = await dcsrApi.preview(
         {
           start_date: formData.start_date,
           end_date: formData.end_date
@@ -266,29 +269,31 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
         token
       )
 
-      if (tempReport.success) {
-        setPreviewData(tempReport.data)
+      if (requestId !== previewRequestIdRef.current) {
+        return
+      }
+
+      if (preview.success) {
+        setPreviewData(preview.data)
         setFormData(prev => ({
           ...prev,
-          listings_count: tempReport.data.listings_count,
-          leads_count: tempReport.data.leads_count,
-          sales_count: tempReport.data.sales_count,
-          rent_count: tempReport.data.rent_count,
-          viewings_count: tempReport.data.viewings_count
+          listings_count: preview.data.listings_count ?? 0,
+          leads_count: preview.data.leads_count ?? 0,
+          sales_count: preview.data.sales_count ?? 0,
+          rent_count: preview.data.rent_count ?? 0,
+          viewings_count: preview.data.viewings_count ?? 0
         }))
-        
-        // Delete the temporary report
-        await dcsrApi.delete(tempReport.data.id, token)
       }
     } catch (error: any) {
-      // If report already exists, show specific message
-      if (error.message?.includes('already exists')) {
-        setError('A report already exists for this date range. Please select a different window.')
-      } else {
-        // Error handled by error state
+      if (requestId !== previewRequestIdRef.current) {
+        return
       }
+
+      setError(error.message || 'Failed to calculate DCSR preview')
     } finally {
-      setCalculating(false)
+      if (requestId === previewRequestIdRef.current) {
+        setCalculating(false)
+      }
     }
   }
 

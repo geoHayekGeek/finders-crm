@@ -12,6 +12,9 @@ router.use(authenticateToken);
 // Get all DCSR reports (with optional filters) - read access
 router.get('/monthly', canViewDCSR, dcsrReportsController.getAllDCSRReports);
 
+// Preview DCSR calculations without persisting a report - write access required
+router.post('/monthly/preview', canManageDCSR, dcsrReportsController.previewDCSRReport);
+
 // Get single DCSR report by ID - read access
 router.get('/monthly/:id', canViewDCSR, dcsrReportsController.getDCSRReportById);
 

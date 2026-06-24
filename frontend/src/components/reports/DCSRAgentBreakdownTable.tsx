@@ -3,7 +3,6 @@
 import { Fragment, useMemo, type ReactNode } from 'react'
 import { BadgeCheck, Eye, Home, PhoneCall, Users } from 'lucide-react'
 import { DCSRTeamBreakdown } from '@/types/reports'
-import { normalizeRole } from '@/utils/roleUtils'
 
 interface DCSRAgentBreakdownTableProps {
   title: string

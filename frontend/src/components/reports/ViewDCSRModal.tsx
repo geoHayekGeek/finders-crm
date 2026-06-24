@@ -11,6 +11,7 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
+import DCSRAgentBreakdownTable from './DCSRAgentBreakdownTable'
 
 interface ViewDCSRModalProps {
   report: DCSRMonthlyReport
