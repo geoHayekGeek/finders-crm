@@ -4,7 +4,7 @@ import { LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateL
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
+import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
 // For client-side code, only NEXT_PUBLIC_* variables are available
@@ -1671,22 +1671,7 @@ export const dcsrApi = {
     params.append('end_date', endDate)
     return apiRequest<{ 
       success: boolean
-      data: {
-        team_leader_id: number
-        team_leader_name: string
-        team_leader_code: string | null
-        team_members: Array<{
-          id: number
-          name: string
-          user_code: string | null
-          role: string
-        }>
-        listings_count: number
-        leads_count: number
-        sales_count: number
-        rent_count: number
-        viewings_count: number
-      }
+      data: DCSRTeamBreakdown
       message: string 
     }>(
       `/dcsr-reports/team-breakdown?${params.toString()}`,
@@ -1702,26 +1687,7 @@ export const dcsrApi = {
     params.append('end_date', endDate)
     return apiRequest<{ 
       success: boolean
-      data: {
-        teams: Array<{
-          team_leader_id: number
-          team_leader_name: string
-          team_leader_code: string | null
-          team_members: Array<{
-            id: number
-            name: string
-            user_code: string | null
-            role: string
-          }>
-          listings_count: number
-          leads_count: number
-          sales_count: number
-          rent_count: number
-          viewings_count: number
-        }>
-        unassigned_listings: number
-        total_teams: number
-      }
+      data: DCSRAllTeamsBreakdown
       message: string 
     }>(
       `/dcsr-reports/teams-breakdown?${params.toString()}`,

@@ -175,6 +175,44 @@ export interface DCSRMonthlyReport {
   created_by?: number
 }
 
+export interface DCSRAgentBreakdownRow {
+  id: number
+  name: string
+  user_code: string | null
+  role: string
+  listings_count: number
+  leads_count: number
+  sales_count: number
+  rent_count: number
+  viewings_count: number
+}
+
+export interface DCSRTeamMember {
+  id: number
+  name: string
+  user_code: string | null
+  role: string
+}
+
+export interface DCSRTeamBreakdown {
+  team_leader_id: number
+  team_leader_name: string
+  team_leader_code: string | null
+  team_members: DCSRTeamMember[]
+  agent_breakdown: DCSRAgentBreakdownRow[]
+  listings_count: number
+  leads_count: number
+  sales_count: number
+  rent_count: number
+  viewings_count: number
+}
+
+export interface DCSRAllTeamsBreakdown {
+  teams: DCSRTeamBreakdown[]
+  unassigned_listings: number
+  total_teams: number
+}
+
 export interface DCSRReportFilters {
   start_date?: string
   end_date?: string

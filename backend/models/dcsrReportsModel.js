@@ -467,101 +467,7 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
     const startDateStr = startDateUtc.toISOString().split('T')[0];
     const endDateStr = endDateUtc.toISOString().split('T')[0];
 
-    // Get all agent IDs in this team (team leader + all assigned agents)
     const teamMembersResult = await client.query(
-      `SELECT DISTINCT u.id
-       FROM users u
-       WHERE u.id = $1 
-       OR u.id IN (
-         SELECT ta.agent_id 
-         FROM team_agents ta 
-         WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
-       )
-       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))`,
-      [teamLeaderId]
-    );
-    
-    const teamMemberIds = teamMembersResult.rows.map(row => row.id);
-    
-    if (teamMemberIds.length === 0) {
-      throw new Error('Team not found or has no members');
-    }
-
-    const teamMemberIdsArray = teamMemberIds;
-
-    // Count listings created by team members in the range
-    const listingsResult = await client.query(
-      `SELECT COUNT(*) as count 
-       FROM properties 
-       WHERE agent_id = ANY($1::int[])
-       AND created_at >= $2::timestamp
-       AND created_at <= $3::timestamp`,
-      [teamMemberIdsArray, startDateUtc.toISOString(), endDateUtc.toISOString()]
-    );
-    const listingsCount = parseInt(listingsResult.rows[0].count) || 0;
-    
-    // Count leads assigned to team members in the range
-    const leadsResult = await client.query(
-      `SELECT COUNT(*) as count 
-       FROM leads 
-       WHERE agent_id = ANY($1::int[])
-       AND DATE(date) >= $2::date
-       AND DATE(date) <= $3::date`,
-      [teamMemberIdsArray, startDateStr, endDateStr]
-    );
-    const leadsCount = parseInt(leadsResult.rows[0].count) || 0;
-    
-    // Count sales closures by team members
-    const salesResult = await client.query(
-      `SELECT COUNT(*) as count 
-       FROM properties p
-       INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.agent_id = ANY($1::int[])
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
-       AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'sale'`,
-      [teamMemberIdsArray, startDateStr, endDateStr]
-    );
-    const salesCount = parseInt(salesResult.rows[0].count) || 0;
-    
-    // Count rent closures by team members
-    const rentResult = await client.query(
-      `SELECT COUNT(*) as count 
-       FROM properties p
-       INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.agent_id = ANY($1::int[])
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
-       AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'rent'`,
-      [teamMemberIdsArray, startDateStr, endDateStr]
-    );
-    const rentCount = parseInt(rentResult.rows[0].count) || 0;
-    
-    // Count viewings conducted by team members
-    const viewingsResult = await client.query(
-      `SELECT COUNT(*) as count 
-       FROM viewings 
-       WHERE agent_id = ANY($1::int[])
-       AND viewing_date >= $2::date
-       AND viewing_date <= $3::date`,
-      [teamMemberIdsArray, startDateStr, endDateStr]
-    );
-    const viewingsCount = parseInt(viewingsResult.rows[0].count) || 0;
-    
-    // Get team leader name
-    const teamLeaderResult = await client.query(
-      `SELECT name, user_code FROM users WHERE id = $1`,
-      [teamLeaderId]
-    );
-    const teamLeaderName = teamLeaderResult.rows[0]?.name || 'Unknown';
-    const teamLeaderCode = teamLeaderResult.rows[0]?.user_code || null;
-    
-    // Get team members info
-    const membersResult = await client.query(
       `SELECT DISTINCT u.id, u.name, u.user_code, u.role
        FROM users u
        WHERE u.id = $1 
@@ -570,26 +476,135 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
          FROM team_agents ta 
          WHERE ta.team_leader_id = $1 AND ta.is_active = TRUE
        )
-       OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))
-       ORDER BY u.role DESC, u.name ASC`,
+         OR (u.assigned_to = $1 AND u.role IN ('agent', 'consultant'))`,
       [teamLeaderId]
     );
-    
+
+    const teamMembers = teamMembersResult.rows;
+    const teamMemberIds = teamMembers.map(row => row.id);
+
+    if (teamMemberIds.length === 0) {
+      throw new Error('Team not found or has no members');
+    }
+
+    const teamMemberIdsArray = teamMemberIds;
+
+    const buildLookup = (rows, keyField = 'agent_id', valueField = 'count') => {
+      return rows.reduce((lookup, row) => {
+        lookup.set(row[keyField], parseInt(row[valueField], 10) || 0);
+        return lookup;
+      }, new Map());
+    };
+
+    const listingsResult = await client.query(
+      `SELECT p.agent_id, COUNT(*)::integer AS count
+       FROM properties p
+       WHERE p.agent_id = ANY($1::int[])
+       AND p.created_at >= $2::timestamp
+       AND p.created_at <= $3::timestamp
+       GROUP BY p.agent_id`,
+      [teamMemberIdsArray, startDateUtc.toISOString(), endDateUtc.toISOString()]
+    );
+
+    const leadsResult = await client.query(
+      `SELECT l.agent_id, COUNT(*)::integer AS count
+       FROM leads l
+       WHERE l.agent_id = ANY($1::int[])
+       AND DATE(l.date) >= $2::date
+       AND DATE(l.date) <= $3::date
+       GROUP BY l.agent_id`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+
+    const salesResult = await client.query(
+      `SELECT p.agent_id, COUNT(*)::integer AS count
+       FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
+       WHERE p.agent_id = ANY($1::int[])
+       AND p.closed_date IS NOT NULL
+       AND p.closed_date >= $2::date
+       AND p.closed_date <= $3::date
+       AND ${isClosureStatusSql('s')}
+       AND p.property_type = 'sale'
+       GROUP BY p.agent_id`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+
+    const rentResult = await client.query(
+      `SELECT p.agent_id, COUNT(*)::integer AS count
+       FROM properties p
+       INNER JOIN statuses s ON p.status_id = s.id
+       WHERE p.agent_id = ANY($1::int[])
+       AND p.closed_date IS NOT NULL
+       AND p.closed_date >= $2::date
+       AND p.closed_date <= $3::date
+       AND ${isClosureStatusSql('s')}
+       AND p.property_type = 'rent'
+       GROUP BY p.agent_id`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+
+    const viewingsResult = await client.query(
+      `SELECT v.agent_id, COUNT(*)::integer AS count
+       FROM viewings v
+       WHERE v.agent_id = ANY($1::int[])
+       AND v.viewing_date >= $2::date
+       AND v.viewing_date <= $3::date
+       GROUP BY v.agent_id`,
+      [teamMemberIdsArray, startDateStr, endDateStr]
+    );
+
+    const listingsLookup = buildLookup(listingsResult.rows);
+    const leadsLookup = buildLookup(leadsResult.rows);
+    const salesLookup = buildLookup(salesResult.rows);
+    const rentLookup = buildLookup(rentResult.rows);
+    const viewingsLookup = buildLookup(viewingsResult.rows);
+
+    const agentBreakdown = teamMembers.map(member => ({
+      id: member.id,
+      name: member.name,
+      user_code: member.user_code,
+      role: member.role,
+      listings_count: listingsLookup.get(member.id) || 0,
+      leads_count: leadsLookup.get(member.id) || 0,
+      sales_count: salesLookup.get(member.id) || 0,
+      rent_count: rentLookup.get(member.id) || 0,
+      viewings_count: viewingsLookup.get(member.id) || 0
+    }));
+
+    const totals = agentBreakdown.reduce((acc, row) => {
+      acc.listings_count += row.listings_count;
+      acc.leads_count += row.leads_count;
+      acc.sales_count += row.sales_count;
+      acc.rent_count += row.rent_count;
+      acc.viewings_count += row.viewings_count;
+      return acc;
+    }, {
+      listings_count: 0,
+      leads_count: 0,
+      sales_count: 0,
+      rent_count: 0,
+      viewings_count: 0
+    });
+
+    const teamLeader = teamMembers.find(member => member.id === teamLeaderId) || teamMembers[0];
+
     return {
       team_leader_id: teamLeaderId,
-      team_leader_name: teamLeaderName,
-      team_leader_code: teamLeaderCode,
-      team_members: membersResult.rows.map(row => ({
+      team_leader_name: teamLeader?.name || 'Unknown',
+      team_leader_code: teamLeader?.user_code || null,
+      team_members: teamMembers.map(row => ({
         id: row.id,
         name: row.name,
         user_code: row.user_code,
         role: row.role
       })),
-      listings_count: listingsCount,
-      leads_count: leadsCount,
-      sales_count: salesCount,
-      rent_count: rentCount,
-      viewings_count: viewingsCount
+      agent_breakdown: agentBreakdown,
+      listings_count: totals.listings_count,
+      leads_count: totals.leads_count,
+      sales_count: totals.sales_count,
+      rent_count: totals.rent_count,
+      viewings_count: totals.viewings_count
     };
     
   } finally {

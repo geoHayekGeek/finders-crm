@@ -507,18 +507,16 @@ describe('DCSR Reports Model', () => {
 
       // Mock team members query
       mockClient.query
-        .mockResolvedValueOnce({ rows: [{ id: 1 }, { id: 2 }, { id: 3 }] }) // team members
-        .mockResolvedValueOnce({ rows: [{ count: '5' }] }) // listings
-        .mockResolvedValueOnce({ rows: [{ count: '3' }] }) // leads
-        .mockResolvedValueOnce({ rows: [{ count: '2' }] }) // sales
-        .mockResolvedValueOnce({ rows: [{ count: '1' }] }) // rent
-        .mockResolvedValueOnce({ rows: [{ count: '4' }] }) // viewings
-        .mockResolvedValueOnce({ rows: [{ name: 'Team Leader', user_code: 'TL001' }] }) // team leader info
-        .mockResolvedValueOnce({ rows: [ // team members info
+        .mockResolvedValueOnce({ rows: [
           { id: 1, name: 'Team Leader', user_code: 'TL001', role: 'team_leader' },
           { id: 2, name: 'Agent 1', user_code: 'A001', role: 'agent' },
           { id: 3, name: 'Agent 2', user_code: 'A002', role: 'agent' }
-        ] });
+        ] }) // team members
+        .mockResolvedValueOnce({ rows: [{ agent_id: 2, count: '2' }, { agent_id: 3, count: '3' }] }) // listings
+        .mockResolvedValueOnce({ rows: [{ agent_id: 1, count: '1' }, { agent_id: 2, count: '1' }, { agent_id: 3, count: '1' }] }) // leads
+        .mockResolvedValueOnce({ rows: [{ agent_id: 1, count: '1' }, { agent_id: 2, count: '1' }] }) // sales
+        .mockResolvedValueOnce({ rows: [{ agent_id: 2, count: '1' }] }) // rent
+        .mockResolvedValueOnce({ rows: [{ agent_id: 1, count: '2' }, { agent_id: 2, count: '1' }, { agent_id: 3, count: '1' }] }); // viewings
 
       const result = await dcsrReportsModel.calculateTeamDCSRData(teamLeaderId, startDate, endDate);
 
@@ -531,6 +529,34 @@ describe('DCSR Reports Model', () => {
       expect(result.rent_count).toBe(1);
       expect(result.viewings_count).toBe(4);
       expect(result.team_members).toHaveLength(3);
+      expect(result.agent_breakdown).toHaveLength(3);
+      expect(result.agent_breakdown[0]).toMatchObject({
+        id: 1,
+        name: 'Team Leader',
+        listings_count: 0,
+        leads_count: 1,
+        sales_count: 1,
+        rent_count: 0,
+        viewings_count: 2
+      });
+      expect(result.agent_breakdown[1]).toMatchObject({
+        id: 2,
+        name: 'Agent 1',
+        listings_count: 2,
+        leads_count: 1,
+        sales_count: 1,
+        rent_count: 1,
+        viewings_count: 1
+      });
+      expect(result.agent_breakdown[2]).toMatchObject({
+        id: 3,
+        name: 'Agent 2',
+        listings_count: 3,
+        leads_count: 1,
+        sales_count: 0,
+        rent_count: 0,
+        viewings_count: 1
+      });
     });
 
     it('should throw error if team has no members', async () => {
