@@ -344,6 +344,109 @@ describe('DCSR Reports Model', () => {
       });
       expect(mockClient.release).toHaveBeenCalled();
     });
+
+    it('should include unassigned activity rows when some records have no agent_id', async () => {
+      const startDate = new Date('2024-01-01');
+      const endDate = new Date('2024-01-31');
+
+      mockClient.query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              name: 'Ali Ayash',
+              user_code: 'AA',
+              role: 'team_leader',
+              assigned_to: null,
+              assigned_team_leader_id: null,
+              assigned_team_leader_name: null,
+              assigned_team_leader_code: null
+            },
+            {
+              id: 2,
+              name: 'Ara Markarian',
+              user_code: 'AM',
+              role: 'agent',
+              assigned_to: 1,
+              assigned_team_leader_id: 1,
+              assigned_team_leader_name: 'Ali Ayash',
+              assigned_team_leader_code: 'AA'
+            }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '5' },
+            { agent_id: 2, count: '3' },
+            { agent_id: null, count: '4' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '20' },
+            { agent_id: 2, count: '10' },
+            { agent_id: null, count: '6' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '2' },
+            { agent_id: 2, count: '1' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '0' },
+            { agent_id: 2, count: '1' }
+          ]
+        })
+        .mockResolvedValueOnce({
+          rows: [
+            { agent_id: 1, count: '7' },
+            { agent_id: 2, count: '5' }
+          ]
+        });
+
+      pool.connect.mockResolvedValueOnce(mockClient);
+
+      const result = await dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData(startDate, endDate);
+
+      expect(result).toMatchObject({
+        team_count: 2,
+        agent_count: 2,
+        listings_count: 12,
+        leads_count: 36,
+        sales_count: 3,
+        rent_count: 1,
+        viewings_count: 12
+      });
+
+      expect(result.team_breakdown).toHaveLength(2);
+      expect(result.team_breakdown[1]).toMatchObject({
+        team_leader_name: 'Unassigned',
+        agent_breakdown: [
+          {
+            id: 0,
+            name: 'Unassigned activity',
+            role: 'unassigned',
+            listings_count: 4,
+            leads_count: 6,
+            sales_count: 0,
+            rent_count: 0,
+            viewings_count: 0
+          }
+        ]
+      });
+
+      expect(result.agent_breakdown).toHaveLength(3);
+      expect(result.agent_breakdown[2]).toMatchObject({
+        id: 0,
+        name: 'Unassigned activity',
+        role: 'unassigned',
+        listings_count: 4,
+        leads_count: 6
+      });
+    });
   });
 
   describe('createDCSRReport', () => {

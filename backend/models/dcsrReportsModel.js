@@ -264,7 +264,7 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
     const listingsResult = await client.query(
       `SELECT p.agent_id, COUNT(*)::integer AS count
        FROM properties p
-       WHERE p.agent_id = ANY($1::int[])
+       WHERE (p.agent_id = ANY($1::int[]) OR p.agent_id IS NULL)
        AND p.created_at >= $2::timestamp
        AND p.created_at <= $3::timestamp
        GROUP BY p.agent_id`,
@@ -274,7 +274,7 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
     const leadsResult = await client.query(
       `SELECT l.agent_id, COUNT(*)::integer AS count
        FROM leads l
-       WHERE l.agent_id = ANY($1::int[])
+       WHERE (l.agent_id = ANY($1::int[]) OR l.agent_id IS NULL)
        AND DATE(l.date) >= $2::date
        AND DATE(l.date) <= $3::date
        GROUP BY l.agent_id`,
@@ -285,7 +285,7 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
       `SELECT p.agent_id, COUNT(*)::integer AS count
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.agent_id = ANY($1::int[])
+       WHERE (p.agent_id = ANY($1::int[]) OR p.agent_id IS NULL)
        AND p.closed_date IS NOT NULL
        AND p.closed_date >= $2::date
        AND p.closed_date <= $3::date
@@ -299,7 +299,7 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
       `SELECT p.agent_id, COUNT(*)::integer AS count
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.agent_id = ANY($1::int[])
+       WHERE (p.agent_id = ANY($1::int[]) OR p.agent_id IS NULL)
        AND p.closed_date IS NOT NULL
        AND p.closed_date >= $2::date
        AND p.closed_date <= $3::date
@@ -312,7 +312,7 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
     const viewingsResult = await client.query(
       `SELECT v.agent_id, COUNT(*)::integer AS count
        FROM viewings v
-       WHERE v.agent_id = ANY($1::int[])
+       WHERE (v.agent_id = ANY($1::int[]) OR v.agent_id IS NULL)
        AND v.viewing_date >= $2::date
        AND v.viewing_date <= $3::date
        GROUP BY v.agent_id`,
