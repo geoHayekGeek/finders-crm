@@ -352,6 +352,30 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
       };
     });
 
+    const unassignedCounts = {
+      listings_count: listingsLookup.get(null) || 0,
+      leads_count: leadsLookup.get(null) || 0,
+      sales_count: salesLookup.get(null) || 0,
+      rent_count: rentLookup.get(null) || 0,
+      viewings_count: viewingsLookup.get(null) || 0
+    };
+
+    const hasUnassignedActivity = Object.values(unassignedCounts).some((count) => count > 0);
+
+    if (hasUnassignedActivity) {
+      agentBreakdown.push({
+        id: 0,
+        name: 'Unassigned activity',
+        user_code: null,
+        role: 'unassigned',
+        team_leader_id: null,
+        team_leader_name: 'Unassigned',
+        team_leader_code: null,
+        is_team_leader: false,
+        ...unassignedCounts
+      });
+    }
+
     const teamGroups = new Map();
 
     agentBreakdown.forEach((row) => {
@@ -373,9 +397,15 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
       const orderedAgents = [...team.agent_breakdown].sort((a, b) => {
         const aIsLeader = team.team_leader_id && a.id === team.team_leader_id ? 0 : 1;
         const bIsLeader = team.team_leader_id && b.id === team.team_leader_id ? 0 : 1;
+        const aIsUnassignedActivity = normalizeRole(a.role) === 'unassigned' ? 1 : 0;
+        const bIsUnassignedActivity = normalizeRole(b.role) === 'unassigned' ? 1 : 0;
 
         if (aIsLeader !== bIsLeader) {
           return aIsLeader - bIsLeader;
+        }
+
+        if (aIsUnassignedActivity !== bIsUnassignedActivity) {
+          return aIsUnassignedActivity - bIsUnassignedActivity;
         }
 
         return a.name.localeCompare(b.name);
@@ -410,8 +440,12 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
     }).sort((a, b) => {
       if (a.team_leader_name === 'Unassigned') return 1;
       if (b.team_leader_name === 'Unassigned') return -1;
+      if (a.team_leader_name === 'Unassigned activity') return 1;
+      if (b.team_leader_name === 'Unassigned activity') return -1;
       return a.team_leader_name.localeCompare(b.team_leader_name);
     });
+
+    const actualAgentCount = agentBreakdown.filter((row) => normalizeRole(row.role) !== 'unassigned').length;
 
     const totals = agentBreakdown.reduce((acc, row) => {
       acc.listings_count += row.listings_count || 0;
@@ -434,7 +468,7 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
       team_breakdown: teamBreakdown,
       agent_breakdown: teamBreakdown.flatMap((team) => team.agent_breakdown),
       team_count: teamBreakdown.length,
-      agent_count: agentBreakdown.length,
+      agent_count: actualAgentCount,
       listings_count: totals.listings_count,
       leads_count: totals.leads_count,
       sales_count: totals.sales_count,

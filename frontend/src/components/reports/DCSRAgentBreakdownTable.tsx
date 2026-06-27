@@ -187,7 +187,9 @@ export default function DCSRAgentBreakdownTable({
     return teams.reduce(
       (acc, team) => {
         acc.teamCount += 1
-        acc.agentCount += team.agent_breakdown?.length || 0
+        acc.agentCount += (team.agent_breakdown || []).filter(
+          (agent) => normalizeRole(agent.role) !== 'unassigned'
+        ).length
         acc.listings += team.listings_count || 0
         acc.calls += team.leads_count || 0
         acc.sales += team.sales_count || 0
@@ -290,6 +292,8 @@ export default function DCSRAgentBreakdownTable({
                 {teams.map((team, teamIndex) => {
                   const accent = TEAM_ACCENTS[teamIndex % TEAM_ACCENTS.length]
                   const members = team.agent_breakdown || []
+                  const actualMembers = members.filter((agent) => normalizeRole(agent.role) !== 'unassigned')
+                  const hasUnassignedActivity = members.some((agent) => normalizeRole(agent.role) === 'unassigned')
                   const teamLabel = `${team.team_leader_name}${team.team_leader_code ? ` (${team.team_leader_code})` : ''}`
 
                   return (
@@ -303,8 +307,13 @@ export default function DCSRAgentBreakdownTable({
                                   {teamLabel}
                                 </div>
                                 <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${accent.badge}`}>
-                                  {members.length} members
+                                  {actualMembers.length} members
                                 </span>
+                                {hasUnassignedActivity && (
+                                  <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-900">
+                                    Includes unassigned activity
+                                  </span>
+                                )}
                               </div>
                               <p className="mt-1 text-xs text-slate-600">
                                 Team totals are shown below, with one row per agent.
@@ -336,17 +345,26 @@ export default function DCSRAgentBreakdownTable({
                       {members.map((agent) => {
                         runningIndex += 1
                         const isLeader = normalizeRole(agent.role) === 'team leader'
+                        const isUnassignedActivity = normalizeRole(agent.role) === 'unassigned'
 
                         return (
                           <tr
                             key={agent.id}
-                            className="group border-b border-slate-100 transition-colors hover:bg-slate-50"
+                            className={`group border-b border-slate-100 transition-colors hover:bg-slate-50 ${
+                              isUnassignedActivity ? 'bg-slate-50/70' : ''
+                            }`}
                           >
                             <td className="px-4 py-3 text-center text-sm font-semibold text-slate-700">
                               {runningIndex}
                             </td>
                             <td className="px-4 py-3">
-                              <div className={`inline-flex min-w-0 items-start gap-3 rounded-xl px-3 py-2 ${isLeader ? accent.soft : 'bg-white'}`}>
+                              <div className={`inline-flex min-w-0 items-start gap-3 rounded-xl px-3 py-2 ${
+                                isLeader
+                                  ? accent.soft
+                                  : isUnassignedActivity
+                                    ? 'bg-slate-100'
+                                    : 'bg-white'
+                              }`}>
                                 <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isLeader ? accent.badge : 'bg-slate-100 text-slate-600'}`}>
                                   {agent.name
                                     .split(' ')
@@ -358,12 +376,23 @@ export default function DCSRAgentBreakdownTable({
                                 </div>
                                 <div className="min-w-0">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <span className={`text-sm font-semibold ${isLeader ? 'text-slate-900' : 'text-slate-800'}`}>
+                                    <span className={`text-sm font-semibold ${
+                                      isLeader
+                                        ? 'text-slate-900'
+                                        : isUnassignedActivity
+                                          ? 'text-slate-700 italic'
+                                          : 'text-slate-800'
+                                    }`}>
                                       {agent.name}
                                     </span>
                                     {agent.user_code && (
                                       <span className="text-xs text-slate-500">
                                         ({agent.user_code})
+                                      </span>
+                                    )}
+                                    {isUnassignedActivity && (
+                                      <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-700">
+                                        Unassigned
                                       </span>
                                     )}
                                     {isLeader && (
@@ -373,7 +402,11 @@ export default function DCSRAgentBreakdownTable({
                                     )}
                                   </div>
                                   <div className="mt-0.5 text-xs text-slate-500">
-                                    {isLeader ? 'Team lead' : 'Team member'}
+                                    {isUnassignedActivity
+                                      ? 'Records not linked to a specific agent'
+                                      : isLeader
+                                        ? 'Team lead'
+                                        : 'Team member'}
                                   </div>
                                 </div>
                               </div>
