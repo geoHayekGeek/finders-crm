@@ -13,6 +13,25 @@ interface EditDCSRModalProps {
   onSuccess: () => void
 }
 
+function buildDCSRRangeSlug(report: Pick<DCSRMonthlyReport, 'start_date' | 'end_date'>) {
+  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+  const start = new Date(report.start_date)
+  const end = new Date(report.end_date)
+
+  return `${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  window.URL.revokeObjectURL(url)
+  document.body.removeChild(link)
+}
+
 export default function EditDCSRModal({ report, onClose, onSuccess }: EditDCSRModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
@@ -53,7 +72,17 @@ export default function EditDCSRModal({ report, onClose, onSuccess }: EditDCSRMo
       const response = await dcsrApi.update(report.id, formData, token)
 
       if (response.success) {
-        showSuccess('DCSR report updated successfully')
+        try {
+          const blob = await dcsrApi.exportToExcel(report.id, token)
+          triggerBlobDownload(
+            blob,
+            `DCSR_Report_${buildDCSRRangeSlug(report)}.xlsx`
+          )
+          showSuccess('DCSR report updated and downloaded successfully')
+        } catch {
+          showError('DCSR report was updated, but the Excel download failed. You can export it from the reports list.')
+        }
+
         onSuccess()
       }
     } catch (error: any) {

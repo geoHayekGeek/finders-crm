@@ -1,9 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
 import { X, AlertCircle, RefreshCw, Users, Building2, Table, ClipboardList } from 'lucide-react'
-import { DCSRFormData, DCSRPreviewData } from '@/types/reports'
+import { DCSRFormData, DCSRMonthlyReport, DCSRPreviewData } from '@/types/reports'
 import { dcsrApi, usersApi, statusesApi, categoriesApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -18,10 +17,28 @@ interface CreateDCSRModalProps {
   onSuccess: () => void
 }
 
+function buildDCSRRangeSlug(report: Pick<DCSRMonthlyReport, 'start_date' | 'end_date'>) {
+  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+  const start = new Date(report.start_date)
+  const end = new Date(report.end_date)
+
+  return `${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  window.URL.revokeObjectURL(url)
+  document.body.removeChild(link)
+}
+
 export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
-  const router = useRouter()
 
   const [activeTab, setActiveTab] = useState<'company' | 'operations' | 'team'>('company')
   const [loading, setLoading] = useState(false)
@@ -341,9 +358,21 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
             },
             token
           )
-          showSuccess('DCSR report created successfully with custom values')
-        } else {
-          showSuccess('DCSR report created successfully')
+        }
+
+        try {
+          const blob = await dcsrApi.exportToExcel(response.data.id, token)
+          triggerBlobDownload(
+            blob,
+            `DCSR_Report_${buildDCSRRangeSlug(response.data)}.xlsx`
+          )
+          showSuccess(
+            hasManualEdits
+              ? 'DCSR report created and downloaded successfully with custom values'
+              : 'DCSR report created and downloaded successfully'
+          )
+        } catch {
+          showError('DCSR report was saved, but the Excel download failed. You can export it from the reports list.')
         }
         
         onSuccess()
