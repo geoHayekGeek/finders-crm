@@ -323,19 +323,37 @@ export interface UpdateOperationsCommissionData {
 
 // Sale & Rent Source Report Types
 export interface SaleRentSourceRow {
+  property_id?: number
   closed_date: string
+  team_leader_id?: number | null
+  team_leader_name?: string
+  team_leader_code?: string | null
+  team_leader_role?: string | null
+  agent_id?: number | null
   agent_name: string
+  agent_code?: string | null
+  agent_role?: string | null
   reference_number: string
   sold_rented: string
   source_name: string
+  owner_name?: string
+  phone_number?: string
   price: number
   finders_commission: number
-  client_name: string
+  notes?: string
+  client_name?: string
 }
 
 export interface SaleRentSourceFilters extends ReportFilters {
   source?: string
   sold_rented?: string
+}
+
+export interface SaleRentSourceExportPayload {
+  start_date: string
+  end_date: string
+  agent_id?: number
+  rows: SaleRentSourceRow[]
 }
 
 // Operations Daily Report Types

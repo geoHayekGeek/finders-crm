@@ -3,21 +3,62 @@
 
 const ReportsController = require('../../controllers/reportsController');
 const { getSaleRentSourceData } = require('../../models/saleRentSourceReportModel');
-const { exportSaleRentSourceToExcel, exportSaleRentSourceToPDF } = require('../../utils/saleRentSourceReportExporter');
+const {
+  exportSaleRentSourceToExcel,
+  exportSaleRentSourceToPDF
+} = require('../../utils/saleRentSourceReportExporter');
 
-// Mock dependencies
 jest.mock('../../models/saleRentSourceReportModel');
 jest.mock('../../utils/saleRentSourceReportExporter');
 jest.mock('../../config/db');
 
 describe('Sale & Rent Source Report', () => {
-  let req, res;
+  let req;
+  let res;
+
+  const mockRows = [
+    {
+      property_id: 1,
+      closed_date: '2024-01-15',
+      team_leader_id: 2,
+      team_leader_name: 'Alpha Team',
+      team_leader_code: 'TL-A',
+      agent_name: 'John Doe',
+      agent_code: 'A-1',
+      agent_role: 'agent',
+      reference_number: 'PROP-001',
+      sold_rented: 'SOLD',
+      source_name: 'Website',
+      owner_name: 'Jane Smith',
+      phone_number: '03/111111',
+      finders_commission: 5000,
+      notes: 'Long note for notes area'
+    },
+    {
+      property_id: 2,
+      closed_date: '2024-01-20',
+      team_leader_id: 3,
+      team_leader_name: 'Beta Team',
+      team_leader_code: 'TL-B',
+      agent_name: 'Jane Doe',
+      agent_code: 'A-2',
+      agent_role: 'consultant',
+      reference_number: 'PROP-002',
+      sold_rented: 'Rented',
+      source_name: 'Referral',
+      owner_name: 'Bob Johnson',
+      phone_number: '03/222222',
+      finders_commission: 3000,
+      notes: ''
+    }
+  ];
 
   beforeEach(() => {
     req = {
       body: {},
       params: {},
       query: {},
+      method: 'GET',
       user: { id: 1, role: 'admin' }
     };
     res = {
@@ -30,101 +71,31 @@ describe('Sale & Rent Source Report', () => {
   });
 
   describe('getSaleRentSourceReport', () => {
-    it('should get sale & rent source report successfully with valid parameters', async () => {
+    it('should get sale & rent source report successfully with valid dates', async () => {
       req.query = {
-        agent_id: '1',
         start_date: '2024-01-01',
         end_date: '2024-01-31'
       };
 
-      const mockData = [
-        {
-          closed_date: '2024-01-15',
-          agent_name: 'John Doe',
-          reference_number: 'PROP-001',
-          sold_rented: 'Sold',
-          source_name: 'Website',
-          price: 500000,
-          finders_commission: 5000,
-          client_name: 'Jane Smith'
-        },
-        {
-          closed_date: '2024-01-20',
-          agent_name: 'John Doe',
-          reference_number: 'PROP-002',
-          sold_rented: 'Rented',
-          source_name: 'Referral',
-          price: 2000,
-          finders_commission: 20,
-          client_name: 'Bob Johnson'
-        }
-      ];
-
-      getSaleRentSourceData.mockResolvedValue(mockData);
+      getSaleRentSourceData.mockResolvedValue(mockRows);
 
       await ReportsController.getSaleRentSourceReport(req, res);
 
-      expect(getSaleRentSourceData).toHaveBeenCalledWith({
-        agent_id: 1,
+      expect(getSaleRentSourceData).toHaveBeenCalledWith(expect.objectContaining({
         start_date: '2024-01-01',
         end_date: '2024-01-31'
-      });
+      }));
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        data: mockData,
+        data: mockRows,
         count: 2,
         message: 'Sale & Rent Source report generated successfully'
       });
     });
 
-    it('should return 400 when agent_id is missing', async () => {
+    it('should allow the legacy agent_id filter when provided', async () => {
       req.query = {
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      };
-
-      await ReportsController.getSaleRentSourceReport(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'agent_id, start_date, and end_date are required'
-      });
-    });
-
-    it('should return 400 when start_date is missing', async () => {
-      req.query = {
-        agent_id: '1',
-        end_date: '2024-01-31'
-      };
-
-      await ReportsController.getSaleRentSourceReport(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'agent_id, start_date, and end_date are required'
-      });
-    });
-
-    it('should return 400 when end_date is missing', async () => {
-      req.query = {
-        agent_id: '1',
-        start_date: '2024-01-01'
-      };
-
-      await ReportsController.getSaleRentSourceReport(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'agent_id, start_date, and end_date are required'
-      });
-    });
-
-    it('should handle empty results', async () => {
-      req.query = {
-        agent_id: '1',
+        agent_id: '123',
         start_date: '2024-01-01',
         end_date: '2024-01-31'
       };
@@ -133,17 +104,43 @@ describe('Sale & Rent Source Report', () => {
 
       await ReportsController.getSaleRentSourceReport(req, res);
 
+      expect(getSaleRentSourceData).toHaveBeenCalledWith(expect.objectContaining({
+        agent_id: 123,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      }));
+    });
+
+    it('should return 400 when start_date is missing', async () => {
+      req.query = {
+        end_date: '2024-01-31'
+      };
+
+      await ReportsController.getSaleRentSourceReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        data: [],
-        count: 0,
-        message: 'Sale & Rent Source report generated successfully'
+        success: false,
+        message: 'start_date and end_date are required'
+      });
+    });
+
+    it('should return 400 when end_date is missing', async () => {
+      req.query = {
+        start_date: '2024-01-01'
+      };
+
+      await ReportsController.getSaleRentSourceReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'start_date and end_date are required'
       });
     });
 
     it('should handle errors when generating report', async () => {
       req.query = {
-        agent_id: '1',
         start_date: '2024-01-01',
         end_date: '2024-01-31'
       };
@@ -160,181 +157,82 @@ describe('Sale & Rent Source Report', () => {
         error: expect.any(String)
       });
     });
-
-    it('should parse agent_id as integer', async () => {
-      req.query = {
-        agent_id: '123',
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      };
-
-      getSaleRentSourceData.mockResolvedValue([]);
-
-      await ReportsController.getSaleRentSourceReport(req, res);
-
-      expect(getSaleRentSourceData).toHaveBeenCalledWith({
-        agent_id: 123,
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      });
-    });
-
-    it('should handle report with multiple sources', async () => {
-      req.query = {
-        agent_id: '1',
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      };
-
-      const mockData = [
-        { source_name: 'Website', price: 500000 },
-        { source_name: 'Referral', price: 300000 },
-        { source_name: 'Social Media', price: 200000 },
-        { source_name: 'Website', price: 400000 }
-      ];
-
-      getSaleRentSourceData.mockResolvedValue(mockData);
-
-      await ReportsController.getSaleRentSourceReport(req, res);
-
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        data: mockData,
-        count: 4,
-        message: 'Sale & Rent Source report generated successfully'
-      });
-    });
-
-    it('should handle report with no source (None)', async () => {
-      req.query = {
-        agent_id: '1',
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      };
-
-      const mockData = [
-        {
-          closed_date: '2024-01-15',
-          source_name: 'None',
-          price: 500000
-        }
-      ];
-
-      getSaleRentSourceData.mockResolvedValue(mockData);
-
-      await ReportsController.getSaleRentSourceReport(req, res);
-
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        data: mockData,
-        count: 1,
-        message: 'Sale & Rent Source report generated successfully'
-      });
-    });
   });
 
   describe('exportSaleRentSourceExcel', () => {
-    it('should export Sale & Rent Source report to Excel successfully', async () => {
-      req.query = {
-        agent_id: '1',
+    it('should export edited rows from POST payload without refetching', async () => {
+      req.method = 'POST';
+      req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        rows: mockRows
       };
 
-      const mockData = [
-        {
-          agent_name: 'John Doe',
-          closed_date: '2024-01-15',
-          reference_number: 'PROP-001',
-          sold_rented: 'Sold',
-          source_name: 'Website',
-          price: 500000
-        }
-      ];
       const mockBuffer = Buffer.from('mock excel data');
-
-      getSaleRentSourceData.mockResolvedValue(mockData);
       exportSaleRentSourceToExcel.mockResolvedValue(mockBuffer);
 
       await ReportsController.exportSaleRentSourceExcel(req, res);
 
-      expect(getSaleRentSourceData).toHaveBeenCalledWith({
-        agent_id: 1,
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      });
-      expect(exportSaleRentSourceToExcel).toHaveBeenCalledWith(mockData, {
-        agentName: 'John Doe',
+      expect(getSaleRentSourceData).not.toHaveBeenCalled();
+      expect(exportSaleRentSourceToExcel).toHaveBeenCalledWith(mockRows, {
         startDate: '2024-01-01',
         endDate: '2024-01-31'
       });
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Sale_Rent_Source_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Statistics_of_sale_and_rent_source'));
       expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.xlsx'));
       expect(res.send).toHaveBeenCalledWith(mockBuffer);
     });
 
-    it('should return 400 when agent_id is missing', async () => {
+    it('should fall back to querying rows when payload rows are absent', async () => {
       req.query = {
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      };
-
-      await ReportsController.exportSaleRentSourceExcel(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'agent_id, start_date, and end_date are required'
-      });
-      expect(exportSaleRentSourceToExcel).not.toHaveBeenCalled();
-    });
-
-    it('should return 400 when start_date is missing', async () => {
-      req.query = {
-        agent_id: '1',
-        end_date: '2024-01-31'
-      };
-
-      await ReportsController.exportSaleRentSourceExcel(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'agent_id, start_date, and end_date are required'
-      });
-    });
-
-    it('should handle empty data with default agent name', async () => {
-      req.query = {
-        agent_id: '1',
         start_date: '2024-01-01',
         end_date: '2024-01-31'
       };
 
       const mockBuffer = Buffer.from('mock excel data');
-
-      getSaleRentSourceData.mockResolvedValue([]);
+      getSaleRentSourceData.mockResolvedValue(mockRows);
       exportSaleRentSourceToExcel.mockResolvedValue(mockBuffer);
 
       await ReportsController.exportSaleRentSourceExcel(req, res);
 
-      expect(exportSaleRentSourceToExcel).toHaveBeenCalledWith([], {
-        agentName: 'Agent',
+      expect(getSaleRentSourceData).toHaveBeenCalledWith(expect.objectContaining({
+        start_date: '2024-01-01',
+        end_date: '2024-01-31'
+      }));
+      expect(exportSaleRentSourceToExcel).toHaveBeenCalledWith(mockRows, {
         startDate: '2024-01-01',
         endDate: '2024-01-31'
       });
     });
 
+    it('should return 400 when start_date is missing', async () => {
+      req.method = 'POST';
+      req.body = {
+        end_date: '2024-01-31',
+        rows: mockRows
+      };
+
+      await ReportsController.exportSaleRentSourceExcel(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'start_date and end_date are required'
+      });
+      expect(exportSaleRentSourceToExcel).not.toHaveBeenCalled();
+    });
+
     it('should handle errors during export', async () => {
-      req.query = {
-        agent_id: '1',
+      req.method = 'POST';
+      req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        rows: mockRows
       };
 
       const error = new Error('Export failed');
-      getSaleRentSourceData.mockRejectedValue(error);
+      exportSaleRentSourceToExcel.mockRejectedValue(error);
 
       await ReportsController.exportSaleRentSourceExcel(req, res);
 
@@ -348,71 +246,40 @@ describe('Sale & Rent Source Report', () => {
   });
 
   describe('exportSaleRentSourcePDF', () => {
-    it('should export Sale & Rent Source report to PDF successfully', async () => {
-      req.query = {
-        agent_id: '1',
+    it('should export Sale & Rent Source report to PDF successfully from POST payload', async () => {
+      req.method = 'POST';
+      req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        rows: mockRows
       };
 
-      const mockData = [
-        {
-          agent_name: 'John Doe',
-          closed_date: '2024-01-15',
-          reference_number: 'PROP-001',
-          sold_rented: 'Sold',
-          source_name: 'Website',
-          price: 500000
-        }
-      ];
       const mockBuffer = Buffer.from('mock pdf data');
-
-      getSaleRentSourceData.mockResolvedValue(mockData);
       exportSaleRentSourceToPDF.mockResolvedValue(mockBuffer);
 
       await ReportsController.exportSaleRentSourcePDF(req, res);
 
-      expect(getSaleRentSourceData).toHaveBeenCalledWith({
-        agent_id: 1,
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      });
-      expect(exportSaleRentSourceToPDF).toHaveBeenCalledWith(mockData, {
-        agentName: 'John Doe',
+      expect(getSaleRentSourceData).not.toHaveBeenCalled();
+      expect(exportSaleRentSourceToPDF).toHaveBeenCalledWith(mockRows, {
         startDate: '2024-01-01',
         endDate: '2024-01-31'
       });
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
-      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Sale_Rent_Source_'));
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('Statistics_of_sale_and_rent_source'));
       expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', expect.stringContaining('.pdf'));
       expect(res.send).toHaveBeenCalledWith(mockBuffer);
     });
 
-    it('should return 400 when agent_id is missing', async () => {
-      req.query = {
+    it('should handle errors during PDF export', async () => {
+      req.method = 'POST';
+      req.body = {
         start_date: '2024-01-01',
-        end_date: '2024-01-31'
-      };
-
-      await ReportsController.exportSaleRentSourcePDF(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        message: 'agent_id, start_date, and end_date are required'
-      });
-      expect(exportSaleRentSourceToPDF).not.toHaveBeenCalled();
-    });
-
-    it('should handle errors during export', async () => {
-      req.query = {
-        agent_id: '1',
-        start_date: '2024-01-01',
-        end_date: '2024-01-31'
+        end_date: '2024-01-31',
+        rows: mockRows
       };
 
       const error = new Error('Export failed');
-      getSaleRentSourceData.mockRejectedValue(error);
+      exportSaleRentSourceToPDF.mockRejectedValue(error);
 
       await ReportsController.exportSaleRentSourcePDF(req, res);
 
@@ -425,4 +292,3 @@ describe('Sale & Rent Source Report', () => {
     });
   });
 });
-

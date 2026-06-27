@@ -47,7 +47,7 @@ const TABS: Tab[] = [
     id: 'sale-rent-source',
     name: 'Sale & Rent Source',
     icon: PieChart,
-    description: 'Statistics of sale and rent source per agent, with Finders commission per closure'
+    description: 'Company-wide sale and rent source workbook with team grouping and manual commission entry'
   },
   {
     id: 'operations-commission',

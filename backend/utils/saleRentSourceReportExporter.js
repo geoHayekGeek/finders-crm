@@ -1,116 +1,319 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 
-/**
- * Export Sale & Rent Source rows to Excel
- * @param {Array} rows
- * @param {Object} meta
- * @param {string} meta.agentName
- * @param {string} meta.startDate
- * @param {string} meta.endDate
- * @returns {Promise<Buffer>}
- */
-async function exportSaleRentSourceToExcel(rows, meta) {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Sale & Rent Source');
+const TEAM_ACCENTS = [
+  { fill: 'DDEBFF', font: '1D4ED8' },
+  { fill: 'E5F6E8', font: '166534' },
+  { fill: 'F1E7FF', font: '6D28D9' },
+  { fill: 'FFF1DE', font: 'B45309' },
+  { fill: 'FFE4EC', font: 'BE123C' },
+  { fill: 'DDF7F5', font: '0F766E' },
+  { fill: 'FFF5C4', font: 'A16207' },
+  { fill: 'E8EEF8', font: '334155' }
+];
 
-  // Helper function to format date (remove time, show only date)
-  const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    try {
-      // If it's already in YYYY-MM-DD format, return as is
-      if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return dateString;
-      }
-      // If it includes time, extract just the date part
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return dateString;
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    } catch {
-      // If parsing fails, try to extract date part from string
-      if (typeof dateString === 'string') {
-        const datePart = dateString.split('T')[0] || dateString.split(' ')[0];
-        return datePart;
-      }
-      return dateString;
+const MAIN_HEADER = ['Date', 'Agent name', 'Ref#', 'Sold/Rented', 'Source', 'Owner Name', 'Phone Number', 'Find Com'];
+const DATA_COLUMN_WIDTHS = [
+  18.6640625,
+  24.6640625,
+  19.109375,
+  22.88671875,
+  24.109375,
+  50.6640625,
+  29.21875,
+  22.109375,
+  13,
+  13,
+  13,
+  13,
+  13
+];
+
+function roundMoney(value) {
+  const numeric = Number.parseFloat(value);
+  return Number.isFinite(numeric) ? Math.round(numeric * 100) / 100 : 0;
+}
+
+function normalizeDateValue(dateValue) {
+  if (!dateValue) return null;
+  if (dateValue instanceof Date) {
+    return new Date(Date.UTC(
+      dateValue.getUTCFullYear(),
+      dateValue.getUTCMonth(),
+      dateValue.getUTCDate()
+    ));
+  }
+
+  if (typeof dateValue === 'string') {
+    const parsed = new Date(dateValue.length === 10 ? `${dateValue}T00:00:00Z` : dateValue);
+    if (!Number.isNaN(parsed.getTime())) {
+      return new Date(Date.UTC(
+        parsed.getUTCFullYear(),
+        parsed.getUTCMonth(),
+        parsed.getUTCDate()
+      ));
     }
+  }
+
+  return null;
+}
+
+function formatDisplayDate(dateValue) {
+  const normalized = normalizeDateValue(dateValue);
+  if (!normalized) {
+    return normalizeText(dateValue, '-') || '-';
+  }
+
+  const day = String(normalized.getUTCDate()).padStart(2, '0');
+  const month = normalized.toLocaleString('en-US', {
+    month: 'short',
+    timeZone: 'UTC'
+  });
+  const year = String(normalized.getUTCFullYear()).slice(-2);
+  return `${day}-${month}-${year}`;
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(roundMoney(amount));
+}
+
+function normalizeText(value, fallback = '') {
+  const text = value === null || value === undefined ? fallback : String(value);
+  return text.trim();
+}
+
+function hashString(value) {
+  const text = normalizeText(value, 'unassigned').toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0;
+  }
+  return hash;
+}
+
+function getTeamAccent(teamKey) {
+  if (!teamKey || String(teamKey).trim() === '') {
+    return TEAM_ACCENTS[TEAM_ACCENTS.length - 1];
+  }
+
+  const index = hashString(teamKey) % TEAM_ACCENTS.length;
+  return TEAM_ACCENTS[index];
+}
+
+function normalizeRoleLabel(role) {
+  return role ? String(role).toLowerCase().replace(/_/g, ' ').trim() : '';
+}
+
+function sortRows(rows) {
+  return [...(rows || [])].sort((a, b) => {
+    const teamA = normalizeText(a.team_leader_name, 'Unassigned');
+    const teamB = normalizeText(b.team_leader_name, 'Unassigned');
+    if (teamA !== teamB) return teamA.localeCompare(teamB, undefined, { sensitivity: 'base' });
+
+    const agentA = normalizeText(a.agent_name, 'Unknown');
+    const agentB = normalizeText(b.agent_name, 'Unknown');
+    if (agentA !== agentB) return agentA.localeCompare(agentB, undefined, { sensitivity: 'base' });
+
+    const dateA = normalizeDateValue(a.closed_date)?.getTime() ?? 0;
+    const dateB = normalizeDateValue(b.closed_date)?.getTime() ?? 0;
+    if (dateA !== dateB) return dateA - dateB;
+
+    return normalizeText(a.reference_number, '').localeCompare(
+      normalizeText(b.reference_number, ''),
+      undefined,
+      { sensitivity: 'base' }
+    );
+  });
+}
+
+function applyBorder(cell, isHeader = false) {
+  cell.border = {
+    top: { style: isHeader ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+    left: { style: 'thin', color: { argb: 'FF000000' } },
+    right: { style: 'thin', color: { argb: 'FF000000' } },
+    bottom: { style: isHeader ? 'medium' : 'thin', color: { argb: 'FF000000' } }
   };
+}
 
-  worksheet.columns = [
-    { header: 'Date', key: 'closed_date', width: 18 }, // Increased from 15 to 18
-    { header: 'Agent Name', key: 'agent_name', width: 25 },
-    { header: 'Ref#', key: 'reference_number', width: 15 },
-    { header: 'Sold/Rented', key: 'sold_rented', width: 15 },
-    { header: 'Source', key: 'source_name', width: 20 },
-    { header: 'Find Com', key: 'finders_commission', width: 15 },
-    { header: 'Client Name', key: 'client_name', width: 25 }
-  ];
+function applyHeaderStyle(cell, columnIndex, columnCount) {
+  const isFirst = columnIndex === 1;
+  const isLast = columnIndex === columnCount;
 
-  // Title row
-  worksheet.mergeCells('A1:G1');
-  const titleCell = worksheet.getCell('A1');
-  titleCell.value = `Statistics of Sale and Rent Source - ${meta.agentName}`;
-  titleCell.font = { size: 16, bold: true };
-  titleCell.alignment = { horizontal: 'center' };
-
-  // Period row
-  worksheet.mergeCells('A2:G2');
-  const periodCell = worksheet.getCell('A2');
-  periodCell.value = `Period: ${meta.startDate} to ${meta.endDate}`;
-  periodCell.font = { italic: true };
-  periodCell.alignment = { horizontal: 'center' };
-
-  // Header row
-  const headerRow = worksheet.getRow(4);
-  headerRow.values = worksheet.columns.map(col => col.header);
-  headerRow.font = { bold: true };
-  headerRow.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FFE5F0FF' }
+  cell.font = {
+    name: 'Calibri',
+    size: 11,
+    bold: true,
+    color: { argb: 'FF000000' }
   };
+  cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  cell.border = {
+    top: { style: 'medium', color: { argb: 'FF000000' } },
+    left: { style: isFirst ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+    right: { style: isLast ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+    bottom: { style: 'medium', color: { argb: 'FF000000' } }
+  };
+}
 
-  // Data rows
-  let currentRowIdx = 5;
-  rows.forEach(row => {
-    const rowValues = {
-      closed_date: formatDate(row.closed_date),
-      agent_name: row.agent_name,
-      reference_number: row.reference_number,
-      sold_rented: row.sold_rented,
-      source_name: row.source_name,
-      finders_commission: row.finders_commission,
-      client_name: row.client_name
+function applyDataCellStyle(cell, options = {}) {
+  const {
+    horizontal = 'center',
+    bold = false,
+    fill,
+    fontColor = 'FF000000',
+    numFmt,
+    wrapText = false
+  } = options;
+
+  cell.font = {
+    name: 'Calibri',
+    size: 11,
+    bold,
+    color: { argb: fontColor }
+  };
+  cell.alignment = {
+    horizontal,
+    vertical: 'middle',
+    wrapText
+  };
+  if (fill) {
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: fill }
     };
-    const excelRow = worksheet.getRow(currentRowIdx);
-    excelRow.values = [
-      rowValues.closed_date,
-      rowValues.agent_name,
-      rowValues.reference_number,
-      rowValues.sold_rented,
-      rowValues.source_name,
-      rowValues.finders_commission,
-      rowValues.client_name
-    ];
-    currentRowIdx++;
+  }
+  if (numFmt) {
+    cell.numFmt = numFmt;
+  }
+  applyBorder(cell);
+}
+
+function getLongNoteThreshold(note) {
+  const length = normalizeText(note, '').length;
+  return length >= 28;
+}
+
+function applyNoteCellStyle(cell, longNote = false) {
+  cell.font = {
+    name: 'Calibri',
+    size: 11,
+    bold: false,
+    color: { argb: 'FF000000' }
+  };
+  cell.alignment = {
+    horizontal: longNote ? 'left' : 'center',
+    vertical: 'middle',
+    wrapText: longNote
+  };
+  applyBorder(cell);
+}
+
+function buildMainRow(row) {
+  return [
+    normalizeDateValue(row.closed_date),
+    normalizeText(row.agent_name, 'Unknown'),
+    normalizeText(row.reference_number, 'No Ref'),
+    normalizeText(row.sold_rented, ''),
+    normalizeText(row.source_name, 'None'),
+    normalizeText(row.owner_name, ''),
+    normalizeText(row.phone_number, ''),
+    roundMoney(row.finders_commission)
+  ];
+}
+
+async function exportSaleRentSourceToExcel(rows, meta = {}) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'Finders CRM';
+  workbook.created = new Date();
+
+  const worksheet = workbook.addWorksheet('Sale & Rent Source');
+  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.properties.defaultRowHeight = 19.95;
+  worksheet.columns = DATA_COLUMN_WIDTHS.map((width, index) => ({
+    key: `col_${index + 1}`,
+    width
+  }));
+  worksheet.autoFilter = `A1:H${Math.max((rows || []).length + 1, 1)}`;
+
+  const headerRow = worksheet.addRow(MAIN_HEADER);
+  headerRow.height = 19.95;
+  headerRow.eachCell((cell, columnIndex) => {
+    applyHeaderStyle(cell, columnIndex, MAIN_HEADER.length);
+  });
+
+  const sortedRows = sortRows(rows);
+
+  sortedRows.forEach((row) => {
+    const excelRow = worksheet.addRow(buildMainRow(row));
+    excelRow.height = 19.95;
+
+    const teamKey = row.team_leader_id || row.team_leader_name || 'Unassigned';
+    const accent = getTeamAccent(teamKey);
+    const isLeader = normalizeRoleLabel(row.agent_role) === 'team leader'
+      || (row.team_leader_id !== null && row.agent_id !== null && Number(row.team_leader_id) === Number(row.agent_id));
+
+    for (let col = 1; col <= 8; col += 1) {
+      const cell = excelRow.getCell(col);
+      const styleOptions = {
+        horizontal: 'center',
+        bold: false
+      };
+
+      if (col === 1) {
+        styleOptions.numFmt = 'd-mmm-yy';
+      } else if (col === 2) {
+        styleOptions.fill = accent.fill;
+        styleOptions.bold = isLeader;
+        styleOptions.fontColor = accent.font;
+      } else if (col === 8) {
+        styleOptions.numFmt = '[$$-409]#,##0.00;[Red][$$-409]#,##0.00';
+      }
+
+      applyDataCellStyle(cell, styleOptions);
+    }
+
+    const note = normalizeText(row.notes, '');
+    if (note) {
+      const noteCell = worksheet.getCell(`I${excelRow.number}`);
+      const longNote = getLongNoteThreshold(note);
+      if (longNote) {
+        worksheet.mergeCells(excelRow.number, 9, excelRow.number, 13);
+      }
+      noteCell.value = note;
+      applyNoteCellStyle(noteCell, longNote);
+
+      if (longNote) {
+        for (let col = 10; col <= 13; col += 1) {
+          applyNoteCellStyle(worksheet.getCell(excelRow.number, col), true);
+        }
+      }
+    }
   });
 
   return workbook.xlsx.writeBuffer();
 }
 
-/**
- * Export Sale & Rent Source rows to PDF
- * @param {Array} rows
- * @param {Object} meta
- * @param {string} meta.agentName
- * @param {string} meta.startDate
- * @param {string} meta.endDate
- * @returns {Promise<Buffer>}
- */
-function exportSaleRentSourceToPDF(rows, meta) {
+function drawRow(doc, y, cells, widths, isHeader = false) {
+  let x = 40;
+  cells.forEach((text, index) => {
+    const width = widths[index];
+    if (isHeader) {
+      doc.rect(x, y - 2, width, 18).stroke('#000000');
+    }
+    doc.fontSize(8.5).font(isHeader ? 'Helvetica-Bold' : 'Helvetica');
+    doc.fillColor('#000000').text(String(text), x + 2, y, {
+      width: width - 4,
+      align: 'center',
+      ellipsis: true
+    });
+    x += width;
+  });
+}
+
+function exportSaleRentSourceToPDF(rows, meta = {}) {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({ margin: 40, size: 'A4' });
@@ -120,84 +323,46 @@ function exportSaleRentSourceToPDF(rows, meta) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      // Title
       doc.fontSize(18).font('Helvetica-Bold').text('Statistics of Sale and Rent Source', {
         align: 'center'
       });
-      doc.moveDown(0.5);
-      doc.fontSize(14).font('Helvetica').text(meta.agentName, { align: 'center' });
-      doc.moveDown(0.2);
-      doc.fontSize(11).font('Helvetica-Oblique').text(`Period: ${meta.startDate} to ${meta.endDate}`, {
-        align: 'center'
-      });
-      doc.moveDown(1);
-
-      // Helper function to format date (remove time, show only date)
-      const formatDate = (dateString) => {
-        if (!dateString) return '-';
-        try {
-          // If it's already in YYYY-MM-DD format, return as is
-          if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-            return dateString;
-          }
-          // If it includes time, extract just the date part
-          const date = new Date(dateString);
-          if (isNaN(date.getTime())) return dateString;
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        } catch {
-          // If parsing fails, try to extract date part from string
-          if (typeof dateString === 'string') {
-            const datePart = dateString.split('T')[0] || dateString.split(' ')[0];
-            return datePart;
-          }
-          return dateString;
-        }
-      };
-
-      // Table headers
-      const startX = 40;
-      let y = doc.y;
-      const colWidths = [60, 100, 60, 70, 80, 70, 100]; // Date column width
-
-      const drawRow = (cells, isHeader = false) => {
-        let x = startX;
-        cells.forEach((text, index) => {
-          const width = colWidths[index];
-          if (isHeader) {
-            doc.rect(x, y - 3, width, 18).fill('#E5F0FF');
-            doc.fillColor('#000000');
-          }
-          doc.fontSize(9).font(isHeader ? 'Helvetica-Bold' : 'Helvetica');
-          doc.fillColor('#000000').text(String(text), x + 2, y, {
-            width: width - 4,
-            ellipsis: true
-          });
-          x += width;
+      doc.moveDown(0.25);
+      if (meta.startDate && meta.endDate) {
+        doc.fontSize(11).font('Helvetica-Oblique').text(`Period: ${meta.startDate} to ${meta.endDate}`, {
+          align: 'center'
         });
-        y += 18;
-      };
+        doc.moveDown(0.75);
+      } else {
+        doc.moveDown(0.75);
+      }
 
-      drawRow(['Date', 'Agent', 'Ref#', 'Sold/Rented', 'Source', 'Find Com', 'Client'], true);
+      const widths = [55, 72, 55, 60, 60, 94, 74, 45];
+      const header = ['Date', 'Agent', 'Ref#', 'Sold/Rented', 'Source', 'Owner Name', 'Phone', 'Find Com'];
+      let y = doc.y;
 
-      // Rows
-      rows.forEach(row => {
+      drawRow(doc, y, header, widths, true);
+      y += 18;
+
+      const sortedRows = sortRows(rows);
+      sortedRows.forEach((row) => {
         if (y > doc.page.height - 60) {
           doc.addPage();
           y = 60;
-          drawRow(['Date', 'Agent', 'Ref#', 'Sold/Rented', 'Source', 'Find Com', 'Client'], true);
+          drawRow(doc, y, header, widths, true);
+          y += 18;
         }
-        drawRow([
-          formatDate(row.closed_date),
-          row.agent_name,
-          row.reference_number,
-          row.sold_rented,
-          row.source_name,
-          row.finders_commission,
-          row.client_name
-        ]);
+
+        drawRow(doc, y, [
+          formatDisplayDate(row.closed_date),
+          normalizeText(row.agent_name, 'Unknown'),
+          normalizeText(row.reference_number, 'No Ref'),
+          normalizeText(row.sold_rented, ''),
+          normalizeText(row.source_name, 'None'),
+          normalizeText(row.owner_name, ''),
+          normalizeText(row.phone_number, ''),
+          formatCurrency(row.finders_commission)
+        ], widths);
+        y += 18;
       });
 
       doc.end();
@@ -211,5 +376,3 @@ module.exports = {
   exportSaleRentSourceToExcel,
   exportSaleRentSourceToPDF
 };
-
-

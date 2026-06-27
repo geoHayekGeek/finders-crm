@@ -1,369 +1,719 @@
 'use client'
 
-import { useMemo, useState, useEffect } from 'react'
-import { Plus, RefreshCw, FileSpreadsheet, FileText, Eye, Filter, X } from 'lucide-react'
-import { SaleRentSourceRow, SaleRentSourceFilters } from '@/types/reports'
-import { saleRentSourceApi, usersApi } from '@/utils/api'
-import type { User } from '@/types/user'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
+import { BadgeDollarSign, BadgeCheck, CalendarRange, Download, Eye, FileSpreadsheet, Plus, RefreshCw, Trash2, Users, X } from 'lucide-react'
+import { SaleRentSourceExportPayload, SaleRentSourceRow } from '@/types/reports'
+import { saleRentSourceApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
-import ReportsFilters from './ReportsFilters'
 import { normalizeRole } from '@/utils/roleUtils'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
-interface GeneratedReport {
+interface SavedSaleRentSourceReport {
   id: number
-  agent_id: number
-  agent_name: string
   start_date: string
   end_date: string
+  row_count: number
+  total_commission: number
+  saved_at: string
+}
+
+interface TeamAccent {
+  border: string
+  soft: string
+  chip: string
+  chipText: string
+  value: string
+  iconBg: string
+  iconText: string
+}
+
+interface TableRowState extends SaleRentSourceRow {
+  __rowKey: string
+}
+
+interface TeamGroup {
+  key: string
+  label: string
+  code: string | null
+  accent: TeamAccent
+  rows: TableRowState[]
+}
+
+const TEAM_ACCENTS: TeamAccent[] = [
+  {
+    border: 'border-l-blue-500',
+    soft: 'bg-blue-50',
+    chip: 'bg-blue-100',
+    chipText: 'text-blue-900',
+    value: 'text-blue-900',
+    iconBg: 'bg-blue-100',
+    iconText: 'text-blue-700'
+  },
+  {
+    border: 'border-l-violet-500',
+    soft: 'bg-violet-50',
+    chip: 'bg-violet-100',
+    chipText: 'text-violet-900',
+    value: 'text-violet-900',
+    iconBg: 'bg-violet-100',
+    iconText: 'text-violet-700'
+  },
+  {
+    border: 'border-l-emerald-500',
+    soft: 'bg-emerald-50',
+    chip: 'bg-emerald-100',
+    chipText: 'text-emerald-900',
+    value: 'text-emerald-900',
+    iconBg: 'bg-emerald-100',
+    iconText: 'text-emerald-700'
+  },
+  {
+    border: 'border-l-amber-500',
+    soft: 'bg-amber-50',
+    chip: 'bg-amber-100',
+    chipText: 'text-amber-900',
+    value: 'text-amber-900',
+    iconBg: 'bg-amber-100',
+    iconText: 'text-amber-700'
+  },
+  {
+    border: 'border-l-rose-500',
+    soft: 'bg-rose-50',
+    chip: 'bg-rose-100',
+    chipText: 'text-rose-900',
+    value: 'text-rose-900',
+    iconBg: 'bg-rose-100',
+    iconText: 'text-rose-700'
+  },
+  {
+    border: 'border-l-cyan-500',
+    soft: 'bg-cyan-50',
+    chip: 'bg-cyan-100',
+    chipText: 'text-cyan-900',
+    value: 'text-cyan-900',
+    iconBg: 'bg-cyan-100',
+    iconText: 'text-cyan-700'
+  },
+  {
+    border: 'border-l-orange-500',
+    soft: 'bg-orange-50',
+    chip: 'bg-orange-100',
+    chipText: 'text-orange-900',
+    value: 'text-orange-900',
+    iconBg: 'bg-orange-100',
+    iconText: 'text-orange-700'
+  },
+  {
+    border: 'border-l-slate-500',
+    soft: 'bg-slate-50',
+    chip: 'bg-slate-100',
+    chipText: 'text-slate-900',
+    value: 'text-slate-900',
+    iconBg: 'bg-slate-100',
+    iconText: 'text-slate-700'
+  }
+]
+
+function sanitizeFilenamePart(value: string, fallback: string) {
+  const safe = value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return safe || fallback
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  window.URL.revokeObjectURL(url)
+  document.body.removeChild(a)
+}
+
+function hashString(value: string) {
+  const text = value.toLowerCase()
+  let hash = 0
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0
+  }
+  return hash
+}
+
+function getTeamAccent(teamKey: string | number | null | undefined) {
+  if (teamKey === null || teamKey === undefined || teamKey === '') {
+    return TEAM_ACCENTS[TEAM_ACCENTS.length - 1]
+  }
+
+  const index = hashString(String(teamKey)) % TEAM_ACCENTS.length
+  return TEAM_ACCENTS[index]
+}
+
+function normalizeText(value: unknown, fallback = '') {
+  const text = value === null || value === undefined ? fallback : String(value)
+  return text.trim()
+}
+
+function getRowKey(row: SaleRentSourceRow, index: number) {
+  if (row.property_id) {
+    return `property-${row.property_id}`
+  }
+
+  return `${normalizeText(row.reference_number, 'ref')}-${normalizeText(row.closed_date, 'date')}-${index}`
+}
+
+function getDefaultRange() {
+  const now = new Date()
+  const previousMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
+  const previousMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
+
+  return {
+    start_date: previousMonthStart.toISOString().split('T')[0],
+    end_date: previousMonthEnd.toISOString().split('T')[0]
+  }
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number.isFinite(Number(value)) ? Number(value) : 0)
+}
+
+function formatPlainMoney(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number.isFinite(Number(value)) ? Number(value) : 0)
+}
+
+function formatRangeDisplay(startDate: string, endDate: string) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric'
+  })
+
+  return `${formatter.format(new Date(startDate))} - ${formatter.format(new Date(endDate))}`
+}
+
+function countUniqueTeams(rows: SaleRentSourceRow[]) {
+  return new Set(rows.map(row => normalizeText(row.team_leader_name || 'Unassigned', 'Unassigned'))).size
+}
+
+function countUniqueAgents(rows: SaleRentSourceRow[]) {
+  return new Set(rows.map(row => normalizeText(row.agent_name, 'Unknown'))).size
+}
+
+function groupRowsByTeam(rows: SaleRentSourceRow[]) {
+  const groups: TeamGroup[] = []
+  const groupMap = new Map<string, TeamGroup>()
+
+  rows.forEach((row, index) => {
+    const teamLabel = normalizeText(row.team_leader_name, 'Unassigned')
+    const teamCode = row.team_leader_code || null
+    const teamKey = String(row.team_leader_id || teamLabel || 'unassigned')
+
+    if (!groupMap.has(teamKey)) {
+      const group = {
+        key: teamKey,
+        label: teamLabel,
+        code: teamCode,
+        accent: getTeamAccent(teamKey),
+        rows: []
+      }
+      groupMap.set(teamKey, group)
+      groups.push(group)
+    }
+
+    groupMap.get(teamKey)!.rows.push({
+      ...row,
+      __rowKey: getRowKey(row, index)
+    })
+  })
+
+  return groups
+}
+
+function SaleRentSourceSummaryCards({
+  rows,
+}: {
+  rows: SaleRentSourceRow[]
+}) {
+  const summary = useMemo(() => {
+    const totalCommission = rows.reduce((sum, row) => sum + (Number(row.finders_commission) || 0), 0)
+    return {
+      teams: countUniqueTeams(rows),
+      agents: countUniqueAgents(rows),
+      closures: rows.length,
+      totalCommission
+    }
+  }, [rows])
+
+  const cards = [
+    { label: 'Teams', value: summary.teams, icon: Users, tone: TEAM_ACCENTS[1] },
+    { label: 'Agents', value: summary.agents, icon: Users, tone: TEAM_ACCENTS[0] },
+    { label: 'Closures', value: summary.closures, icon: BadgeCheck, tone: TEAM_ACCENTS[2] },
+    { label: 'Finders Com', value: formatMoney(summary.totalCommission), icon: BadgeDollarSign, tone: TEAM_ACCENTS[3] }
+  ]
+
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {cards.map((card) => {
+        const Icon = card.icon
+        return (
+          <div
+            key={card.label}
+            className={`flex min-h-[108px] flex-col justify-between rounded-2xl border px-4 py-3 shadow-sm ring-1 ring-white/60 ${card.tone.soft} ${card.tone.border}`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${card.tone.iconBg} ${card.tone.iconText}`}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500">
+                {card.label}
+              </p>
+            </div>
+            <div className={`mt-4 text-[28px] font-semibold leading-none tracking-[-0.04em] ${card.tone.value}`}>
+              {card.value}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function SaleRentSourceRowsTable({
+  rows,
+  editable,
+  onCommissionChange
+}: {
+  rows: SaleRentSourceRow[]
+  editable: boolean
+  onCommissionChange?: (rowKey: string, value: string) => void
+}) {
+  const groupedRows = useMemo(() => groupRowsByTeam(rows), [rows])
+
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-600">
+        No closures were found for this date range.
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-[1280px] border-separate border-spacing-0">
+        <thead className="sticky top-0 z-10 bg-white">
+          <tr>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Date
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Agent name
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Ref#
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Sold/Rented
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Source
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Owner Name
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Phone Number
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Find Com
+            </th>
+            <th className="border-b border-slate-200 bg-slate-50 px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+              Notes
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {groupedRows.map((group) => {
+            const totalCommission = group.rows.reduce((sum, row) => sum + (Number(row.finders_commission) || 0), 0)
+            const accent = group.accent
+            const displayLabel = group.code ? `${group.label} (${group.code})` : group.label
+
+            return (
+              <Fragment key={group.key}>
+                <tr>
+                  <td
+                    colSpan={9}
+                    className={`border-b border-slate-200 border-l-4 ${accent.border} ${accent.soft} px-4 py-4`}
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <div className="text-sm font-semibold text-slate-900">
+                            {displayLabel}
+                          </div>
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${accent.chip} ${accent.chipText}`}>
+                            {group.rows.length} closures
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Rows are grouped by team and ordered the same way they will appear in Excel.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${accent.chip} ${accent.chipText}`}>
+                          <BadgeCheck className="h-3.5 w-3.5" />
+                          {group.rows.length} rows
+                        </span>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${accent.chip} ${accent.chipText}`}>
+                          <BadgeDollarSign className="h-3.5 w-3.5" />
+                          {formatMoney(totalCommission)}
+                        </span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+
+                {group.rows.map((row) => {
+                  const isLeader = normalizeText(row.agent_role, '').replace(/_/g, ' ').toLowerCase() === 'team leader'
+                    || (row.team_leader_id !== null && row.agent_id !== null && Number(row.team_leader_id) === Number(row.agent_id))
+
+                  const commissionValue = Number.isFinite(Number(row.finders_commission))
+                    ? Number(row.finders_commission)
+                    : 0
+
+                  return (
+                    <tr key={row.__rowKey} className="border-b border-slate-100 transition-colors hover:bg-slate-50">
+                      <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                        {formatDateForDisplay(row.closed_date)}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3">
+                        <div className={`inline-flex min-w-0 items-start gap-3 rounded-xl px-3 py-2 ${accent.soft}`}>
+                          <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${accent.chip} ${accent.chipText}`}>
+                            {(normalizeText(row.agent_name, 'A').split(' ').filter(Boolean).slice(0, 2).map(part => part[0]).join('') || 'A').toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-semibold text-slate-900">
+                                {row.agent_name}
+                              </span>
+                              {row.agent_code && (
+                                <span className="text-xs text-slate-500">
+                                  ({row.agent_code})
+                                </span>
+                              )}
+                              {isLeader && (
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] ${accent.chip} ${accent.chipText}`}>
+                                  Leader
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                        {row.reference_number}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-center text-sm font-medium text-slate-900">
+                        {row.sold_rented}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                        {row.source_name}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                        {row.owner_name || '-'}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                        {row.phone_number || '-'}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-right text-sm text-slate-900">
+                        {editable ? (
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={Number.isFinite(commissionValue) ? String(commissionValue) : '0'}
+                            onChange={(e) => onCommissionChange?.(row.__rowKey, e.target.value)}
+                            className="w-28 rounded-lg border border-blue-200 px-3 py-2 text-right text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          />
+                        ) : (
+                          <span className="font-medium">
+                            {formatPlainMoney(commissionValue)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-700">
+                        <div className="max-w-[320px] truncate" title={row.notes || ''}>
+                          {row.notes || '-'}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 export default function SaleRentSourceTab() {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
   const { role } = usePermissions()
-  
-  const normalizedRole = normalizeRole(role);
+
+  const normalizedRole = normalizeRole(role)
   const canManage = normalizedRole === 'admin' || normalizedRole === 'operations manager' || normalizedRole === 'operations'
 
-  const [filters, setFilters] = useState<SaleRentSourceFilters>({})
+  const defaultRange = useMemo(() => getDefaultRange(), [])
+
+  const [reports, setReports] = useState<SavedSaleRentSourceReport[]>([])
+  const [reportRows, setReportRows] = useState<Record<number, SaleRentSourceRow[]>>({})
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
-  
-  // Load reports from localStorage on mount
-  const loadReportsFromStorage = (): GeneratedReport[] => {
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [draftRows, setDraftRows] = useState<SaleRentSourceRow[]>([])
+  const [formData, setFormData] = useState({
+    start_date: defaultRange.start_date,
+    end_date: defaultRange.end_date
+  })
+
+  const loadReportsFromStorage = useCallback((): SavedSaleRentSourceReport[] => {
     if (typeof window === 'undefined') return []
     try {
       const stored = localStorage.getItem('saleRentSourceReports')
-      return stored ? JSON.parse(stored) : []
+      const parsed = stored ? JSON.parse(stored) : []
+      if (!Array.isArray(parsed)) return []
+
+      return parsed
+        .map((report: any) => {
+          if (!report || typeof report !== 'object') return null
+          return {
+            id: Number(report.id),
+            start_date: String(report.start_date || ''),
+            end_date: String(report.end_date || ''),
+            row_count: Number(report.row_count ?? report.count ?? 0),
+            total_commission: Number(report.total_commission ?? 0),
+            saved_at: String(report.saved_at || report.created_at || new Date().toISOString())
+          } as SavedSaleRentSourceReport
+        })
+        .filter((report): report is SavedSaleRentSourceReport => Boolean(report && Number.isFinite(report.id)))
     } catch {
       return []
     }
-  }
+  }, [])
 
-  const loadReportRowsFromStorage = (): Record<number, SaleRentSourceRow[]> => {
+  const loadReportRowsFromStorage = useCallback((): Record<number, SaleRentSourceRow[]> => {
     if (typeof window === 'undefined') return {}
     try {
       const stored = localStorage.getItem('saleRentSourceReportRows')
-      return stored ? JSON.parse(stored) : {}
+      const parsed = stored ? JSON.parse(stored) : {}
+      if (!parsed || typeof parsed !== 'object') return {}
+
+      return Object.entries(parsed).reduce<Record<number, SaleRentSourceRow[]>>((acc, [key, value]) => {
+        const id = Number(key)
+        if (Number.isFinite(id) && Array.isArray(value)) {
+          acc[id] = value
+        }
+        return acc
+      }, {})
     } catch {
       return {}
     }
-  }
+  }, [])
 
-  const [reports, setReports] = useState<GeneratedReport[]>(loadReportsFromStorage())
-  const [reportRows, setReportRows] = useState<Record<number, SaleRentSourceRow[]>>(loadReportRowsFromStorage())
-  const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
-  const [isViewOpen, setIsViewOpen] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [agents, setAgents] = useState<User[]>([])
-
-  // Auto-save reports to localStorage whenever they change
   useEffect(() => {
-    if (typeof window !== 'undefined' && reports.length > 0) {
-      try {
-        localStorage.setItem('saleRentSourceReports', JSON.stringify(reports))
-      } catch (error) {
-        // Error handled silently - localStorage save failed
-      }
+    setReports(loadReportsFromStorage())
+    setReportRows(loadReportRowsFromStorage())
+  }, [loadReportRowsFromStorage, loadReportsFromStorage])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    if (reports.length > 0) {
+      localStorage.setItem('saleRentSourceReports', JSON.stringify(reports))
+    } else {
+      localStorage.removeItem('saleRentSourceReports')
     }
   }, [reports])
 
-  // Auto-save report rows to localStorage whenever they change
   useEffect(() => {
-    if (typeof window !== 'undefined' && Object.keys(reportRows).length > 0) {
-      try {
-        localStorage.setItem('saleRentSourceReportRows', JSON.stringify(reportRows))
-      } catch (error) {
-        // Error handled silently - localStorage save failed
-      }
+    if (typeof window === 'undefined') return
+
+    if (Object.keys(reportRows).length > 0) {
+      localStorage.setItem('saleRentSourceReportRows', JSON.stringify(reportRows))
+    } else {
+      localStorage.removeItem('saleRentSourceReportRows')
     }
   }, [reportRows])
 
-  // Default dates: previous month
-  const now = new Date()
-  const previousMonthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))
-  const previousMonthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))
-  const defaultStartDate = previousMonthStart.toISOString().split('T')[0]
-  const defaultEndDate = previousMonthEnd.toISOString().split('T')[0]
+  const selectedReport = useMemo(
+    () => reports.find(report => report.id === selectedReportId) || null,
+    [reports, selectedReportId]
+  )
 
-  const [createForm, setCreateForm] = useState<{
-    agent_id: number | undefined
-    start_date: string
-    end_date: string
-  }>({
-    agent_id: undefined,
-    start_date: defaultStartDate,
-    end_date: defaultEndDate,
-  })
-  const [previewData, setPreviewData] = useState<SaleRentSourceRow[] | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const selectedReportRows = useMemo(
+    () => (selectedReportId ? reportRows[selectedReportId] || [] : []),
+    [reportRows, selectedReportId]
+  )
 
-  // Load agents once for dropdown (same logic as ReportsFilters)
-  useMemo(() => {
-    const loadAgents = async () => {
-      if (!token) return
-      try {
-        const response = await usersApi.getAll(token as string)
-        if (response.success) {
-          const agentsList = response.users.filter(
-            (u: User) => {
-              const normalizedAgentRole = normalizeRole(u.role);
-              return (['agent', 'consultant'].includes(normalizedAgentRole) || normalizedAgentRole === 'team leader');
-            }
-          )
-          setAgents(agentsList)
-        }
-      } catch (error) {
-        console.error('Error loading agents for Sale & Rent Source modal:', error)
-      }
+  const resolveRowsForReport = useCallback(async (report: SavedSaleRentSourceReport) => {
+    const hasCachedRows = Object.prototype.hasOwnProperty.call(reportRows, report.id)
+    if (hasCachedRows) {
+      return reportRows[report.id] || []
     }
-    loadAgents()
-  }, [token])
 
-  const filteredReports = useMemo(() => {
-    return reports.filter(report => {
-      if (filters.agent_id && report.agent_id !== filters.agent_id) return false
-      if (filters.start_date && report.end_date < filters.start_date) return false
-      if (filters.end_date && report.start_date > filters.end_date) return false
-      return true
-    })
-  }, [reports, filters])
+    if (!token) {
+      throw new Error('You must be logged in to export this report')
+    }
 
-  // Filter current rows based on filters
-  const currentRows: SaleRentSourceRow[] = useMemo(() => {
-    const rows = selectedReportId !== null ? reportRows[selectedReportId] || [] : []
-    return rows.filter(row => {
-      if (filters.source && row.source_name !== filters.source) return false
-      if (filters.sold_rented && row.sold_rented !== filters.sold_rented) return false
-      return true
-    })
-  }, [selectedReportId, reportRows, filters.source, filters.sold_rented])
+    const response = await saleRentSourceApi.getAll({
+      start_date: report.start_date,
+      end_date: report.end_date
+    }, token)
 
-  // Auto-preview when agent and dates are set
+    if (!response.success) {
+      throw new Error('Failed to reload report rows')
+    }
+
+    setReportRows(prev => ({ ...prev, [report.id]: response.data }))
+    return response.data
+  }, [reportRows, token])
+
   useEffect(() => {
-    if (showCreateModal && createForm.agent_id && createForm.start_date && createForm.end_date && token && !previewLoading) {
-      const timeoutId = setTimeout(async () => {
-        try {
-          setPreviewLoading(true)
-          const response = await saleRentSourceApi.getAll(
-            {
-              agent_id: createForm.agent_id!,
-              start_date: createForm.start_date,
-              end_date: createForm.end_date,
-            },
-            token
-          )
-          if (response.success) {
-            setPreviewData(response.data)
-          } else {
-            setPreviewData(null)
-          }
-        } catch (error) {
-          setPreviewData(null)
-        } finally {
-          setPreviewLoading(false)
-        }
-      }, 500)
-      return () => clearTimeout(timeoutId)
-    } else {
-      setPreviewData(null)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showCreateModal, createForm.agent_id, createForm.start_date, createForm.end_date, token])
-
-  const handleGenerateReport = async () => {
-    if (!token) {
-      showError('You must be logged in to generate a report')
-      return
-    }
-    if (!createForm.agent_id || !createForm.start_date || !createForm.end_date) {
-      showError('Please select agent and date range before generating the report')
+    if (!showCreateModal) {
+      setPreviewError(null)
+      setPreviewLoading(false)
+      setDraftRows([])
       return
     }
 
-    try {
-      setLoading(true)
-      const response = await saleRentSourceApi.getAll(
-        {
-          agent_id: createForm.agent_id,
-          start_date: createForm.start_date,
-          end_date: createForm.end_date,
-        },
-        token
-      )
+    if (!token || !formData.start_date || !formData.end_date) {
+      setDraftRows([])
+      return
+    }
 
-      if (response.success) {
-        const rows = response.data
-        const id = Date.now()
-        const firstRow = rows[0]
+    const timeout = window.setTimeout(async () => {
+      try {
+        setPreviewLoading(true)
+        setPreviewError(null)
+        const response = await saleRentSourceApi.getAll({
+          start_date: formData.start_date,
+          end_date: formData.end_date
+        }, token)
 
-        // Get agent name: either from first row or users list fallback
-        let agentName =
-          firstRow?.agent_name || `Agent #${createForm.agent_id}`
-
-        // Try to fetch agents to get proper name if not in rows
-        if (!firstRow?.agent_name) {
-          try {
-            const usersResponse = await usersApi.getAll(token as string)
-            if (usersResponse.success) {
-              const agent = usersResponse.users.find(u => u.id === createForm.agent_id)
-              if (agent?.name) {
-                agentName = agent.name
-              }
-            }
-          } catch {
-            // ignore, fallback already set
-          }
+        if (response.success) {
+          setDraftRows(response.data)
+        } else {
+          setDraftRows([])
+          setPreviewError(response.message || 'Failed to load preview')
         }
-
-        const newReport: GeneratedReport = {
-          id,
-          agent_id: createForm.agent_id,
-          agent_name: agentName,
-          start_date: createForm.start_date,
-          end_date: createForm.end_date,
-        }
-
-        setReports(prev => [newReport, ...prev])
-        setReportRows(prev => ({ ...prev, [id]: rows }))
-        setSelectedReportId(id)
-        setIsViewOpen(true)
-        setShowCreateModal(false)
-
-        showSuccess('Report generated successfully')
+      } catch (error: any) {
+        setDraftRows([])
+        setPreviewError(error.message || 'Failed to load preview')
+      } finally {
+        setPreviewLoading(false)
       }
-    } catch (error: any) {
-      console.error('Error generating Sale & Rent Source report:', error)
-      showError(error.message || 'Failed to generate Sale & Rent Source report')
-    } finally {
-      setLoading(false)
-    }
+    }, 350)
+
+    return () => window.clearTimeout(timeout)
+  }, [showCreateModal, formData.start_date, formData.end_date, token])
+
+  const handleOpenCreateModal = () => {
+    const range = getDefaultRange()
+    setFormData(range)
+    setDraftRows([])
+    setPreviewError(null)
+    setShowCreateModal(true)
   }
 
-  const handleRefresh = async () => {
+  const handleCommissionChange = (rowKey: string, value: string) => {
+    setDraftRows(prev => prev.map((row, index) => {
+      const currentKey = row.property_id ? `property-${row.property_id}` : getRowKey(row, index)
+      if (currentKey !== rowKey) return row
+
+      const numeric = Number.parseFloat(value)
+      return {
+        ...row,
+        finders_commission: Number.isFinite(numeric) ? numeric : 0
+      }
+    }))
+  }
+
+  const handleSaveAndDownload = async () => {
     if (!token) {
-      showError('You must be logged in to refresh reports')
+      showError('You must be logged in to create a report')
       return
     }
 
-    if (reports.length === 0) {
-      showSuccess('No reports to refresh. Generate a report first.')
+    if (draftRows.length === 0) {
+      showError('No closures were found for the selected date range')
       return
     }
 
     try {
       setLoading(true)
-      
-      // Refresh all reports in the list
-      const refreshPromises = reports.map(async (report) => {
-        try {
-          const response = await saleRentSourceApi.getAll(
-            {
-              agent_id: report.agent_id,
-              start_date: report.start_date,
-              end_date: report.end_date,
-            },
-            token
-          )
 
-          if (response.success) {
-            return { reportId: report.id, rows: response.data }
-          }
-          return null
-        } catch (error) {
-          return null
-        }
-      })
+      const reportId = Date.now()
+      const rowsToSave = draftRows.map((row, index) => ({
+        ...row,
+        finders_commission: Number.isFinite(Number(row.finders_commission)) ? Number(row.finders_commission) : 0,
+        __rowKey: getRowKey(row, index)
+      }))
+      const cleanedRows = rowsToSave.map(({ __rowKey: _rowKey, ...row }) => row)
 
-      const results = await Promise.all(refreshPromises)
-      
-      // Update all report rows
-      const newRows: Record<number, SaleRentSourceRow[]> = {}
-      results.forEach(result => {
-        if (result) {
-          newRows[result.reportId] = result.rows
-        }
-      })
+      const totalCommission = cleanedRows.reduce((sum, row) => sum + (Number(row.finders_commission) || 0), 0)
+      const newReport: SavedSaleRentSourceReport = {
+        id: reportId,
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        row_count: cleanedRows.length,
+        total_commission: totalCommission,
+        saved_at: new Date().toISOString()
+      }
 
-      const updatedRows = { ...reportRows, ...newRows }
-      setReportRows(updatedRows)
-      showSuccess(`Refreshed ${results.filter(r => r !== null).length} report(s) successfully`)
-    } catch (error: any) {
-      showError(error.message || 'Failed to refresh reports')
-    } finally {
-      setLoading(false)
-    }
-  }
+      setReports(prev => [newReport, ...prev])
+      setReportRows(prev => ({ ...prev, [reportId]: cleanedRows }))
 
-  const handleExportExcel = async (report: GeneratedReport) => {
-    if (!token) {
-      showError('You must be logged in to export reports')
-      return
-    }
-    try {
-      const blob = await saleRentSourceApi.exportToExcel(
-        {
-          agent_id: report.agent_id,
-          start_date: report.start_date,
-          end_date: report.end_date,
-        },
-        token
-      )
+      const payload: SaleRentSourceExportPayload = {
+        start_date: formData.start_date,
+        end_date: formData.end_date,
+        rows: cleanedRows
+      }
 
-      const filename = `Sale_Rent_Source_${report.agent_name.replace(/\s+/g, '_')}_${report.start_date}_to_${report.end_date}.xlsx`
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      showSuccess('Sale & Rent Source report exported to Excel successfully')
+      const blob = await saleRentSourceApi.exportToExcelFromData(payload, token)
+      const filename = `Statistics_of_Sale_and_Rent_Source_${sanitizeFilenamePart(formData.start_date, 'start')}_to_${sanitizeFilenamePart(formData.end_date, 'end')}.xlsx`
+      downloadBlob(blob, filename)
+
+      showSuccess('Sale & Rent Source report saved and downloaded successfully')
+      setShowCreateModal(false)
     } catch (error: any) {
       showError(error.message || 'Failed to export Sale & Rent Source report to Excel')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleExportPDF = async (report: GeneratedReport) => {
-    if (!token) {
-      showError('You must be logged in to export reports')
-      return
-    }
-    try {
-      const blob = await saleRentSourceApi.exportToPDF(
-        {
-          agent_id: report.agent_id,
-          start_date: report.start_date,
-          end_date: report.end_date,
-        },
-        token
-      )
-
-      const filename = `Sale_Rent_Source_${report.agent_name.replace(/\s+/g, '_')}_${report.start_date}_to_${report.end_date}.pdf`
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
-      showSuccess('Sale & Rent Source report exported to PDF successfully')
-    } catch (error: any) {
-      showError(error.message || 'Failed to export Sale & Rent Source report to PDF')
-    }
-  }
-
-  const handleRecalculate = async (reportId: number) => {
-    if (!token) {
-      showError('You must be logged in to recalculate reports')
-      return
-    }
-
-    const report = reports.find(r => r.id === reportId)
+  const handleViewReport = async (reportId: number) => {
+    const report = reports.find(item => item.id === reportId)
     if (!report) {
       showError('Report not found')
       return
@@ -371,576 +721,412 @@ export default function SaleRentSourceTab() {
 
     try {
       setLoading(true)
-      const response = await saleRentSourceApi.getAll(
-        {
-          agent_id: report.agent_id,
-          start_date: report.start_date,
-          end_date: report.end_date,
-        },
-        token
-      )
-
-      if (response.success) {
-        const rows = response.data
-        const updatedRows = { ...reportRows, [reportId]: rows }
-        setReportRows(updatedRows)
-        showSuccess('Report recalculated successfully')
-        
-        // If this is the currently viewed report, update the view
-        if (selectedReportId === reportId) {
-          // The currentRows will automatically update since it's derived from reportRows
-        }
-      }
+      await resolveRowsForReport(report)
+      setSelectedReportId(reportId)
+      setShowViewModal(true)
     } catch (error: any) {
-      console.error('Error recalculating report:', error)
-      showError(error.message || 'Failed to recalculate report')
+      showError(error.message || 'Failed to load report')
     } finally {
       setLoading(false)
     }
   }
 
-  const openViewReport = (reportId: number) => {
-    setSelectedReportId(reportId)
-    setIsViewOpen(true)
+  const handleExportReport = async (reportId: number) => {
+    const report = reports.find(item => item.id === reportId)
+    if (!report) {
+      showError('Report not found')
+      return
+    }
+
+    if (!token) {
+      showError('You must be logged in to export reports')
+      return
+    }
+
+    try {
+      setLoading(true)
+      const rows = await resolveRowsForReport(report)
+      const blob = await saleRentSourceApi.exportToExcelFromData({
+        start_date: report.start_date,
+        end_date: report.end_date,
+        rows
+      }, token)
+
+      const filename = `Statistics_of_Sale_and_Rent_Source_${sanitizeFilenamePart(report.start_date, 'start')}_to_${sanitizeFilenamePart(report.end_date, 'end')}.xlsx`
+      downloadBlob(blob, filename)
+      showSuccess('Sale & Rent Source report exported to Excel successfully')
+    } catch (error: any) {
+      showError(error.message || 'Failed to export Sale & Rent Source report to Excel')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const closeViewReport = () => {
-    setIsViewOpen(false)
-    setSelectedReportId(null)
+  const handleDeleteReport = (reportId: number) => {
+    setReports(prev => prev.filter(report => report.id !== reportId))
+    setReportRows(prev => {
+      const next = { ...prev }
+      delete next[reportId]
+      return next
+    })
+
+    if (selectedReportId === reportId) {
+      setSelectedReportId(null)
+      setShowViewModal(false)
+    }
+
+    showSuccess('Report deleted')
   }
 
-  // Get unique sources and sold_rented values from currently selected report rows for filter dropdowns
-  const uniqueSources = useMemo(() => {
-    const rows = selectedReportId !== null ? reportRows[selectedReportId] || [] : []
-    const sources = new Set<string>()
-    rows.forEach(row => {
-      if (row.source_name) sources.add(row.source_name)
-    })
-    return Array.from(sources).sort()
-  }, [selectedReportId, reportRows])
-
-  const uniqueSoldRented = useMemo(() => {
-    const rows = selectedReportId !== null ? reportRows[selectedReportId] || [] : []
-    const soldRented = new Set<string>()
-    rows.forEach(row => {
-      if (row.sold_rented) soldRented.add(row.sold_rented)
-    })
-    return Array.from(soldRented).sort()
-  }, [selectedReportId, reportRows])
+  const activeReports = reports
 
   return (
     <div className="space-y-6">
-      {/* Filters that filter existing report rows (like Monthly Agent Stats) */}
-      <ReportsFilters
-        filters={filters}
-        setFilters={setFilters}
-        onClearFilters={() => setFilters({})}
-      />
-
-
-      {/* Actions Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {canManage && (
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              onClick={handleOpenCreateModal}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
             >
-              <Plus className="h-5 w-5 mr-2" />
-              Generate Report
+              <Plus className="h-4 w-4" />
+              Create report
             </button>
           )}
           <button
-            onClick={handleRefresh}
+            onClick={() => {
+              setReports(loadReportsFromStorage())
+              setReportRows(loadReportRowsFromStorage())
+            }}
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh saved
           </button>
+        </div>
+
+        <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
+          Company-wide source report with manual commission entry
         </div>
       </div>
 
-      {/* Info Card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-blue-800">
-          {canManage ? (
-            <>
-              Use <span className="font-medium">Generate Report</span> to create a Sale &amp; Rent Source
-              report for a specific agent and date range. The list below shows all generated reports; use a
-              row&apos;s actions to view or export it as PDF or Excel.
-            </>
-          ) : (
-            <>
-              View Sale &amp; Rent Source reports below. Use a row&apos;s actions to view or export it as PDF or Excel.
-            </>
-          )}
-        </p>
+      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+        <div className="flex items-start gap-3">
+          <CalendarRange className="mt-0.5 h-5 w-5 text-blue-600" />
+          <div>
+            <h3 className="text-sm font-semibold text-blue-900">
+              What gets created?
+            </h3>
+            <p className="mt-1 text-sm text-blue-800">
+              One Excel workbook for the entire company. Each row is a closed sale or rental, grouped by team and colored by team in the sheet. Commission is entered manually before download.
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Reports Table (one row per report) */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">
+            Saved reports
+          </h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Reports are stored locally in this browser so they can be reopened or exported again.
+          </p>
+        </div>
+
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-slate-200">
+            <thead className="bg-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  #
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Date range
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Agent
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Date Range
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Closures
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Teams
+                </th>
+                <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                  Total commission
+                </th>
+                <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredReports.length === 0 ? (
+            <tbody className="divide-y divide-slate-100 bg-white">
+              {activeReports.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                    No reports found. Generate a report above.
+                  <td colSpan={5} className="px-5 py-10 text-center text-sm text-slate-500">
+                    No saved reports yet. Create one to preview, edit commissions, and download the workbook.
                   </td>
                 </tr>
               ) : (
-                filteredReports.map((report, index) => (
-                  <tr key={report.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.agent_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.start_date} → {report.end_date}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                      {reportRows[report.id]?.length ?? 0}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
-                      <div className="flex items-center justify-center space-x-3">
-                        <button
-                          onClick={() => openViewReport(report.id)}
-                          className="text-blue-600 hover:text-blue-900 inline-flex items-center"
-                          title="View"
-                        >
-                          <Eye className="h-4 w-4 mr-1" />
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleRecalculate(report.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Recalculate"
-                          disabled={loading}
-                        >
-                          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button
-                          onClick={() => handleExportExcel(report)}
-                          className="text-green-600 hover:text-green-900"
-                          title="Export to Excel"
-                        >
-                          <FileSpreadsheet className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleExportPDF(report)}
-                          className="text-purple-600 hover:text-purple-900"
-                          title="Export to PDF"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                activeReports.map((report) => {
+                  const rows = reportRows[report.id] || []
+                  const teams = countUniqueTeams(rows)
+
+                  return (
+                    <tr key={report.id} className="hover:bg-slate-50">
+                      <td className="px-5 py-4 text-sm text-slate-900">
+                        {formatRangeDisplay(report.start_date, report.end_date)}
+                      </td>
+                      <td className="px-5 py-4 text-center text-sm text-slate-900">
+                        {report.row_count}
+                      </td>
+                      <td className="px-5 py-4 text-center text-sm text-slate-900">
+                        {teams}
+                      </td>
+                      <td className="px-5 py-4 text-right text-sm text-slate-900">
+                        {formatMoney(report.total_commission)}
+                      </td>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleViewReport(report.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleExportReport(report.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                            title="Export Excel"
+                          >
+                            <FileSpreadsheet className="h-4 w-4" />
+                            Export
+                          </button>
+                          <button
+                            onClick={() => handleDeleteReport(report.id)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* View Report Modal */}
-      {isViewOpen && selectedReportId !== null && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-40">
-          <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="my-8 flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Sale &amp; Rent Source Report
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {filteredReports.find(r => r.id === selectedReportId)?.agent_name} —{' '}
-                  {filteredReports.find(r => r.id === selectedReportId)?.start_date} to{' '}
-                  {filteredReports.find(r => r.id === selectedReportId)?.end_date}
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Create Sale &amp; Rent Source Report
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Select a date range, review the rows, edit commission values, then save to download the workbook.
                 </p>
               </div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={() => selectedReportId && handleRecalculate(selectedReportId)}
-                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={loading || selectedReportId === null}
-                  title="Recalculate"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                  Recalculate
-                </button>
-                <button
-                  onClick={closeViewReport}
-                  className="text-gray-400 hover:text-gray-600"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="space-y-6">
+                <div className="grid gap-4 rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-white to-blue-50 p-5 shadow-sm lg:grid-cols-[1fr_auto_1fr]">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      From
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.start_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, start_date: e.target.value }))}
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+
+                  <div className="hidden items-center justify-center text-blue-500 lg:flex">
+                    -
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      To
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.end_date}
+                      onChange={(e) => setFormData(prev => ({ ...prev, end_date: e.target.value }))}
+                      className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                    />
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { label: 'Previous Month', ...defaultRange },
+                        {
+                          label: 'Month to Date',
+                          start_date: (() => {
+                            const today = new Date()
+                            const year = today.getFullYear()
+                            const month = String(today.getMonth() + 1).padStart(2, '0')
+                            return `${year}-${month}-01`
+                          })(),
+                          end_date: new Date().toISOString().split('T')[0]
+                        },
+                        {
+                          label: 'Last 30 Days',
+                          start_date: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                          end_date: new Date().toISOString().split('T')[0]
+                        },
+                        {
+                          label: 'Quarter to Date',
+                          start_date: (() => {
+                            const date = new Date()
+                            const quarterStartMonth = Math.floor(date.getMonth() / 3) * 3
+                            return new Date(date.getFullYear(), quarterStartMonth, 1).toISOString().split('T')[0]
+                          })(),
+                          end_date: new Date().toISOString().split('T')[0]
+                        }
+                      ].map((preset) => (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => setFormData({ start_date: preset.start_date, end_date: preset.end_date })}
+                          className="rounded-full border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <BadgeCheck className="mt-0.5 h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-blue-900">
+                        What you are editing
+                      </p>
+                      <p className="mt-1 text-sm text-blue-800">
+                        Each row is a closed property from the selected period. The workbook mirrors the spreadsheet layout you sent, with team-colored agents and manual commission entry before Excel is generated.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {previewError && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                    {previewError}
+                  </div>
+                )}
+
+                {previewLoading ? (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                    Loading preview...
+                  </div>
+                ) : (
+                  <>
+                    <SaleRentSourceSummaryCards rows={draftRows} />
+                    <SaleRentSourceRowsTable
+                      rows={draftRows}
+                      editable
+                      onCommissionChange={handleCommissionChange}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
-            <div className="p-4 overflow-y-auto max-h-[calc(80vh-120px)]">
-              {/* Filter Section inside the modal */}
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center">
-                    <Filter className="h-4 w-4 text-gray-400 mr-2" />
-                    <h4 className="text-sm font-medium text-gray-900">Filter Rows</h4>
-                  </div>
-                  {(filters.source || filters.sold_rented) && (
-                    <button
-                      onClick={() => setFilters({ ...filters, source: undefined, sold_rented: undefined })}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center"
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Clear
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {/* Source Filter */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Source
-                    </label>
-                    <select
-                      value={filters.source || ''}
-                      onChange={(e) => setFilters({ ...filters, source: e.target.value || undefined })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                    >
-                      <option value="">All Sources</option>
-                      {uniqueSources.map((source) => (
-                        <option key={source} value={source}>
-                          {source}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Sold/Rented Filter */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                      Sold/Rented
-                    </label>
-                    <select
-                      value={filters.sold_rented || ''}
-                      onChange={(e) => setFilters({ ...filters, sold_rented: e.target.value || undefined })}
-                      className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                    >
-                      <option value="">All Types</option>
-                      {uniqueSoldRented.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Active Filters Summary */}
-                {(filters.source || filters.sold_rented) && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {filters.source && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        Source: {filters.source}
-                        <button
-                          onClick={() => setFilters({ ...filters, source: undefined })}
-                          className="ml-1.5 text-blue-600 hover:text-blue-800"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    )}
-                    {filters.sold_rented && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        Sold/Rented: {filters.sold_rented}
-                        <button
-                          onClick={() => setFilters({ ...filters, sold_rented: undefined })}
-                          className="ml-1.5 text-blue-600 hover:text-blue-800"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {currentRows.length === 0 ? (
-                <div className="py-8 text-center text-gray-500">
-                  No closures found for this report.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Ref#
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Client Name
-                      </th>
-                      <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Sold/Rented
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Source
-                      </th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Find Com
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {currentRows.map((row, idx) => (
-                      <tr key={`${row.reference_number}-${idx}`} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                          {formatDateForDisplay(row.closed_date)}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                          {row.reference_number}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                          {row.client_name}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-center text-gray-900">
-                          {row.sold_rented}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                          {row.source_name}
-                        </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-900">
-                          {row.finders_commission.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                </div>
-              )}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-white px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAndDownload}
+                disabled={loading || previewLoading || draftRows.length === 0}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-4 w-4" />
+                {loading ? 'Saving...' : 'Save & Download'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Create Report Modal (agent + date range with presets) */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">
-                Generate Sale &amp; Rent Source Report
-              </h2>
+      {showViewModal && selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="my-8 flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  Sale &amp; Rent Source Report
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {formatRangeDisplay(selectedReport.start_date, selectedReport.end_date)}
+                </p>
+              </div>
               <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                onClick={() => {
+                  setShowViewModal(false)
+                  setSelectedReportId(null)
+                }}
+                className="rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                aria-label="Close"
               >
-                ✕
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
-              <p className="text-sm text-gray-600">
-                Choose an agent and reporting period. The report will contain all closed properties for
-                that agent in the selected window.
-              </p>
-
-              {/* Agent selection note (agent dropdown reused from filters) */}
-              <p className="text-xs text-gray-500">
-                Use the <span className="font-medium">Focus on an agent</span> filter above to see only that
-                agent&apos;s reports. This modal controls the agent and dates used when generating a new
-                report.
-              </p>
-
-              {/* Agent dropdown (same data as ReportsFilters) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Agent
-                </label>
-                <select
-                  value={createForm.agent_id ?? ''}
-                  onChange={e =>
-                    setCreateForm(prev => ({
-                      ...prev,
-                      agent_id: e.target.value ? Number(e.target.value) : undefined,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                >
-                  <option value="">Select an agent</option>
-                  {agents.map(agent => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name} {agent.user_code ? `(${agent.user_code})` : ''}
-                    </option>
-                  ))}
-                </select>
+            <div className="flex-1 overflow-y-auto px-6 py-6">
+              <div className="space-y-6">
+                <SaleRentSourceSummaryCards rows={selectedReportRows} />
+                <SaleRentSourceRowsTable
+                  rows={selectedReportRows}
+                  editable={false}
+                />
               </div>
+            </div>
 
-              {/* Date range with presets (like Operations Commission) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date Range
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                  <input
-                    type="date"
-                    value={createForm.start_date}
-                    onChange={e => {
-                      const value = e.target.value || defaultStartDate
-                      setCreateForm(prev => {
-                        if (value && prev.end_date && value > prev.end_date) {
-                          return { ...prev, start_date: value, end_date: value }
-                        }
-                        return { ...prev, start_date: value }
-                      })
-                    }}
-                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                    max={createForm.end_date || undefined}
-                  />
-                  <div className="hidden md:flex items-center justify-center text-blue-400 font-semibold">
-                    —
-                  </div>
-                  <input
-                    type="date"
-                    value={createForm.end_date}
-                    onChange={e => {
-                      const value = e.target.value || defaultEndDate
-                      setCreateForm(prev => {
-                        if (value && prev.start_date && value < prev.start_date) {
-                          return { ...prev, start_date: value, end_date: value }
-                        }
-                        return { ...prev, end_date: value }
-                      })
-                    }}
-                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
-                    min={createForm.start_date || undefined}
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {[
-                    { label: 'Previous Month', start: defaultStartDate, end: defaultEndDate },
-                    {
-                      label: 'Month to Date',
-                      start: (() => {
-                        const today = new Date()
-                        const year = today.getFullYear()
-                        const month = String(today.getMonth() + 1).padStart(2, '0')
-                        return `${year}-${month}-01`
-                      })(),
-                      end: new Date().toISOString().split('T')[0],
-                    },
-                    {
-                      label: 'Last 30 Days',
-                      start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
-                        .toISOString()
-                        .split('T')[0],
-                      end: new Date().toISOString().split('T')[0],
-                    },
-                    {
-                      label: 'Quarter to Date',
-                      start: (() => {
-                        const d = new Date()
-                        const quarterStartMonth = Math.floor(d.getMonth() / 3) * 3
-                        return new Date(d.getFullYear(), quarterStartMonth, 1)
-                          .toISOString()
-                          .split('T')[0]
-                      })(),
-                      end: new Date().toISOString().split('T')[0],
-                    },
-                  ].map(preset => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() =>
-                        setCreateForm(prev => ({
-                          ...prev,
-                          start_date: preset.start,
-                          end_date: preset.end,
-                        }))
-                      }
-                      className="px-3 py-1 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Preview Section */}
-              {(previewLoading || previewData) && (
-                <div className="border-t pt-4">
-                  {previewLoading ? (
-                    <div className="text-center py-4 text-gray-500">
-                      Loading preview...
-                    </div>
-                  ) : previewData && previewData.length > 0 ? (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-900">Preview</h4>
-                      <div className="bg-gray-50 rounded-lg p-4">
-                        <p className="text-sm text-gray-600 mb-2">
-                          Found <span className="font-semibold">{previewData.length}</span> closure(s) for this period
-                        </p>
-                        <div className="text-xs text-gray-500">
-                          Click &quot;Generate&quot; to create and view the full report
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                      <p className="text-sm text-yellow-800">
-                        No closures found for this agent and date range
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex items-center justify-end space-x-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGenerateReport}
-                  disabled={loading}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {loading ? 'Generating...' : 'Generate'}
-                </button>
-              </div>
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-white px-6 py-4">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!selectedReport) return
+                  await handleExportReport(selectedReport.id)
+                }}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Export Excel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowViewModal(false)
+                  setSelectedReportId(null)
+                }}
+                className="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -948,5 +1134,3 @@ export default function SaleRentSourceTab() {
     </div>
   )
 }
-
-

@@ -63,25 +63,29 @@ router.get('/lead-sources', ReportsController.getLeadSources);
 
 /**
  * @route   GET /api/reports/sale-rent-source
- * @desc    Get Statistics of Sale and Rent Source report rows
- * @query   agent_id, start_date, end_date
+ * @desc    Get company-wide Statistics of Sale and Rent Source report rows
+ * @query   start_date, end_date, agent_id (optional legacy filter)
  * @access  Private - admin, operations manager, operations, agent manager (read), admin/operations/operations manager (write)
  */
 router.get('/sale-rent-source', canViewSaleRentSource, ReportsController.getSaleRentSourceReport);
 
 /**
- * @route   GET /api/reports/sale-rent-source/export/excel
+ * @route   GET|POST /api/reports/sale-rent-source/export/excel
  * @desc    Export Sale & Rent Source report to Excel
  * @access  Private - admin, operations manager, operations, agent manager (read only)
  */
-router.get('/sale-rent-source/export/excel', canViewSaleRentSource, ReportsController.exportSaleRentSourceExcel);
+router.route('/sale-rent-source/export/excel')
+  .get(canViewSaleRentSource, ReportsController.exportSaleRentSourceExcel)
+  .post(canViewSaleRentSource, ReportsController.exportSaleRentSourceExcel);
 
 /**
- * @route   GET /api/reports/sale-rent-source/export/pdf
+ * @route   GET|POST /api/reports/sale-rent-source/export/pdf
  * @desc    Export Sale & Rent Source report to PDF
  * @access  Private - admin, operations manager, operations, agent manager (read only)
  */
-router.get('/sale-rent-source/export/pdf', canViewSaleRentSource, ReportsController.exportSaleRentSourcePDF);
+router.route('/sale-rent-source/export/pdf')
+  .get(canViewSaleRentSource, ReportsController.exportSaleRentSourcePDF)
+  .post(canViewSaleRentSource, ReportsController.exportSaleRentSourcePDF);
 
 /**
  * @route   GET /api/reports/monthly/:id/export/excel

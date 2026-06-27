@@ -16,6 +16,13 @@ const logger = require('../utils/logger');
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
+const getSaleRentSourcePayload = (req) => {
+  if (req.method === 'POST') {
+    return req.body || {};
+  }
+  return req.query || {};
+};
+
 class ReportsController {
   /**
    * Create a new monthly agent report
@@ -690,17 +697,28 @@ class ReportsController {
    */
   static async getSaleRentSourceReport(req, res) {
     try {
-      const { agent_id, start_date, end_date } = req.query;
+      const { agent_id, start_date, end_date } = getSaleRentSourcePayload(req);
 
-      if (!agent_id || !start_date || !end_date) {
+      if (!start_date || !end_date) {
         return res.status(400).json({
           success: false,
-          message: 'agent_id, start_date, and end_date are required'
+          message: 'start_date and end_date are required'
+        });
+      }
+
+      const parsedAgentId = agent_id !== undefined && agent_id !== null && agent_id !== ''
+        ? parseInt(agent_id, 10)
+        : undefined;
+
+      if (agent_id !== undefined && agent_id !== null && agent_id !== '' && Number.isNaN(parsedAgentId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'agent_id must be a valid number'
         });
       }
 
       const data = await getSaleRentSourceData({
-        agent_id: parseInt(agent_id, 10),
+        agent_id: parsedAgentId,
         start_date,
         end_date
       });
@@ -726,28 +744,44 @@ class ReportsController {
    */
   static async exportSaleRentSourceExcel(req, res) {
     try {
-      const { agent_id, start_date, end_date } = req.query;
+      const { agent_id, start_date, end_date, rows } = getSaleRentSourcePayload(req);
 
-      if (!agent_id || !start_date || !end_date) {
+      if (!start_date || !end_date) {
         return res.status(400).json({
           success: false,
-          message: 'agent_id, start_date, and end_date are required'
+          message: 'start_date and end_date are required'
         });
       }
 
-      const rows = await getSaleRentSourceData({
-        agent_id: parseInt(agent_id, 10),
-        start_date,
-        end_date
-      });
+      const parsedAgentId = agent_id !== undefined && agent_id !== null && agent_id !== ''
+        ? parseInt(agent_id, 10)
+        : undefined;
 
-      const buffer = await exportSaleRentSourceToExcel(rows, {
-        agentName: rows[0]?.agent_name || 'Agent',
+      if (agent_id !== undefined && agent_id !== null && agent_id !== '' && Number.isNaN(parsedAgentId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'agent_id must be a valid number'
+        });
+      }
+
+      const reportRows = Array.isArray(rows)
+        ? rows
+        : await getSaleRentSourceData({
+          agent_id: parsedAgentId,
+          start_date,
+          end_date
+        });
+
+      const buffer = await exportSaleRentSourceToExcel(reportRows, {
         startDate: start_date,
         endDate: end_date
       });
 
-      const filename = `Sale_Rent_Source_${(rows[0]?.agent_name || 'Agent').replace(/\s+/g, '_')}_${start_date}_to_${end_date}.xlsx`;
+      const filename = buildAttachmentFilename(
+        'Statistics of sale and rent source',
+        [start_date, end_date],
+        'xlsx'
+      );
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -767,28 +801,44 @@ class ReportsController {
    */
   static async exportSaleRentSourcePDF(req, res) {
     try {
-      const { agent_id, start_date, end_date } = req.query;
+      const { agent_id, start_date, end_date, rows } = getSaleRentSourcePayload(req);
 
-      if (!agent_id || !start_date || !end_date) {
+      if (!start_date || !end_date) {
         return res.status(400).json({
           success: false,
-          message: 'agent_id, start_date, and end_date are required'
+          message: 'start_date and end_date are required'
         });
       }
 
-      const rows = await getSaleRentSourceData({
-        agent_id: parseInt(agent_id, 10),
-        start_date,
-        end_date
-      });
+      const parsedAgentId = agent_id !== undefined && agent_id !== null && agent_id !== ''
+        ? parseInt(agent_id, 10)
+        : undefined;
 
-      const buffer = await exportSaleRentSourceToPDF(rows, {
-        agentName: rows[0]?.agent_name || 'Agent',
+      if (agent_id !== undefined && agent_id !== null && agent_id !== '' && Number.isNaN(parsedAgentId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'agent_id must be a valid number'
+        });
+      }
+
+      const reportRows = Array.isArray(rows)
+        ? rows
+        : await getSaleRentSourceData({
+          agent_id: parsedAgentId,
+          start_date,
+          end_date
+        });
+
+      const buffer = await exportSaleRentSourceToPDF(reportRows, {
         startDate: start_date,
         endDate: end_date
       });
 
-      const filename = `Sale_Rent_Source_${(rows[0]?.agent_name || 'Agent').replace(/\s+/g, '_')}_${start_date}_to_${end_date}.pdf`;
+      const filename = buildAttachmentFilename(
+        'Statistics of sale and rent source',
+        [start_date, end_date],
+        'pdf'
+      );
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
