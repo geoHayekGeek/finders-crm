@@ -212,6 +212,8 @@ describe('DCSR Reports Model', () => {
       pool.connect.mockResolvedValueOnce(mockClient);
 
       const result = await dcsrReportsModel.calculateCompanyDCSRAgentBreakdownData(startDate, endDate);
+      expect(mockClient.query.mock.calls[0][0]).toContain('team_leader_sort_name');
+      expect(mockClient.query.mock.calls[0][0]).toContain('role_sort_order');
 
       expect(result).toEqual({
         start_date: '2024-01-01',

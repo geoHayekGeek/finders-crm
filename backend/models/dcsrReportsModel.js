@@ -207,7 +207,9 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
          u.assigned_to,
          ta.team_leader_id AS assigned_team_leader_id,
          tl.name AS assigned_team_leader_name,
-         tl.user_code AS assigned_team_leader_code
+         tl.user_code AS assigned_team_leader_code,
+         COALESCE(tl.name, 'Unassigned') AS team_leader_sort_name,
+         CASE WHEN LOWER(REPLACE(u.role, '_', ' ')) = 'team leader' THEN 0 ELSE 1 END AS role_sort_order
        FROM users u
        LEFT JOIN team_agents ta
          ON ta.agent_id = u.id
@@ -217,8 +219,8 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
        WHERE COALESCE(u.is_active, TRUE) = TRUE
          AND LOWER(REPLACE(u.role, '_', ' ')) IN ('agent', 'consultant', 'team leader')
        ORDER BY
-         COALESCE(tl.name, 'Unassigned'),
-         CASE WHEN LOWER(REPLACE(u.role, '_', ' ')) = 'team leader' THEN 0 ELSE 1 END,
+         team_leader_sort_name,
+         role_sort_order,
          u.name ASC`
     );
 
