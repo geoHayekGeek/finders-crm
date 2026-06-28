@@ -89,6 +89,36 @@ describe('Operations Commission Exporter', () => {
       expect(worksheet.getColumn(6).width).toBe(28);
     });
 
+    it('should export successfully when closed_date values are Date objects', async () => {
+      const buffer = await operationsCommissionExporter.exportOperationsCommissionToExcel({
+        ...mockReport,
+        properties: [
+          {
+            ...mockReport.properties[0],
+            closed_date: new Date('2026-01-10T00:00:00.000Z')
+          },
+          {
+            ...mockReport.properties[1],
+            closed_date: new Date('2026-01-17T00:00:00.000Z')
+          },
+          {
+            ...mockReport.properties[2],
+            closed_date: new Date('2026-02-02T00:00:00.000Z')
+          }
+        ]
+      });
+
+      expect(buffer).toBeInstanceOf(Buffer);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.getWorksheet('Operations Commission');
+
+      expect(worksheet.getCell('A2').value).toBe('1/10/2026');
+      expect(worksheet.getCell('A3').value).toBe('1/17/2026');
+      expect(worksheet.getCell('A5').value).toBe('2/2/2026');
+    });
+
     it('should still export a workbook when no properties exist', async () => {
       const buffer = await operationsCommissionExporter.exportOperationsCommissionToExcel({
         ...mockReport,

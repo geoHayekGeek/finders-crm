@@ -31,15 +31,63 @@ function parseIsoDateParts(dateValue) {
   return { year, month, day };
 }
 
+function toDateObject(dateValue) {
+  if (!dateValue) return null;
+
+  if (dateValue instanceof Date) {
+    return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+  }
+
+  if (typeof dateValue === 'string') {
+    const trimmed = dateValue.trim();
+    if (!trimmed) return null;
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+
+    const parts = parseIsoDateParts(trimmed);
+    if (parts) {
+      return new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+    }
+  }
+
+  return null;
+}
+
+function getUtcDateParts(dateValue) {
+  const date = toDateObject(dateValue);
+  if (!date) return null;
+
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate()
+  };
+}
+
+function toSortableDateKey(dateValue) {
+  const parts = getUtcDateParts(dateValue);
+  if (!parts) return '';
+
+  return [
+    String(parts.year).padStart(4, '0'),
+    String(parts.month).padStart(2, '0'),
+    String(parts.day).padStart(2, '0')
+  ].join('-');
+}
+
 function formatDisplayDate(dateValue) {
-  const parts = parseIsoDateParts(dateValue);
-  if (!parts) return dateValue || '';
+  const parts = getUtcDateParts(dateValue);
+  if (!parts) return dateValue ? String(dateValue) : '';
 
   const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
   return new Intl.DateTimeFormat('en-US', {
     month: 'numeric',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'UTC'
   }).format(date);
 }
 
@@ -72,14 +120,15 @@ function formatMonthLabel(monthKey) {
   const date = new Date(Date.UTC(year, month - 1, 1));
   return new Intl.DateTimeFormat('en-US', {
     month: 'long',
-    year: 'numeric'
+    year: 'numeric',
+    timeZone: 'UTC'
   }).format(date);
 }
 
 function groupPropertiesByMonth(properties = []) {
   const sortedRows = [...properties].sort((left, right) => {
-    const leftDate = left.closed_date || '';
-    const rightDate = right.closed_date || '';
+    const leftDate = toSortableDateKey(left.closed_date);
+    const rightDate = toSortableDateKey(right.closed_date);
 
     if (leftDate !== rightDate) {
       return leftDate.localeCompare(rightDate);
@@ -91,7 +140,7 @@ function groupPropertiesByMonth(properties = []) {
   const groups = [];
 
   sortedRows.forEach((row) => {
-    const monthKey = row.closed_date ? row.closed_date.slice(0, 7) : 'unknown';
+    const monthKey = toSortableDateKey(row.closed_date).slice(0, 7) || 'unknown';
     const commission = Number(row.commission) || 0;
     const isSale = row.property_type === 'sale';
     const lastGroup = groups[groups.length - 1];
