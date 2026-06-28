@@ -451,6 +451,123 @@ describe('Operations Commission Report', () => {
     });
   });
 
+  describe('previewReport', () => {
+    it('should calculate a preview successfully with normalized dates', async () => {
+      req.body = {
+        start_date: '2026-01-01',
+        end_date: '2026-03-31',
+        commission_percentage: 2
+      };
+
+      const mockPreview = {
+        month: 1,
+        year: 2026,
+        start_date: '2026-01-01',
+        end_date: '2026-03-31',
+        commission_percentage: 2,
+        total_properties_count: 1,
+        total_sales_count: 1,
+        total_rent_count: 0,
+        total_sales_value: 190000,
+        total_rent_value: 0,
+        total_commission_amount: 3800,
+        properties: [
+          {
+            id: 1125,
+            reference_number: 'FSA25294',
+            agent_name: 'Marc Abou Jaoude',
+            property_type: 'sale',
+            price: 190000,
+            commission: 3800,
+            closed_date: '2026-03-11',
+            notes: ''
+          }
+        ]
+      };
+
+      operationsCommissionModel.calculateCommissionData.mockResolvedValue(mockPreview);
+
+      await operationsCommissionController.previewReport(req, res);
+
+      expect(operationsCommissionModel.calculateCommissionData).toHaveBeenCalledWith(
+        '2026-01-01',
+        '2026-03-31',
+        2
+      );
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockPreview,
+        message: 'Operations commission preview calculated successfully'
+      });
+    });
+
+    it('should return 400 when the start date is missing', async () => {
+      req.body = {
+        end_date: '2026-03-31',
+        commission_percentage: 2
+      };
+
+      await operationsCommissionController.previewReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    });
+
+    it('should return 400 when commission percentage is missing', async () => {
+      req.body = {
+        start_date: '2026-01-01',
+        end_date: '2026-03-31'
+      };
+
+      await operationsCommissionController.previewReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Commission percentage is required'
+      });
+    });
+
+    it('should return 400 when the end date is before the start date', async () => {
+      req.body = {
+        start_date: '2026-03-31',
+        end_date: '2026-01-01',
+        commission_percentage: 2
+      };
+
+      await operationsCommissionController.previewReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    });
+
+    it('should return 500 when preview calculation fails unexpectedly', async () => {
+      req.body = {
+        start_date: '2026-01-01',
+        end_date: '2026-03-31',
+        commission_percentage: 2
+      };
+
+      const error = new Error('Database error');
+      operationsCommissionModel.calculateCommissionData.mockRejectedValue(error);
+
+      await operationsCommissionController.previewReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Failed to calculate operations commission preview',
+        error: error.message
+      });
+    });
+  });
+
   describe('updateReport', () => {
     it('should update operations commission report successfully', async () => {
       req.params = { id: '1' };

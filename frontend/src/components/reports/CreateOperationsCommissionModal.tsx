@@ -69,30 +69,11 @@ export default function CreateOperationsCommissionModal({
     
     setPreviewLoading(true)
     try {
-      // Try to fetch existing report first to avoid creating duplicates
-      const allReports = await operationsCommissionApi.getAll({ 
-        start_date: formData.start_date, 
-        end_date: formData.end_date 
-      }, token)
-      
-      if (allReports.success && allReports.data.length > 0) {
-        // Report exists, fetch full details for preview
-        const existingReport = await operationsCommissionApi.getById(allReports.data[0].id, token)
-        if (existingReport.success) {
-          setPreview(existingReport.data)
-        }
+      const response = await operationsCommissionApi.preview(formData, token)
+      if (response.success) {
+        setPreview(response.data)
       } else {
-        // No existing report, create temp one for preview
-        try {
-          const response = await operationsCommissionApi.create(formData, token)
-          if (response.success) {
-            setPreview(response.data)
-            // Delete the temporary report
-            await operationsCommissionApi.delete(response.data.id, token)
-          }
-        } catch (createError: any) {
-          setPreview(null)
-        }
+        setPreview(null)
       }
     } catch (error: any) {
       console.error('Error calculating preview:', error)

@@ -1896,6 +1896,16 @@ export const operationsCommissionApi = {
     token
   ),
 
+  // Preview an operations commission report without saving
+  preview: (data: CreateOperationsCommissionData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsCommissionReport; message: string }>(
+    '/operations-commission/monthly/preview',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
   // Update an existing operations commission report
   update: (id: number, data: UpdateOperationsCommissionData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsCommissionReport; message: string }>(
     `/operations-commission/monthly/${id}`,

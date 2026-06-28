@@ -84,6 +84,114 @@ async function getReportById(req, res) {
 }
 
 /**
+ * Calculate an operations commission preview without persisting a report
+ * POST /api/operations-commission/monthly/preview
+ */
+async function previewReport(req, res) {
+  try {
+    console.log('📊 Calculating operations commission preview:', req.body);
+
+    const { start_date, end_date, commission_percentage } = req.body;
+
+    if (!start_date || !end_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required'
+      });
+    }
+
+    if (commission_percentage === undefined || commission_percentage === null || commission_percentage === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Commission percentage is required'
+      });
+    }
+
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    const commissionPercentageNumber = parseFloat(commission_percentage);
+
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (endDate < startDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'End date cannot be before start date'
+      });
+    }
+
+    if (Number.isNaN(commissionPercentageNumber) || commissionPercentageNumber < 0 || commissionPercentageNumber > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Commission percentage must be between 0 and 100'
+      });
+    }
+
+    const startDateUtc = new Date(Date.UTC(
+      startDate.getFullYear(),
+      startDate.getMonth(),
+      startDate.getDate(),
+      0, 0, 0, 0
+    ));
+    const endDateUtc = new Date(Date.UTC(
+      endDate.getFullYear(),
+      endDate.getMonth(),
+      endDate.getDate(),
+      23, 59, 59, 999
+    ));
+
+    const startDateStr = startDateUtc.toISOString().split('T')[0];
+    const endDateStr = endDateUtc.toISOString().split('T')[0];
+
+    const preview = await operationsCommissionModel.calculateCommissionData(
+      startDateStr,
+      endDateStr,
+      commissionPercentageNumber
+    );
+
+    res.json({
+      success: true,
+      data: preview,
+      message: 'Operations commission preview calculated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error calculating operations commission preview:', error);
+
+    if (error.code === '23514' && error.constraint?.includes('year_check')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Year must be 2000 or later. Please select a date range starting from 2000 or later.'
+      });
+    }
+
+    if (error.message?.includes('Year must be')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    if (error.message?.includes('Start date and end date are required') || error.message?.includes('Invalid date')) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate operations commission preview',
+      error: error.message
+    });
+  }
+}
+
+/**
  * Create a new operations commission report
  * POST /api/operations-commission/monthly
  */
@@ -436,6 +544,7 @@ async function exportReportToPDF(req, res) {
 module.exports = {
   getAllReports,
   getReportById,
+  previewReport,
   createReport,
   updateReport,
   recalculateReport,

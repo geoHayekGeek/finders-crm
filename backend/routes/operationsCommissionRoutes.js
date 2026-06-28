@@ -10,6 +10,9 @@ router.use(authenticateToken);
 // Get all operations commission reports with optional filters - read access
 router.get('/monthly', canViewOperationsCommission, operationsCommissionController.getAllReports);
 
+// Preview operations commission calculations without persisting a report - read access
+router.post('/monthly/preview', canViewOperationsCommission, operationsCommissionController.previewReport);
+
 // Get a single operations commission report by ID - read access
 router.get('/monthly/:id', canViewOperationsCommission, operationsCommissionController.getReportById);
 
