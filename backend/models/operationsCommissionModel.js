@@ -70,15 +70,30 @@ async function calculateCommissionData(startDateInput, endDateInput, commissionP
         p.reference_number,
         p.property_type,
         p.price,
+        p.notes,
+        COALESCE(a.name, latest_referral.agent_name) AS agent_name,
+        COALESCE(a.user_code, latest_referral.agent_code) AS agent_code,
         ${effectiveDateSql} AS closed_date,
         s.name AS status_name,
         s.code AS status_code
        FROM properties p
+       LEFT JOIN users a ON a.id = p.agent_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COALESCE(ref_user.name, r.name) AS agent_name,
+           ref_user.user_code AS agent_code
+         FROM referrals r
+         LEFT JOIN users ref_user ON ref_user.id = r.employee_id
+         WHERE r.property_id = p.id
+           AND r.external = FALSE
+         ORDER BY r.date DESC, r.id DESC
+         LIMIT 1
+       ) latest_referral ON TRUE
        INNER JOIN statuses s ON p.status_id = s.id
        WHERE ${effectiveDateSql} >= $1::date
        AND ${effectiveDateSql} <= $2::date
        AND ${isClosureStatusSql('s')}
-       ORDER BY ${effectiveDateSql} DESC, p.reference_number DESC`,
+       ORDER BY ${effectiveDateSql} ASC, p.reference_number ASC`,
       [startDateStr, endDateStr]
     );
     
@@ -112,10 +127,13 @@ async function calculateCommissionData(startDateInput, endDateInput, commissionP
       return {
         id: property.id,
         reference_number: property.reference_number,
+        agent_name: property.agent_name || property.agent_code || 'Unknown',
+        agent_code: property.agent_code || null,
         property_type: closedType,
         price: price,
         commission: commission,
-        closed_date: property.closed_date
+        closed_date: property.closed_date,
+        notes: property.notes || ''
       };
     });
     

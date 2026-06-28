@@ -272,10 +272,13 @@ export interface DCSRFormData {
 export interface OperationsCommissionProperty {
   id: number
   reference_number: string
+  agent_name?: string | null
+  agent_code?: string | null
   property_type: 'sale' | 'rent'
   price: number
   commission: number
   closed_date: string
+  notes?: string | null
 }
 
 export interface OperationsCommissionReport {

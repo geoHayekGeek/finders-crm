@@ -5,6 +5,8 @@ import { X, DollarSign } from 'lucide-react'
 import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { OperationsCommissionReport } from '@/types/reports'
+import OperationsCommissionMonthlyTable from './OperationsCommissionMonthlyTable'
 
 interface CreateOperationsCommissionModalProps {
   isOpen: boolean
@@ -31,8 +33,28 @@ export default function CreateOperationsCommissionModal({
     end_date: defaultEndDate,
     commission_percentage: 0
   })
-  const [loading, setLoading] = useState(false)
-  const [preview, setPreview] = useState<any>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState<OperationsCommissionReport | null>(null)
+
+  const downloadExcel = async (reportId: number) => {
+    const blob = await operationsCommissionApi.exportToExcel(reportId, token)
+    const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+    const start = new Date(formData.start_date)
+    const end = new Date(formData.end_date)
+    const safeStart = formatter.format(start).replace(/[, ]/g, '-')
+    const safeEnd = formatter.format(end).replace(/[, ]/g, '-')
+    const filename = `Operations_Commission_${safeStart}_to_${safeEnd}.xlsx`
+
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }
 
   // Calculate preview when modal opens or month/year changes
   useEffect(() => {
@@ -45,7 +67,7 @@ export default function CreateOperationsCommissionModal({
   const calculatePreview = async () => {
     if (!token) return
     
-    setLoading(true)
+    setPreviewLoading(true)
     try {
       // Try to fetch existing report first to avoid creating duplicates
       const allReports = await operationsCommissionApi.getAll({ 
@@ -76,7 +98,7 @@ export default function CreateOperationsCommissionModal({
       console.error('Error calculating preview:', error)
       setPreview(null)
     } finally {
-      setLoading(false)
+      setPreviewLoading(false)
     }
   }
 
@@ -84,17 +106,23 @@ export default function CreateOperationsCommissionModal({
     e.preventDefault()
     
     try {
-      setLoading(true)
+      setSaving(true)
       const response = await operationsCommissionApi.create(formData, token)
       
       if (response.success) {
-        showSuccess('Operations commission report created successfully')
+        try {
+          await downloadExcel(response.data.id)
+          showSuccess('Operations commission report created and downloaded successfully')
+        } catch (downloadError) {
+          console.error('Error exporting operations commission workbook:', downloadError)
+          showError('Report was saved, but the Excel download failed. You can export it from the reports list.')
+        }
         onSuccess()
       }
     } catch (error: any) {
       showError(error.message || 'Failed to create operations commission report')
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
@@ -110,9 +138,9 @@ export default function CreateOperationsCommissionModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full my-8">
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full my-8 max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200  sticky top-0 bg-white z-1 sticky top-0 bg-white rounded-t-lg z-10">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-white rounded-t-lg">
           <h2 className="text-xl font-semibold text-gray-900">Create Operations Commission Report</h2>
           <button
             onClick={onClose}
@@ -123,7 +151,7 @@ export default function CreateOperationsCommissionModal({
         </div>
 
         {/* Content */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(90vh-200px)] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[calc(90vh-96px)] overflow-y-auto">
           {/* Info Message */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-700">
@@ -233,7 +261,7 @@ export default function CreateOperationsCommissionModal({
           {preview && (
             <div className="border-t pt-4">
               <h4 className="text-sm font-medium text-gray-900 mb-3">Preview</h4>
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <div className="bg-gray-50 rounded-lg p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <span className="text-sm text-gray-600">Commission Rate:</span>
@@ -268,7 +296,16 @@ export default function CreateOperationsCommissionModal({
                   <span className="text-sm text-gray-600">Total Operations Commission:</span>
                   <p className="text-lg font-bold text-green-600">{formatCurrency(preview.total_commission_amount)}</p>
                 </div>
+
+                <OperationsCommissionMonthlyTable report={preview} />
               </div>
+            </div>
+          )}
+
+          {previewLoading && !preview && (
+            <div className="flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+              Calculating values from database...
             </div>
           )}
 
@@ -283,10 +320,10 @@ export default function CreateOperationsCommissionModal({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={saving}
               className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Creating...' : 'Create Report'}
+              {saving ? 'Saving...' : 'Save & Download'}
             </button>
           </div>
         </form>

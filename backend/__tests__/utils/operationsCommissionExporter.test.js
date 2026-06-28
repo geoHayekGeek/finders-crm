@@ -1,146 +1,112 @@
 // __tests__/utils/operationsCommissionExporter.test.js
-const operationsCommissionExporter = require('../../utils/operationsCommissionExporter');
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const operationsCommissionExporter = require('../../utils/operationsCommissionExporter');
 
-// Mock dependencies
-jest.mock('exceljs');
 jest.mock('pdfkit');
 
 describe('Operations Commission Exporter', () => {
   const mockReport = {
-    start_date: '2024-01-01',
-    end_date: '2024-01-31',
-    year: 2024,
+    start_date: '2026-01-01',
+    end_date: '2026-02-28',
+    year: 2026,
     month: 1,
-    commission_percentage: 3,
-    total_properties_count: 50,
-    total_sales_count: 30,
-    total_rent_count: 20,
+    commission_percentage: 2.5,
+    total_properties_count: 3,
+    total_sales_count: 2,
+    total_rent_count: 1,
     total_sales_value: 5000000,
     total_rent_value: 200000,
-    total_commission_amount: 156000,
+    total_commission_amount: 130000,
     properties: [
       {
-        reference_number: 'PROP001',
+        reference_number: 'FRA001',
+        agent_name: 'Nader Bechara',
         property_type: 'sale',
-        price: 100000,
-        commission: 3000,
-        closed_date: '2024-01-15'
+        commission: 1000,
+        closed_date: '2026-01-10',
+        notes: 'First month note'
+      },
+      {
+        reference_number: 'FRA002',
+        agent_name: 'Yorgo Mourady',
+        property_type: 'rent',
+        commission: 500,
+        closed_date: '2026-01-17',
+        notes: ''
+      },
+      {
+        reference_number: 'FRA003',
+        agent_name: 'Elie Ghafari',
+        property_type: 'sale',
+        commission: 1500,
+        closed_date: '2026-02-02',
+        notes: 'Second month note'
       }
     ]
   };
 
   describe('exportOperationsCommissionToExcel', () => {
-    it('should export operations commission report to Excel successfully', async () => {
-      const mockWorkbook = {
-        addWorksheet: jest.fn().mockReturnValue({
-          columns: [],
-          mergeCells: jest.fn(),
-          getCell: jest.fn().mockReturnValue({
-            value: null,
-            font: {},
-            alignment: {},
-            fill: {}
-          }),
-          addRow: jest.fn()
-        }),
-        xlsx: {
-          writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
-        }
-      };
+    it('should export a month-grouped workbook that matches the sheet layout', async () => {
+      const buffer = await operationsCommissionExporter.exportOperationsCommissionToExcel(mockReport);
 
-      ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
+      expect(buffer).toBeInstanceOf(Buffer);
 
-      const result = await operationsCommissionExporter.exportOperationsCommissionToExcel(mockReport);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.getWorksheet('Operations Commission');
 
-      expect(mockWorkbook.addWorksheet).toHaveBeenCalledWith('Operations Commission');
-      expect(mockWorkbook.xlsx.writeBuffer).toHaveBeenCalled();
-      expect(result).toBeInstanceOf(Buffer);
+      expect(worksheet).toBeDefined();
+      expect(worksheet.getCell('A1').value).toBe('Date');
+      expect(worksheet.getCell('B1').value).toBe('Reference');
+      expect(worksheet.getCell('C1').value).toBe('Agent');
+      expect(worksheet.getCell('D1').value).toBe('Sale');
+      expect(worksheet.getCell('E1').value).toBe('Rent');
+      expect(worksheet.getCell('F1').value).toBe('Total Commission Operation');
+      expect(worksheet.getCell('G1').value).toBe('Notes');
+
+      expect(worksheet.getCell('A2').value).toBe('1/10/2026');
+      expect(worksheet.getCell('B2').value).toBe('FRA001');
+      expect(worksheet.getCell('C2').value).toBe('Nader Bechara');
+      expect(worksheet.getCell('D2').value).toBe(1);
+      expect(worksheet.getCell('F2').value).toBe('$1,000.00');
+      expect(worksheet.getCell('G2').value).toBe('First month note');
+
+      expect(worksheet.getCell('A4').value).toBe('TOTAL');
+      expect(worksheet.getCell('D4').value).toBe(1);
+      expect(worksheet.getCell('E4').value).toBe(1);
+      expect(worksheet.getCell('F4').value).toBe('$1,500.00');
+
+      expect(worksheet.getCell('A5').value).toBe('2/2/2026');
+      expect(worksheet.getCell('B5').value).toBe('FRA003');
+      expect(worksheet.getCell('C5').value).toBe('Elie Ghafari');
+      expect(worksheet.getCell('D5').value).toBe(1);
+      expect(worksheet.getCell('F5').value).toBe('$1,500.00');
+      expect(worksheet.getCell('G5').value).toBe('Second month note');
+
+      expect(worksheet.getCell('A6').value).toBe('TOTAL');
+      expect(worksheet.getCell('D6').value).toBe(1);
+      expect(worksheet.getCell('E6').value).toBe(0);
+      expect(worksheet.getCell('F6').value).toBe('$1,500.00');
+
+      expect(worksheet.getColumn(7).width).toBe(60);
     });
 
-    it('should format report data correctly', async () => {
-      const mockWorksheet = {
-        columns: [],
-        mergeCells: jest.fn(),
-        getCell: jest.fn().mockReturnValue({
-          value: null,
-          font: {},
-          alignment: {},
-          fill: {}
-        }),
-        addRow: jest.fn()
-      };
+    it('should still export a workbook when no properties exist', async () => {
+      const buffer = await operationsCommissionExporter.exportOperationsCommissionToExcel({
+        ...mockReport,
+        properties: []
+      });
 
-      const mockWorkbook = {
-        addWorksheet: jest.fn().mockReturnValue(mockWorksheet),
-        xlsx: {
-          writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
-        }
-      };
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer);
+      const worksheet = workbook.getWorksheet('Operations Commission');
 
-      ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
-
-      await operationsCommissionExporter.exportOperationsCommissionToExcel(mockReport);
-
-      expect(mockWorksheet.getCell).toHaveBeenCalled();
-      expect(mockWorksheet.mergeCells).toHaveBeenCalled();
-    });
-
-    it('should handle reports with properties', async () => {
-      const mockWorksheet = {
-        columns: [],
-        mergeCells: jest.fn(),
-        getCell: jest.fn().mockReturnValue({
-          value: null,
-          font: {},
-          alignment: {},
-          fill: {}
-        })
-      };
-
-      const mockWorkbook = {
-        addWorksheet: jest.fn().mockReturnValue(mockWorksheet),
-        xlsx: {
-          writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
-        }
-      };
-
-      ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
-
-      await operationsCommissionExporter.exportOperationsCommissionToExcel(mockReport);
-
-      expect(mockWorksheet.getCell).toHaveBeenCalled();
-    });
-
-    it('should handle reports without properties', async () => {
-      const reportWithoutProperties = { ...mockReport };
-      delete reportWithoutProperties.properties;
-
-      const mockWorksheet = {
-        columns: [],
-        mergeCells: jest.fn(),
-        getCell: jest.fn().mockReturnValue({
-          value: null,
-          font: {},
-          alignment: {},
-          fill: {}
-        }),
-        addRow: jest.fn()
-      };
-
-      const mockWorkbook = {
-        addWorksheet: jest.fn().mockReturnValue(mockWorksheet),
-        xlsx: {
-          writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
-        }
-      };
-
-      ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
-
-      await operationsCommissionExporter.exportOperationsCommissionToExcel(reportWithoutProperties);
-
-      expect(mockWorkbook.xlsx.writeBuffer).toHaveBeenCalled();
+      expect(worksheet.getCell('A1').value).toBe('Date');
+      expect(worksheet.getCell('A2').value).toBe('TOTAL');
+      expect(worksheet.getCell('D2').value).toBe(0);
+      expect(worksheet.getCell('E2').value).toBe(0);
+      expect(worksheet.getCell('F2').value).toBe('$0.00');
     });
   });
 
@@ -201,4 +167,3 @@ describe('Operations Commission Exporter', () => {
     });
   });
 });
-

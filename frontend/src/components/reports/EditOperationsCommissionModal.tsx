@@ -6,6 +6,7 @@ import { OperationsCommissionReport } from '@/types/reports'
 import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import OperationsCommissionMonthlyTable from './OperationsCommissionMonthlyTable'
 
 interface EditOperationsCommissionModalProps {
   report: OperationsCommissionReport
@@ -88,7 +89,7 @@ export default function EditOperationsCommissionModal({ report, onClose, onSucce
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
           <div>
@@ -106,7 +107,7 @@ export default function EditOperationsCommissionModal({ report, onClose, onSucce
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-6 max-h-[calc(90vh-96px)] overflow-y-auto">
           {/* Info Box */}
           <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <p className="text-sm text-blue-800">
@@ -231,46 +232,7 @@ export default function EditOperationsCommissionModal({ report, onClose, onSucce
               </p>
             </div>
 
-            {/* Properties Table */}
-            {report.properties && report.properties.length > 0 && (
-              <div className="border-t pt-4">
-                <h3 className="text-sm font-medium text-gray-900 mb-3">Closed Properties</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Reference #</th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600 uppercase">Type</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Price</th>
-                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Commission ({report.commission_percentage}%)</th>
-                        <th className="px-4 py-2 text-center text-xs font-medium text-gray-600 uppercase">Closed Date</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {report.properties.map((property) => (
-                        <tr key={property.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-2 text-sm text-gray-900">{property.reference_number}</td>
-                          <td className="px-4 py-2 text-sm text-center">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              property.property_type === 'sale' 
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-purple-100 text-purple-800'
-                            }`}>
-                              {property.property_type === 'sale' ? 'Sale' : 'Rent'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(property.price)}</td>
-                          <td className="px-4 py-2 text-sm text-right font-medium text-green-600">{formatCurrency(property.commission)}</td>
-                          <td className="px-4 py-2 text-sm text-center text-gray-500">
-                            {new Date(property.closed_date).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            <OperationsCommissionMonthlyTable report={report} className="border-t pt-4" />
 
             {/* Buttons */}
             <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">

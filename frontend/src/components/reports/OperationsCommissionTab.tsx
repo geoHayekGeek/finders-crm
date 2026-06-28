@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useState, useEffect, useMemo } from 'react'
-import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Trash2, DollarSign, Edit, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react'
+import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Trash2, DollarSign, Edit, ChevronDown, ChevronUp, X } from 'lucide-react'
 import { OperationsCommissionReport, OperationsCommissionFilters } from '@/types/reports'
 import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -10,6 +10,7 @@ import { usePermissions } from '@/contexts/PermissionContext'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateOperationsCommissionModal from './CreateOperationsCommissionModal'
 import EditOperationsCommissionModal from './EditOperationsCommissionModal'
+import OperationsCommissionMonthlyTable from './OperationsCommissionMonthlyTable'
 
 export default function OperationsCommissionTab() {
   const { token } = useAuth()
@@ -552,60 +553,7 @@ export default function OperationsCommissionTab() {
                   {expandedReportId === report.id && report.properties && (
                     <tr>
                       <td colSpan={10} className="px-6 py-4 bg-gray-50">
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Closed Properties</h4>
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                              <thead className="bg-gray-100">
-                                <tr>
-                                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-600 uppercase">Reference #</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-600 uppercase">Type</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Price</th>
-                                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-600 uppercase">Commission ({report.commission_percentage}%)</th>
-                                  <th className="px-4 py-2 text-center text-xs font-medium text-gray-600 uppercase">Closed Date</th>
-                                </tr>
-                              </thead>
-                              <tbody className="bg-white divide-y divide-gray-200">
-                                {report.properties.length === 0 ? (
-                                  <tr>
-                                    <td colSpan={5} className="px-4 py-6 text-center text-sm text-gray-500">
-                                      No properties found for this period
-                                    </td>
-                                  </tr>
-                                ) : (
-                                  report.properties.map((property) => (
-                                    <tr key={property.id} className="hover:bg-gray-50">
-                                      <td className="px-4 py-2 text-sm">
-                                        <button
-                                          onClick={() => window.open(`/dashboard/properties?view=${property.id}`, '_blank')}
-                                          className="text-blue-600 hover:text-blue-800 hover:underline font-medium flex items-center gap-1"
-                                          title="View property details"
-                                        >
-                                          {property.reference_number}
-                                          <ExternalLink className="h-3 w-3" />
-                                        </button>
-                                      </td>
-                                      <td className="px-4 py-2 text-sm text-center">
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                          property.property_type === 'sale' 
-                                            ? 'bg-blue-100 text-blue-800'
-                                            : 'bg-purple-100 text-purple-800'
-                                        }`}>
-                                          {property.property_type === 'sale' ? 'Sale' : 'Rent'}
-                                        </span>
-                                      </td>
-                                      <td className="px-4 py-2 text-sm text-right text-gray-900">{formatCurrency(property.price)}</td>
-                                      <td className="px-4 py-2 text-sm text-right font-medium text-green-600">{formatCurrency(property.commission)}</td>
-                                      <td className="px-4 py-2 text-sm text-center text-gray-500">
-                                        {new Date(property.closed_date).toLocaleDateString()}
-                                      </td>
-                                    </tr>
-                                  ))
-                                )}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                        <OperationsCommissionMonthlyTable report={report} />
                       </td>
                     </tr>
                   )}

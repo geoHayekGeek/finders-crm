@@ -1,137 +1,276 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 
+const THIN_BORDER = {
+  top: { style: 'thin', color: { argb: 'FF000000' } },
+  left: { style: 'thin', color: { argb: 'FF000000' } },
+  bottom: { style: 'thin', color: { argb: 'FF000000' } },
+  right: { style: 'thin', color: { argb: 'FF000000' } }
+};
+
+const HEADER_FILL = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFFFFFFF' }
+};
+
+const TOTAL_FILL = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFFFFF00' }
+};
+
+function parseIsoDateParts(dateValue) {
+  if (!dateValue) return null;
+
+  const [year, month, day] = String(dateValue).split('-').map((value) => Number.parseInt(value, 10));
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function formatDisplayDate(dateValue) {
+  const parts = parseIsoDateParts(dateValue);
+  if (!parts) return dateValue || '';
+
+  const date = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric'
+  }).format(date);
+}
+
+function formatCurrency(amount) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(Number.isFinite(Number(amount)) ? Number(amount) : 0);
+}
+
+function getAgentDisplayName(row = {}) {
+  return row.agent_name || row.agent_code || 'Unknown';
+}
+
+function formatMonthLabel(monthKey) {
+  if (!monthKey || monthKey === 'unknown') {
+    return 'Unknown month';
+  }
+
+  const [yearPart, monthPart] = monthKey.split('-');
+  const year = Number.parseInt(yearPart, 10);
+  const month = Number.parseInt(monthPart, 10);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month)) {
+    return monthKey;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric'
+  }).format(date);
+}
+
+function groupPropertiesByMonth(properties = []) {
+  const sortedRows = [...properties].sort((left, right) => {
+    const leftDate = left.closed_date || '';
+    const rightDate = right.closed_date || '';
+
+    if (leftDate !== rightDate) {
+      return leftDate.localeCompare(rightDate);
+    }
+
+    return (left.reference_number || '').localeCompare(right.reference_number || '');
+  });
+
+  const groups = [];
+
+  sortedRows.forEach((row) => {
+    const monthKey = row.closed_date ? row.closed_date.slice(0, 7) : 'unknown';
+    const commission = Number(row.commission) || 0;
+    const isSale = row.property_type === 'sale';
+    const lastGroup = groups[groups.length - 1];
+
+    if (!lastGroup || lastGroup.key !== monthKey) {
+      groups.push({
+        key: monthKey,
+        label: formatMonthLabel(monthKey),
+        rows: [],
+        saleCount: 0,
+        rentCount: 0,
+        commissionTotal: 0
+      });
+    }
+
+    const group = groups[groups.length - 1];
+    group.rows.push(row);
+    group.saleCount += isSale ? 1 : 0;
+    group.rentCount += isSale ? 0 : 1;
+    group.commissionTotal += commission;
+  });
+
+  return groups;
+}
+
+function writeCell(worksheet, rowNumber, columnNumber, value, style = {}) {
+  const cell = worksheet.getCell(rowNumber, columnNumber);
+  cell.value = value;
+
+  if (style.font) cell.font = style.font;
+  if (style.fill) cell.fill = style.fill;
+  if (style.border) cell.border = style.border;
+  if (style.alignment) cell.alignment = style.alignment;
+  if (style.numFmt) cell.numFmt = style.numFmt;
+
+  return cell;
+}
+
 /**
  * Export operations commission report to Excel
  */
 async function exportOperationsCommissionToExcel(report) {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Operations Commission');
-
-  // Set column widths
   worksheet.columns = [
-    { width: 20 },  // Reference
-    { width: 15 },  // Type
-    { width: 20 },  // Price
-    { width: 15 },  // Commission %
-    { width: 20 }   // Commission Amount
+    { width: 14 },
+    { width: 18 },
+    { width: 24 },
+    { width: 10 },
+    { width: 10 },
+    { width: 24 },
+    { width: 60 }
   ];
 
-  // Title
-  worksheet.mergeCells('A1:E1');
-  const titleCell = worksheet.getCell('A1');
-  titleCell.value = 'Total Operations Commission Report';
-  titleCell.font = { size: 16, bold: true };
-  titleCell.alignment = { horizontal: 'center' };
+  worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+  worksheet.autoFilter = 'A1:G1';
 
-  // Report period and commission rate
-  worksheet.mergeCells('A2:E2');
-  const periodCell = worksheet.getCell('A2');
-  const startDate = report.start_date ? new Date(report.start_date) : new Date(report.year, report.month - 1, 1);
-  const endDate = report.end_date ? new Date(report.end_date) : new Date(report.year, report.month, 0);
-  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-  periodCell.value = `${formatter.format(startDate)} - ${formatter.format(endDate)} | Commission Rate: ${report.commission_percentage}%`;
-  periodCell.font = { size: 12, italic: true };
-  periodCell.alignment = { horizontal: 'center' };
-
-  let currentRow = 4;
-
-  // Summary Section
-  worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-  const summaryHeaderCell = worksheet.getCell(`A${currentRow}`);
-  summaryHeaderCell.value = 'Summary';
-  summaryHeaderCell.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-  summaryHeaderCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF2563EB' }
-  };
-  summaryHeaderCell.alignment = { horizontal: 'center' };
-  currentRow++;
-
-  // Summary data
-  const summaryData = [
-    ['Total Properties Closed', report.total_properties_count],
-    ['Sales Count', report.total_sales_count],
-    ['Rent Count', report.total_rent_count],
-    ['Total Sales Value', `$${parseFloat(report.total_sales_value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['Total Rent Value', `$${parseFloat(report.total_rent_value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
-    ['TOTAL COMMISSION', `$${parseFloat(report.total_commission_amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]
+  const headerRow = [
+    'Date',
+    'Reference',
+    'Agent',
+    'Sale',
+    'Rent',
+    'Total Commission Operation',
+    'Notes'
   ];
 
-  summaryData.forEach(([label, value], index) => {
-    const isLastRow = index === summaryData.length - 1;
-    worksheet.getCell(`A${currentRow}`).value = label;
-    worksheet.getCell(`B${currentRow}`).value = '';
-    worksheet.mergeCells(`C${currentRow}:E${currentRow}`);
-    worksheet.getCell(`C${currentRow}`).value = value;
-    
-    worksheet.getCell(`A${currentRow}`).font = { bold: true };
-    worksheet.getCell(`C${currentRow}`).alignment = { horizontal: 'right' };
-    
-    // Highlight total commission row
-    if (isLastRow) {
-      worksheet.getCell(`A${currentRow}`).font = { bold: true, size: 12 };
-      worksheet.getCell(`C${currentRow}`).font = { bold: true, size: 12 };
-      const yellowFill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFFFD966' }
-      };
-      worksheet.getCell(`A${currentRow}`).fill = yellowFill;
-      worksheet.getCell(`C${currentRow}`).fill = yellowFill;
-    }
-    
-    currentRow++;
+  headerRow.forEach((header, index) => {
+    writeCell(worksheet, 1, index + 1, header, {
+      font: { bold: true },
+      fill: HEADER_FILL,
+      border: THIN_BORDER,
+      alignment: { horizontal: 'center', vertical: 'middle' }
+    });
   });
 
-  currentRow++; // Add spacing
+  let currentRow = 2;
+  const groups = groupPropertiesByMonth(report.properties || []);
 
-  // Properties Detail Section
-  if (report.properties && report.properties.length > 0) {
-    worksheet.mergeCells(`A${currentRow}:E${currentRow}`);
-    const detailsHeaderCell = worksheet.getCell(`A${currentRow}`);
-    detailsHeaderCell.value = 'Property Details';
-    detailsHeaderCell.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-    detailsHeaderCell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF2563EB' }
-    };
-    detailsHeaderCell.alignment = { horizontal: 'center' };
-    currentRow++;
-
-    // Table header
-    const headers = ['Reference', 'Type', 'Price', 'Commission %', 'Commission Amount'];
-    headers.forEach((header, index) => {
-      const cell = worksheet.getCell(currentRow, index + 1);
-      cell.value = header;
-      cell.font = { bold: true };
-      cell.fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: 'FFE5E7EB' }
-      };
+  if (groups.length === 0) {
+    worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
+    writeCell(worksheet, currentRow, 1, 'TOTAL', {
+      font: { bold: true },
+      fill: TOTAL_FILL,
+      border: THIN_BORDER,
+      alignment: { horizontal: 'center', vertical: 'middle' }
     });
-    currentRow++;
+    writeCell(worksheet, currentRow, 4, 0, {
+      font: { bold: true },
+      fill: TOTAL_FILL,
+      border: THIN_BORDER,
+      alignment: { horizontal: 'center', vertical: 'middle' }
+    });
+    writeCell(worksheet, currentRow, 5, 0, {
+      font: { bold: true },
+      fill: TOTAL_FILL,
+      border: THIN_BORDER,
+      alignment: { horizontal: 'center', vertical: 'middle' }
+    });
+    writeCell(worksheet, currentRow, 6, formatCurrency(0), {
+      font: { bold: true, color: { argb: 'FFFF0000' } },
+      fill: TOTAL_FILL,
+      border: THIN_BORDER,
+      alignment: { horizontal: 'right', vertical: 'middle' }
+    });
+    writeCell(worksheet, currentRow, 7, '', {
+      fill: TOTAL_FILL,
+      border: THIN_BORDER
+    });
+  } else {
+    groups.forEach((group) => {
+      group.rows.forEach((row) => {
+        const note = row.notes || '';
+        writeCell(worksheet, currentRow, 1, formatDisplayDate(row.closed_date), {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        });
+        writeCell(worksheet, currentRow, 2, row.reference_number || 'No Ref', {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        });
+        writeCell(worksheet, currentRow, 3, getAgentDisplayName(row), {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        });
+        writeCell(worksheet, currentRow, 4, row.property_type === 'sale' ? 1 : '', {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        });
+        writeCell(worksheet, currentRow, 5, row.property_type === 'rent' ? 1 : '', {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'center', vertical: 'middle' }
+        });
+        writeCell(worksheet, currentRow, 6, formatCurrency(row.commission), {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'right', vertical: 'middle' }
+        });
+        writeCell(worksheet, currentRow, 7, note, {
+          border: THIN_BORDER,
+          alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
+        });
 
-    // Property rows
-    report.properties.forEach((property) => {
-      worksheet.getCell(`A${currentRow}`).value = property.reference_number;
-      worksheet.getCell(`B${currentRow}`).value = property.property_type === 'sale' ? 'Sale' : 'Rent';
-      worksheet.getCell(`C${currentRow}`).value = `$${parseFloat(property.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      worksheet.getCell(`D${currentRow}`).value = `${report.commission_percentage}%`;
-      worksheet.getCell(`E${currentRow}`).value = `$${parseFloat(property.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      
-      worksheet.getCell(`C${currentRow}`).alignment = { horizontal: 'right' };
-      worksheet.getCell(`D${currentRow}`).alignment = { horizontal: 'center' };
-      worksheet.getCell(`E${currentRow}`).alignment = { horizontal: 'right' };
-      
-      currentRow++;
+        currentRow += 1;
+      });
+
+      worksheet.mergeCells(`A${currentRow}:C${currentRow}`);
+      writeCell(worksheet, currentRow, 1, 'TOTAL', {
+        font: { bold: true },
+        fill: TOTAL_FILL,
+        border: THIN_BORDER,
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      });
+      writeCell(worksheet, currentRow, 4, group.saleCount, {
+        font: { bold: true },
+        fill: TOTAL_FILL,
+        border: THIN_BORDER,
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      });
+      writeCell(worksheet, currentRow, 5, group.rentCount, {
+        font: { bold: true },
+        fill: TOTAL_FILL,
+        border: THIN_BORDER,
+        alignment: { horizontal: 'center', vertical: 'middle' }
+      });
+      writeCell(worksheet, currentRow, 6, formatCurrency(group.commissionTotal), {
+        font: { bold: true, color: { argb: 'FFFF0000' } },
+        fill: TOTAL_FILL,
+        border: THIN_BORDER,
+        alignment: { horizontal: 'right', vertical: 'middle' }
+      });
+      writeCell(worksheet, currentRow, 7, '', {
+        fill: TOTAL_FILL,
+        border: THIN_BORDER
+      });
+
+      currentRow += 1;
     });
   }
 
-  // Return buffer
   return await workbook.xlsx.writeBuffer();
 }
 

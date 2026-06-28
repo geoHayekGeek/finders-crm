@@ -34,6 +34,8 @@ describe('Operations Commission Model', () => {
             {
               id: 1,
               reference_number: 'P001',
+              agent_name: 'Agent One',
+              agent_code: 'A-1',
               property_type: 'sale',
               price: 100000,
               closed_date: '2024-01-15',
@@ -43,6 +45,8 @@ describe('Operations Commission Model', () => {
             {
               id: 2,
               reference_number: 'P002',
+              agent_name: 'Agent Two',
+              agent_code: 'A-2',
               property_type: 'sale',
               price: 50000,
               closed_date: '2024-01-20',
@@ -60,16 +64,49 @@ describe('Operations Commission Model', () => {
       expect(result.total_rent_count).toBe(1);
       expect(result.total_sales_value).toBe(100000);
       expect(result.total_rent_value).toBe(50000);
+      expect(result.properties[0].agent_name).toBe('Agent One');
+      expect(result.properties[1].agent_name).toBe('Agent Two');
       expect(result.properties[0].property_type).toBe('sale');
       expect(result.properties[1].property_type).toBe('rent');
       const [sql, params] = mockClient.query.mock.calls[0];
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) AS closed_date');
+      expect(sql).toContain('LEFT JOIN LATERAL');
+      expect(sql).toContain('COALESCE(a.name, latest_referral.agent_name) AS agent_name');
+      expect(sql).toContain('COALESCE(a.user_code, latest_referral.agent_code) AS agent_code');
       expect(sql).toContain('s.name AS status_name');
       expect(sql).toContain('s.code AS status_code');
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) >= $1::date');
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) <= $2::date');
+      expect(sql).toContain('ORDER BY COALESCE(p.closed_date::date, p.created_at::date) ASC, p.reference_number ASC');
       expect(params).toEqual(['2024-01-01', '2024-01-31']);
       expect(mockClient.release).toHaveBeenCalled();
+    });
+
+    it('should fall back to the referral agent code when the display name is missing', async () => {
+      const startDate = '2024-01-01';
+      const endDate = '2024-01-31';
+
+      mockClient.query
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 1,
+              reference_number: 'P001',
+              agent_name: null,
+              agent_code: 'F-MAJ',
+              property_type: 'sale',
+              price: 100000,
+              closed_date: '2024-01-15',
+              status_name: 'Sold',
+              status_code: 'closed'
+            }
+          ]
+        });
+
+      const result = await operationsCommissionModel.calculateCommissionData(startDate, endDate, 4.0);
+
+      expect(result.properties[0].agent_name).toBe('F-MAJ');
+      expect(result.properties[0].agent_code).toBe('F-MAJ');
     });
 
     it('should default commission percentage to 0 when not provided', async () => {
