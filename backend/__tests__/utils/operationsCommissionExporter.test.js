@@ -63,14 +63,12 @@ describe('Operations Commission Exporter', () => {
       expect(worksheet.getCell('D1').value).toBe('Sale');
       expect(worksheet.getCell('E1').value).toBe('Rent');
       expect(worksheet.getCell('F1').value).toBe('Total Commission Operation');
-      expect(worksheet.getCell('G1').value).toBe('Notes');
 
       expect(worksheet.getCell('A2').value).toBe('1/10/2026');
       expect(worksheet.getCell('B2').value).toBe('FRA001');
       expect(worksheet.getCell('C2').value).toBe('Nader Bechara');
       expect(worksheet.getCell('D2').value).toBe(1);
       expect(worksheet.getCell('F2').value).toBe('$1,000.00');
-      expect(worksheet.getCell('G2').value).toBe('First month note');
 
       expect(worksheet.getCell('A4').value).toBe('TOTAL');
       expect(worksheet.getCell('D4').value).toBe(1);
@@ -82,14 +80,13 @@ describe('Operations Commission Exporter', () => {
       expect(worksheet.getCell('C5').value).toBe('Elie Ghafari');
       expect(worksheet.getCell('D5').value).toBe(1);
       expect(worksheet.getCell('F5').value).toBe('$1,500.00');
-      expect(worksheet.getCell('G5').value).toBe('Second month note');
 
       expect(worksheet.getCell('A6').value).toBe('TOTAL');
       expect(worksheet.getCell('D6').value).toBe(1);
       expect(worksheet.getCell('E6').value).toBe(0);
       expect(worksheet.getCell('F6').value).toBe('$1,500.00');
 
-      expect(worksheet.getColumn(7).width).toBe(60);
+      expect(worksheet.getColumn(6).width).toBe(28);
     });
 
     it('should still export a workbook when no properties exist', async () => {

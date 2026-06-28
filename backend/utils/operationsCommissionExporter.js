@@ -142,12 +142,11 @@ async function exportOperationsCommissionToExcel(report) {
     { width: 24 },
     { width: 10 },
     { width: 10 },
-    { width: 24 },
-    { width: 60 }
+    { width: 28 }
   ];
 
   worksheet.views = [{ state: 'frozen', ySplit: 1 }];
-  worksheet.autoFilter = 'A1:G1';
+  worksheet.autoFilter = 'A1:F1';
 
   const headerRow = [
     'Date',
@@ -155,8 +154,7 @@ async function exportOperationsCommissionToExcel(report) {
     'Agent',
     'Sale',
     'Rent',
-    'Total Commission Operation',
-    'Notes'
+    'Total Commission Operation'
   ];
 
   headerRow.forEach((header, index) => {
@@ -197,14 +195,9 @@ async function exportOperationsCommissionToExcel(report) {
       border: THIN_BORDER,
       alignment: { horizontal: 'right', vertical: 'middle' }
     });
-    writeCell(worksheet, currentRow, 7, '', {
-      fill: TOTAL_FILL,
-      border: THIN_BORDER
-    });
   } else {
     groups.forEach((group) => {
       group.rows.forEach((row) => {
-        const note = row.notes || '';
         writeCell(worksheet, currentRow, 1, formatDisplayDate(row.closed_date), {
           border: THIN_BORDER,
           alignment: { horizontal: 'center', vertical: 'middle' }
@@ -228,10 +221,6 @@ async function exportOperationsCommissionToExcel(report) {
         writeCell(worksheet, currentRow, 6, formatCurrency(row.commission), {
           border: THIN_BORDER,
           alignment: { horizontal: 'right', vertical: 'middle' }
-        });
-        writeCell(worksheet, currentRow, 7, note, {
-          border: THIN_BORDER,
-          alignment: { horizontal: 'left', vertical: 'top', wrapText: true }
         });
 
         currentRow += 1;
@@ -261,10 +250,6 @@ async function exportOperationsCommissionToExcel(report) {
         fill: TOTAL_FILL,
         border: THIN_BORDER,
         alignment: { horizontal: 'right', vertical: 'middle' }
-      });
-      writeCell(worksheet, currentRow, 7, '', {
-        fill: TOTAL_FILL,
-        border: THIN_BORDER
       });
 
       currentRow += 1;

@@ -5,7 +5,6 @@ import { OperationsCommissionProperty, OperationsCommissionReport } from '@/type
 
 interface MonthGroup {
   key: string
-  label: string
   rows: OperationsCommissionProperty[]
   saleCount: number
   rentCount: number
@@ -34,22 +33,6 @@ function formatDisplayDate(dateValue: string) {
   return new Intl.DateTimeFormat('en-US', {
     month: 'numeric',
     day: 'numeric',
-    year: 'numeric'
-  }).format(date)
-}
-
-function formatMonthLabel(monthKey: string) {
-  const [yearPart, monthPart] = monthKey.split('-')
-  const year = Number.parseInt(yearPart, 10)
-  const month = Number.parseInt(monthPart, 10)
-
-  if (!Number.isFinite(year) || !Number.isFinite(month)) {
-    return monthKey
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, 1))
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
     year: 'numeric'
   }).format(date)
 }
@@ -97,7 +80,6 @@ function groupReportRows(properties: OperationsCommissionProperty[]) {
 
     groups.set(monthKey, {
       key: monthKey,
-      label: formatMonthLabel(monthKey),
       rows: [row],
       saleCount: isSale ? 1 : 0,
       rentCount: isSale ? 0 : 1,
@@ -126,34 +108,34 @@ export default function OperationsCommissionMonthlyTable({
   }
 
   return (
-    <div className={`space-y-3 ${className}`}>
-      <div className="flex items-center justify-between">
+    <div className={`space-y-2 ${className}`}>
+      <div className="flex items-center justify-between px-1">
         <h4 className="text-sm font-semibold text-slate-900">Monthly breakdown</h4>
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">
           {report.properties.length} closings
         </p>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="min-w-[900px] w-full border-collapse">
-          <thead className="bg-slate-50">
+      <div className="overflow-x-auto">
+        <table className="min-w-[820px] w-full border-collapse border border-black bg-white">
+          <thead className="bg-white">
             <tr>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <th className="border border-black px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.08em] text-black">
                 Date
               </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <th className="border border-black px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.08em] text-black">
                 Reference
               </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <th className="border border-black px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.08em] text-black">
                 Agent
               </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <th className="border border-black px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.08em] text-black">
                 Sale
               </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <th className="border border-black px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.08em] text-black">
                 Rent
               </th>
-              <th className="border-b border-slate-200 px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              <th className="border border-black px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.08em] text-black">
                 Total Commission Operation
               </th>
             </tr>
@@ -161,46 +143,42 @@ export default function OperationsCommissionMonthlyTable({
           <tbody>
             {groups.map((group) => (
               <Fragment key={group.key}>
-                <tr className="bg-slate-100">
-                  <td colSpan={6} className="border-b border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700">
-                    {group.label}
-                  </td>
-                </tr>
                 {group.rows.map((row) => (
-                  <tr key={`${group.key}-${row.id}`} className="odd:bg-white even:bg-slate-50">
-                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                  <tr key={`${group.key}-${row.id}`}>
+                    <td className="border border-black px-3 py-2 text-center text-sm font-medium text-black">
                       {formatDisplayDate(row.closed_date)}
                     </td>
-                    <td className="border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-900">
+                    <td className="border border-black px-3 py-2 text-center text-sm font-medium text-black">
                       {row.reference_number || 'No Ref'}
                     </td>
-                    <td className="border-b border-slate-100 px-4 py-3 text-sm text-slate-900">
+                    <td className="border border-black px-3 py-2 text-center text-sm font-medium text-black">
                       {getAgentDisplayName(row)}
                     </td>
-                    <td className="border-b border-slate-100 px-4 py-3 text-center text-sm text-slate-900">
+                    <td className="border border-black px-3 py-2 text-center text-sm text-black">
                       {row.property_type === 'sale' ? 1 : ''}
                     </td>
-                    <td className="border-b border-slate-100 px-4 py-3 text-center text-sm text-slate-900">
+                    <td className="border border-black px-3 py-2 text-center text-sm text-black">
                       {row.property_type === 'rent' ? 1 : ''}
                     </td>
-                    <td className="border-b border-slate-100 px-4 py-3 text-right text-sm font-semibold text-amber-700">
+                    <td className="border border-black px-3 py-2 text-right text-sm font-semibold text-black">
                       {formatCurrency(row.commission)}
                     </td>
                   </tr>
                 ))}
-                <tr className="bg-yellow-100">
-                  <td className="border-b border-slate-200 px-4 py-3 text-sm text-slate-900" />
-                  <td className="border-b border-slate-200 px-4 py-3 text-sm font-semibold uppercase tracking-[0.14em] text-slate-900">
+                <tr className="bg-yellow-300">
+                  <td
+                    colSpan={3}
+                    className="border border-black px-3 py-2 text-center text-sm font-bold uppercase tracking-[0.12em] text-black"
+                  >
                     TOTAL
                   </td>
-                  <td className="border-b border-slate-200 px-4 py-3 text-sm" />
-                  <td className="border-b border-slate-200 px-4 py-3 text-center text-sm font-semibold text-slate-900">
+                  <td className="border border-black px-3 py-2 text-center text-sm font-bold text-black">
                     {group.saleCount}
                   </td>
-                  <td className="border-b border-slate-200 px-4 py-3 text-center text-sm font-semibold text-slate-900">
+                  <td className="border border-black px-3 py-2 text-center text-sm font-bold text-black">
                     {group.rentCount}
                   </td>
-                  <td className="border-b border-slate-200 px-4 py-3 text-right text-sm font-bold text-red-600">
+                  <td className="border border-black px-3 py-2 text-right text-sm font-bold text-red-600">
                     {formatCurrency(group.commissionTotal)}
                   </td>
                 </tr>
