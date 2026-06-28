@@ -59,30 +59,30 @@ async function calculateDCSRData(startDateInput, endDateInput) {
     );
     const leadsCount = parseInt(leadsResult.rows[0].count) || 0;
     
-    // Count ALL sales closures (properties closed in range with property_type = 'sale')
+    const effectiveDateSql = 'COALESCE(p.closed_date::date, p.created_at::date)';
+
+    // Count ALL sales closures (properties closed in range with a Sold status)
     const salesResult = await client.query(
       `SELECT COUNT(*) as count 
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.closed_date IS NOT NULL
-       AND p.closed_date >= $1::date
-       AND p.closed_date <= $2::date
+       WHERE ${effectiveDateSql} >= $1::date
+       AND ${effectiveDateSql} <= $2::date
        AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'sale'`,
+       AND (LOWER(TRIM(s.name)) = 'sold' OR LOWER(TRIM(s.code)) = 'closed')`,
       [startDateStr, endDateStr]
     );
     const salesCount = parseInt(salesResult.rows[0].count) || 0;
     
-    // Count ALL rent closures (properties closed in range with property_type = 'rent')
+    // Count ALL rent closures (properties closed in range with a Rented status)
     const rentResult = await client.query(
       `SELECT COUNT(*) as count 
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.closed_date IS NOT NULL
-       AND p.closed_date >= $1::date
-       AND p.closed_date <= $2::date
+       WHERE ${effectiveDateSql} >= $1::date
+       AND ${effectiveDateSql} <= $2::date
        AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'rent'`,
+       AND (LOWER(TRIM(s.name)) = 'rented' OR LOWER(TRIM(s.code)) = 'rented')`,
       [startDateStr, endDateStr]
     );
     const rentCount = parseInt(rentResult.rows[0].count) || 0;
@@ -283,16 +283,17 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
       [companyMemberIds, startDateStr, endDateStr]
     );
 
+    const effectiveDateSql = 'COALESCE(p.closed_date::date, p.created_at::date)';
+
     const salesResult = await client.query(
       `SELECT p.agent_id, COUNT(*)::integer AS count
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
        WHERE (p.agent_id = ANY($1::int[]) OR p.agent_id IS NULL)
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
+       AND ${effectiveDateSql} >= $2::date
+       AND ${effectiveDateSql} <= $3::date
        AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'sale'
+       AND (LOWER(TRIM(s.name)) = 'sold' OR LOWER(TRIM(s.code)) = 'closed')
        GROUP BY p.agent_id`,
       [companyMemberIds, startDateStr, endDateStr]
     );
@@ -302,11 +303,10 @@ async function calculateCompanyDCSRAgentBreakdownData(startDateInput, endDateInp
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
        WHERE (p.agent_id = ANY($1::int[]) OR p.agent_id IS NULL)
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
+       AND ${effectiveDateSql} >= $2::date
+       AND ${effectiveDateSql} <= $3::date
        AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'rent'
+       AND (LOWER(TRIM(s.name)) = 'rented' OR LOWER(TRIM(s.code)) = 'rented')
        GROUP BY p.agent_id`,
       [companyMemberIds, startDateStr, endDateStr]
     );
@@ -889,16 +889,17 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
       [teamMemberIdsArray, startDateStr, endDateStr]
     );
 
+    const effectiveDateSql = 'COALESCE(p.closed_date::date, p.created_at::date)';
+
     const salesResult = await client.query(
       `SELECT p.agent_id, COUNT(*)::integer AS count
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.agent_id = ANY($1::int[])
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
+       AND ${effectiveDateSql} >= $2::date
+       AND ${effectiveDateSql} <= $3::date
        AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'sale'
+       AND (LOWER(TRIM(s.name)) = 'sold' OR LOWER(TRIM(s.code)) = 'closed')
        GROUP BY p.agent_id`,
       [teamMemberIdsArray, startDateStr, endDateStr]
     );
@@ -908,11 +909,10 @@ async function calculateTeamDCSRData(teamLeaderId, startDateInput, endDateInput)
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
        WHERE p.agent_id = ANY($1::int[])
-       AND p.closed_date IS NOT NULL
-       AND p.closed_date >= $2::date
-       AND p.closed_date <= $3::date
+       AND ${effectiveDateSql} >= $2::date
+       AND ${effectiveDateSql} <= $3::date
        AND ${isClosureStatusSql('s')}
-       AND p.property_type = 'rent'
+       AND (LOWER(TRIM(s.name)) = 'rented' OR LOWER(TRIM(s.code)) = 'rented')
        GROUP BY p.agent_id`,
       [teamMemberIdsArray, startDateStr, endDateStr]
     );

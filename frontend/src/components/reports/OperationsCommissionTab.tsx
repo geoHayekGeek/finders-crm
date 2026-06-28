@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { Fragment, useState, useEffect, useMemo } from 'react'
 import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Trash2, DollarSign, Edit, ChevronDown, ChevronUp, X, ExternalLink } from 'lucide-react'
 import { OperationsCommissionReport, OperationsCommissionFilters } from '@/types/reports'
 import { operationsCommissionApi } from '@/utils/api'
@@ -463,7 +463,7 @@ export default function OperationsCommissionTab() {
                 </tr>
               ) : (
                 reports.map((report) => (
-                  <>
+                  <Fragment key={report.id}>
                     <tr key={report.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {formatRangeDisplay(report)}
@@ -609,7 +609,7 @@ export default function OperationsCommissionTab() {
                       </td>
                     </tr>
                   )}
-                  </>
+                </Fragment>
                 ))
               )}
             </tbody>

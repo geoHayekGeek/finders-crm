@@ -2,7 +2,7 @@
 // Model for Operations Commission Reports
 
 const pool = require('../config/db');
-const { isClosureStatusSql } = require('../utils/propertyStatusUtils');
+const { isClosureStatusSql, getClosureTypeFromStatus } = require('../utils/propertyStatusUtils');
 
 /**
  * Normalize and validate a provided date range
@@ -61,6 +61,7 @@ async function calculateCommissionData(startDateInput, endDateInput, commissionP
     const commissionPercentage = Number.isFinite(parseFloat(commissionPercentageInput))
       ? parseFloat(commissionPercentageInput)
       : 0;
+    const effectiveDateSql = 'COALESCE(p.closed_date::date, p.created_at::date)';
     
     // Get all closed properties (sold or rented) in the specified range
     const propertiesResult = await client.query(
@@ -69,14 +70,15 @@ async function calculateCommissionData(startDateInput, endDateInput, commissionP
         p.reference_number,
         p.property_type,
         p.price,
-        p.closed_date
+        ${effectiveDateSql} AS closed_date,
+        s.name AS status_name,
+        s.code AS status_code
        FROM properties p
        INNER JOIN statuses s ON p.status_id = s.id
-       WHERE p.closed_date IS NOT NULL
-       AND p.closed_date >= $1::date
-       AND p.closed_date <= $2::date
+       WHERE ${effectiveDateSql} >= $1::date
+       AND ${effectiveDateSql} <= $2::date
        AND ${isClosureStatusSql('s')}
-       ORDER BY p.closed_date DESC`,
+       ORDER BY ${effectiveDateSql} DESC, p.reference_number DESC`,
       [startDateStr, endDateStr]
     );
     
@@ -90,9 +92,16 @@ async function calculateCommissionData(startDateInput, endDateInput, commissionP
     const propertyDetails = properties.map(property => {
       const price = parseFloat(property.price) || 0;
       const commission = (price * commissionPercentage) / 100;
-      const isSale = property.property_type.toLowerCase() === 'sale';
+      const closedType = getClosureTypeFromStatus(property.status_name, property.status_code);
+
+      if (!closedType) {
+        throw new Error(
+          `Unable to classify closed property ${property.reference_number || property.id} as sale or rent. ` +
+          `Status name="${property.status_name || ''}" status code="${property.status_code || ''}".`
+        );
+      }
       
-      if (isSale) {
+      if (closedType === 'sale') {
         totalSalesCount++;
         totalSalesValue += price;
       } else {
@@ -103,7 +112,7 @@ async function calculateCommissionData(startDateInput, endDateInput, commissionP
       return {
         id: property.id,
         reference_number: property.reference_number,
-        property_type: property.property_type,
+        property_type: closedType,
         price: price,
         commission: commission,
         closed_date: property.closed_date

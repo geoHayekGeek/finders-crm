@@ -195,6 +195,12 @@ function formatPlainMoney(value: number) {
   }).format(Number.isFinite(Number(value)) ? Number(value) : 0)
 }
 
+function formatCommissionInputValue(value: number) {
+  return Number.isFinite(Number(value))
+    ? Number(value).toFixed(2)
+    : ''
+}
+
 function formatRangeDisplay(startDate: string, endDate: string) {
   const formatter = new Intl.DateTimeFormat('en-US', {
     month: 'short',
@@ -441,14 +447,19 @@ function SaleRentSourceRowsTable({
                       </td>
                       <td className="border-b border-slate-100 px-4 py-3 text-right text-sm text-slate-900">
                         {editable ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={Number.isFinite(commissionValue) ? String(commissionValue) : '0'}
-                            onChange={(e) => onCommissionChange?.(row.__rowKey, e.target.value)}
-                            className="w-28 rounded-lg border border-blue-200 px-3 py-2 text-right text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                          />
+                          <div className="relative ml-auto w-[140px]">
+                            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
+                              $
+                            </span>
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={formatCommissionInputValue(commissionValue)}
+                              onChange={(e) => onCommissionChange?.(row.__rowKey, e.target.value)}
+                              className="w-full rounded-lg border border-blue-200 bg-white py-2 pl-7 pr-3 text-right text-sm font-medium tabular-nums text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              aria-label={`Finders commission for ${row.agent_name}`}
+                            />
+                          </div>
                         ) : (
                           <span className="font-medium">
                             {formatPlainMoney(commissionValue)}
@@ -650,7 +661,7 @@ export default function SaleRentSourceTab() {
       const currentKey = row.property_id ? `property-${row.property_id}` : getRowKey(row, index)
       if (currentKey !== rowKey) return row
 
-      const numeric = Number.parseFloat(value)
+      const numeric = Number.parseFloat(value.replace(/[$,\s]/g, ''))
       return {
         ...row,
         finders_commission: Number.isFinite(numeric) ? numeric : 0
@@ -805,24 +816,7 @@ export default function SaleRentSourceTab() {
             Refresh saved
           </button>
         </div>
-
-        <div className="rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">
-          Company-wide source report with manual commission entry
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-        <div className="flex items-start gap-3">
-          <CalendarRange className="mt-0.5 h-5 w-5 text-blue-600" />
-          <div>
-            <h3 className="text-sm font-semibold text-blue-900">
-              What gets created?
-            </h3>
-            <p className="mt-1 text-sm text-blue-800">
-              One Excel workbook for the entire company. Each row is a closed sale or rental, grouped by team and colored by team in the sheet. Commission is entered manually before download.
-            </p>
-          </div>
-        </div>
+        
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -830,9 +824,6 @@ export default function SaleRentSourceTab() {
           <h3 className="text-base font-semibold text-slate-900">
             Saved reports
           </h3>
-          <p className="mt-1 text-sm text-slate-600">
-            Reports are stored locally in this browser so they can be reopened or exported again.
-          </p>
         </div>
 
         <div className="overflow-x-auto">

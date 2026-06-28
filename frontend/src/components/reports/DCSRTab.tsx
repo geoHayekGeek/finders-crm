@@ -397,24 +397,6 @@ export default function DCSRTab() {
         </button>
       </div>
 
-      {/* Info Card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start">
-          <BarChart2 className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
-          <div>
-            <h3 className="text-sm font-semibold text-blue-900 mb-1">
-              About DCSR Reports
-            </h3>
-            <p className="text-sm text-blue-700">
-              DCSR (Daily Client/Sales Report) tracks <strong>company-wide</strong> activity and results across the selected window. 
-              <span className="font-medium"> Description</span> shows total listings and leads, 
-              <span className="font-medium"> Closures</span> show total sales and rentals, and 
-              <span className="font-medium"> Viewings</span> track total client appointments across all agents.
-            </p>
-          </div>
-        </div>
-      </div>
-
       {/* Reports Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">

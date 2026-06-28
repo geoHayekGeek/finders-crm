@@ -2,7 +2,7 @@
 // Company-wide "Statistics of Sale and Rent Source" report
 
 const pool = require('../config/db');
-const { isClosureStatusSql } = require('../utils/propertyStatusUtils');
+const { isClosureStatusSql, getClosureTypeFromStatus } = require('../utils/propertyStatusUtils');
 
 function roundMoney(value) {
   const numeric = Number.parseFloat(value);
@@ -80,6 +80,8 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date } = {}) {
         a.name AS agent_name,
         a.user_code AS agent_code,
         a.role AS agent_role,
+        s.name AS status_name,
+        s.code AS status_code,
         COALESCE(
           a.assigned_to,
           ta.team_leader_id,
@@ -136,12 +138,16 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date } = {}) {
     );
 
     return (result.rows || []).map((row) => {
-      const propertyType = String(row.property_type || '').trim().toLowerCase();
-      const soldRented = propertyType === 'sale'
-        ? 'SOLD'
-        : propertyType === 'rent'
-          ? 'Rented'
-          : (row.property_type || '');
+      const closedType = getClosureTypeFromStatus(row.status_name, row.status_code);
+
+      if (!closedType) {
+        throw new Error(
+          `Unable to classify sale/rent source row ${row.reference_number || row.property_id || 'unknown'} as sale or rent. ` +
+          `Status name="${row.status_name || ''}" status code="${row.status_code || ''}".`
+        );
+      }
+
+      const soldRented = closedType === 'sale' ? 'SOLD' : 'Rented';
 
       const teamLeaderId = row.team_leader_id !== null && row.team_leader_id !== undefined
         ? Number(row.team_leader_id)

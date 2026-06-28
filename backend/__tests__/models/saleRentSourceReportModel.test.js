@@ -34,6 +34,8 @@ describe('Sale Rent Source Report Model', () => {
             agent_name: 'Alice Agent',
             agent_code: 'A-10',
             agent_role: 'agent',
+            status_name: 'Sold',
+            status_code: 'closed',
             team_leader_id: 2,
             team_leader_name: 'Alpha Team',
             team_leader_code: 'TL-A',
@@ -52,6 +54,8 @@ describe('Sale Rent Source Report Model', () => {
             agent_name: 'Bob Agent',
             agent_code: 'B-11',
             agent_role: 'consultant',
+            status_name: 'Rented',
+            status_code: 'RENTED',
             team_leader_id: 3,
             team_leader_name: 'Beta Team',
             team_leader_code: 'TL-B',
@@ -71,6 +75,8 @@ describe('Sale Rent Source Report Model', () => {
       expect(mockClient.query).toHaveBeenCalledTimes(1);
       const [sql, params] = mockClient.query.mock.calls[0];
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) AS closed_date');
+      expect(sql).toContain('s.name AS status_name');
+      expect(sql).toContain('s.code AS status_code');
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) >= $1::date');
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) <= $2::date');
       expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) ASC');
@@ -156,6 +162,8 @@ describe('Sale Rent Source Report Model', () => {
             agent_name: 'Alice Agent',
             agent_code: 'A-10',
             agent_role: 'agent',
+            status_name: 'Sold',
+            status_code: 'closed',
             team_leader_id: null,
             team_leader_name: null,
             team_leader_code: null,

@@ -23,10 +23,10 @@ describe('Operations Commission Exporter', () => {
     properties: [
       {
         reference_number: 'PROP001',
-        type: 'Sale',
+        property_type: 'sale',
         price: 100000,
-        commission_percentage: 3,
-        commission_amount: 3000
+        commission: 3000,
+        closed_date: '2024-01-15'
       }
     ]
   };

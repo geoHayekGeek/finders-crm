@@ -31,8 +31,24 @@ describe('Operations Commission Model', () => {
       mockClient.query
         .mockResolvedValueOnce({
           rows: [
-            { id: 1, reference_number: 'P001', property_type: 'sale', price: 100000, closed_date: '2024-01-15' },
-            { id: 2, reference_number: 'P002', property_type: 'rent', price: 50000, closed_date: '2024-01-20' }
+            {
+              id: 1,
+              reference_number: 'P001',
+              property_type: 'sale',
+              price: 100000,
+              closed_date: '2024-01-15',
+              status_name: 'Sold',
+              status_code: 'closed'
+            },
+            {
+              id: 2,
+              reference_number: 'P002',
+              property_type: 'sale',
+              price: 50000,
+              closed_date: '2024-01-20',
+              status_name: 'Rented',
+              status_code: 'RENTED'
+            }
           ]
         }); // properties
 
@@ -44,6 +60,15 @@ describe('Operations Commission Model', () => {
       expect(result.total_rent_count).toBe(1);
       expect(result.total_sales_value).toBe(100000);
       expect(result.total_rent_value).toBe(50000);
+      expect(result.properties[0].property_type).toBe('sale');
+      expect(result.properties[1].property_type).toBe('rent');
+      const [sql, params] = mockClient.query.mock.calls[0];
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) AS closed_date');
+      expect(sql).toContain('s.name AS status_name');
+      expect(sql).toContain('s.code AS status_code');
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) >= $1::date');
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) <= $2::date');
+      expect(params).toEqual(['2024-01-01', '2024-01-31']);
       expect(mockClient.release).toHaveBeenCalled();
     });
 

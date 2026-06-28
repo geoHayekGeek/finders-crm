@@ -12,6 +12,25 @@ function isClosureStatusSql(alias = 'statuses') {
   return `COALESCE(${alias}.is_closure_status, FALSE) = TRUE`;
 }
 
+function normalizeStatusLabel(value) {
+  return value ? String(value).toLowerCase().replace(/_/g, ' ').trim() : '';
+}
+
+function getClosureTypeFromStatus(statusName, statusCode) {
+  const normalizedName = normalizeStatusLabel(statusName);
+  const normalizedCode = normalizeStatusLabel(statusCode);
+
+  if (normalizedName === 'sold' || normalizedCode === 'closed') {
+    return 'sale';
+  }
+
+  if (normalizedName === 'rented' || normalizedCode === 'rented') {
+    return 'rent';
+  }
+
+  return null;
+}
+
 function getDefaultStatusFromRows(statuses = []) {
   if (!Array.isArray(statuses) || statuses.length === 0) {
     return null;
@@ -30,6 +49,7 @@ function getDefaultStatusIdFromRows(statuses = []) {
 module.exports = {
   CLOSURE_STATUS_ID_SUBQUERY,
   CLOSURE_STATUS_REQUIRED_ERROR,
+  getClosureTypeFromStatus,
   getDefaultStatusFromRows,
   getDefaultStatusIdFromRows,
   isClosureStatus,

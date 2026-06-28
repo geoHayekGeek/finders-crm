@@ -49,6 +49,10 @@ describe('DCSR Reports Model', () => {
         rent_count: 2,
         viewings_count: 8
       });
+      expect(mockClient.query.mock.calls[2][0]).toContain('COALESCE(p.closed_date::date, p.created_at::date)');
+      expect(mockClient.query.mock.calls[2][0]).toContain("LOWER(TRIM(s.name)) = 'sold'");
+      expect(mockClient.query.mock.calls[3][0]).toContain('COALESCE(p.closed_date::date, p.created_at::date)');
+      expect(mockClient.query.mock.calls[3][0]).toContain("LOWER(TRIM(s.name)) = 'rented'");
       expect(mockClient.release).toHaveBeenCalled();
     });
 
