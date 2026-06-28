@@ -77,12 +77,17 @@ describe('Sale & Rent Source Report Exporter', () => {
       expect(worksheet.getCell('A1').value).toBe('Date');
       expect(worksheet.getCell('B1').value).toBe('Agent name');
       expect(worksheet.getCell('H1').value).toBe('Find Com');
+      expect(worksheet.getCell('H1').font.color.argb).toBe('FFFF0000');
       expect(worksheet.getCell('B2').value).toBe('Alice Agent');
       expect(worksheet.getCell('H2').value).toBe(5000);
-      expect(worksheet.getCell('H2').numFmt).toBe('[$$-409]#,##0.00;[Red][$$-409]#,##0.00');
+      expect(worksheet.getCell('H2').font.color.argb).toBe('FFFF0000');
+      expect(worksheet.getCell('H2').numFmt).toBe('$#,##0.00');
       expect(worksheet.getCell('B2').fill.type).toBe('pattern');
       expect(worksheet.getCell('B2').fill.pattern).toBe('solid');
       expect(worksheet.getCell('I2').value).toBe('This is a much longer note that should be merged across the notes columns');
+      expect(worksheet.getCell('I2').alignment.horizontal).toBe('left');
+      expect(worksheet.getCell('I2').alignment.wrapText).not.toBe(true);
+      expect(Object.keys(worksheet._merges || {})).toHaveLength(0);
       expect(worksheet.getCell('I4').value).toBe('SECOND');
     });
 

@@ -14,19 +14,19 @@ const TEAM_ACCENTS = [
 
 const MAIN_HEADER = ['Date', 'Agent name', 'Ref#', 'Sold/Rented', 'Source', 'Owner Name', 'Phone Number', 'Find Com'];
 const DATA_COLUMN_WIDTHS = [
-  18.6640625,
-  24.6640625,
-  19.109375,
-  22.88671875,
-  24.109375,
-  50.6640625,
-  29.21875,
-  22.109375,
+  12,
+  20,
   13,
+  14,
+  18,
+  36,
+  18,
   13,
-  13,
-  13,
-  13
+  48,
+  12,
+  12,
+  12,
+  12
 ];
 
 function roundMoney(value) {
@@ -138,7 +138,8 @@ function applyBorder(cell, isHeader = false) {
   };
 }
 
-function applyHeaderStyle(cell, columnIndex, columnCount) {
+function applyHeaderStyle(cell, columnIndex, columnCount, options = {}) {
+  const { fontColor = 'FF000000' } = options;
   const isFirst = columnIndex === 1;
   const isLast = columnIndex === columnCount;
 
@@ -146,7 +147,7 @@ function applyHeaderStyle(cell, columnIndex, columnCount) {
     name: 'Calibri',
     size: 11,
     bold: true,
-    color: { argb: 'FF000000' }
+    color: { argb: fontColor }
   };
   cell.alignment = { horizontal: 'center', vertical: 'middle' };
   cell.border = {
@@ -191,12 +192,7 @@ function applyDataCellStyle(cell, options = {}) {
   applyBorder(cell);
 }
 
-function getLongNoteThreshold(note) {
-  const length = normalizeText(note, '').length;
-  return length >= 28;
-}
-
-function applyNoteCellStyle(cell, longNote = false) {
+function applyNoteCellStyle(cell) {
   cell.font = {
     name: 'Calibri',
     size: 11,
@@ -204,11 +200,10 @@ function applyNoteCellStyle(cell, longNote = false) {
     color: { argb: 'FF000000' }
   };
   cell.alignment = {
-    horizontal: longNote ? 'left' : 'center',
+    horizontal: 'left',
     vertical: 'middle',
-    wrapText: longNote
+    wrapText: false
   };
-  applyBorder(cell);
 }
 
 function buildMainRow(row) {
@@ -241,7 +236,9 @@ async function exportSaleRentSourceToExcel(rows, meta = {}) {
   const headerRow = worksheet.addRow(MAIN_HEADER);
   headerRow.height = 19.95;
   headerRow.eachCell((cell, columnIndex) => {
-    applyHeaderStyle(cell, columnIndex, MAIN_HEADER.length);
+    applyHeaderStyle(cell, columnIndex, MAIN_HEADER.length, {
+      fontColor: columnIndex === 8 ? 'FFFF0000' : 'FF000000'
+    });
   });
 
   const sortedRows = sortRows(rows);
@@ -269,7 +266,8 @@ async function exportSaleRentSourceToExcel(rows, meta = {}) {
         styleOptions.bold = isLeader;
         styleOptions.fontColor = accent.font;
       } else if (col === 8) {
-        styleOptions.numFmt = '[$$-409]#,##0.00;[Red][$$-409]#,##0.00';
+        styleOptions.numFmt = '$#,##0.00';
+        styleOptions.fontColor = 'FFFF0000';
       }
 
       applyDataCellStyle(cell, styleOptions);
@@ -278,18 +276,8 @@ async function exportSaleRentSourceToExcel(rows, meta = {}) {
     const note = normalizeText(row.notes, '');
     if (note) {
       const noteCell = worksheet.getCell(`I${excelRow.number}`);
-      const longNote = getLongNoteThreshold(note);
-      if (longNote) {
-        worksheet.mergeCells(excelRow.number, 9, excelRow.number, 13);
-      }
       noteCell.value = note;
-      applyNoteCellStyle(noteCell, longNote);
-
-      if (longNote) {
-        for (let col = 10; col <= 13; col += 1) {
-          applyNoteCellStyle(worksheet.getCell(excelRow.number, col), true);
-        }
-      }
+      applyNoteCellStyle(noteCell);
     }
   });
 

@@ -45,12 +45,12 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date } = {}) {
 
   const startDateStr = toUtcDateString(startDateObj);
   const endDateStr = toUtcDateString(endDateObj);
+  const effectiveDateSql = 'COALESCE(p.closed_date::date, p.created_at::date)';
 
   const params = [startDateStr, endDateStr];
   const clauses = [
-    'p.closed_date IS NOT NULL',
-    'p.closed_date >= $1::date',
-    'p.closed_date <= $2::date',
+    `${effectiveDateSql} >= $1::date`,
+    `${effectiveDateSql} <= $2::date`,
     isClosureStatusSql('s')
   ];
 
@@ -71,12 +71,11 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date } = {}) {
       `
       SELECT
         p.id AS property_id,
-        p.closed_date::date AS closed_date,
+        ${effectiveDateSql} AS closed_date,
         p.reference_number,
         p.property_type,
         p.notes,
         p.price,
-        COALESCE(p.commission, 0) AS property_commission,
         p.agent_id,
         a.name AS agent_name,
         a.user_code AS agent_code,
@@ -131,7 +130,7 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date } = {}) {
          CASE WHEN COALESCE(tl.name, '') = '' THEN 1 ELSE 0 END,
          COALESCE(tl.name, 'Unassigned'),
          COALESCE(a.name, 'Unknown'),
-         p.closed_date ASC,
+         ${effectiveDateSql} ASC,
          p.reference_number ASC`,
       params
     );
@@ -169,7 +168,7 @@ async function getSaleRentSourceData({ agent_id, start_date, end_date } = {}) {
         source_name: row.source_name || 'None',
         owner_name: row.owner_name || '',
         phone_number: row.phone_number || '',
-        finders_commission: roundMoney(row.property_commission),
+        finders_commission: 0,
         price: roundMoney(row.price),
         notes: row.notes || ''
       };

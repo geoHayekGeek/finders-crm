@@ -30,7 +30,6 @@ describe('Sale Rent Source Report Model', () => {
             property_type: 'sale',
             notes: 'Longer note for the workbook',
             price: 100000,
-            property_commission: 1000.5,
             agent_id: 10,
             agent_name: 'Alice Agent',
             agent_code: 'A-10',
@@ -49,7 +48,6 @@ describe('Sale Rent Source Report Model', () => {
             property_type: 'rent',
             notes: '',
             price: 50000,
-            property_commission: 500,
             agent_id: 11,
             agent_name: 'Bob Agent',
             agent_code: 'B-11',
@@ -71,18 +69,24 @@ describe('Sale Rent Source Report Model', () => {
 
       expect(pool.connect).toHaveBeenCalled();
       expect(mockClient.query).toHaveBeenCalledTimes(1);
+      const [sql, params] = mockClient.query.mock.calls[0];
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) AS closed_date');
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) >= $1::date');
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) <= $2::date');
+      expect(sql).toContain('COALESCE(p.closed_date::date, p.created_at::date) ASC');
+      expect(params).toEqual(['2024-01-01', '2024-01-31']);
       expect(result).toHaveLength(2);
       expect(result[0]).toMatchObject({
         sold_rented: 'SOLD',
         source_name: 'Website',
-        finders_commission: 1000.5,
+        finders_commission: 0,
         team_leader_name: 'Alpha Team',
         agent_name: 'Alice Agent'
       });
       expect(result[1]).toMatchObject({
         sold_rented: 'Rented',
         source_name: 'Referral',
-        finders_commission: 500,
+        finders_commission: 0,
         team_leader_name: 'Beta Team',
         agent_name: 'Bob Agent'
       });
@@ -148,7 +152,6 @@ describe('Sale Rent Source Report Model', () => {
             property_type: 'sale',
             notes: null,
             price: 100000,
-            property_commission: 0,
             agent_id: 10,
             agent_name: 'Alice Agent',
             agent_code: 'A-10',
