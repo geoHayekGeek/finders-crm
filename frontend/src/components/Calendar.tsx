@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { memo, useState, useMemo, useEffect } from 'react'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent } from '@/app/dashboard/calendar/page'
 
@@ -13,7 +13,7 @@ interface CalendarProps {
   onHourClick?: (date: Date, hour: number) => void
 }
 
-export function Calendar({ events, selectedDate, view, onEventClick, onDateClick, onHourClick }: CalendarProps) {
+function CalendarInner({ events, selectedDate, view, onEventClick, onDateClick, onHourClick }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(selectedDate)
 
   // Update currentDate when selectedDate changes
@@ -56,6 +56,51 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
   // Get current month for month view calculations
   const currentMonth = currentDate.getMonth()
 
+  const eventsByDate = useMemo(() => {
+    type EventDayBucket = {
+      all: CalendarEvent[]
+      byHour: Map<number, CalendarEvent[]>
+    }
+
+    const grouped = new Map<string, EventDayBucket>()
+
+    for (const event of events) {
+      try {
+        if (!event?.start) continue
+
+        const eventDate = new Date(event.start)
+        if (isNaN(eventDate.getTime())) continue
+
+        const dateKey = eventDate.toDateString()
+        const hourKey = eventDate.getHours()
+        let bucket = grouped.get(dateKey)
+
+        if (!bucket) {
+          bucket = { all: [], byHour: new Map() }
+          grouped.set(dateKey, bucket)
+        }
+
+        bucket.all.push(event)
+
+        const hourEvents = bucket.byHour.get(hourKey) || []
+        hourEvents.push(event)
+        bucket.byHour.set(hourKey, hourEvents)
+      } catch (error) {
+        console.error('Error grouping calendar event:', error)
+      }
+    }
+
+    const sortByStart = (a: CalendarEvent, b: CalendarEvent) =>
+      new Date(a.start).getTime() - new Date(b.start).getTime()
+
+    grouped.forEach((bucket) => {
+      bucket.all.sort(sortByStart)
+      bucket.byHour.forEach((hourEvents) => hourEvents.sort(sortByStart))
+    })
+
+    return grouped
+  }, [events])
+
   // Type-safe calendar data access
   const getWeekDates = () => {
     if (view === 'week' && Array.isArray(calendarData) && calendarData.length > 0) {
@@ -74,18 +119,21 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
   const getEventsForDate = (date: Date) => {
     try {
       if (!date || isNaN(date.getTime())) return []
-      
-      return events.filter(event => {
-        try {
-          const eventDate = new Date(event.start)
-          return eventDate.toDateString() === date.toDateString()
-        } catch (error) {
-          console.error('Error processing event:', error)
-          return false
-        }
-      })
+
+      return eventsByDate.get(date.toDateString())?.all || []
     } catch (error) {
       console.error('Error getting events for date:', error)
+      return []
+    }
+  }
+
+  const getEventsForHour = (date: Date, hour: number) => {
+    try {
+      if (!date || isNaN(date.getTime())) return []
+
+      return eventsByDate.get(date.toDateString())?.byHour.get(hour) || []
+    } catch (error) {
+      console.error('Error getting events for hour:', error)
       return []
     }
   }
@@ -357,7 +405,6 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
             {/* Day Columns */}
             {getWeekDates().map((date, index) => {
               const isToday = date.toDateString() === new Date().toDateString()
-              const dayEvents = getEventsForDate(date)
               
               return (
                 <div key={index} className="border-l border-gray-200">
@@ -379,10 +426,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
 
                   {/* Time Slots */}
                   {Array.from({ length: 24 }, (_, hour) => {
-                    const hourEvents = dayEvents.filter(event => {
-                      const eventHour = new Date(event.start).getHours()
-                      return eventHour === hour
-                    })
+                    const hourEvents = getEventsForHour(date, hour)
                     
                     return (
                       <div key={hour} className="h-8 sm:h-12 border-b border-gray-100 relative">
@@ -469,28 +513,7 @@ export function Calendar({ events, selectedDate, view, onEventClick, onDateClick
       <div className="p-2 sm:p-4">
         <div className="space-y-1">
           {Array.from({ length: 24 }, (_, hour) => {
-            const hourEvents = events.filter(event => {
-              try {
-                const eventDate = new Date(event.start)
-                const eventHour = eventDate.getHours()
-                const eventDay = eventDate.getDate()
-                const eventMonth = eventDate.getMonth()
-                const eventYear = eventDate.getFullYear()
-                
-                const selectedDay = selectedDate.getDate()
-                const selectedMonth = selectedDate.getMonth()
-                const selectedYear = selectedDate.getFullYear()
-                
-                // Check if event is on the selected date and at the correct hour
-                return eventHour === hour && 
-                       eventDay === selectedDay && 
-                       eventMonth === selectedMonth && 
-                       eventYear === selectedYear
-              } catch (error) {
-                console.error('Error filtering event by hour:', error)
-                return false
-              }
-            })
+            const hourEvents = getEventsForHour(selectedDate, hour)
             
             return (
               <div key={hour} className="flex h-12 sm:h-16 border-b border-gray-100">
@@ -607,3 +630,5 @@ function generateDayData(date: Date): Date[] {
     return []
   }
 }
+
+export const Calendar = memo(CalendarInner)

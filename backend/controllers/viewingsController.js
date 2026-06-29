@@ -52,6 +52,39 @@ class ViewingsController {
         .filter(Boolean)
     )];
   }
+
+  // Build the calendar start time for a viewing.
+  // Prefer a browser-computed ISO timestamp when available so the chosen time
+  // survives timezone differences between the client and server.
+  static buildViewingCalendarStartTime(viewingData = {}) {
+    if (viewingData.calendar_start_time) {
+      const explicitStartTime = new Date(viewingData.calendar_start_time);
+      if (!Number.isNaN(explicitStartTime.getTime())) {
+        return explicitStartTime;
+      }
+    }
+
+    if (!viewingData.viewing_date || !viewingData.viewing_time) {
+      return null;
+    }
+
+    let viewingDate = viewingData.viewing_date;
+    if (viewingDate instanceof Date) {
+      viewingDate = viewingDate.toISOString().split('T')[0];
+    } else if (typeof viewingDate === 'string' && viewingDate.includes('T')) {
+      viewingDate = viewingDate.split('T')[0];
+    } else {
+      viewingDate = String(viewingDate).trim();
+    }
+
+    let viewingTime = String(viewingData.viewing_time).trim();
+    if (viewingTime.length > 5) {
+      viewingTime = viewingTime.substring(0, 5);
+    }
+
+    const parsedStartTime = new Date(`${viewingDate}T${viewingTime}`);
+    return Number.isNaN(parsedStartTime.getTime()) ? null : parsedStartTime;
+  }
   // Get all viewings (with role-based filtering)
   static async getAllViewings(req, res) {
     try {
@@ -586,10 +619,10 @@ class ViewingsController {
       try {
         logger.debug('Creating calendar event for viewing', { viewingId: viewing.id });
         
-        // Combine date and time to create start_time
-        const viewingDate = new Date(req.body.viewing_date);
-        const [hours, minutes] = req.body.viewing_time.split(':');
-        viewingDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        const viewingDate = ViewingsController.buildViewingCalendarStartTime(req.body);
+        if (!viewingDate) {
+          throw new Error('Invalid viewing date or time');
+        }
         
         // Set end_time to 1 hour after start_time (default viewing duration)
         const endTime = new Date(viewingDate);
@@ -801,6 +834,8 @@ class ViewingsController {
       
       // Normalize update payload to avoid accidental data resets
       const updatesToApply = { ...req.body };
+      const calendarStartTimeInput = updatesToApply.calendar_start_time;
+      delete updatesToApply.calendar_start_time;
 
       if (updatesToApply.viewing_date) {
         try {
@@ -881,7 +916,7 @@ class ViewingsController {
           const calendarUpdates = {};
           
           // Update date/time if changed
-          if (updatesToApply.viewing_date || updatesToApply.viewing_time) {
+          if (updatesToApply.viewing_date || updatesToApply.viewing_time || calendarStartTimeInput) {
             // Get the base date - use the updated viewing's date if not provided in request
             let dateStr = updatesToApply.viewing_date || updatedViewing.viewing_date;
             
@@ -901,10 +936,23 @@ class ViewingsController {
               timeStr = timeStr.substring(0, 5); // Extract HH:MM part only
             }
             
-            // Create a new date with the specified date and time
-            const [hours, minutes] = timeStr.split(':');
-            const viewingDate = new Date(`${dateStr}T00:00:00`);
-            viewingDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+            let viewingDate = null;
+            if (calendarStartTimeInput) {
+              viewingDate = ViewingsController.buildViewingCalendarStartTime({
+                calendar_start_time: calendarStartTimeInput
+              });
+            }
+
+            if (!viewingDate) {
+              viewingDate = ViewingsController.buildViewingCalendarStartTime({
+                viewing_date: dateStr,
+                viewing_time: timeStr
+              });
+            }
+
+            if (!viewingDate) {
+              throw new Error('Invalid viewing date or time');
+            }
             
             const endTime = new Date(viewingDate);
             endTime.setHours(endTime.getHours() + 1);

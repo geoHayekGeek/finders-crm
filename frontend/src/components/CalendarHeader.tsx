@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { CalendarEvent } from '@/app/dashboard/calendar/page'
 import { ChevronLeftIcon, ChevronRightIcon, CalendarIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 
@@ -11,7 +11,7 @@ interface CalendarHeaderProps {
   onDateChange: (date: Date) => void
 }
 
-export function CalendarHeader({ view, onViewChange, selectedDate, onDateChange }: CalendarHeaderProps) {
+function CalendarHeaderInner({ view, onViewChange, selectedDate, onDateChange }: CalendarHeaderProps) {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [quickNavOpen, setQuickNavOpen] = useState(false)
   const datePickerRef = useRef<HTMLDivElement>(null)
@@ -273,3 +273,5 @@ export function CalendarHeader({ view, onViewChange, selectedDate, onDateChange 
     </div>
   )
 }
+
+export const CalendarHeader = memo(CalendarHeaderInner)

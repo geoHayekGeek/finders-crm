@@ -127,7 +127,7 @@ export default function CalendarPage() {
   const { user } = useAuth()
 
   // Check permissions for an event
-  const checkEventPermissions = async (eventId: string): Promise<EventPermissions> => {
+  const checkEventPermissions = useCallback(async (eventId: string): Promise<EventPermissions> => {
     try {
       const token = localStorage.getItem('token')
       const data = await apiGet<{ canEdit: boolean; canDelete: boolean; reason: string }>(
@@ -150,7 +150,7 @@ export default function CalendarPage() {
         reason: 'Error checking permissions'
       }
     }
-  }
+  }, [showWarning])
 
   // Load events from API
   const loadEvents = async (filters?: CalendarFilters) => {
@@ -460,7 +460,7 @@ export default function CalendarPage() {
     }
   }
 
-  const handleEventClick = async (event: CalendarEvent) => {
+  const handleEventClick = useCallback((event: CalendarEvent) => {
     console.log('🖱️ EVENT CLICKED!')
     console.log('📅 Clicked event details:', {
       id: event.id,
@@ -495,40 +495,40 @@ export default function CalendarPage() {
       return
     }
 
-    // Check permissions for this event
-    console.log('🔐 Checking permissions for event:', event.id)
-    const permissions = await checkEventPermissions(event.id)
-    console.log('📋 Permissions result:', permissions)
-    
-    // Store permissions for this event
-    setEventPermissions(prev => ({
-      ...prev,
-      [String(event.id)]: permissions
-    }))
-    
     setSelectedEvent(event)
     setIsEventModalOpen(true)
-    
     console.log('✅ Modal should open now with event:', event.title)
-  }
 
-  const handleDateClick = (date: Date) => {
+    // Check permissions in the background so the modal and overlay render immediately.
+    void (async () => {
+      console.log('🔐 Checking permissions for event:', event.id)
+      const permissions = await checkEventPermissions(event.id)
+      console.log('📋 Permissions result:', permissions)
+
+      setEventPermissions(prev => ({
+        ...prev,
+        [String(event.id)]: permissions
+      }))
+    })()
+  }, [checkEventPermissions, events, showInfo])
+
+  const handleDateClick = useCallback((date: Date) => {
     setSelectedDate(date)
     setIsEventModalOpen(true)
-  }
+  }, [])
 
-  const handleHourClick = (date: Date, hour: number) => {
+  const handleHourClick = useCallback((date: Date, hour: number) => {
     // Set the selected date to the clicked hour
     const newDate = new Date(date)
     newDate.setHours(hour, 0, 0, 0)
     setSelectedDate(newDate)
     setIsEventModalOpen(true)
-  }
+  }, [])
 
-  const openNewEventModal = () => {
+  const openNewEventModal = useCallback(() => {
     setSelectedEvent(null)
     setIsEventModalOpen(true)
-  }
+  }, [])
 
   const handleFiltersChange = useCallback((filters: CalendarFilters) => {
     setAdminFilters(filters)

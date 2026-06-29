@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/contexts/PermissionContext'
 import { isAgentRole, isTeamLeaderRole, isAgentManagerRole, isOperationsRole, isAdminRole } from '@/utils/roleUtils'
 import { viewingsApi, propertiesApi } from '@/utils/api'
-import { formatDateForInput } from '@/utils/dateUtils'
+import { buildDateTimeForApi, formatDateForInput } from '@/utils/dateUtils'
 import { useToast } from '@/contexts/ToastContext'
 
 interface ViewingsModalsProps {
@@ -55,6 +55,10 @@ export function ViewingsModals(props: ViewingsModalsProps) {
     status: 'Scheduled',
     notes: ''
   })
+
+  const buildViewingCalendarStartTime = (dateString: string, timeString: string) => {
+    return buildDateTimeForApi(dateString, timeString) || undefined
+  }
 
   // Add Modal Component
   const AddViewingModal = () => {
@@ -190,6 +194,11 @@ export function ViewingsModals(props: ViewingsModalsProps) {
           }
         }
       }
+
+      finalFormData.calendar_start_time = buildViewingCalendarStartTime(
+        finalFormData.viewing_date,
+        finalFormData.viewing_time
+      )
       
       // Validation
       const newErrors: Record<string, string> = {}
@@ -229,6 +238,10 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               parent_viewing_id: parentViewingId,
               viewing_date: subViewingData.viewing_date,
               viewing_time: subViewingData.viewing_time,
+              calendar_start_time: buildViewingCalendarStartTime(
+                subViewingData.viewing_date,
+                subViewingData.viewing_time
+              ),
               status: subViewingData.status,
             }
             await props.onSaveAdd(subViewingFormData)
@@ -703,7 +716,22 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // Security: For agents, ALWAYS ensure agent_id cannot be changed
       // Remove agent_id from the update if agent tries to change it
-      const finalFormData: Partial<typeof formData> = { ...formData }
+      const finalFormData: Partial<CreateViewingFormData> = { ...formData }
+
+      const originalViewingDate = props.editingViewing?.viewing_date
+        ? formatDateForInput(props.editingViewing.viewing_date)
+        : ''
+      const originalViewingTime = formatTimeForInput(props.editingViewing?.viewing_time)
+      const dateTimeChanged =
+        finalFormData.viewing_date !== originalViewingDate ||
+        finalFormData.viewing_time !== originalViewingTime
+
+      if (dateTimeChanged) {
+        finalFormData.calendar_start_time = buildViewingCalendarStartTime(
+          formData.viewing_date,
+          formData.viewing_time
+        )
+      }
       if (isAgentRole(user?.role)) {
         // Agents cannot change agent_id - remove it from the update
         delete finalFormData.agent_id

@@ -82,6 +82,7 @@ export interface EditViewingFormData {
   agent_id: number
   viewing_date: string
   viewing_time: string
+  calendar_start_time?: string
   status: string
   is_serious?: boolean
   description?: string
@@ -98,6 +99,7 @@ export interface CreateViewingFormData {
   agent_id?: number  // Optional because agents/team leaders auto-assign to themselves
   viewing_date: string
   viewing_time: string
+  calendar_start_time?: string
   status: string
   is_serious?: boolean
   description?: string

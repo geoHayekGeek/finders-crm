@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { memo, useState, useMemo } from 'react'
 import { CalendarEvent } from '@/app/dashboard/calendar/page'
 import { ClockIcon, MapPinIcon, UserGroupIcon, UserIcon, LockClosedIcon } from '@heroicons/react/24/outline'
 
@@ -10,7 +10,7 @@ interface EventListProps {
   onEventClick: (event: CalendarEvent) => void
 }
 
-export function EventList({ events, selectedDate, onEventClick }: EventListProps) {
+function EventListInner({ events, selectedDate, onEventClick }: EventListProps) {
   const [filter, setFilter] = useState<'all' | 'today' | 'upcoming' | 'past'>('upcoming')
 
   const filteredEvents = useMemo(() => {
@@ -275,3 +275,5 @@ export function EventList({ events, selectedDate, onEventClick }: EventListProps
     </div>
   )
 }
+
+export const EventList = memo(EventListInner)

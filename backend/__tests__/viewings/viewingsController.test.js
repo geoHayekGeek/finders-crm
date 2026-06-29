@@ -339,6 +339,7 @@ describe('Viewings Controller', () => {
         agent_id: 1,
         viewing_date: '2024-01-15',
         viewing_time: '10:00',
+        calendar_start_time: '2024-01-15T10:00:00.000Z',
         status: 'Scheduled',
         notes: 'Test viewing'
       };
@@ -359,6 +360,12 @@ describe('Viewings Controller', () => {
       await ViewingsController.createViewing(req, res);
 
       expect(Viewing.createViewing).toHaveBeenCalled();
+      expect(CalendarEvent.createEvent).toHaveBeenCalledWith(expect.objectContaining({
+        start_time: expect.any(Date),
+        end_time: expect.any(Date)
+      }));
+      expect(CalendarEvent.createEvent.mock.calls[0][0].start_time.toISOString()).toBe('2024-01-15T10:00:00.000Z');
+      expect(CalendarEvent.createEvent.mock.calls[0][0].end_time.toISOString()).toBe('2024-01-15T11:00:00.000Z');
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -694,17 +701,29 @@ describe('Viewings Controller', () => {
       req.params = { id: '1' };
       req.body = {
         lead_id: 5,
-        agent_id: 2
+        agent_id: 2,
+        viewing_date: '2024-01-16',
+        viewing_time: '15:45',
+        calendar_start_time: '2024-01-16T15:45:00.000Z'
       };
 
-      const mockExistingViewing = { id: 1, agent_id: 1, lead_id: 4, status: 'Scheduled' };
+      const mockExistingViewing = {
+        id: 1,
+        agent_id: 1,
+        lead_id: 4,
+        status: 'Scheduled',
+        viewing_date: '2024-01-15',
+        viewing_time: '10:00'
+      };
       const mockUpdatedViewing = {
         id: 1,
         agent_id: 2,
         lead_id: 5,
         lead_name: 'Lead Two',
         agent_name: 'Agent Two',
-        property_location: 'Downtown'
+        property_location: 'Downtown',
+        viewing_date: '2024-01-16',
+        viewing_time: '15:45'
       };
 
       Viewing.getViewingById.mockReset();
@@ -724,6 +743,8 @@ describe('Viewings Controller', () => {
           attendees: ['Lead Two', 'Agent Two']
         })
       );
+      expect(CalendarEvent.updateEvent.mock.calls[0][1].start_time.toISOString()).toBe('2024-01-16T15:45:00.000Z');
+      expect(CalendarEvent.updateEvent.mock.calls[0][1].end_time.toISOString()).toBe('2024-01-16T16:45:00.000Z');
     });
 
     it('should return 404 if viewing not found', async () => {

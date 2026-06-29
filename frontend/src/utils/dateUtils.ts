@@ -71,3 +71,19 @@ export function formatDateTimeForDisplay(dateString: string): string {
     return '-'
   }
 }
+
+/**
+ * Build an ISO timestamp from local date and time input values.
+ * This preserves the browser's local timezone when sending data to the API.
+ */
+export function buildDateTimeForApi(dateString: string, timeString: string): string {
+  if (!dateString || !timeString) return ''
+
+  try {
+    const normalizedTime = timeString.length === 5 ? `${timeString}:00` : timeString
+    const dateTime = new Date(`${dateString}T${normalizedTime}`)
+    return Number.isNaN(dateTime.getTime()) ? '' : dateTime.toISOString()
+  } catch (error) {
+    return ''
+  }
+}
