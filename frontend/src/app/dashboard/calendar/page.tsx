@@ -10,7 +10,7 @@ import { PlusIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/contexts/ToastContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatRole } from '@/utils/roleFormatter'
-import { usersApi, locationsApi } from '@/utils/api'
+import { ApiError, apiGet, usersApi, locationsApi } from '@/utils/api'
 
 function normalizeRole(role?: string) {
   return role ? role.toLowerCase().replace(/_/g, ' ').trim() : ''
@@ -130,32 +130,20 @@ export default function CalendarPage() {
   const checkEventPermissions = async (eventId: string): Promise<EventPermissions> => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE_URL}/calendar/${eventId}/permissions`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      const data = await apiGet<{ canEdit: boolean; canDelete: boolean; reason: string }>(
+        `/calendar/${eventId}/permissions`,
+        token || undefined
+      )
 
-      if (response.ok) {
-        const data = await response.json()
-        return {
-          canEdit: data.canEdit,
-          canDelete: data.canDelete,
-          reason: data.reason
-        }
-      } else {
-        const errorData = await response.json()
-        showWarning(`Permission check failed: ${errorData.message || 'Unknown error'}`)
-        return {
-          canEdit: false,
-          canDelete: false,
-          reason: 'Failed to check permissions'
-        }
+      return {
+        canEdit: Boolean(data.canEdit),
+        canDelete: Boolean(data.canDelete),
+        reason: data.reason || 'Permission check completed'
       }
     } catch (error) {
       console.error('Error checking event permissions:', error)
-      showWarning('Failed to check event permissions')
+      const message = error instanceof Error ? error.message : 'Failed to check event permissions'
+      showWarning(`Permission check failed: ${message}`)
       return {
         canEdit: false,
         canDelete: false,
@@ -209,59 +197,49 @@ export default function CalendarPage() {
         ? `${API_BASE_URL}/calendar?${queryParams.toString()}`
         : `${API_BASE_URL}/calendar`
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+      const data = await apiGet<{ success: boolean; events: BackendEvent[] }>(url.replace(API_BASE_URL, ''), token || undefined)
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.events) {
-          // Convert the events to the expected format
-          // Backend handles all permission filtering, so we just display what's returned
-          const formattedEvents: CalendarEvent[] = data.events.map((event: BackendEvent) => ({
-            id: String(event.id),
-            title: event.title,
-            description: event.description,
-            start: new Date(event.start),
-            end: new Date(event.end),
-            allDay: event.allDay,
-            color: (event.color || 'blue') as CalendarEvent['color'],
-            type: (event.type || 'other') as CalendarEvent['type'],
-            location: event.locationName || event.location,
-            locationId: event.locationId !== undefined && event.locationId !== null ? Number(event.locationId) : undefined,
-            locationName: event.locationName || event.location,
-            attendees: Array.isArray(event.attendees)
-              ? event.attendees.map((att: string | number) => String(att))
-              : [],
-            notes: event.notes,
-            propertyId: event.propertyId,
-            propertyReference: event.propertyReference,
-            propertyLocation: event.propertyLocation,
-            leadId: event.leadId,
-            leadName: event.leadName,
-            leadPhone: event.leadPhone,
-            createdById: event.createdBy ? String(event.createdBy) : undefined,
-            createdByName: event.createdByName,
-            isRestricted: Boolean(event.isRestricted)
-          }))
+      if (data.success && data.events) {
+        // Convert the events to the expected format
+        // Backend handles all permission filtering, so we just display what's returned
+        const formattedEvents: CalendarEvent[] = data.events.map((event: BackendEvent) => ({
+          id: String(event.id),
+          title: event.title,
+          description: event.description,
+          start: new Date(event.start),
+          end: new Date(event.end),
+          allDay: event.allDay,
+          color: (event.color || 'blue') as CalendarEvent['color'],
+          type: (event.type || 'other') as CalendarEvent['type'],
+          location: event.locationName || event.location,
+          locationId: event.locationId !== undefined && event.locationId !== null ? Number(event.locationId) : undefined,
+          locationName: event.locationName || event.location,
+          attendees: Array.isArray(event.attendees)
+            ? event.attendees.map((att: string | number) => String(att))
+            : [],
+          notes: event.notes,
+          propertyId: event.propertyId,
+          propertyReference: event.propertyReference,
+          propertyLocation: event.propertyLocation,
+          leadId: event.leadId,
+          leadName: event.leadName,
+          leadPhone: event.leadPhone,
+          createdById: event.createdBy ? String(event.createdBy) : undefined,
+          createdByName: event.createdByName,
+          isRestricted: Boolean(event.isRestricted)
+        }))
 
-          setEvents(formattedEvents)
-        } else {
-          setError('Failed to load events')
-        }
+        setEvents(formattedEvents)
       } else {
-        if (response.status === 401) {
-          setError('Authentication required. Please log in again.')
-        } else {
-          setError('Failed to load events')
-        }
+        setError('Failed to load events')
       }
     } catch (error) {
       console.error('Error loading events:', error)
-      setError('Failed to load events')
+      if (error instanceof ApiError && error.status === 401) {
+        setError('Authentication required. Please log in again.')
+      } else {
+        setError(error instanceof Error ? error.message : 'Failed to load events')
+      }
     } finally {
       setIsLoading(false)
       loadingRef.current = false
@@ -572,17 +550,8 @@ export default function CalendarPage() {
   const loadUsers = async () => {
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch(`${API_BASE_URL}/users/all`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setUsers(data.users || [])
-      }
+      const data = await apiGet<{ success: boolean; users: BackendUser[] }>('/users/all', token || undefined)
+      setUsers(data.users || [])
     } catch (error) {
       console.error('Error loading users:', error)
     }

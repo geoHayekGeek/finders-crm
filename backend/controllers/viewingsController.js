@@ -42,6 +42,16 @@ class ViewingsController {
       logger.error('Error linking calendar event to viewing', error);
     }
   }
+
+  // Keep viewing calendar attendees in sync with the lead and assigned agent
+  static buildViewingAttendees(viewing) {
+    return [...new Set(
+      [viewing?.lead_name, viewing?.agent_name]
+        .filter(name => typeof name === 'string')
+        .map(name => name.trim())
+        .filter(Boolean)
+    )];
+  }
   // Get all viewings (with role-based filtering)
   static async getAllViewings(req, res) {
     try {
@@ -595,12 +605,12 @@ class ViewingsController {
           color: 'blue',
           type: 'showing',
           location: fullViewing.property_location || '',
-          attendees: fullViewing.lead_name ? [fullViewing.lead_name] : [],
+          attendees: ViewingsController.buildViewingAttendees(fullViewing),
           notes: req.body.notes || `Viewing ID: ${viewing.id}`,
           created_by: userId,
-          assigned_to: req.body.agent_id || userId,
-          property_id: req.body.property_id,
-          lead_id: req.body.lead_id
+          assigned_to: finalAgentId,
+          property_id: finalPropertyId,
+          lead_id: finalLeadId
         };
         
         const calendarEvent = await CalendarEvent.createEvent(calendarEventData);
@@ -921,12 +931,15 @@ class ViewingsController {
           if (updatesToApply.lead_id) {
             calendarUpdates.lead_id = updatesToApply.lead_id;
             calendarUpdates.description = `Viewing with ${updatedViewing.lead_name || 'N/A'} for property at ${updatedViewing.property_location || 'N/A'}`;
-            calendarUpdates.attendees = updatedViewing.lead_name ? [updatedViewing.lead_name] : [];
           }
           
           // Update agent assignment if changed
           if (updatesToApply.agent_id) {
             calendarUpdates.assigned_to = updatesToApply.agent_id;
+          }
+
+          if (updatesToApply.lead_id || updatesToApply.agent_id) {
+            calendarUpdates.attendees = ViewingsController.buildViewingAttendees(updatedViewing);
           }
           
           // Update notes if changed

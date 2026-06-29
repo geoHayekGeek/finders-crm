@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Trash2, AlertTriangle, Circle, Star } from 'lucide-react'
 import { Status } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
@@ -20,6 +20,17 @@ export default function StatusDeleteModal({ isOpen, onClose, onSuccess, status }
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmText, setConfirmText] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null)
+      setConfirmText('')
+      return
+    }
+
+    setError(null)
+    setConfirmText('')
+  }, [isOpen, status.id])
 
   const handleDelete = async () => {
     if (confirmText !== status.name) {

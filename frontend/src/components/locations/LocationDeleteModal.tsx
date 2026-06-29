@@ -22,10 +22,14 @@ export default function LocationDeleteModal({ isOpen, onClose, onSuccess, locati
   const [confirmText, setConfirmText] = useState('')
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
       setError(null)
       setConfirmText('')
+      return
     }
+
+    setError(null)
+    setConfirmText('')
   }, [isOpen, location])
 
   const handleDelete = async () => {

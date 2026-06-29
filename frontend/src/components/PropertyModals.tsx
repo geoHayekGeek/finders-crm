@@ -433,6 +433,7 @@ export function PropertyModals({
 
   useEffect(() => {
     if (!showAddPropertyModal) {
+      setValidationErrors({})
       return
     }
 
@@ -725,11 +726,27 @@ export function PropertyModals({
 
   // Reset gallery modification flag and local gallery when edit modal opens
   useEffect(() => {
-    if (showEditPropertyModal && editingProperty) {
+    if (!showEditPropertyModal) {
+      setEditValidationErrors({})
+      if (setBackendValidationErrors) {
+        setBackendValidationErrors({})
+      }
+      setGalleryModified(false)
+      setLocalEditGallery([])
+      return
+    }
+
+    if (editingProperty) {
       setGalleryModified(false)
       setLocalEditGallery([])
     }
-  }, [showEditPropertyModal, editingProperty?.id])
+  }, [showEditPropertyModal, editingProperty?.id, setBackendValidationErrors])
+
+  useEffect(() => {
+    if (!showDeletePropertyModal) {
+      setDeleteConfirmation('')
+    }
+  }, [showDeletePropertyModal, setDeleteConfirmation])
 
   // Fetch complete property details from backend when editing property changes
   useEffect(() => {

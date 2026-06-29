@@ -1108,11 +1108,30 @@ class Property {
   }
 
   static async deleteProperty(id) {
-    const result = await pool.query(
-      'DELETE FROM properties WHERE id = $1 RETURNING *',
-      [id]
-    );
-    return result.rows[0];
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Remove any calendar events tied to this property before the property row disappears.
+      await client.query(
+        'DELETE FROM calendar_events WHERE property_id = $1',
+        [id]
+      );
+
+      const result = await client.query(
+        'DELETE FROM properties WHERE id = $1 RETURNING *',
+        [id]
+      );
+
+      await client.query('COMMIT');
+      return result.rows[0];
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   static async getPropertiesWithFilters(filters = {}) {

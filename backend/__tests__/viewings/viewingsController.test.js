@@ -322,6 +322,15 @@ describe('Viewings Controller', () => {
     });
   });
 
+  describe('buildViewingAttendees', () => {
+    it('should include both the lead and assigned agent names', () => {
+      expect(ViewingsController.buildViewingAttendees({
+        lead_name: 'John Doe',
+        agent_name: 'Agent Smith'
+      })).toEqual(['John Doe', 'Agent Smith']);
+    });
+  });
+
   describe('createViewing', () => {
     it('should create viewing successfully', async () => {
       req.body = {
@@ -335,13 +344,14 @@ describe('Viewings Controller', () => {
       };
 
       const mockViewing = { id: 1, ...req.body, agent_id: 1 };
-      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe', agent_name: 'Agent Smith' };
 
       // For admin users, no property check is done, so first pool.query is duplicate check
       // Mock duplicate check - no duplicates found
       pool.query.mockResolvedValueOnce({ rows: [] });
       
       Viewing.createViewing.mockResolvedValue(mockViewing);
+      Viewing.getViewingById.mockReset();
       Viewing.getViewingById.mockResolvedValue(mockFullViewing);
       CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
       pool.query.mockResolvedValue({ rows: [] });
@@ -531,7 +541,7 @@ describe('Viewings Controller', () => {
       };
 
       const mockViewing = { id: 1, ...req.body, agent_id: 1 };
-      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe', agent_name: 'Agent Smith' };
 
       // Reset pool.query to ensure clean state from previous tests
       pool.query.mockReset();
@@ -544,12 +554,19 @@ describe('Viewings Controller', () => {
       
       // Set up mock implementations (jest.clearAllMocks() in beforeEach already reset them)
       Viewing.createViewing.mockResolvedValue(mockViewing);
+      Viewing.getViewingById.mockReset();
       Viewing.getViewingById.mockResolvedValue(mockFullViewing);
       CalendarEvent.createEvent.mockResolvedValue({ id: 1 });
 
       await ViewingsController.createViewing(req, res);
 
       expect(Viewing.createViewing).toHaveBeenCalled();
+      expect(CalendarEvent.createEvent).toHaveBeenCalledWith(expect.objectContaining({
+        attendees: ['John Doe', 'Agent Smith'],
+        assigned_to: 1,
+        property_id: 1,
+        lead_id: 1
+      }));
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
@@ -598,13 +615,14 @@ describe('Viewings Controller', () => {
         parent_viewing_id: null
       };
       const mockViewing = { id: 2, ...req.body, parent_viewing_id: 10 };
-      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe' };
+      const mockFullViewing = { ...mockViewing, property_reference: 'PROP001', lead_name: 'John Doe', agent_name: 'Agent Smith' };
 
       // For admin users with parent_viewing_id:
       // 1. First Viewing.getViewingById call is to get the parent viewing
       // 2. Then pool.query is duplicate check (which should return empty for sub-viewings)
       // 3. Then pool.query for notifications
       Viewing.getViewingById
+        .mockReset()
         .mockResolvedValueOnce(mockParentViewing) // Get parent viewing
         .mockResolvedValue(mockFullViewing); // Get created viewing
       
@@ -670,6 +688,42 @@ describe('Viewings Controller', () => {
         data: mockUpdatedViewing,
         message: 'Viewing updated successfully'
       });
+    });
+
+    it('should keep the assigned agent in calendar attendees when syncing viewing changes', async () => {
+      req.params = { id: '1' };
+      req.body = {
+        lead_id: 5,
+        agent_id: 2
+      };
+
+      const mockExistingViewing = { id: 1, agent_id: 1, lead_id: 4, status: 'Scheduled' };
+      const mockUpdatedViewing = {
+        id: 1,
+        agent_id: 2,
+        lead_id: 5,
+        lead_name: 'Lead Two',
+        agent_name: 'Agent Two',
+        property_location: 'Downtown'
+      };
+
+      Viewing.getViewingById.mockReset();
+      Viewing.getViewingById
+        .mockResolvedValueOnce(mockExistingViewing)
+        .mockResolvedValueOnce(mockUpdatedViewing);
+      Viewing.updateViewing.mockResolvedValue({ id: 1, agent_id: 2, lead_id: 5 });
+      pool.query.mockResolvedValueOnce({ rows: [{ id: 99, notes: 'Viewing ID: 1' }] });
+      CalendarEvent.updateEvent.mockResolvedValue({ id: 99 });
+
+      await ViewingsController.updateViewing(req, res);
+
+      expect(CalendarEvent.updateEvent).toHaveBeenCalledWith(
+        99,
+        expect.objectContaining({
+          assigned_to: 2,
+          attendees: ['Lead Two', 'Agent Two']
+        })
+      );
     });
 
     it('should return 404 if viewing not found', async () => {

@@ -61,25 +61,29 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category, ti
 
   // Reset form when modal opens/closes or category changes
   useEffect(() => {
-    if (isOpen) {
-      if (category) {
-        setFormData({
-          name: category.name,
-          code: category.code,
-          description: category.description || '',
-          is_active: category.is_active
-        })
-      } else {
-        setFormData({
-          name: '',
-          code: '',
-          description: '',
-          is_active: true
-        })
-      }
+    if (!isOpen) {
       setError(null)
       setValidationErrors({})
+      return
     }
+
+    if (category) {
+      setFormData({
+        name: category.name,
+        code: category.code,
+        description: category.description || '',
+        is_active: category.is_active
+      })
+    } else {
+      setFormData({
+        name: '',
+        code: '',
+        description: '',
+        is_active: true
+      })
+    }
+    setError(null)
+    setValidationErrors({})
   }, [isOpen, category])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

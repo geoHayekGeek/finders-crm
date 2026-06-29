@@ -79,6 +79,12 @@ export function EventModal({
 
 
   useEffect(() => {
+    if (!isOpen) {
+      setErrors({})
+      setLocationAvailability({ status: 'idle', conflictCount: 0 })
+      return
+    }
+
     if (event) {
       // Editing existing event - convert attendee strings to EventUser objects
       const attendeeUsers: EventUser[] = event.attendees?.map((attendee, index) => ({

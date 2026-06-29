@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, Trash2, AlertTriangle } from 'lucide-react'
 import { Category } from '@/types/property'
 import { useAuth } from '@/contexts/AuthContext'
@@ -18,6 +18,17 @@ export default function CategoryDeleteModal({ isOpen, onClose, onSuccess, catego
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmText, setConfirmText] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) {
+      setError(null)
+      setConfirmText('')
+      return
+    }
+
+    setError(null)
+    setConfirmText('')
+  }, [isOpen, category.id])
 
   const handleDelete = async () => {
     if (confirmText !== category.name) {

@@ -116,6 +116,28 @@ function clearCSRFToken() {
   csrfTokenTimestamp = 0
 }
 
+type CachedGetResponse<T> = {
+  value: T
+  expiresAt: number
+}
+
+const inflightGetRequests = new Map<string, Promise<any>>()
+const cachedGetResponses = new Map<string, CachedGetResponse<any>>()
+const GET_REQUEST_CACHE_TTL = 2000
+
+function buildGetRequestCacheKey(url: string, token: string | undefined, config: RequestInit): string {
+  const headers = (config.headers as Record<string, string> | undefined) || {}
+  const normalizedHeaders = Object.entries(headers)
+    .filter(([key]) => key.toLowerCase() !== 'authorization')
+    .sort(([left], [right]) => left.localeCompare(right))
+
+  return JSON.stringify({
+    url,
+    token: token || '',
+    headers: normalizedHeaders,
+  })
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -160,114 +182,150 @@ async function apiRequest<T>(
 
   // Debug logging removed for production security
 
-  try {
-    const response = await fetch(url, config)
-    
-    if (!response.ok) {
-      // Try to extract error message from response body
-      let errorMessage = `HTTP error! status: ${response.status}`
-      let validationErrors: any[] = []
-      let errorData: any = null
-      
-      // Check for token expiration - if we have a token and get a 403, it's likely an auth issue
-      const hasToken = authToken || (typeof window !== 'undefined' && localStorage.getItem('token'))
-      
-      try {
-        errorData = await response.json()
+  const method = ((options.method || 'GET') as string).toUpperCase()
+  const cacheKey = method === 'GET' ? buildGetRequestCacheKey(url, authToken, config) : null
+
+  const executeRequest = async (): Promise<T> => {
+    try {
+      const response = await fetch(url, config)
+
+      if (!response.ok) {
+        // Try to extract error message from response body
+        let errorMessage = `HTTP error! status: ${response.status}`
+        let validationErrors: any[] = []
+        let errorData: any = null
         
-        if (errorData.message) {
-          errorMessage = errorData.message
-        }
+        // Check for token expiration - if we have a token and get a 403, it's likely an auth issue
+        const hasToken = authToken || (typeof window !== 'undefined' && localStorage.getItem('token'))
         
-        // Extract validation errors if they exist
-        if (errorData.errors && Array.isArray(errorData.errors)) {
-          validationErrors = errorData.errors
-        }
-        
-        // Handle auth failures vs authorization failures:
-        // - 401 means unauthenticated (missing/invalid token) -> logout if we had a token
-        // - 403 can mean either "invalid/expired token" OR "forbidden" (no permission)
-        //   We should ONLY logout for the token-invalid case, not for normal forbidden responses.
-        if ((response.status === 401 || response.status === 403) && hasToken) {
-          const message = errorData?.message || ''
-          const messageLower = message.toLowerCase()
-
-          // CSRF errors are 403s but should not trigger logout
-          const isCSRFError = messageLower.includes('csrf') || message === 'Invalid CSRF token'
-
-          // Back-end auth middleware uses this exact message for JWT verification failure:
-          // "Invalid or expired token"
-          const isInvalidOrExpiredToken =
-            messageLower.includes('invalid or expired token') ||
-            messageLower.includes('jwt expired') ||
-            messageLower.includes('token expired') ||
-            messageLower.includes('token invalid')
-
-          const shouldLogout =
-            response.status === 401 || (response.status === 403 && !isCSRFError && isInvalidOrExpiredToken)
-
-          if (shouldLogout) {
-            handleTokenExpiration()
-            // Use setTimeout to ensure redirect happens even if error is caught
-            setTimeout(() => {
-              if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-                window.location.replace('/')
-              }
-            }, 100)
-            throw new ApiError(response.status, 'Your session has expired. Please log in again.')
+        try {
+          errorData = await response.json()
+          
+          if (errorData.message) {
+            errorMessage = errorData.message
           }
-        }
-        
-        // If CSRF token is invalid, try to get a new one and retry once
-        if ((errorData.message === 'Invalid CSRF token' || errorData.message.includes('CSRF')) && options.method && options.method !== 'GET') {
-          clearCSRFToken() // Clear cached token
-          const newCsrf = await getCSRFToken(true) // Force refresh
-          if (newCsrf) {
-            const retryHeaders = { ...headers, 'X-CSRF-Token': newCsrf }
-            const retryConfig = { ...config, headers: retryHeaders }
-            const retryResponse = await fetch(url, retryConfig)
+          
+          // Extract validation errors if they exist
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            validationErrors = errorData.errors
+          }
+          
+          // Handle auth failures vs authorization failures:
+          // - 401 means unauthenticated (missing/invalid token) -> logout if we had a token
+          // - 403 can mean either "invalid/expired token" OR "forbidden" (no permission)
+          //   We should ONLY logout for the token-invalid case, not for normal forbidden responses.
+          if ((response.status === 401 || response.status === 403) && hasToken) {
+            const message = errorData?.message || ''
+            const messageLower = message.toLowerCase()
+
+            // CSRF errors are 403s but should not trigger logout
+            const isCSRFError = messageLower.includes('csrf') || message === 'Invalid CSRF token'
+
+            // Back-end auth middleware uses this exact message for JWT verification failure:
+            // "Invalid or expired token"
+            const isInvalidOrExpiredToken =
+              messageLower.includes('invalid or expired token') ||
+              messageLower.includes('jwt expired') ||
+              messageLower.includes('token expired') ||
+              messageLower.includes('token invalid')
+
+            const shouldLogout =
+              response.status === 401 || (response.status === 403 && !isCSRFError && isInvalidOrExpiredToken)
+
+            if (shouldLogout) {
+              handleTokenExpiration()
+              // Use setTimeout to ensure redirect happens even if error is caught
+              setTimeout(() => {
+                if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+                  window.location.replace('/')
+                }
+              }, 100)
+              throw new ApiError(response.status, 'Your session has expired. Please log in again.')
+            }
+          }
+          
+          // If CSRF token is invalid, try to get a new one and retry once
+          if ((errorData.message === 'Invalid CSRF token' || errorData.message.includes('CSRF')) && options.method && options.method !== 'GET') {
+            clearCSRFToken() // Clear cached token
+            const newCsrf = await getCSRFToken(true) // Force refresh
+            if (newCsrf) {
+              const retryHeaders = { ...headers, 'X-CSRF-Token': newCsrf }
+              const retryConfig = { ...config, headers: retryHeaders }
+              const retryResponse = await fetch(url, retryConfig)
+              
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json()
+                return retryData
+              }
+            }
+          }
+        } catch (parseError) {
+          // If we can't parse the response body, do NOT assume the token is invalid.
+          // Many 403s are legitimate authorization errors (agents hitting admin-only endpoints).
+          // We'll only logout when we have a definitive auth signal (401 or explicit token-invalid message).
+          // If we can't parse the response, use the default message
+          if (isDevelopment) {
+            console.warn('Could not parse error response:', parseError)
+            console.warn('Response status:', response.status)
+            console.warn('Response statusText:', response.statusText)
             
-            if (retryResponse.ok) {
-              const retryData = await retryResponse.json()
-              return retryData
+            // Try to get response as text to see what we're actually getting
+            try {
+              const responseText = await response.text()
+              console.warn('Raw response text:', responseText)
+            } catch (textError) {
+              console.warn('Could not get response as text:', textError)
             }
           }
         }
-      } catch (parseError) {
-        // If we can't parse the response body, do NOT assume the token is invalid.
-        // Many 403s are legitimate authorization errors (agents hitting admin-only endpoints).
-        // We'll only logout when we have a definitive auth signal (401 or explicit token-invalid message).
-        // If we can't parse the response, use the default message
-        if (isDevelopment) {
-          console.warn('Could not parse error response:', parseError)
-          console.warn('Response status:', response.status)
-          console.warn('Response statusText:', response.statusText)
-          
-          // Try to get response as text to see what we're actually getting
-          try {
-            const responseText = await response.text()
-            console.warn('Raw response text:', responseText)
-          } catch (textError) {
-            console.warn('Could not get response as text:', textError)
-          }
-        }
+        throw new ApiError(response.status, errorMessage, validationErrors)
       }
-      throw new ApiError(response.status, errorMessage, validationErrors)
+      
+      const data = await response.json()
+      return data
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error
+      }
+      throw new ApiError(500, `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-    
-    const data = await response.json()
-    return data
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error
-    }
-    throw new ApiError(500, `Network error: ${error instanceof Error ? error.message : 'Unknown error'}`)
   }
+
+  if (cacheKey) {
+    const cached = cachedGetResponses.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value as T
+    }
+
+    const inflight = inflightGetRequests.get(cacheKey)
+    if (inflight) {
+      return inflight as Promise<T>
+    }
+
+    const requestPromise = executeRequest()
+    inflightGetRequests.set(cacheKey, requestPromise)
+
+    try {
+      const data = await requestPromise
+      cachedGetResponses.set(cacheKey, {
+        value: data,
+        expiresAt: Date.now() + GET_REQUEST_CACHE_TTL,
+      })
+      return data
+    } finally {
+      inflightGetRequests.delete(cacheKey)
+    }
+  }
+
+  return executeRequest()
 }
 
 // Authentication API
 // Export CSRF utilities
 export { clearCSRFToken, getCSRFToken }
+
+export const apiGet = <T>(endpoint: string, token?: AuthToken) =>
+  apiRequest<T>(endpoint, { method: 'GET' }, token)
 
 export const apiClient = {
   // Login user

@@ -29,23 +29,27 @@ export default function LocationModal({ isOpen, onClose, onSuccess, location, ti
   })
 
   useEffect(() => {
-    if (isOpen) {
-      if (location) {
-        setFormData({
-          name: location.name,
-          description: location.description || '',
-          is_active: location.is_active
-        })
-      } else {
-        setFormData({
-          name: '',
-          description: '',
-          is_active: true
-        })
-      }
+    if (!isOpen) {
       setError(null)
       setValidationErrors({})
+      return
     }
+
+    if (location) {
+      setFormData({
+        name: location.name,
+        description: location.description || '',
+        is_active: location.is_active
+      })
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        is_active: true
+      })
+    }
+    setError(null)
+    setValidationErrors({})
   }, [isOpen, location])
 
   const validateField = (fieldName: string, value: string) => {

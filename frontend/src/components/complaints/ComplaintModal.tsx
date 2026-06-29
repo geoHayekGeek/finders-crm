@@ -46,12 +46,26 @@ export default function ComplaintModal({ isOpen, onClose, onSuccess }: Complaint
   const canUseTeamLeaderScope = normalizedRole === 'team leader'
 
   useEffect(() => {
+    leadRequestRef.current += 1
+    targetRequestRef.current += 1
     if (!isOpen) {
+      setError(null)
+      setValidationErrors({})
+      setLeadSearch('')
+      setTargetSearch('')
+      setLeadResults([])
+      setTargetUsers([])
+      setSelectedLead(null)
+      setSelectedTargetUser(null)
+      setFormData({
+        lead_id: 0,
+        target_user_id: 0,
+        title: '',
+        description: ''
+      })
       return
     }
 
-    leadRequestRef.current += 1
-    targetRequestRef.current += 1
     setError(null)
     setValidationErrors({})
     setLeadSearch('')

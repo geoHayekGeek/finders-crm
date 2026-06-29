@@ -81,33 +81,37 @@ export default function StatusModal({ isOpen, onClose, onSuccess, status, title 
 
   // Reset form when modal opens/closes or status changes
   useEffect(() => {
-    if (isOpen) {
-      if (status) {
-        setFormData({
-          name: status.name,
-          code: status.code,
-          description: status.description || '',
-          color: status.color || '#6B7280',
-          is_active: status.is_active,
-          can_be_referred: status.can_be_referred !== undefined ? status.can_be_referred : true,
-          is_closure_status: status.is_closure_status === true,
-          is_default_status: status.is_default_status === true
-        })
-      } else {
-        setFormData({
-          name: '',
-          code: '',
-          description: '',
-          color: '#6B7280',
-          is_active: true,
-          can_be_referred: true,
-          is_closure_status: false,
-          is_default_status: false
-        })
-      }
+    if (!isOpen) {
       setError(null)
       setValidationErrors({})
+      return
     }
+
+    if (status) {
+      setFormData({
+        name: status.name,
+        code: status.code,
+        description: status.description || '',
+        color: status.color || '#6B7280',
+        is_active: status.is_active,
+        can_be_referred: status.can_be_referred !== undefined ? status.can_be_referred : true,
+        is_closure_status: status.is_closure_status === true,
+        is_default_status: status.is_default_status === true
+      })
+    } else {
+      setFormData({
+        name: '',
+        code: '',
+        description: '',
+        color: '#6B7280',
+        is_active: true,
+        can_be_referred: true,
+        is_closure_status: false,
+        is_default_status: false
+      })
+    }
+    setError(null)
+    setValidationErrors({})
   }, [isOpen, status])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

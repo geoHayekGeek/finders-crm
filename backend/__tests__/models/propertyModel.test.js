@@ -1000,23 +1000,45 @@ describe('Property Model', () => {
         }]
       };
 
-      mockQuery.mockResolvedValueOnce(mockDeleted);
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }) // calendar events cleanup
+        .mockResolvedValueOnce(mockDeleted) // property delete
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Property.deleteProperty(1);
 
       expect(result.id).toBe(1);
-      expect(mockQuery).toHaveBeenCalledWith(
-        expect.stringContaining('DELETE FROM properties'),
+      expect(mockConnect).toHaveBeenCalled();
+      expect(mockClient.query).toHaveBeenNthCalledWith(1, 'BEGIN');
+      expect(mockClient.query).toHaveBeenNthCalledWith(
+        2,
+        'DELETE FROM calendar_events WHERE property_id = $1',
         [1]
       );
+      expect(mockClient.query).toHaveBeenNthCalledWith(
+        3,
+        'DELETE FROM properties WHERE id = $1 RETURNING *',
+        [1]
+      );
+      expect(mockClient.query).toHaveBeenNthCalledWith(4, 'COMMIT');
+      expect(mockClient.release).toHaveBeenCalled();
     });
 
     it('should return undefined when property not found', async () => {
-      mockQuery.mockResolvedValueOnce({ rows: [] });
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce({ rows: [] }) // calendar events cleanup
+        .mockResolvedValueOnce({ rows: [] }) // property delete
+        .mockResolvedValueOnce({}); // COMMIT
 
       const result = await Property.deleteProperty(999);
 
       expect(result).toBeUndefined();
+      expect(mockClient.query).toHaveBeenCalledWith(
+        'DELETE FROM calendar_events WHERE property_id = $1',
+        [999]
+      );
     });
   });
 
