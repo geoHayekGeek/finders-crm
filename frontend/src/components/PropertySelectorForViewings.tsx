@@ -25,22 +25,35 @@ interface PropertySelectorProps {
 export default function PropertySelectorForViewings({ selectedPropertyId, onSelect, error, disabled = false }: PropertySelectorProps) {
   const { token, user } = useAuth()
   const [properties, setProperties] = useState<Property[]>([])
+  const [selectedPropertyDetails, setSelectedPropertyDetails] = useState<Property | null>(null)
   const [loading, setLoading] = useState(false)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [allowedAgentIds, setAllowedAgentIds] = useState<number[] | null>(null)
   const [teamAgentsLoading, setTeamAgentsLoading] = useState(false)
+  const shouldRestrictByAssignment = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
 
-  // Fetch properties from database
-  const fetchProperties = async () => {
-    if (!token) return
-    
+  // Fetch properties from the database using server-side search.
+  const fetchProperties = async (search = '') => {
     setLoading(true)
     try {
-      const response = await propertiesApi.getAll()
+      const filters: Record<string, any> = {
+        search: search || undefined
+      }
+
+      if (isAgentRole(user?.role) && user?.id) {
+        filters.agent_id = user.id
+      } else if (isTeamLeaderRole(user?.role)) {
+        filters.my_team = true
+      }
+
+      const response = await propertiesApi.getWithFilters(
+        filters,
+        { page: 1, limit: 20 }
+      )
       if (response.success) {
-        setProperties(response.data)
+        setProperties(response.data || [])
       }
     } catch (error) {
       console.error('Error loading properties:', error)
@@ -49,11 +62,57 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
     }
   }
 
-  useEffect(() => {
-    if (token) {
-      fetchProperties()
+  const fetchPropertyById = async (propertyId: number) => {
+    if (!token || !propertyId) return
+
+    try {
+      const response = await propertiesApi.getById(propertyId, token)
+      if (response.success && response.data) {
+        setSelectedPropertyDetails(response.data)
+      }
+    } catch (error) {
+      console.error('Error fetching selected property:', error)
     }
-  }, [token])
+  }
+
+  useEffect(() => {
+    if (!isDropdownOpen || disabled) {
+      return
+    }
+
+    if (shouldRestrictByAssignment && allowedAgentIds === null) {
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      fetchProperties(searchTerm.trim())
+    }, searchTerm.trim() ? 250 : 0)
+
+    return () => clearTimeout(timeout)
+  }, [isDropdownOpen, searchTerm, allowedAgentIds, shouldRestrictByAssignment, disabled])
+
+  useEffect(() => {
+    if (!token) {
+      setSelectedPropertyDetails(null)
+      return
+    }
+
+    if (selectedPropertyId === undefined || selectedPropertyId === null || selectedPropertyId === 0) {
+      setSelectedPropertyDetails(null)
+      return
+    }
+
+    const propertyInList = properties.find(property => property.id === selectedPropertyId)
+    if (propertyInList) {
+      setSelectedPropertyDetails(propertyInList)
+      return
+    }
+
+    if (selectedPropertyDetails?.id !== selectedPropertyId) {
+      setSelectedPropertyDetails(null)
+      fetchPropertyById(selectedPropertyId)
+    }
+  }, [token, selectedPropertyId, properties, selectedPropertyDetails?.id])
 
   useEffect(() => {
     if (!user?.id) {
@@ -108,8 +167,6 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const shouldRestrictByAssignment = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
-
   const filteredProperties = properties.filter(property => {
     if (shouldRestrictByAssignment && Array.isArray(allowedAgentIds)) {
       if (!property.agent_id || !allowedAgentIds.includes(property.agent_id)) {
@@ -117,25 +174,23 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
       }
     }
 
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      property.reference_number.toLowerCase().includes(searchLower) ||
-      property.location.toLowerCase().includes(searchLower) ||
-      property.property_type.toLowerCase().includes(searchLower)
-    )
+    return true
   })
 
   const handleSelect = (property: Property) => {
     onSelect(property.id, property.agent_id)
+    setSelectedPropertyDetails(property)
     setIsDropdownOpen(false)
     setSearchTerm('')
   }
 
   const handleClear = () => {
     onSelect(0)
+    setSelectedPropertyDetails(null)
+    setSearchTerm('')
   }
 
-  const selectedProperty = properties.find(p => p.id === selectedPropertyId)
+  const selectedProperty = selectedPropertyDetails || properties.find(p => p.id === selectedPropertyId)
 
   return (
     <div className="space-y-2">
@@ -179,8 +234,8 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className={`flex-1 px-4 py-3 text-left border rounded-lg hover:border-green-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors bg-white ${
               error ? 'border-red-500' : 'border-gray-300'
-            } ${disabled ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
-            disabled={loading || disabled}
+            } ${disabled || teamAgentsLoading ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
+            disabled={loading || disabled || teamAgentsLoading}
           >
             <div className="flex items-center justify-between">
               <span className={selectedProperty ? "text-gray-900" : "text-gray-600"}>
@@ -192,8 +247,8 @@ export default function PropertySelectorForViewings({ selectedPropertyId, onSele
           
           <button
             type="button"
-            onClick={fetchProperties}
-            disabled={loading || disabled}
+            onClick={() => fetchProperties(searchTerm.trim())}
+            disabled={loading || disabled || teamAgentsLoading}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
             title="Refresh properties"
           >

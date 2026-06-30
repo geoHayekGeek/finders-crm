@@ -24,6 +24,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [allowedAgentIds, setAllowedAgentIds] = useState<number[] | null>(null)
   const [teamAgentsLoading, setTeamAgentsLoading] = useState(false)
+  const shouldRestrictByAssignment = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
 
   // Fetch buyer leads from database using server-side search
   const fetchLeads = async (search = '') => {
@@ -31,11 +32,19 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
     
     setLoading(true)
     try {
+      const filters: Record<string, any> = {
+        lead_role: 'buyer',
+        search: search || undefined
+      }
+
+      if (isAgentRole(user?.role) && user?.id) {
+        filters.agent_id = user.id
+      } else if (isTeamLeaderRole(user?.role)) {
+        filters.my_team = true
+      }
+
       const response = await leadsApi.getWithFilters(
-        {
-          lead_role: 'buyer',
-          search: search || undefined
-        },
+        filters,
         token,
         { page: 1, limit: 20 }
       )
@@ -63,13 +72,11 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
   }
 
   useEffect(() => {
-    if (token) {
-      fetchLeads()
-    }
-  }, [token])
-
-  useEffect(() => {
     if (!token || !isDropdownOpen) {
+      return
+    }
+
+    if (shouldRestrictByAssignment && allowedAgentIds === null) {
       return
     }
 
@@ -78,7 +85,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
     }, searchTerm.trim() ? 250 : 0)
 
     return () => clearTimeout(timeout)
-  }, [token, isDropdownOpen, searchTerm])
+  }, [token, isDropdownOpen, searchTerm, allowedAgentIds, shouldRestrictByAssignment])
 
   useEffect(() => {
     if (!user?.id) {
@@ -156,8 +163,6 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
     }
   }, [token, selectedLeadId, leads, selectedLeadDetails?.id])
 
-  const shouldRestrictByAssignment = isAgentRole(user?.role) || isTeamLeaderRole(user?.role)
-
   const filteredLeads = leads.filter(lead => {
     if (shouldRestrictByAssignment && Array.isArray(allowedAgentIds)) {
       if (!lead.agent_id || !allowedAgentIds.includes(lead.agent_id)) {
@@ -165,11 +170,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
       }
     }
 
-    const searchLower = searchTerm.toLowerCase()
-    return (
-      lead.customer_name.toLowerCase().includes(searchLower) ||
-      (lead.phone_number && lead.phone_number.toLowerCase().includes(searchLower))
-    )
+    return true
   })
 
   const handleSelect = (lead: Lead) => {
@@ -182,6 +183,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
   const handleClear = () => {
     onSelect(0)
     setSelectedLeadDetails(null)
+    setSearchTerm('')
   }
 
   const selectedLead = leads.find(l => l.id === selectedLeadId) || (
@@ -232,8 +234,8 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
             className={`flex-1 px-4 py-3 text-left border rounded-lg hover:border-purple-400 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors bg-white ${
               error ? 'border-red-500' : 'border-gray-300'
-            }`}
-            disabled={loading}
+            } ${teamAgentsLoading ? 'bg-gray-50 cursor-not-allowed opacity-60' : ''}`}
+            disabled={loading || teamAgentsLoading}
           >
             <div className="flex items-center justify-between">
               <span className={selectedLead ? "text-gray-900" : "text-gray-600"}>
@@ -246,7 +248,7 @@ export default function LeadSelectorForViewings({ selectedLeadId, onSelect, erro
           <button
             type="button"
             onClick={() => fetchLeads(searchTerm.trim())}
-            disabled={loading}
+            disabled={loading || teamAgentsLoading}
             className="p-3 text-gray-400 hover:text-gray-600 disabled:opacity-50 border border-gray-300 rounded-lg hover:bg-gray-50"
             title="Refresh buyers"
           >

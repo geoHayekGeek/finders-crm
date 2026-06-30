@@ -33,6 +33,24 @@ async function buildTeamLeaderCalendarOptions(req) {
   return { teamScope, teamAgentId };
 }
 
+const parseDropdownPagination = (query, defaultLimit = 20, maxLimit = 50) => {
+  const rawPage = Number.parseInt(String(query.page ?? '1'), 10);
+  const rawLimit = Number.parseInt(String(query.limit ?? defaultLimit), 10);
+
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(rawLimit, maxLimit) : defaultLimit;
+
+  return { page, limit };
+};
+
+const normalizeDropdownSearch = (value) => {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim();
+};
+
 // Role hierarchy levels (higher number = higher authority)
 const ROLE_HIERARCHY = {
   'admin': 6,
@@ -955,33 +973,57 @@ const getPropertiesForDropdown = async (req, res) => {
     const { roleFilters } = req;
     const userId = req.user.id;
     const Property = require('../models/propertyModel');
+    const search = normalizeDropdownSearch(req.query.search || req.query.q);
+    const pagination = parseDropdownPagination(req.query, 20, 50);
     
-    let properties;
-    
-    // All roles can see properties, but with different filtering
-    if (roleFilters.canViewAll) {
-      properties = await Property.getAllProperties();
-    } else if (isAgentLikeRole(roleFilters.role)) {
-      // Agents can only see their own properties and referrals
-      properties = await Property.getPropertiesAssignedOrReferredByAgent(userId);
-    } else if (roleFilters.role === 'team leader') {
-      // Team leaders can see their own properties and their team's properties
-      properties = await Property.getPropertiesForTeamLeader(userId);
-    } else {
-      // For other roles, return empty array (they can still access calendar but won't see properties)
-      properties = [];
+    let filters = {};
+
+    if (search) {
+      filters.search = search;
     }
-    
+
+    if (roleFilters.canViewAll) {
+      // no extra filters
+    } else if (roleFilters.role === 'team leader') {
+      const teamScopeIds = await User.getTeamPropertyAgentScopeIds(userId, roleFilters.role);
+      filters.agent_ids = teamScopeIds;
+    } else if (isAgentLikeRole(roleFilters.role)) {
+      // Keep the same visibility scope as the current dropdown, but page it.
+      filters.agent_id = userId;
+    } else {
+      return res.json({
+        success: true,
+        properties: [],
+        pagination: {
+          page: pagination.page,
+          limit: pagination.limit,
+          total: 0,
+          totalPages: 0,
+        }
+      });
+    }
+
+    const paginatedResult = await Property.getPropertiesWithFiltersPaginated(filters, pagination);
+
     // Format for dropdown
-    const dropdownProperties = properties.map(property => ({
+    const dropdownProperties = paginatedResult.rows.map(property => ({
       id: property.id,
       reference_number: property.reference_number,
-      location: property.location
+      location: property.location,
+      property_type: property.property_type,
+      agent_id: property.agent_id,
+      agent_name: property.agent_name
     }));
     
     res.json({
       success: true,
-      properties: dropdownProperties
+      properties: dropdownProperties,
+      pagination: {
+        page: paginatedResult.page,
+        limit: paginatedResult.limit,
+        total: paginatedResult.total,
+        totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
+      }
     });
   } catch (error) {
     console.error('Error fetching properties for dropdown:', error);
@@ -996,21 +1038,30 @@ const getPropertiesForDropdown = async (req, res) => {
 const getLeadsForDropdown = async (req, res) => {
   try {
     const { roleFilters } = req;
-    const userId = req.user.id;
     const Lead = require('../models/leadsModel');
+    const search = normalizeDropdownSearch(req.query.search || req.query.q);
+    const pagination = parseDropdownPagination(req.query, 20, 50);
     
-    let leads;
-    
-    // All roles can see leads, but with different filtering
-    if (roleFilters.canViewLeads) {
-      leads = await Lead.getAllLeads();
-    } else {
-      // For roles without lead access, return empty array (they can still access calendar but won't see leads)
-      leads = [];
+    if (!roleFilters.canViewLeads) {
+      return res.json({
+        success: true,
+        leads: [],
+        pagination: {
+          page: pagination.page,
+          limit: pagination.limit,
+          total: 0,
+          totalPages: 0,
+        }
+      });
     }
-    
-    // Format for dropdown
-    const dropdownLeads = leads.map(lead => ({
+
+    const filters = {};
+    if (search) {
+      filters.search = search;
+    }
+
+    const paginatedResult = await Lead.getLeadsWithFiltersPaginated(filters, pagination);
+    const dropdownLeads = paginatedResult.rows.map(lead => ({
       id: lead.id,
       customer_name: lead.customer_name,
       phone_number: lead.phone_number
@@ -1018,7 +1069,13 @@ const getLeadsForDropdown = async (req, res) => {
     
     res.json({
       success: true,
-      leads: dropdownLeads
+      leads: dropdownLeads,
+      pagination: {
+        page: paginatedResult.page,
+        limit: paginatedResult.limit,
+        total: paginatedResult.total,
+        totalPages: Math.ceil(paginatedResult.total / paginatedResult.limit),
+      }
     });
   } catch (error) {
     console.error('Error fetching leads for dropdown:', error);

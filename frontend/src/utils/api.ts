@@ -2264,12 +2264,30 @@ export const calendarApi = {
     apiRequest<{ success: boolean; events: any[] }>(`/calendar/search?q=${encodeURIComponent(query)}`, {}, token),
   
   // Get properties for dropdown
-  getProperties: (token?: AuthToken) => 
-    apiRequest<{ success: boolean; properties: any[] }>('/calendar/properties', {}, token),
+  getProperties: (
+    token?: AuthToken,
+    params?: { search?: string; page?: number; limit?: number }
+  ) => {
+    const query = new URLSearchParams()
+    if (params?.search) query.append('search', params.search)
+    if (params?.page) query.append('page', String(params.page))
+    if (params?.limit) query.append('limit', String(params.limit))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return apiRequest<{ success: boolean; properties: any[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(`/calendar/properties${suffix}`, {}, token)
+  },
   
   // Get leads for dropdown
-  getLeads: (token?: AuthToken) => 
-    apiRequest<{ success: boolean; leads: any[] }>('/calendar/leads', {}, token),
+  getLeads: (
+    token?: AuthToken,
+    params?: { search?: string; page?: number; limit?: number }
+  ) => {
+    const query = new URLSearchParams()
+    if (params?.search) query.append('search', params.search)
+    if (params?.page) query.append('page', String(params.page))
+    if (params?.limit) query.append('limit', String(params.limit))
+    const suffix = query.toString() ? `?${query.toString()}` : ''
+    return apiRequest<{ success: boolean; leads: any[]; pagination?: { page: number; limit: number; total: number; totalPages: number } }>(`/calendar/leads${suffix}`, {}, token)
+  },
 
   // Check whether a location is available for a time range
   checkLocationAvailability: (

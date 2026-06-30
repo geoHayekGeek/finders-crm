@@ -67,7 +67,10 @@ export function EventModal({
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [properties, setProperties] = useState<Property[]>([])
   const [leads, setLeads] = useState<Lead[]>([])
-  const [loadingDropdowns, setLoadingDropdowns] = useState(true)
+  const [propertySearchTerm, setPropertySearchTerm] = useState('')
+  const [leadSearchTerm, setLeadSearchTerm] = useState('')
+  const [loadingProperties, setLoadingProperties] = useState(false)
+  const [loadingLeads, setLoadingLeads] = useState(false)
   const [saving, setSaving] = useState(false)
   const [locationAvailability, setLocationAvailability] = useState<{
     status: 'idle' | 'checking' | 'available' | 'unavailable' | 'error'
@@ -76,12 +79,16 @@ export function EventModal({
     status: 'idle',
     conflictCount: 0
   })
-
-
   useEffect(() => {
     if (!isOpen) {
       setErrors({})
       setLocationAvailability({ status: 'idle', conflictCount: 0 })
+      setPropertySearchTerm('')
+      setLeadSearchTerm('')
+      setProperties([])
+      setLeads([])
+      setLoadingProperties(false)
+      setLoadingLeads(false)
       return
     }
 
@@ -149,72 +156,96 @@ export function EventModal({
         leadId: null
       })
     }
+
     setErrors({})
     setLocationAvailability({ status: 'idle', conflictCount: 0 })
+    setProperties([])
+    setLeads([])
+    setPropertySearchTerm('')
+    setLeadSearchTerm('')
   }, [event, selectedDate, isOpen])
 
-  // Update form data when properties/leads are loaded and we have an event
   useEffect(() => {
-    if (event && !loadingDropdowns && (properties.length > 0 || leads.length > 0)) {
-      setFormData(prev => ({
-        ...prev,
-        locationId: event.locationId || null,
-        locationText: event.locationName || event.location || '',
-        propertyId: event.propertyId || null,
-        leadId: event.leadId || null
-      }))
+    if (!isOpen || !token) {
+      return
     }
-  }, [event, loadingDropdowns, properties.length, leads.length])
 
-  // Load properties and leads for dropdowns
-  useEffect(() => {
-    if (isOpen) {
-      const loadDropdownData = async () => {
-        setLoadingDropdowns(true)
-        try {
-          if (!token) {
-            setLoadingDropdowns(false)
-            showError('Authentication required. Please log in again.')
-            return
-          }
-          
-          const [propertiesData, leadsData] = await Promise.all([
-            calendarApi.getProperties(token).catch(err => {
-              // Return error response structure
-              return { success: false, properties: [], error: err }
-            }),
-            calendarApi.getLeads(token).catch(err => {
-              // Return error response structure
-              return { success: false, leads: [], error: err }
-            })
-          ])
+    let cancelled = false
+    const timeout = setTimeout(async () => {
+      setLoadingProperties(true)
+      try {
+        const response = await calendarApi.getProperties(token, {
+          search: propertySearchTerm.trim() || undefined,
+          page: 1,
+          limit: 20
+        })
 
-          if (propertiesData.success) {
-            setProperties(propertiesData.properties || [])
-          } else {
-            const errorMsg = propertiesData.error?.message || 'Failed to load properties. Please try again.'
-            showError(errorMsg)
-            setProperties([])
-          }
+        if (cancelled) return
 
-          if (leadsData.success) {
-            setLeads(leadsData.leads || [])
-          } else {
-            const errorMsg = leadsData.error?.message || 'Failed to load leads. Please try again.'
-            showError(errorMsg)
-            setLeads([])
-          }
-        } catch (error: any) {
-          const errorMessage = error?.message || 'Failed to load dropdown data. Please refresh and try again.'
-          showError(errorMessage)
-        } finally {
-          setLoadingDropdowns(false)
+        if (response.success) {
+          setProperties(response.properties || [])
+        } else {
+          setProperties([])
+          showError('Failed to load properties. Please try again.')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setProperties([])
+          showError('Failed to load properties. Please try again.')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingProperties(false)
         }
       }
+    }, propertySearchTerm.trim() ? 250 : 0)
 
-      loadDropdownData()
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
     }
-  }, [isOpen])
+  }, [isOpen, token, propertySearchTerm])
+
+  useEffect(() => {
+    if (!isOpen || !token) {
+      return
+    }
+
+    let cancelled = false
+    const timeout = setTimeout(async () => {
+      setLoadingLeads(true)
+      try {
+        const response = await calendarApi.getLeads(token, {
+          search: leadSearchTerm.trim() || undefined,
+          page: 1,
+          limit: 20
+        })
+
+        if (cancelled) return
+
+        if (response.success) {
+          setLeads(response.leads || [])
+        } else {
+          setLeads([])
+          showError('Failed to load leads. Please try again.')
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setLeads([])
+          showError('Failed to load leads. Please try again.')
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingLeads(false)
+        }
+      }
+    }, leadSearchTerm.trim() ? 250 : 0)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
+  }, [isOpen, token, leadSearchTerm])
 
   useEffect(() => {
     if (!isOpen) return
@@ -528,6 +559,36 @@ export function EventModal({
     )
   })()
 
+  const propertyOptions: Property[] = formData.propertyId
+    ? (
+        properties.some(property => property.id === formData.propertyId)
+          ? properties
+          : [
+              {
+                id: formData.propertyId,
+                reference_number: event?.propertyReference || `Property #${formData.propertyId}`,
+                location: event?.propertyLocation || 'Selected property'
+              },
+              ...properties
+            ]
+      )
+    : properties
+
+  const leadOptions: Lead[] = formData.leadId
+    ? (
+        leads.some(lead => lead.id === formData.leadId)
+          ? leads
+          : [
+              {
+                id: formData.leadId,
+                customer_name: event?.leadName || `Lead #${formData.leadId}`,
+                phone_number: event?.leadPhone
+              },
+              ...leads
+            ]
+      )
+    : leads
+
   return (
     <>
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
@@ -740,29 +801,35 @@ export function EventModal({
                 <label htmlFor="property" className="block text-sm font-medium text-gray-700 mb-1">
                   Related Property
                 </label>
+                <input
+                  type="text"
+                  value={propertySearchTerm}
+                  onChange={(e) => setPropertySearchTerm(e.target.value)}
+                  placeholder="Search properties by reference or location..."
+                  className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 text-sm"
+                />
                 <select
                   id="property"
                   value={formData.propertyId?.toString() || ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      propertyId: value ? parseInt(value) : null
+                    setFormData(prev => ({
+                      ...prev,
+                      propertyId: value ? parseInt(value, 10) : null
                     }))
+                    setPropertySearchTerm('')
                   }}
-                  disabled={loadingDropdowns}
+                  disabled={loadingProperties}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
                 >
                   <option value="">Select a property...</option>
-                  {properties.map((property) => {
-                    return (
-                      <option key={property.id} value={property.id} className="text-gray-900 bg-white">
-                        {property.reference_number} - {property.location}
-                      </option>
-                    )
-                  })}
+                  {propertyOptions.map((property) => (
+                    <option key={property.id} value={property.id} className="text-gray-900 bg-white">
+                      {property.reference_number} - {property.location}
+                    </option>
+                  ))}
                 </select>
-                {loadingDropdowns && (
+                {loadingProperties && (
                   <p className="mt-1 text-xs text-gray-500">Loading properties...</p>
                 )}
               </div>
@@ -771,27 +838,35 @@ export function EventModal({
                 <label htmlFor="lead" className="block text-sm font-medium text-gray-700 mb-1">
                   Related Lead
                 </label>
+                <input
+                  type="text"
+                  value={leadSearchTerm}
+                  onChange={(e) => setLeadSearchTerm(e.target.value)}
+                  placeholder="Search leads by name or phone..."
+                  className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 text-sm"
+                />
                 <select
                   id="lead"
                   value={formData.leadId?.toString() || ''}
                   onChange={(e) => {
                     const value = e.target.value
-                    setFormData(prev => ({ 
-                      ...prev, 
-                      leadId: value ? parseInt(value) : null
+                    setFormData(prev => ({
+                      ...prev,
+                      leadId: value ? parseInt(value, 10) : null
                     }))
+                    setLeadSearchTerm('')
                   }}
-                  disabled={loadingDropdowns}
+                  disabled={loadingLeads}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
                 >
                   <option value="">Select a lead...</option>
-                  {leads.map((lead) => (
+                  {leadOptions.map((lead) => (
                     <option key={lead.id} value={lead.id} className="text-gray-900 bg-white">
                       {lead.customer_name} {lead.phone_number ? `- ${lead.phone_number}` : ''}
                     </option>
                   ))}
                 </select>
-                {loadingDropdowns && (
+                {loadingLeads && (
                   <p className="mt-1 text-xs text-gray-500">Loading leads...</p>
                 )}
               </div>
@@ -799,7 +874,7 @@ export function EventModal({
 
             {/* Show selected property/lead info */}
             {formData.propertyId && (() => {
-              const selectedProperty = properties.find(p => p.id === formData.propertyId)
+              const selectedProperty = propertyOptions.find(p => p.id === formData.propertyId)
               const propertyRef = selectedProperty?.reference_number || event?.propertyReference || 'N/A'
               
               return (
@@ -838,7 +913,7 @@ export function EventModal({
             })()}
 
             {formData.leadId && (() => {
-              const selectedLead = leads.find(l => l.id === formData.leadId)
+              const selectedLead = leadOptions.find(l => l.id === formData.leadId)
               const leadName = selectedLead?.customer_name || event?.leadName || 'N/A'
               
               return (

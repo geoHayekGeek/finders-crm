@@ -72,23 +72,8 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       is_serious: false,
       notes: ''
     })
-    const [properties, setProperties] = useState<any[]>([])
-    
-    // Fetch properties to get agent_id information
-    useEffect(() => {
-      const fetchProperties = async () => {
-        if (!token) return
-        try {
-          const response = await propertiesApi.getAll()
-          if (response.success) {
-            setProperties(response.data || [])
-          }
-        } catch (error) {
-          // Error handled silently - properties list will remain empty
-        }
-      }
-      fetchProperties()
-    }, [token])
+    const [selectedPropertyDetails, setSelectedPropertyDetails] = useState<any | null>(null)
+    const [propertyDetailsLoading, setPropertyDetailsLoading] = useState(false)
     
     // Update property_id when preSelectedPropertyId changes
     useEffect(() => {
@@ -96,6 +81,44 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         setFormData(prev => ({ ...prev, property_id: props.preSelectedPropertyId! }))
       }
     }, [props.preSelectedPropertyId])
+
+    useEffect(() => {
+      if (!token || !formData.property_id) {
+        setSelectedPropertyDetails(null)
+        setPropertyDetailsLoading(false)
+        return
+      }
+
+      if (selectedPropertyDetails?.id === formData.property_id) {
+        return
+      }
+
+      let cancelled = false
+
+      const fetchSelectedProperty = async () => {
+        setPropertyDetailsLoading(true)
+        try {
+          const response = await propertiesApi.getById(formData.property_id, token)
+          if (!cancelled && response.success && response.data) {
+            setSelectedPropertyDetails(response.data)
+          }
+        } catch (error) {
+          if (!cancelled) {
+            setSelectedPropertyDetails(null)
+          }
+        } finally {
+          if (!cancelled) {
+            setPropertyDetailsLoading(false)
+          }
+        }
+      }
+
+      fetchSelectedProperty()
+
+      return () => {
+        cancelled = true
+      }
+    }, [formData.property_id, token, selectedPropertyDetails?.id])
     
     // Security: For agents, ALWAYS ensure agent_id is set to their own ID
     // This prevents any form manipulation or state changes from allowing agents to assign to others
@@ -106,43 +129,37 @@ export function ViewingsModals(props: ViewingsModalsProps) {
         }
       }
     }, [formData.agent_id, user])
-    
-    // Auto-select agent when property is selected
+
+    // Auto-select agent when property details are loaded
     useEffect(() => {
-      if (formData.property_id && properties.length > 0) {
-        const selectedProperty = properties.find(p => p.id === formData.property_id)
-        const propertyAgentId = selectedProperty?.agent_id
-        
-        if (propertyAgentId) {
-          // Property has an assigned agent
-          if (isAgentRole(user?.role)) {
-            // Agents can only be assigned to themselves
-            if (user?.id && formData.agent_id !== user.id) {
-              setFormData(prev => ({ ...prev, agent_id: user.id }))
-            }
-          } else if (isTeamLeaderRole(user?.role)) {
-            // Team leaders: assign to themselves if property is theirs, otherwise to the property's agent
-            if (propertyAgentId === user?.id) {
-              // Property belongs to team leader - assign to themselves
-              if (user && formData.agent_id !== user.id) {
-                setFormData(prev => ({ ...prev, agent_id: user.id }))
-              }
-            } else {
-              // Property belongs to an agent under the team leader - assign to that agent
-              if (formData.agent_id !== propertyAgentId) {
-                setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
-              }
-            }
-          } else {
-            // Other roles (admin, operations, etc.): use the property's agent
-            if (formData.agent_id !== propertyAgentId) {
-              setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
-            }
-          }
+      const propertyAgentId = selectedPropertyDetails?.agent_id
+      if (!formData.property_id || !propertyAgentId) {
+        return
+      }
+
+      if (isAgentRole(user?.role)) {
+        if (user?.id && formData.agent_id !== user.id) {
+          setFormData(prev => ({ ...prev, agent_id: user.id }))
         }
+        return
+      }
+
+      if (isTeamLeaderRole(user?.role)) {
+        if (propertyAgentId === user?.id) {
+          if (user && formData.agent_id !== user.id) {
+            setFormData(prev => ({ ...prev, agent_id: user.id }))
+          }
+        } else if (formData.agent_id !== propertyAgentId) {
+          setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
+        }
+        return
+      }
+
+      if (formData.agent_id !== propertyAgentId) {
+        setFormData(prev => ({ ...prev, agent_id: propertyAgentId }))
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData.property_id, formData.agent_id, properties.length, user?.id, user?.role])
+    }, [formData.property_id, selectedPropertyDetails?.agent_id, user?.id, user?.role])
     
     const [errors, setErrors] = useState<Record<string, string>>({})
     const [saving, setSaving] = useState(false)
@@ -174,23 +191,22 @@ export function ViewingsModals(props: ViewingsModalsProps) {
       
       // If agent_id is not set but property is selected, try to get it from the property
       if (!finalFormData.agent_id && finalFormData.property_id) {
-        const selectedProperty = properties.find(p => p.id === finalFormData.property_id)
-        if (selectedProperty?.agent_id) {
+        const selectedPropertyAgentId = selectedPropertyDetails?.agent_id
+        if (selectedPropertyAgentId) {
           if (isAgentRole(user?.role)) {
             // Agents can only be assigned to themselves
             finalFormData.agent_id = user?.id
           } else if (isTeamLeaderRole(user?.role)) {
             // Team leaders can be assigned to themselves or their team's agents
-            const propertyAgentId = selectedProperty.agent_id
-            if (propertyAgentId === user?.id && user?.id) {
+            if (selectedPropertyAgentId === user?.id && user?.id) {
               finalFormData.agent_id = user.id
             } else {
               // Check if the agent is under this team leader (backend will validate)
-              finalFormData.agent_id = propertyAgentId
+              finalFormData.agent_id = selectedPropertyAgentId
             }
           } else {
             // Other roles: use the property's agent
-            finalFormData.agent_id = selectedProperty.agent_id
+            finalFormData.agent_id = selectedPropertyAgentId
           }
         }
       }
@@ -301,10 +317,13 @@ export function ViewingsModals(props: ViewingsModalsProps) {
               selectedPropertyId={formData.property_id || undefined}
               onSelect={(id, agentId) => {
                 const updates: Partial<CreateViewingFormData> = { property_id: id }
+                const defaultAgentId = (isAgentRole(user?.role) || isTeamLeaderRole(user?.role)) ? user?.id : undefined
                 
-                // When a property with an assigned agent is selected, set agent_id
-                // For team leaders: check if the agent is under this team leader or is the team leader themselves
-                if (agentId) {
+                if (!id) {
+                  updates.agent_id = defaultAgentId
+                } else if (agentId) {
+                  // When a property with an assigned agent is selected, set agent_id
+                  // For team leaders: check if the agent is under this team leader or is the team leader themselves
                   if (isTeamLeaderRole(user?.role)) {
                     if (agentId === user?.id) {
                       // Property belongs to team leader - assign to themselves
@@ -320,6 +339,8 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                     // For other roles (admin, operations, etc.): use the property's agent
                     updates.agent_id = agentId
                   }
+                } else {
+                  updates.agent_id = defaultAgentId
                 }
                 
                 setFormData({ ...formData, ...updates })
@@ -341,9 +362,19 @@ export function ViewingsModals(props: ViewingsModalsProps) {
                 Agent <span className="text-red-500">*</span>
               </label>
               {(() => {
-                const selectedProperty = properties.find(p => p.id === formData.property_id)
-                const propertyAgentId = selectedProperty?.agent_id
-                const propertyAgentName = selectedProperty?.agent_name
+                const propertyAgentId = selectedPropertyDetails?.agent_id
+                const propertyAgentName = selectedPropertyDetails?.agent_name
+
+                if (formData.property_id && propertyDetailsLoading) {
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <div className="flex items-center gap-2">
+                        <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+                        <p className="text-sm text-blue-800">Loading property details...</p>
+                      </div>
+                    </div>
+                  )
+                }
                 
                 // If property is selected and has an assigned agent, show read-only agent info (NO DROPDOWN)
                 if (formData.property_id && propertyAgentId) {

@@ -12,7 +12,7 @@ import {
   TagIcon
 } from '@heroicons/react/24/outline'
 import { useAuth } from '@/contexts/AuthContext'
-import { usersApi, calendarApi } from '@/utils/api'
+import { usersApi } from '@/utils/api'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
@@ -84,7 +84,7 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
     if (!token) return
     
     try {
-      const data = await usersApi.getAll(token)
+      const data = await usersApi.getCalendarAttendees(token)
       if (data.success) {
         setUsers(data.users || [])
       }
@@ -97,22 +97,13 @@ export function AdminCalendarFilters({ onFiltersChange, onClearFilters }: AdminC
     if (!token) return
     
     try {
-      const data = await calendarApi.getAll(token)
-      
+      const data = await usersApi.getCalendarAttendees(token)
+
       if (data.success) {
-        const allAttendees = new Set<string>()
-        
-        data.events?.forEach((event: any) => {
-          if (event.attendees && Array.isArray(event.attendees)) {
-            event.attendees.forEach((attendee: string) => {
-              if (attendee && typeof attendee === 'string') {
-                allAttendees.add(attendee)
-              }
-            })
-          }
-        })
-        
-        setAttendees(Array.from(allAttendees).sort())
+        const attendeeNames = (data.users || [])
+          .map((user: any) => user?.name)
+          .filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+        setAttendees(Array.from(new Set(attendeeNames)).sort())
       }
     } catch (error) {
       // Error handled silently - attendees list will remain empty

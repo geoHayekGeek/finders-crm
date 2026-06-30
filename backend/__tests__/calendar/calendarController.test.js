@@ -1173,16 +1173,27 @@ describe('Calendar Controller', () => {
         { id: 1, reference_number: 'REF001', location: 'Location 1' }
       ];
 
-      Property.getAllProperties.mockResolvedValue(mockProperties);
+      Property.getPropertiesWithFiltersPaginated.mockResolvedValue({
+        rows: mockProperties,
+        page: 1,
+        limit: 20,
+        total: 1
+      });
 
       await calendarController.getPropertiesForDropdown(req, res);
 
-      expect(Property.getAllProperties).toHaveBeenCalled();
+      expect(Property.getPropertiesWithFiltersPaginated).toHaveBeenCalledWith({}, { page: 1, limit: 20 });
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         properties: [
           { id: 1, reference_number: 'REF001', location: 'Location 1' }
-        ]
+        ],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1
+        }
       });
     });
 
@@ -1191,15 +1202,20 @@ describe('Calendar Controller', () => {
       req.roleFilters = { canViewAll: false, role: 'agent' };
       const mockProperties = [];
 
-      Property.getPropertiesAssignedOrReferredByAgent.mockResolvedValue(mockProperties);
+      Property.getPropertiesWithFiltersPaginated.mockResolvedValue({
+        rows: mockProperties,
+        page: 1,
+        limit: 20,
+        total: 0
+      });
 
       await calendarController.getPropertiesForDropdown(req, res);
 
-      expect(Property.getPropertiesAssignedOrReferredByAgent).toHaveBeenCalledWith(2);
+      expect(Property.getPropertiesWithFiltersPaginated).toHaveBeenCalledWith({ agent_id: 2 }, { page: 1, limit: 20 });
     });
 
     it('should handle errors', async () => {
-      Property.getAllProperties.mockRejectedValue(new Error('Database error'));
+      Property.getPropertiesWithFiltersPaginated.mockRejectedValue(new Error('Database error'));
 
       await calendarController.getPropertiesForDropdown(req, res);
 
@@ -1217,16 +1233,27 @@ describe('Calendar Controller', () => {
         { id: 1, customer_name: 'Customer 1', phone_number: '123' }
       ];
 
-      Lead.getAllLeads.mockResolvedValue(mockLeads);
+      Lead.getLeadsWithFiltersPaginated.mockResolvedValue({
+        rows: mockLeads,
+        page: 1,
+        limit: 20,
+        total: 1
+      });
 
       await calendarController.getLeadsForDropdown(req, res);
 
-      expect(Lead.getAllLeads).toHaveBeenCalled();
+      expect(Lead.getLeadsWithFiltersPaginated).toHaveBeenCalledWith({}, { page: 1, limit: 20 });
       expect(res.json).toHaveBeenCalledWith({
         success: true,
         leads: [
           { id: 1, customer_name: 'Customer 1', phone_number: '123' }
-        ]
+        ],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 1,
+          totalPages: 1
+        }
       });
     });
 
@@ -1237,12 +1264,18 @@ describe('Calendar Controller', () => {
 
       expect(res.json).toHaveBeenCalledWith({
         success: true,
-        leads: []
+        leads: [],
+        pagination: {
+          page: 1,
+          limit: 20,
+          total: 0,
+          totalPages: 0
+        }
       });
     });
 
     it('should handle errors', async () => {
-      Lead.getAllLeads.mockRejectedValue(new Error('Database error'));
+      Lead.getLeadsWithFiltersPaginated.mockRejectedValue(new Error('Database error'));
 
       await calendarController.getLeadsForDropdown(req, res);
 
