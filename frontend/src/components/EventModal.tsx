@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Dialog } from '@headlessui/react'
-import { XMarkIcon, TrashIcon, UserIcon, CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
+import { XMarkIcon, TrashIcon, UserIcon, CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 import { CalendarEvent, Property, Lead } from '@/app/dashboard/calendar/page'
 import { UserSelector } from './UserSelector'
 import { LocationSelector } from './LocationSelector'
@@ -71,6 +71,8 @@ export function EventModal({
   const [leadSearchTerm, setLeadSearchTerm] = useState('')
   const [loadingProperties, setLoadingProperties] = useState(false)
   const [loadingLeads, setLoadingLeads] = useState(false)
+  const [isPropertyDropdownOpen, setIsPropertyDropdownOpen] = useState(false)
+  const [isLeadDropdownOpen, setIsLeadDropdownOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [locationAvailability, setLocationAvailability] = useState<{
     status: 'idle' | 'checking' | 'available' | 'unavailable' | 'error'
@@ -79,6 +81,11 @@ export function EventModal({
     status: 'idle',
     conflictCount: 0
   })
+  const propertyDropdownRef = useRef<HTMLDivElement>(null)
+  const leadDropdownRef = useRef<HTMLDivElement>(null)
+  const propertySearchInputRef = useRef<HTMLInputElement>(null)
+  const leadSearchInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     if (!isOpen) {
       setErrors({})
@@ -89,6 +96,8 @@ export function EventModal({
       setLeads([])
       setLoadingProperties(false)
       setLoadingLeads(false)
+      setIsPropertyDropdownOpen(false)
+      setIsLeadDropdownOpen(false)
       return
     }
 
@@ -163,6 +172,8 @@ export function EventModal({
     setLeads([])
     setPropertySearchTerm('')
     setLeadSearchTerm('')
+    setIsPropertyDropdownOpen(false)
+    setIsLeadDropdownOpen(false)
   }, [event, selectedDate, isOpen])
 
   useEffect(() => {
@@ -246,6 +257,33 @@ export function EventModal({
       clearTimeout(timeout)
     }
   }, [isOpen, token, leadSearchTerm])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (propertyDropdownRef.current && !propertyDropdownRef.current.contains(target)) {
+        setIsPropertyDropdownOpen(false)
+      }
+      if (leadDropdownRef.current && !leadDropdownRef.current.contains(target)) {
+        setIsLeadDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    if (isPropertyDropdownOpen) {
+      setTimeout(() => propertySearchInputRef.current?.focus(), 0)
+    }
+  }, [isPropertyDropdownOpen])
+
+  useEffect(() => {
+    if (isLeadDropdownOpen) {
+      setTimeout(() => leadSearchInputRef.current?.focus(), 0)
+    }
+  }, [isLeadDropdownOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -589,6 +627,40 @@ export function EventModal({
       )
     : leads
 
+  const selectedProperty = formData.propertyId
+    ? propertyOptions.find(property => property.id === formData.propertyId)
+    : null
+
+  const selectedLead = formData.leadId
+    ? leadOptions.find(lead => lead.id === formData.leadId)
+    : null
+
+  const handleSelectProperty = (propertyId: number | null) => {
+    setFormData(prev => ({
+      ...prev,
+      propertyId
+    }))
+    setIsPropertyDropdownOpen(false)
+    setPropertySearchTerm('')
+  }
+
+  const handleSelectLead = (leadId: number | null) => {
+    setFormData(prev => ({
+      ...prev,
+      leadId
+    }))
+    setIsLeadDropdownOpen(false)
+    setLeadSearchTerm('')
+  }
+
+  const handleClearProperty = () => {
+    handleSelectProperty(null)
+  }
+
+  const handleClearLead = () => {
+    handleSelectLead(null)
+  }
+
   return (
     <>
     <Dialog open={isOpen} onClose={onClose} className="relative z-50">
@@ -797,77 +869,144 @@ export function EventModal({
 
             {/* Property and Lead Selection */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
+              <div ref={propertyDropdownRef} className="relative">
                 <label htmlFor="property" className="block text-sm font-medium text-gray-700 mb-1">
                   Related Property
                 </label>
-                <input
-                  type="text"
-                  value={propertySearchTerm}
-                  onChange={(e) => setPropertySearchTerm(e.target.value)}
-                  placeholder="Search properties by reference or location..."
-                  className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 text-sm"
-                />
-                <select
-                  id="property"
-                  value={formData.propertyId?.toString() || ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setFormData(prev => ({
-                      ...prev,
-                      propertyId: value ? parseInt(value, 10) : null
-                    }))
-                    setPropertySearchTerm('')
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLeadDropdownOpen(false)
+                    setIsPropertyDropdownOpen(prev => !prev)
                   }}
+                  className="w-full px-4 py-3 text-left border border-gray-300 rounded-lg hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white"
                   disabled={loadingProperties}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
                 >
-                  <option value="">Select a property...</option>
-                  {propertyOptions.map((property) => (
-                    <option key={property.id} value={property.id} className="text-gray-900 bg-white">
-                      {property.reference_number} - {property.location}
-                    </option>
-                  ))}
-                </select>
-                {loadingProperties && (
-                  <p className="mt-1 text-xs text-gray-500">Loading properties...</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`truncate ${selectedProperty ? 'text-gray-900' : 'text-gray-600'}`}>
+                      {loadingProperties ? 'Loading...' : (selectedProperty ? `${selectedProperty.reference_number} - ${selectedProperty.location}` : 'Select a property...')}
+                    </span>
+                    <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${isPropertyDropdownOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+
+                {isPropertyDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-hidden">
+                    <div className="p-3 border-b border-gray-200">
+                      <input
+                        ref={propertySearchInputRef}
+                        type="text"
+                        value={propertySearchTerm}
+                        onChange={(e) => setPropertySearchTerm(e.target.value)}
+                        placeholder="Search properties by reference or location..."
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto">
+                      {loadingProperties ? (
+                        <div className="p-4 text-center text-gray-500">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          Loading properties...
+                        </div>
+                      ) : properties.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          {propertySearchTerm ? 'No properties found matching your search' : 'No properties available'}
+                        </div>
+                      ) : (
+                        <div>
+                          {properties.map((property) => (
+                            <button
+                              key={property.id}
+                              type="button"
+                              onClick={() => handleSelectProperty(property.id)}
+                              className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${formData.propertyId === property.id ? 'bg-blue-50' : ''}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm truncate">{property.reference_number}</div>
+                                  <div className="text-xs text-gray-600 truncate">{property.location}</div>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              <div>
+              <div ref={leadDropdownRef} className="relative">
                 <label htmlFor="lead" className="block text-sm font-medium text-gray-700 mb-1">
                   Related Lead
                 </label>
-                <input
-                  type="text"
-                  value={leadSearchTerm}
-                  onChange={(e) => setLeadSearchTerm(e.target.value)}
-                  placeholder="Search leads by name or phone..."
-                  className="mb-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500 text-sm"
-                />
-                <select
-                  id="lead"
-                  value={formData.leadId?.toString() || ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setFormData(prev => ({
-                      ...prev,
-                      leadId: value ? parseInt(value, 10) : null
-                    }))
-                    setLeadSearchTerm('')
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPropertyDropdownOpen(false)
+                    setIsLeadDropdownOpen(prev => !prev)
                   }}
+                  className="w-full px-4 py-3 text-left border border-gray-300 rounded-lg hover:border-blue-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-white"
                   disabled={loadingLeads}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 disabled:bg-gray-100"
                 >
-                  <option value="">Select a lead...</option>
-                  {leadOptions.map((lead) => (
-                    <option key={lead.id} value={lead.id} className="text-gray-900 bg-white">
-                      {lead.customer_name} {lead.phone_number ? `- ${lead.phone_number}` : ''}
-                    </option>
-                  ))}
-                </select>
-                {loadingLeads && (
-                  <p className="mt-1 text-xs text-gray-500">Loading leads...</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className={`truncate ${selectedLead ? 'text-gray-900' : 'text-gray-600'}`}>
+                      {loadingLeads ? 'Loading...' : (selectedLead ? `${selectedLead.customer_name}${selectedLead.phone_number ? ` - ${selectedLead.phone_number}` : ''}` : 'Select a lead...')}
+                    </span>
+                    <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${isLeadDropdownOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+
+                {isLeadDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-80 overflow-hidden">
+                    <div className="p-3 border-b border-gray-200">
+                      <input
+                        ref={leadSearchInputRef}
+                        type="text"
+                        value={leadSearchTerm}
+                        onChange={(e) => setLeadSearchTerm(e.target.value)}
+                        placeholder="Search leads by name or phone..."
+                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto">
+                      {loadingLeads ? (
+                        <div className="p-4 text-center text-gray-500">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          Loading leads...
+                        </div>
+                      ) : leads.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          {leadSearchTerm ? 'No leads found matching your search' : 'No leads available'}
+                        </div>
+                      ) : (
+                        <div>
+                          {leads.map((lead) => (
+                            <button
+                              key={lead.id}
+                              type="button"
+                              onClick={() => handleSelectLead(lead.id)}
+                              className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0 ${formData.leadId === lead.id ? 'bg-blue-50' : ''}`}
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="font-medium text-gray-900 text-sm truncate">{lead.customer_name}</div>
+                                  {lead.phone_number && (
+                                    <div className="text-xs text-gray-600 truncate">{lead.phone_number}</div>
+                                  )}
+                                </div>
+                                <div className="ml-3 flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                  <UserIcon className="h-4 w-4 text-blue-600" />
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -890,23 +1029,37 @@ export function EventModal({
                   }}
                   title="Click to view property details"
                 >
-                  <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-blue-800">
-                      Property Event
-                    </p>
-                    <p className="text-xs text-blue-600">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center min-w-0">
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      </div>
+                      <div className="ml-3 min-w-0">
+                        <p className="text-sm font-medium text-blue-800">
+                          Property Event
+                        </p>
+                        <p className="text-xs text-blue-600 truncate">
                           Reference: <span className="font-semibold">{propertyRef}</span>
-                    </p>
-                  </div>
-                </div>
-                    <div className="text-blue-600 text-xs font-medium">
-                      View →
-              </div>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleClearProperty()
+                        }}
+                        className="p-1 rounded-full text-blue-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        title="Clear property"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                      <div className="text-blue-600 text-xs font-medium">
+                        View
+                      </div>
+                    </div>
                   </div>
                 </div>
               )
@@ -929,23 +1082,37 @@ export function EventModal({
                   }}
                   title="Click to view lead details"
                 >
-                  <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">
-                      Lead Event
-                    </p>
-                    <p className="text-xs text-green-600">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center min-w-0">
+                      <div className="flex-shrink-0">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      </div>
+                      <div className="ml-3 min-w-0">
+                        <p className="text-sm font-medium text-green-800">
+                          Lead Event
+                        </p>
+                        <p className="text-xs text-green-600 truncate">
                           Lead: <span className="font-semibold">{leadName}</span>
-                    </p>
-                  </div>
-                </div>
-                    <div className="text-green-600 text-xs font-medium">
-                      View →
-              </div>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleClearLead()
+                        }}
+                        className="p-1 rounded-full text-green-500 hover:text-red-600 hover:bg-red-50 transition-colors"
+                        title="Clear lead"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                      </button>
+                      <div className="text-green-600 text-xs font-medium">
+                        View
+                      </div>
+                    </div>
                   </div>
                 </div>
               )

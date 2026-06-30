@@ -48,6 +48,16 @@ const applyPropertyReferralVisibility = (properties, viewerId, viewerRole) => {
   });
 };
 
+const buildAttendeesFromUserId = async (userId) => {
+  if (!userId) {
+    return [];
+  }
+
+  const assignedUser = await User.findById(userId);
+  const attendeeName = assignedUser?.name?.trim();
+  return attendeeName ? [attendeeName] : [];
+};
+
 const parsePagination = (query = {}) => {
   const hasPage = query.page !== undefined;
   const hasLimit = query.limit !== undefined;
@@ -962,7 +972,7 @@ const createProperty = async (req, res) => {
             color: 'blue',
             type: 'property_assignment',
             location: newProperty.location,
-            attendees: [],
+            attendees: await buildAttendeesFromUserId(finalAgentId),
             notes: `Property Reference: ${newProperty.reference_number}\nProperty Type: ${newProperty.property_type}\nPrice: $${newProperty.price}`,
             created_by: req.user.id,
             assigned_to: finalAgentId,
@@ -1172,7 +1182,7 @@ const updateProperty = async (req, res) => {
             color: 'blue',
             type: 'property_assignment',
             location: updatedProperty.location,
-            attendees: [],
+            attendees: await buildAttendeesFromUserId(updates.agent_id),
             notes: `Property Reference: ${updatedProperty.reference_number}\nProperty Type: ${updatedProperty.property_type}\nPrice: $${updatedProperty.price}`,
             created_by: req.user.id,
             assigned_to: updates.agent_id,

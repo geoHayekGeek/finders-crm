@@ -3,6 +3,7 @@ const propertyController = require('../../controllers/propertyController');
 const Property = require('../../models/propertyModel');
 const PropertyReferral = require('../../models/propertyReferralModel');
 const Status = require('../../models/statusModel');
+const Settings = require('../../models/settingsModel');
 const User = require('../../models/userModel');
 const Notification = require('../../models/notificationModel');
 const CalendarEvent = require('../../models/calendarEventModel');
@@ -11,6 +12,7 @@ const CalendarEvent = require('../../models/calendarEventModel');
 jest.mock('../../models/propertyModel');
 jest.mock('../../models/propertyReferralModel');
 jest.mock('../../models/statusModel');
+jest.mock('../../models/settingsModel');
 jest.mock('../../models/userModel');
 jest.mock('../../models/notificationModel');
 jest.mock('../../models/calendarEventModel');
@@ -41,6 +43,7 @@ describe('Property Controller', () => {
     };
 
     jest.clearAllMocks();
+    Settings.isReferralAdminApprovalEnabled.mockResolvedValue(false);
   });
 
   describe('getAllProperties', () => {
@@ -244,6 +247,31 @@ describe('Property Controller', () => {
         message: 'Property created successfully',
         data: mockCreatedProperty
       });
+    });
+
+    it('should include the assigned agent as an attendee for the property assignment calendar event', async () => {
+      req.body = { ...mockPropertyData, agent_id: 2 };
+      const mockCreatedProperty = { id: 1, ...mockPropertyData, agent_id: 2, reference_number: 'REF001' };
+
+      Property.createProperty.mockResolvedValue(mockCreatedProperty);
+      PropertyReferral.applyExternalRuleToPropertyReferrals.mockResolvedValue({
+        message: 'Rule applied',
+        markedExternalReferrals: []
+      });
+      Notification.createPropertyNotification.mockResolvedValue({});
+      Notification.createNotification.mockResolvedValue({});
+      User.findById.mockResolvedValue({ id: 2, name: 'Assigned Agent', role: 'agent' });
+      CalendarEvent.createEvent.mockResolvedValue({});
+
+      await propertyController.createProperty(req, res);
+
+      expect(CalendarEvent.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attendees: ['Assigned Agent'],
+          assigned_to: 2,
+          property_id: 1
+        })
+      );
     });
 
     it('should return 403 if user cannot manage properties', async () => {
@@ -521,12 +549,20 @@ describe('Property Controller', () => {
       Property.updateProperty.mockResolvedValue(mockUpdatedProperty);
       Notification.createPropertyNotification.mockResolvedValue({});
       Notification.createNotification.mockResolvedValue({});
+      User.findById.mockResolvedValue({ id: 2, name: 'New Agent', role: 'agent' });
       CalendarEvent.createEvent.mockResolvedValue({});
 
       await propertyController.updateProperty(req, res);
 
       expect(Notification.createNotification).toHaveBeenCalled();
       expect(CalendarEvent.createEvent).toHaveBeenCalled();
+      expect(CalendarEvent.createEvent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attendees: ['New Agent'],
+          assigned_to: 2,
+          property_id: 1
+        })
+      );
     });
 
     it('should handle validation errors', async () => {
@@ -1192,7 +1228,12 @@ describe('Property Controller', () => {
       await propertyController.referPropertyToAgent(req, res);
 
       expect(Property.getPropertyById).toHaveBeenCalledWith('100');
-      expect(PropertyReferral.referPropertyToAgent).toHaveBeenCalledWith(100, 28, 27);
+      expect(PropertyReferral.referPropertyToAgent).toHaveBeenCalledWith(
+        100,
+        28,
+        27,
+        { requiresAdminApproval: false }
+      );
       expect(Notification.createNotification).toHaveBeenCalled();
       expect(res.json).toHaveBeenCalledWith({
         success: true,
@@ -1316,11 +1357,23 @@ describe('Property Controller', () => {
       await propertyController.getPendingReferrals(req, res);
 
       expect(PropertyReferral.getPendingReferralsForUser).toHaveBeenCalledWith(28);
-      expect(res.json).toHaveBeenCalledWith({
-        success: true,
-        data: mockReferrals,
-        count: 1
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.arrayContaining([
+            expect.objectContaining({
+              id: 1,
+              property_id: 100,
+              status: 'pending',
+              reference_number: 'PROP-001',
+              location: 'Beirut',
+              referred_by_name: 'Omar',
+              referred_by_role: 'agent'
+            })
+          ]),
+          count: 1
+        })
+      );
     });
 
     it('should handle errors', async () => {
