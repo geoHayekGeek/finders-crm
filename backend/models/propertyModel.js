@@ -75,6 +75,26 @@ function resolveClosingCommissionPayload(propertyData = {}) {
   };
 }
 
+let closingCommissionSchemaPromise = null;
+
+async function ensureClosingCommissionSchema() {
+  if (!closingCommissionSchemaPromise) {
+    closingCommissionSchemaPromise = pool.query(`
+      ALTER TABLE properties
+        ADD COLUMN IF NOT EXISTS agent_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS finders_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS team_leader_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS administration_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS commission DECIMAL(15,2)
+    `).catch((error) => {
+      closingCommissionSchemaPromise = null;
+      throw error;
+    });
+  }
+
+  return closingCommissionSchemaPromise;
+}
+
 class Property {
   static buildPropertyFilters(filters = {}, values = [], valueIndex = 1) {
     let whereClause = '';
@@ -194,6 +214,8 @@ class Property {
     return { whereClause, values, valueIndex };
   }
   static async createProperty(propertyData) {
+    await ensureClosingCommissionSchema();
+
     const {
       status_id,
       reference_number,
@@ -402,6 +424,7 @@ class Property {
 
   static async getAllProperties() {
     try {
+      await ensureClosingCommissionSchema();
       logger.debug('Executing getAllProperties query');
       const result = await pool.query(`
         SELECT 
@@ -514,6 +537,8 @@ class Property {
   }
 
   static async getPropertiesByAgent(agentId) {
+    await ensureClosingCommissionSchema();
+
     const result = await pool.query(`
       SELECT 
         p.id,
@@ -579,6 +604,8 @@ class Property {
 
   // Get properties that are assigned to or referred by a specific agent
   static async getPropertiesAssignedOrReferredByAgent(agentId) {
+    await ensureClosingCommissionSchema();
+
     const result = await pool.query(`
       SELECT 
         p.id,
@@ -647,6 +674,7 @@ class Property {
   // Get all properties with filtered owner details based on user role and permissions
   static async getAllPropertiesWithFilteredOwnerDetails(userRole, userId) {
     try {
+      await ensureClosingCommissionSchema();
       logger.debug('Executing getAllPropertiesWithFilteredOwnerDetails query');
       const result = await pool.query(`
         SELECT 
@@ -801,6 +829,8 @@ class Property {
 
   // Get properties assigned to agents under a specific team leader
   static async getPropertiesByTeamLeader(teamLeaderId) {
+    await ensureClosingCommissionSchema();
+
     const result = await pool.query(`
       SELECT 
         p.id,
@@ -866,6 +896,8 @@ class Property {
 
   // Get properties for team leader: their own properties + their team's properties
   static async getPropertiesForTeamLeader(teamLeaderId) {
+    await ensureClosingCommissionSchema();
+
     const result = await pool.query(`
       SELECT 
         p.id,
@@ -938,6 +970,7 @@ class Property {
 
   static async getPropertyById(id) {
     logger.debug('getPropertyById called', { id, idType: typeof id });
+    await ensureClosingCommissionSchema();
     
     // Ensure ID is a number
     const propertyId = parseInt(id, 10);
@@ -1037,6 +1070,8 @@ class Property {
   }
 
   static async updateProperty(id, updates) {
+    await ensureClosingCommissionSchema();
+
     const client = await pool.connect();
     
     try {
@@ -1278,6 +1313,8 @@ class Property {
   }
 
   static async getPropertiesWithFilters(filters = {}) {
+    await ensureClosingCommissionSchema();
+
     let query = `
       SELECT 
         p.id,
@@ -1481,6 +1518,8 @@ class Property {
   }
 
   static async getPropertiesWithFiltersPaginated(filters = {}, pagination = {}) {
+    await ensureClosingCommissionSchema();
+
     const page = Number.isInteger(pagination.page) && pagination.page > 0 ? pagination.page : 1;
     const limit = Number.isInteger(pagination.limit) && pagination.limit > 0 ? pagination.limit : 10;
     const offset = (page - 1) * limit;
