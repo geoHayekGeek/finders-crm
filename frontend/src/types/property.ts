@@ -186,11 +186,14 @@ export interface PropertyFilters {
   status_id?: number
   category_id?: number
   agent_id?: number
+  owner_id?: number
   price_min?: number
   price_max?: number
   view_type?: string
   search?: string
   location?: string
+  created_from?: string
+  created_to?: string
   surface_min?: number
   surface_max?: number
   built_year_min?: number

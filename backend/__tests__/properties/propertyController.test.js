@@ -865,6 +865,27 @@ describe('Property Controller', () => {
       expect(responseCall.total).toBe(1);
     });
 
+    it('should filter properties by owner_id and created date range', async () => {
+      req.query = { owner_id: '7', created_from: '2026-01-01', created_to: '2026-01-31' };
+      const mockProperties = [
+        { id: 1, building_name: 'Building 1', owner_id: 7, reference_number: 'REF001', price: 100000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 1', surface: 100, view_type: 'sea view', created_at: '2026-01-10T10:00:00.000Z' },
+        { id: 2, building_name: 'Building 2', owner_id: 7, reference_number: 'REF002', price: 200000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 2', surface: 200, view_type: 'sea view', created_at: '2025-12-31T10:00:00.000Z' },
+        { id: 3, building_name: 'Building 3', owner_id: 8, reference_number: 'REF003', price: 300000, status_id: 1, category_id: 1, location: 'Beirut', owner_name: 'Owner 3', surface: 300, view_type: 'sea view', created_at: '2026-01-15T10:00:00.000Z' }
+      ];
+
+      Property.getAllProperties.mockResolvedValue(mockProperties);
+
+      await propertyController.getPropertiesWithFilters(req, res);
+
+      expect(Property.getAllProperties).toHaveBeenCalled();
+      const responseCall = res.json.mock.calls[0][0];
+      expect(responseCall.success).toBe(true);
+      expect(responseCall.data).toHaveLength(1);
+      expect(responseCall.data[0].owner_id).toBe(7);
+      expect(responseCall.data[0].created_at).toBe('2026-01-10T10:00:00.000Z');
+      expect(responseCall.total).toBe(1);
+    });
+
     it('should handle empty results', async () => {
       req.query = { location: 'NonExistent' };
       Property.getAllProperties.mockResolvedValue([]);

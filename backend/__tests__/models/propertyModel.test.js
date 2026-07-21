@@ -1086,6 +1086,35 @@ describe('Property Model', () => {
       expect(queryCall).toContain('AND p.price <=');
       expect(queryCall).toContain('ILIKE');
     });
+
+    it('should filter by owner_id and created date range', async () => {
+      const filters = {
+        owner_id: 7,
+        created_from: '2026-01-01',
+        created_to: '2026-01-31'
+      };
+      const mockProperties = { rows: [] };
+      const mockCount = { rows: [{ total: 0 }] };
+
+      mockQuery
+        .mockResolvedValueOnce(mockProperties)
+        .mockResolvedValueOnce(mockCount);
+
+      await Property.getPropertiesWithFiltersPaginated(filters, { page: 1, limit: 10 });
+
+      const dataQuery = mockQuery.mock.calls[0][0];
+      const countQuery = mockQuery.mock.calls[1][0];
+
+      expect(dataQuery).toContain('AND p.owner_id = $');
+      expect(dataQuery).toContain('p.created_at::date >= $');
+      expect(dataQuery).toContain('p.created_at::date <= $');
+      expect(countQuery).toContain('AND p.owner_id = $');
+      expect(countQuery).toContain('p.created_at::date >= $');
+      expect(countQuery).toContain('p.created_at::date <= $');
+      expect(mockQuery.mock.calls[0][1]).toEqual(
+        expect.arrayContaining([7, '2026-01-01', '2026-01-31', 10, 0])
+      );
+    });
   });
 
   describe('getPropertyStats', () => {

@@ -397,6 +397,13 @@ const getPropertiesWithFilters = async (req, res) => {
             matches = false;
           }
         }
+
+        if (matches && filters.owner_id && filters.owner_id !== 'All') {
+          const filterOwnerId = parseInt(filters.owner_id, 10);
+          if (!isNaN(filterOwnerId) && property.owner_id !== filterOwnerId) {
+            matches = false;
+          }
+        }
         
         if (filters.price_min && property.price < filters.price_min) {
           matches = false;
@@ -414,6 +421,21 @@ const getPropertiesWithFilters = async (req, res) => {
         
         if (filters.location && property.location && !property.location.toLowerCase().includes(filters.location.toLowerCase())) {
           matches = false;
+        }
+
+        if (matches && (filters.created_from || filters.created_to)) {
+          const createdAtValue = property.created_at ? new Date(property.created_at) : null;
+          const createdDate = createdAtValue && !Number.isNaN(createdAtValue.getTime())
+            ? createdAtValue.toISOString().split('T')[0]
+            : null;
+
+          if (filters.created_from && (!createdDate || createdDate < filters.created_from)) {
+            matches = false;
+          }
+
+          if (matches && filters.created_to && (!createdDate || createdDate > filters.created_to)) {
+            matches = false;
+          }
         }
         
         if (filters.view_type && filters.view_type !== 'All' && property.view_type !== filters.view_type) {

@@ -1,7 +1,9 @@
 'use client'
 
-import { Search, Filter, X, Home, Layers, Star } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Search, Filter, X, Home, Layers, Star, Calendar } from 'lucide-react'
 import { PropertyFilters as PropertyFiltersType, Category, Status } from '@/types/property'
+import { PropertyOwnerSelector } from './PropertyOwnerSelector'
 
 interface Agent {
   id: number
@@ -34,11 +36,19 @@ export function PropertyFilters({
   onClearFilters,
   showMyTeamFilter = false
 }: PropertyFiltersProps) {
+  const [selectedOwnerLabel, setSelectedOwnerLabel] = useState('')
+
   const handleFilterChange = (key: keyof PropertyFiltersType, value: any) => {
     setFilters({ ...filters, [key]: value })
   }
 
-  const hasActiveFilters = Object.entries(filters).some(([key, value]) => 
+  useEffect(() => {
+    if (!filters.owner_id) {
+      setSelectedOwnerLabel('')
+    }
+  }, [filters.owner_id])
+
+  const hasActiveFilters = Object.entries(filters).some(([, value]) => 
     value !== undefined && value !== null && value !== '' && value !== false
   )
 
@@ -152,6 +162,49 @@ export function PropertyFilters({
       {/* Advanced Filters */}
       {showAdvancedFilters && (
         <div className="bg-white p-6 rounded-lg shadow space-y-6">
+          {/* Ownership and Created Date */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Owner</label>
+              <PropertyOwnerSelector
+                selectedOwnerId={filters.owner_id}
+                selectedOwnerName={selectedOwnerLabel}
+                onOwnerChange={(owner) => {
+                  handleFilterChange('owner_id', owner?.id)
+                  setSelectedOwnerLabel(owner?.customer_name || '')
+                }}
+                onResolvedOwnerName={setSelectedOwnerLabel}
+                placeholder="All Owners"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                <Calendar className="inline h-4 w-4 mr-1" />
+                Created Date
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="date"
+                  value={filters.created_from || ''}
+                  onChange={(e) => handleFilterChange('created_from', e.target.value || undefined)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="From"
+                  aria-label="Created date from"
+                />
+                <input
+                  type="date"
+                  value={filters.created_to || ''}
+                  onChange={(e) => handleFilterChange('created_to', e.target.value || undefined)}
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                  placeholder="To"
+                  min={filters.created_from || undefined}
+                  aria-label="Created date to"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Basic Filters Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Price Range */}
@@ -428,6 +481,42 @@ export function PropertyFilters({
                     <button
                       onClick={() => handleFilterChange('agent_id', undefined)}
                       className="ml-2 text-cyan-600 hover:text-cyan-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.owner_id && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-indigo-100 text-indigo-800">
+                    Owner: {selectedOwnerLabel || `#${filters.owner_id}`}
+                    <button
+                      onClick={() => {
+                        handleFilterChange('owner_id', undefined)
+                        setSelectedOwnerLabel('')
+                      }}
+                      className="ml-2 text-indigo-600 hover:text-indigo-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.created_from && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-slate-100 text-slate-800">
+                    Created From: {filters.created_from}
+                    <button
+                      onClick={() => handleFilterChange('created_from', undefined)}
+                      className="ml-2 text-slate-600 hover:text-slate-800"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </span>
+                )}
+                {filters.created_to && (
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-slate-100 text-slate-800">
+                    Created To: {filters.created_to}
+                    <button
+                      onClick={() => handleFilterChange('created_to', undefined)}
+                      className="ml-2 text-slate-600 hover:text-slate-800"
                     >
                       <X className="h-4 w-4" />
                     </button>

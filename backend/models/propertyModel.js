@@ -30,6 +30,12 @@ class Property {
       valueIndex++;
     }
 
+    if (filters.owner_id && filters.owner_id !== 'All') {
+      whereClause += ` AND p.owner_id = $${valueIndex}`;
+      values.push(filters.owner_id);
+      valueIndex++;
+    }
+
     if (Array.isArray(filters.agent_ids) && filters.agent_ids.length > 0) {
       whereClause += ` AND p.agent_id = ANY($${valueIndex}::int[])`;
       values.push(filters.agent_ids);
@@ -57,6 +63,18 @@ class Property {
     if (filters.location) {
       whereClause += ` AND p.location ILIKE $${valueIndex}`;
       values.push(`%${filters.location}%`);
+      valueIndex++;
+    }
+
+    if (filters.created_from) {
+      whereClause += ` AND p.created_at::date >= $${valueIndex}::date`;
+      values.push(filters.created_from);
+      valueIndex++;
+    }
+
+    if (filters.created_to) {
+      whereClause += ` AND p.created_at::date <= $${valueIndex}::date`;
+      values.push(filters.created_to);
       valueIndex++;
     }
 
@@ -1210,6 +1228,12 @@ class Property {
       valueIndex++;
     }
 
+    if (filters.owner_id && filters.owner_id !== 'All') {
+      query += ` AND p.owner_id = $${valueIndex}`;
+      values.push(filters.owner_id);
+      valueIndex++;
+    }
+
     if (filters.price_min) {
       query += ` AND p.price >= $${valueIndex}`;
       values.push(filters.price_min);
@@ -1231,6 +1255,18 @@ class Property {
     if (filters.location) {
       query += ` AND p.location ILIKE $${valueIndex}`;
       values.push(`%${filters.location}%`);
+      valueIndex++;
+    }
+
+    if (filters.created_from) {
+      query += ` AND p.created_at::date >= $${valueIndex}::date`;
+      values.push(filters.created_from);
+      valueIndex++;
+    }
+
+    if (filters.created_to) {
+      query += ` AND p.created_at::date <= $${valueIndex}::date`;
+      values.push(filters.created_to);
       valueIndex++;
     }
 
