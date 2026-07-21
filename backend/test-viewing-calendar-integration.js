@@ -150,13 +150,13 @@ async function verifyCalendarEventCreated() {
   
   console.log(`   Total calendar events found: ${events.data?.length || 0}`);
   
-  // Debug: Show all events with type 'showing'
-  const showingEvents = events.data?.filter(event => event.type === 'showing');
-  console.log(`   Showing events found: ${showingEvents?.length || 0}`);
+  // Debug: Show all events with the viewing event type
+  const viewingEvents = events.data?.filter(event => event.type === 'viewing' || event.type === 'showing');
+  console.log(`   Viewing events found: ${viewingEvents?.length || 0}`);
   
-  if (showingEvents && showingEvents.length > 0) {
-    console.log('   Recent showing events:');
-    showingEvents.slice(0, 3).forEach(event => {
+  if (viewingEvents && viewingEvents.length > 0) {
+    console.log('   Recent viewing events:');
+    viewingEvents.slice(0, 3).forEach(event => {
       console.log(`     - ID: ${event.id}, Notes: ${event.notes?.substring(0, 50)}...`);
     });
   }

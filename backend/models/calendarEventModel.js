@@ -7,6 +7,29 @@ const User = require('./userModel');
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
+const normalizeCalendarEventType = (type) => {
+  if (typeof type !== 'string') {
+    return null;
+  }
+
+  const trimmedType = type.trim();
+  if (!trimmedType) {
+    return null;
+  }
+
+  const normalizedType = trimmedType.toLowerCase().replace(/[\s-]+/g, '_');
+
+  if (normalizedType === 'showing' || normalizedType === 'property_viewing') {
+    return 'viewing';
+  }
+
+  if (['meeting', 'viewing', 'inspection', 'closing', 'other'].includes(normalizedType)) {
+    return normalizedType;
+  }
+
+  return trimmedType;
+};
+
 const resolveLocationPayload = async (locationId, locationValue, client = pool) => {
   let resolvedLocationId = locationId ?? null;
   let resolvedLocation = locationValue?.trim() || null;
@@ -92,6 +115,7 @@ class CalendarEvent {
       lead_id,
       location_id
     } = eventData;
+    const normalizedType = normalizeCalendarEventType(type) || 'other';
 
     const resolvedLocation = await resolveLocationPayload(location_id, location, pool);
 
@@ -116,7 +140,7 @@ class CalendarEvent {
         color, type, location, location_id, attendees, notes, created_by, assigned_to, property_id, lead_id
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
-      [title, description, start_time, end_time, all_day, color, type, resolvedLocation.location, resolvedLocation.location_id, attendees, notes, created_by, assigned_to, property_id, lead_id]
+      [title, description, start_time, end_time, all_day, color, normalizedType, resolvedLocation.location, resolvedLocation.location_id, attendees, notes, created_by, assigned_to, property_id, lead_id]
     );
     return result.rows[0];
   }
@@ -352,6 +376,10 @@ class CalendarEvent {
 
       normalizedUpdates.location_id = resolvedLocation.location_id;
       normalizedUpdates.location = resolvedLocation.location;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'type')) {
+      normalizedUpdates.type = normalizeCalendarEventType(normalizedUpdates.type) || 'other';
     }
 
     const existingEventResult = await pool.query(
@@ -787,8 +815,18 @@ class CalendarEvent {
     // Filter by event type
     if (filters.type) {
       paramCount++;
-      query += ` AND ce.type = $${paramCount}`;
-      params.push(filters.type);
+      const normalizedType = normalizeCalendarEventType(filters.type);
+
+      if (normalizedType === 'viewing') {
+        query += ` AND (ce.type = $${paramCount} OR ce.type = 'showing')`;
+        params.push(normalizedType);
+      } else if (normalizedType) {
+        query += ` AND ce.type = $${paramCount}`;
+        params.push(normalizedType);
+      } else {
+        query += ` AND ce.type = $${paramCount}`;
+        params.push(filters.type);
+      }
     }
 
     if (filters.locationId) {

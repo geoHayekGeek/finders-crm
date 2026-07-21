@@ -90,11 +90,11 @@ function EventListInner({ events, selectedDate, onEventClick }: EventListProps) 
     }
   }
 
-  const getEventTypeIcon = (type: CalendarEvent['type']) => {
+  const getEventTypeIcon = (type: string) => {
     switch (type) {
       case 'meeting':
         return '👥'
-      case 'showing':
+      case 'viewing':
         return '🏠'
       case 'inspection':
         return '🔍'
@@ -102,6 +102,21 @@ function EventListInner({ events, selectedDate, onEventClick }: EventListProps) 
         return '📋'
       default:
         return '📅'
+    }
+  }
+
+  const getEventTypeLabel = (type: string) => {
+    switch (type) {
+      case 'meeting':
+        return 'Meeting'
+      case 'viewing':
+        return 'Property Viewing'
+      case 'inspection':
+        return 'Inspection'
+      case 'closing':
+        return 'Closing'
+      default:
+        return type.charAt(0).toUpperCase() + type.slice(1)
     }
   }
 
@@ -234,7 +249,7 @@ function EventListInner({ events, selectedDate, onEventClick }: EventListProps) 
                       </span>
                     ) : (
                       <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full">
-                        {event.type.charAt(0).toUpperCase() + event.type.slice(1)}
+                        {getEventTypeLabel(event.type)}
                       </span>
                     )}
                   </div>

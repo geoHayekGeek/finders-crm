@@ -17,9 +17,43 @@ function normalizeRole(role?: string) {
 }
 
 type TeamLeaderViewMode = 'team' | 'myself' | 'agent'
+type CalendarEventType = 'meeting' | 'viewing' | 'inspection' | 'closing' | 'other'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL || 'http://localhost:10000'
 const API_BASE_URL = `${BACKEND_URL}/api`
+
+const normalizeCalendarEventType = (type?: string): CalendarEventType => {
+  if (typeof type !== 'string') {
+    return 'other'
+  }
+
+  const normalizedType = type.trim().toLowerCase().replace(/[\s-]+/g, '_')
+
+  if (normalizedType === 'showing' || normalizedType === 'property_viewing') {
+    return 'viewing'
+  }
+
+  if (['meeting', 'viewing', 'inspection', 'closing', 'other'].includes(normalizedType)) {
+    return normalizedType as CalendarEventType
+  }
+
+  return 'other'
+}
+
+const getCalendarEventTypeLabel = (type?: string) => {
+  switch (normalizeCalendarEventType(type)) {
+    case 'meeting':
+      return 'Meeting'
+    case 'viewing':
+      return 'Property Viewing'
+    case 'inspection':
+      return 'Inspection'
+    case 'closing':
+      return 'Closing'
+    default:
+      return 'Other'
+  }
+}
 
 interface CalendarFilters {
   createdBy?: string
@@ -39,7 +73,7 @@ export interface CalendarEvent {
   end: Date
   allDay: boolean
   color: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'pink' | 'gray'
-  type: 'meeting' | 'showing' | 'inspection' | 'closing' | 'other'
+  type: CalendarEventType
   location?: string
   locationId?: number | null
   locationName?: string
@@ -210,7 +244,7 @@ export default function CalendarPage() {
           end: new Date(event.end),
           allDay: event.allDay,
           color: (event.color || 'blue') as CalendarEvent['color'],
-          type: (event.type || 'other') as CalendarEvent['type'],
+          type: normalizeCalendarEventType(event.type),
           location: event.locationName || event.location,
           locationId: event.locationId !== undefined && event.locationId !== null ? Number(event.locationId) : undefined,
           locationName: event.locationName || event.location,
@@ -814,7 +848,7 @@ export default function CalendarPage() {
                   >
                     <option value="">All Types</option>
                     <option value="meeting">Meeting</option>
-                    <option value="showing">Property Showing</option>
+                    <option value="viewing">Property Viewing</option>
                     <option value="inspection">Inspection</option>
                     <option value="closing">Closing</option>
                     <option value="other">Other</option>
@@ -877,7 +911,7 @@ export default function CalendarPage() {
                     )}
                     {adminFilters.type && (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                        Type: {adminFilters.type}
+                        Type: {getCalendarEventTypeLabel(adminFilters.type)}
                       </span>
                     )}
                     {locationFilterId && (

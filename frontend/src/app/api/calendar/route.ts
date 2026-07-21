@@ -20,13 +20,13 @@ const mockEvents = [
   },
   {
     id: '2',
-    title: 'Property Showing',
-    description: 'Show downtown apartment to potential client',
+    title: 'Property Viewing',
+    description: 'View downtown apartment with a potential client',
     start: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Day after tomorrow
     end: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000 + 90 * 60 * 1000), // Day after tomorrow + 1.5 hours
     allDay: false,
     color: 'green',
-    type: 'showing',
+    type: 'viewing',
     location: '123 Main St, Downtown',
     attendees: ['Michael Chen', 'Emily Davis'],
     notes: 'Client is interested in 2-bedroom units',

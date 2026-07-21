@@ -15,7 +15,7 @@ class ViewingsController {
       // First try to find by the exact pattern in notes
       const result = await pool.query(
         `SELECT * FROM calendar_events 
-         WHERE type = 'showing' 
+         WHERE type IN ('viewing', 'showing')
          AND notes LIKE $1
          ORDER BY created_at DESC
          LIMIT 1`,
@@ -636,7 +636,7 @@ class ViewingsController {
           end_time: endTime,
           all_day: false,
           color: 'blue',
-          type: 'showing',
+          type: 'viewing',
           location: fullViewing.property_location || '',
           attendees: ViewingsController.buildViewingAttendees(fullViewing),
           notes: req.body.notes || `Viewing ID: ${viewing.id}`,

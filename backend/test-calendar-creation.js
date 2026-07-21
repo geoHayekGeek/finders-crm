@@ -12,7 +12,7 @@ async function testCalendarCreation() {
       end_time: new Date(Date.now() + 3600000), // 1 hour later
       all_day: false,
       color: 'blue',
-      type: 'showing',
+      type: 'viewing',
       location: 'Test location',
       attendees: ['Test Attendee'],
       notes: 'Test notes | Viewing ID: 999',

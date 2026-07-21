@@ -15,7 +15,7 @@ The Calendar component is a fully functional, modern calendar interface built fo
 - **Create Events**: Add new events with comprehensive details
 - **Edit Events**: Modify existing events
 - **Delete Events**: Remove events with confirmation
-- **Event Types**: Categorized events (meeting, showing, inspection, closing, other)
+- **Event Types**: Categorized events (meeting, viewing, inspection, closing, other)
 - **Color Coding**: 6 different color options for visual organization
 - **All-Day Events**: Support for full-day events
 
@@ -87,7 +87,7 @@ Calendar/
 | Type | Icon | Description | Use Case |
 |------|------|-------------|----------|
 | Meeting | 👥 | General meetings and discussions | Client meetings, team discussions |
-| Showing | 🏠 | Property viewings and tours | Open houses, property showings |
+| Viewing | 🏠 | Property viewings and tours | Open houses, property viewings |
 | Inspection | 🔍 | Property inspections and assessments | Pre-listing inspections, maintenance checks |
 | Closing | 📋 | Property closings and settlements | Final closings, document signings |
 | Other | 📅 | Miscellaneous events | Appointments, reminders, custom events |
@@ -142,7 +142,7 @@ interface CalendarEvent {
   end: Date
   allDay: boolean
   color: 'blue' | 'green' | 'red' | 'yellow' | 'purple' | 'pink'
-  type: 'meeting' | 'showing' | 'inspection' | 'closing' | 'other'
+  type: 'meeting' | 'viewing' | 'inspection' | 'closing' | 'other'
   location?: string
   attendees?: string[]
   notes?: string

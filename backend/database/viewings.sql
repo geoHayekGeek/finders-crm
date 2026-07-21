@@ -1,5 +1,5 @@
 -- Create viewings table
--- Viewings track property showings to potential buyers (leads)
+-- Viewings track property viewings to potential buyers (leads)
 CREATE TABLE IF NOT EXISTS viewings (
   id SERIAL PRIMARY KEY,
   property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,

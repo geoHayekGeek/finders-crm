@@ -2,13 +2,13 @@ import { CalendarEvent } from '@/app/dashboard/calendar/page'
 
 export const sampleEvents: Omit<CalendarEvent, 'id'>[] = [
   {
-    title: 'Property Showing - Downtown Condo',
-    description: 'Showing the new downtown condo to potential buyers. Beautiful 2-bedroom unit with city views.',
+    title: 'Property Viewing - Downtown Condo',
+    description: 'Viewing the new downtown condo with potential buyers. Beautiful 2-bedroom unit with city views.',
     start: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 1, 14, 0),
     end: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 1, 15, 0),
     allDay: false,
     color: 'blue',
-    type: 'showing',
+    type: 'viewing',
     location: '123 Main St, Downtown',
     attendees: ['John Smith', 'Sarah Johnson'],
     notes: 'Bring property brochures and floor plans'
@@ -62,13 +62,13 @@ export const sampleEvents: Omit<CalendarEvent, 'id'>[] = [
     notes: 'Laptops required for hands-on training'
   },
   {
-    title: 'Open House - Luxury Villa',
+    title: 'Property Viewing - Luxury Villa',
     description: 'Open house for the luxury villa. Expecting high turnout.',
     start: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 8, 12, 0),
     end: new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() + 8, 17, 0),
     allDay: false,
     color: 'pink',
-    type: 'showing',
+    type: 'viewing',
     location: '789 Luxury Lane, Hillside',
     attendees: ['Marketing Team', 'Support Staff'],
     notes: 'Set up signs, refreshments, and marketing materials'

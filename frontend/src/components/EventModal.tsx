@@ -527,7 +527,7 @@ export function EventModal({
 
   const typeOptions = [
     { value: 'meeting', label: 'Meeting' },
-    { value: 'showing', label: 'Property Showing' },
+    { value: 'viewing', label: 'Property Viewing' },
     { value: 'inspection', label: 'Inspection' },
     { value: 'closing', label: 'Closing' },
     { value: 'other', label: 'Other' }

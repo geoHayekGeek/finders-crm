@@ -11,6 +11,29 @@ const { isAgentLikeRole } = require('../utils/roleUtils');
 const normalizeRole = (role) =>
   role ? role.toLowerCase().replace(/_/g, ' ').trim() : '';
 
+const normalizeCalendarEventType = (type) => {
+  if (typeof type !== 'string') {
+    return null;
+  }
+
+  const trimmedType = type.trim();
+  if (!trimmedType) {
+    return null;
+  }
+
+  const normalizedType = trimmedType.toLowerCase().replace(/[\s-]+/g, '_');
+
+  if (normalizedType === 'showing' || normalizedType === 'property_viewing') {
+    return 'viewing';
+  }
+
+  if (['meeting', 'viewing', 'inspection', 'closing', 'other'].includes(normalizedType)) {
+    return normalizedType;
+  }
+
+  return trimmedType;
+};
+
 /**
  * Team leaders can pass teamScope=myself|team|agent and teamAgentId (when agent) to filter calendar lists.
  * Invalid agent IDs are ignored (falls back to myself).
@@ -89,7 +112,7 @@ const formatCalendarEventResponse = (event) => ({
   end: event.end_time,
   allDay: event.all_day,
   color: event.color,
-  type: event.type,
+  type: normalizeCalendarEventType(event.type),
   location: event.location,
   locationId: event.location_id,
   locationName: event.location_name || event.location,
@@ -541,7 +564,7 @@ const createEvent = async (req, res) => {
       end_time: endTime,
       all_day: allDay || false,
       color: color || 'blue',
-      type: type || 'other',
+      type: normalizeCalendarEventType(type) || 'other',
       location: location?.trim() || null,
       location_id: locationId || null,
       attendees: attendees || [],
@@ -711,7 +734,7 @@ const updateEvent = async (req, res) => {
     if (updates.end !== undefined) updateData.end_time = new Date(updates.end);
     if (updates.allDay !== undefined) updateData.all_day = updates.allDay;
     if (updates.color !== undefined) updateData.color = updates.color;
-    if (updates.type !== undefined) updateData.type = updates.type;
+    if (updates.type !== undefined) updateData.type = normalizeCalendarEventType(updates.type) || 'other';
     if (updates.location !== undefined) updateData.location = updates.location?.trim() || null;
     if (updates.locationId !== undefined) updateData.location_id = updates.locationId || null;
     if (updates.attendees !== undefined) updateData.attendees = updates.attendees;
@@ -1108,7 +1131,7 @@ const resetAndSeedEvents = async (req, res) => {
     await pool.query('DELETE FROM calendar_events');
 
     const colors = ['blue', 'green', 'red', 'yellow', 'purple', 'pink'];
-    const types = ['meeting', 'showing', 'inspection', 'closing', 'other'];
+    const types = ['meeting', 'viewing', 'inspection', 'closing', 'other'];
 
     const now = new Date();
     const created = [];
@@ -1142,7 +1165,7 @@ const resetAndSeedEvents = async (req, res) => {
       const leadId = leads.length && Math.random() < 0.7 ? pick(leads).id : null;
 
       const eventData = {
-        title: `${pick(['Meeting','Showing','Inspection','Call','Follow-up'])} #${i + 1}`,
+        title: `${pick(['Meeting','Viewing','Inspection','Call','Follow-up'])} #${i + 1}`,
         description: Math.random() < 0.5 ? 'Auto-seeded demo event.' : null,
         start_time: start,
         end_time: end,
