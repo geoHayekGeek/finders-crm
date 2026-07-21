@@ -23,6 +23,10 @@ async function migrateClosingFields() {
     console.log('📊 The following columns have been added to the properties table:');
     console.log('   - sold_amount (DECIMAL)');
     console.log('   - buyer_id (INTEGER, FK to leads)');
+    console.log('   - agent_commission (DECIMAL)');
+    console.log('   - finders_commission (DECIMAL)');
+    console.log('   - team_leader_commission (DECIMAL)');
+    console.log('   - administration_commission (DECIMAL)');
     console.log('   - commission (DECIMAL)');
     console.log('   - platform_id (INTEGER, FK to reference_sources)');
     
@@ -31,7 +35,7 @@ async function migrateClosingFields() {
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns 
       WHERE table_name = 'properties' 
-      AND column_name IN ('sold_amount', 'buyer_id', 'commission', 'platform_id')
+      AND column_name IN ('sold_amount', 'buyer_id', 'agent_commission', 'finders_commission', 'team_leader_commission', 'administration_commission', 'commission', 'platform_id')
       ORDER BY column_name
     `);
     

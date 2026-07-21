@@ -15,18 +15,6 @@ jest.mock('../../models/leadReferralModel', () => ({
 describe('Report Model', () => {
   let mockQuery;
 
-  const queueZeroCalculationQueries = () => {
-    mockQuery
-      .mockResolvedValueOnce({ rows: [{ count: '0' }] })
-      .mockResolvedValueOnce({ rows: [{ total: '0', earliest: null, latest: null }] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ count: '0' }] })
-      .mockResolvedValueOnce({ rows: [{ count: '0', total_amount: '0' }] })
-      .mockResolvedValueOnce({ rows: [{ referral_count: '0', property_count: '0' }] })
-      .mockResolvedValueOnce({ rows: [{ referral_count: '0', property_count: '0' }] })
-      .mockResolvedValueOnce({ rows: [{ count: '0' }] });
-  };
-
   beforeEach(() => {
     mockQuery = jest.fn();
     pool.query = mockQuery;
@@ -43,7 +31,15 @@ describe('Report Model', () => {
         .mockResolvedValueOnce({ rows: [{ count: '5', total_amount: '500000' }] })
         .mockResolvedValueOnce({ rows: [{ referral_count: '2', property_count: '1' }] })
         .mockResolvedValueOnce({ rows: [{ referral_count: '1', property_count: '1' }] })
-        .mockResolvedValueOnce({ rows: [{ count: '3' }] });
+        .mockResolvedValueOnce({ rows: [{ count: '3' }] })
+        .mockResolvedValueOnce({
+          rows: [{
+            agent_commission: '0',
+            finders_commission: '0',
+            team_leader_commission: '0',
+            administration_commission: '0'
+          }]
+        });
 
       const result = await Report.calculateReportData(1, '2024-01-01', '2024-01-31');
 
@@ -102,6 +98,14 @@ describe('Report Model', () => {
         .mockResolvedValueOnce({ rows: [{ referral_count: '0', property_count: '0' }] }) // property referrals
         .mockResolvedValueOnce({ rows: [{ referral_count: '0', property_count: '0' }] }) // lead referrals
         .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // referrals on properties
+        .mockResolvedValueOnce({
+          rows: [{
+            agent_commission: '0',
+            finders_commission: '0',
+            team_leader_commission: '0',
+            administration_commission: '0'
+          }]
+        }) // closing commissions
         .mockResolvedValueOnce({
           rows: [{
             id: 1,
@@ -187,32 +191,41 @@ describe('Report Model', () => {
   });
 
   describe('updateReport', () => {
-    it('should update a report with manual commission fields', async () => {
+    it('should update a report and recalculate total commission from split fields', async () => {
       const updateData = {
-        agent_commission: 20000,
-        finders_commission: 10000,
-        team_leader_commission: 10000,
-        administration_commission: 40000,
-        total_commission: 80000,
-        referral_received_commission: 2500,
-        referrals_on_properties_commission: 1500
+        agent_commission: 20000
       };
 
       mockQuery.mockResolvedValueOnce({
+        rows: [{
+          id: 1,
+          agent_commission: 10000,
+          finders_commission: 10000,
+          team_leader_commission: 10000,
+          administration_commission: 40000,
+          referrals_on_properties_commission: 1500
+        }]
+      }).mockResolvedValueOnce({
         rows: [{
           id: 1,
           start_date: '2024-01-01',
           end_date: '2024-01-31',
           month: 1,
           year: 2024,
-          ...updateData
+          agent_commission: 20000,
+          finders_commission: 10000,
+          team_leader_commission: 10000,
+          administration_commission: 40000,
+          referrals_on_properties_commission: 1500,
+          total_commission: 81500
         }]
       });
 
       const result = await Report.updateReport(1, updateData);
 
       expect(result.agent_commission).toBe(20000);
-      expect(result.total_commission).toBe(80000);
+      expect(result.finders_commission).toBe(10000);
+      expect(result.total_commission).toBe(81500);
     });
 
     it('should throw when report not found', async () => {
@@ -248,6 +261,14 @@ describe('Report Model', () => {
         .mockResolvedValueOnce({ rows: [{ referral_count: '0', property_count: '0' }] })
         .mockResolvedValueOnce({ rows: [{ referral_count: '0', property_count: '0' }] })
         .mockResolvedValueOnce({ rows: [{ count: '0' }] })
+        .mockResolvedValueOnce({
+          rows: [{
+            agent_commission: '0',
+            finders_commission: '0',
+            team_leader_commission: '0',
+            administration_commission: '0'
+          }]
+        })
         .mockResolvedValueOnce({
           rows: [{
             id: 1,

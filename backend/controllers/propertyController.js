@@ -865,6 +865,10 @@ const createProperty = async (req, res) => {
       closed_date,
       sold_amount,
       buyer_id,
+      agent_commission,
+      finders_commission,
+      team_leader_commission,
+      administration_commission,
       commission,
       platform_id,
       referrals,
@@ -919,6 +923,10 @@ const createProperty = async (req, res) => {
       closed_date: closed_date || null,
       sold_amount: sold_amount ?? null,
       buyer_id: buyer_id ?? null,
+      agent_commission: agent_commission ?? null,
+      finders_commission: finders_commission ?? null,
+      team_leader_commission: team_leader_commission ?? null,
+      administration_commission: administration_commission ?? null,
       commission: commission ?? null,
       platform_id: platform_id ?? null,
       referrals: referrals || [], // Required - validation happens in middleware and model
@@ -1136,6 +1144,10 @@ const updateProperty = async (req, res) => {
         updates.closed_date = null;
         updates.sold_amount = null;
         updates.buyer_id = null;
+        updates.agent_commission = null;
+        updates.finders_commission = null;
+        updates.team_leader_commission = null;
+        updates.administration_commission = null;
         updates.commission = null;
         updates.platform_id = null;
         logger.debug('Clearing closed_date fields', { propertyId: id });

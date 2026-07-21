@@ -24,7 +24,13 @@ export default function AgentEarningsModal({ report, onClose }: AgentEarningsMod
     return Number.isFinite(numeric) ? numeric : 0
   }
 
-  const closureCommission = toNumber(report.agent_commission)
+  const closureCommission =
+    toNumber(report.total_commission) ||
+    toNumber(report.agent_commission) +
+      toNumber(report.finders_commission) +
+      toNumber(report.team_leader_commission) +
+      toNumber(report.administration_commission) +
+      toNumber(report.referrals_on_properties_commission)
   const referralCommission = toNumber(
     report.referral_received_commission ?? 0
   )

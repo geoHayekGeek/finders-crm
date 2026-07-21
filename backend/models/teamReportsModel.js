@@ -136,16 +136,16 @@ async function buildAgentSnapshot(agent, startDateInput, endDateInput) {
     viewings_count: calculatedData.viewings_count,
     sales_count: calculatedData.sales_count,
     sales_amount: calculatedData.sales_amount,
-    agent_commission: 0,
-    finders_commission: 0,
+    agent_commission: calculatedData.agent_commission,
+    finders_commission: calculatedData.finders_commission,
     referral_commission: 0,
-    team_leader_commission: 0,
-    administration_commission: 0,
-    total_commission: 0,
+    team_leader_commission: calculatedData.team_leader_commission,
+    administration_commission: calculatedData.administration_commission,
+    total_commission: calculatedData.total_commission,
     referral_received_count: calculatedData.referral_received_count,
-    referral_received_commission: 0,
+    referral_received_commission: calculatedData.referral_received_commission,
     referrals_on_properties_count: calculatedData.referrals_on_properties_count,
-    referrals_on_properties_commission: 0
+    referrals_on_properties_commission: calculatedData.referrals_on_properties_commission
   };
 }
 

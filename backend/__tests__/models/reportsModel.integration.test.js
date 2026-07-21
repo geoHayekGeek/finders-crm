@@ -274,6 +274,42 @@ describe('Report Model - Integration Tests (Accuracy Verification)', () => {
   });
 
   describe('Report Accuracy - Commission Calculations', () => {
+    it('should populate commission breakdown from closed property values', async () => {
+      const property = await pool.query(
+        `INSERT INTO properties (
+          reference_number, status_id, property_type, location, category_id,
+          owner_name, phone_number, surface, details, interior_details,
+          view_type, agent_id, price, closed_date,
+          agent_commission, finders_commission, team_leader_commission, administration_commission
+        ) VALUES (
+          'COMM-002', $1, 'sale', 'Test Location', $2,
+          'Owner 1', '123456', 100, '{}'::jsonb, '{}'::jsonb,
+          'sea view', $3, 200000, $4::date,
+          $5, $6, $7, $8
+        ) RETURNING id`,
+        [testStatusId, testCategoryId, testAgentId, '2024-01-15', 12000, 4000, 3000, 1500]
+      );
+
+      const report = await Report.createMonthlyReport(
+        {
+          agent_id: testAgentId,
+          start_date: testDateRange.start,
+          end_date: testDateRange.end,
+          boosts: 0
+        },
+        testUserId
+      );
+
+      expect(parseFloat(report.agent_commission)).toBe(12000);
+      expect(parseFloat(report.finders_commission)).toBe(4000);
+      expect(parseFloat(report.team_leader_commission)).toBe(3000);
+      expect(parseFloat(report.administration_commission)).toBe(1500);
+      expect(parseFloat(report.total_commission)).toBe(20500);
+
+      await pool.query('DELETE FROM properties WHERE id = $1', [property.rows[0].id]);
+      await pool.query('DELETE FROM monthly_agent_reports WHERE id = $1', [report.id]);
+    });
+
     it('should store manually entered commission amounts', async () => {
       const salesAmount = 500000;
       

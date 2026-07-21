@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Plus, Search, Users, FileText, CalendarDays, UserCheck, Eye, Trash2 } from 'lucide-react'
+import { AlertCircle, Plus, Search, Users, FileText, CalendarDays, UserCheck, Eye, Trash2, Calendar } from 'lucide-react'
 import { RequireComplaintsAccess, usePermissions } from '@/contexts/PermissionContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -14,6 +14,45 @@ import { formatRole, getRoleColor } from '@/utils/roleFormatter'
 import { normalizeRole } from '@/utils/roleUtils'
 import { markComplaintAsViewed } from '@/utils/complaintVisibility'
 
+type ComplaintTargetRoleFilter = 'all' | 'agent' | 'team leader'
+
+const AGENT_LIKE_ROLES = new Set(['agent', 'consultant'])
+
+function isAgentLikeComplaintViewer(role?: string | null) {
+  return AGENT_LIKE_ROLES.has(normalizeRole(role))
+}
+
+function getComplaintDateKey(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getTargetRoleFilterOptions(role?: string | null): Array<{ value: ComplaintTargetRoleFilter; label: string }> {
+  if (isAgentLikeComplaintViewer(role)) {
+    return []
+  }
+
+  if (normalizeRole(role) === 'team leader') {
+    return [
+      { value: 'all', label: 'All Targets' },
+      { value: 'agent', label: 'Agents & Consultants' }
+    ]
+  }
+
+  return [
+    { value: 'all', label: 'All Targets' },
+    { value: 'agent', label: 'Agents & Consultants' },
+    { value: 'team leader', label: 'Team Leaders' }
+  ]
+}
+
 export default function ComplaintsPage() {
   const { token, isAuthenticated, user } = useAuth()
   const { canManageComplaints } = usePermissions()
@@ -23,12 +62,37 @@ export default function ComplaintsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [targetRoleFilter, setTargetRoleFilter] = useState<'all' | 'agent' | 'team leader'>('all')
+  const [targetRoleFilter, setTargetRoleFilter] = useState<ComplaintTargetRoleFilter>('all')
+  const [createdFrom, setCreatedFrom] = useState('')
+  const [createdTo, setCreatedTo] = useState('')
   const [showAddModal, setShowAddModal] = useState(false)
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null)
   const [complaintToDelete, setComplaintToDelete] = useState<Complaint | null>(null)
   const [deletingComplaint, setDeletingComplaint] = useState(false)
   const loadRequestRef = useRef(0)
+  const normalizedUserRole = normalizeRole(user?.role)
+  const isAgentViewer = isAgentLikeComplaintViewer(normalizedUserRole)
+  const isTeamLeaderViewer = normalizedUserRole === 'team leader'
+  const targetRoleFilterOptions = useMemo(() => getTargetRoleFilterOptions(normalizedUserRole), [normalizedUserRole])
+
+  useEffect(() => {
+    if (isAgentViewer) {
+      if (targetRoleFilter !== 'all') {
+        setTargetRoleFilter('all')
+      }
+      return
+    }
+
+    if (isTeamLeaderViewer && targetRoleFilter === 'team leader') {
+      setTargetRoleFilter('all')
+    }
+  }, [isAgentViewer, isTeamLeaderViewer, targetRoleFilter])
+
+  useEffect(() => {
+    if (createdFrom && createdTo && createdTo < createdFrom) {
+      setCreatedTo(createdFrom)
+    }
+  }, [createdFrom, createdTo])
 
   const loadComplaints = useCallback(async () => {
     if (!token) {
@@ -115,10 +179,11 @@ export default function ComplaintsPage() {
 
     return complaints.filter((complaint) => {
       const targetRole = normalizeRole(complaint.target_user_role)
+      const complaintDateKey = getComplaintDateKey(complaint.created_at)
       const matchesSearch =
         !term ||
-        complaint.title.toLowerCase().includes(term) ||
-        complaint.description.toLowerCase().includes(term) ||
+        String(complaint.title || '').toLowerCase().includes(term) ||
+        String(complaint.description || '').toLowerCase().includes(term) ||
         (complaint.lead_name || '').toLowerCase().includes(term) ||
         (complaint.target_user_name || '').toLowerCase().includes(term) ||
         (complaint.created_by_name || '').toLowerCase().includes(term)
@@ -128,9 +193,12 @@ export default function ComplaintsPage() {
         (targetRoleFilter === 'agent' && ['agent', 'consultant'].includes(targetRole)) ||
         (targetRoleFilter === 'team leader' && targetRole === 'team leader')
 
-      return matchesSearch && matchesTargetRole
+      const matchesCreatedFrom = !createdFrom || (complaintDateKey !== null && complaintDateKey >= createdFrom)
+      const matchesCreatedTo = !createdTo || (complaintDateKey !== null && complaintDateKey <= createdTo)
+
+      return matchesSearch && matchesTargetRole && matchesCreatedFrom && matchesCreatedTo
     })
-  }, [complaints, searchTerm, targetRoleFilter])
+  }, [complaints, searchTerm, targetRoleFilter, createdFrom, createdTo])
 
   const stats = useMemo(() => {
     const agentLikeCount = complaints.filter((complaint) =>
@@ -230,43 +298,80 @@ export default function ComplaintsPage() {
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div
-            className="flex flex-col gap-4 lg:grid lg:items-center"
-            style={{ gridTemplateColumns: 'minmax(0, 1.5fr) minmax(220px, 0.8fr) auto' }}
-          >
-            <div className="input-with-icon relative min-w-0">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search complaints by title, lead, target user, or creator"
-                className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
-              />
+          <div className="space-y-4">
+            <div
+              className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.8fr)_auto]"
+            >
+              <div className="input-with-icon relative min-w-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search complaints by title, lead, target user, or creator"
+                  className="w-full rounded-xl border border-gray-300 bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+
+              {targetRoleFilterOptions.length > 0 ? (
+                <select
+                  value={targetRoleFilter}
+                  onChange={(e) => setTargetRoleFilter(e.target.value as ComplaintTargetRoleFilter)}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                >
+                  {targetRoleFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ): ""}
+
+              {(searchTerm.trim() || targetRoleFilter !== 'all' || createdFrom || createdTo) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('')
+                    setTargetRoleFilter('all')
+                    setCreatedFrom('')
+                    setCreatedTo('')
+                  }}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 lg:justify-self-end"
+                >
+                  Clear Filters
+                </button>
+              )}
             </div>
 
-            <select
-              value={targetRoleFilter}
-              onChange={(e) => setTargetRoleFilter(e.target.value as 'all' | 'agent' | 'team leader')}
-              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
-            >
-              <option value="all">All Targets</option>
-              <option value="agent">Agents & Consultants</option>
-              <option value="team leader">Team Leaders</option>
-            </select>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  Created From
+                </label>
+                <input
+                  type="date"
+                  value={createdFrom}
+                  onChange={(e) => setCreatedFrom(e.target.value)}
+                  max={createdTo || undefined}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                />
+              </div>
 
-            {(searchTerm || targetRoleFilter !== 'all') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('')
-                  setTargetRoleFilter('all')
-                }}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 lg:justify-self-end"
-              >
-                Clear Filters
-              </button>
-            )}
+              <div className="space-y-2">
+                <label className="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <Calendar className="h-4 w-4 text-gray-500" />
+                  Created To
+                </label>
+                <input
+                  type="date"
+                  value={createdTo}
+                  onChange={(e) => setCreatedTo(e.target.value)}
+                  min={createdFrom || undefined}
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -301,7 +406,7 @@ export default function ComplaintsPage() {
               <p className="mb-4 text-gray-600">
                 {complaints.length === 0
                   ? 'Create the first complaint to start tracking issues.'
-                  : 'Try changing the search or target filter.'}
+                  : 'Try changing the search, target, or date filters.'}
               </p>
               {canManageComplaints && complaints.length === 0 && (
                 <button

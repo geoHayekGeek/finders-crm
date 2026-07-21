@@ -75,7 +75,11 @@ export interface Property {
   buyer_id?: number // Foreign key to leads table - the client (buyer) the property was sold to
   buyer_name?: string // Name of the buyer (from leads table)
   buyer_phone_number?: string // Phone number of the buyer (from leads table)
-  commission?: number // Commission amount in dollars
+  agent_commission?: number // Agent commission amount in dollars
+  finders_commission?: number // Finders commission amount in dollars
+  team_leader_commission?: number // Team leader commission amount in dollars
+  administration_commission?: number // Administration commission amount in dollars
+  commission?: number // Legacy total commission amount in dollars
   platform_id?: number // Foreign key to reference_sources table - platform where property was sold
   platform_name?: string // Name of the platform/reference source
   created_by?: number // User who added/created this property
@@ -151,7 +155,11 @@ export interface EditFormData {
   closed_date?: string // Date when property was sold or rented
   sold_amount?: number // Amount the property was sold for (can differ from price)
   buyer_id?: number // Foreign key to leads table - the client (buyer) the property was sold to
-  commission?: number // Commission amount in dollars
+  agent_commission?: number // Agent commission amount in dollars
+  finders_commission?: number // Finders commission amount in dollars
+  team_leader_commission?: number // Team leader commission amount in dollars
+  administration_commission?: number // Administration commission amount in dollars
+  commission?: number // Legacy total commission amount in dollars
   platform_id?: number // Foreign key to reference_sources table - platform where property was sold
   referrals?: Referral[]
 }

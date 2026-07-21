@@ -60,6 +60,52 @@ function normalizeLeadSourcesInput(value, fallback = {}) {
   return JSON.stringify(value);
 }
 
+const COMMISSION_BREAKDOWN_FIELDS = [
+  'agent_commission',
+  'finders_commission',
+  'team_leader_commission',
+  'administration_commission',
+  'referrals_on_properties_commission'
+];
+
+function resolveCommissionValue(value, fallback = 0) {
+  return normalizeNumericInput(value, fallback);
+}
+
+function resolveCommissionBreakdown(input = {}, fallback = {}) {
+  const agent_commission = resolveCommissionValue(input.agent_commission, fallback.agent_commission ?? 0);
+  const finders_commission = resolveCommissionValue(input.finders_commission, fallback.finders_commission ?? 0);
+  const team_leader_commission = resolveCommissionValue(input.team_leader_commission, fallback.team_leader_commission ?? 0);
+  const administration_commission = resolveCommissionValue(input.administration_commission, fallback.administration_commission ?? 0);
+  const referrals_on_properties_commission = resolveCommissionValue(
+    input.referrals_on_properties_commission,
+    fallback.referrals_on_properties_commission ?? 0
+  );
+
+  const hasBreakdownInput = COMMISSION_BREAKDOWN_FIELDS.some(
+    (field) => input[field] !== undefined && input[field] !== null && input[field] !== ''
+  );
+
+  const total_commission = hasBreakdownInput || input.total_commission === undefined
+    ? roundMoney(
+      agent_commission +
+      finders_commission +
+      team_leader_commission +
+      administration_commission +
+      referrals_on_properties_commission
+    )
+    : resolveCommissionValue(input.total_commission, fallback.total_commission ?? 0);
+
+  return {
+    agent_commission,
+    finders_commission,
+    team_leader_commission,
+    administration_commission,
+    referrals_on_properties_commission,
+    total_commission
+  };
+}
+
 class Report {
   /**
    * Create a new agent report for a date range
@@ -190,6 +236,8 @@ class Report {
       // Calculate report data
       const calculatedData = await this.calculateReportData(agent_id, normalizedStart, normalizedEnd);
 
+      const commissionValues = resolveCommissionBreakdown(reportData, calculatedData);
+
       const resolvedValues = {
         listings_count: reportData.listings_count !== undefined
           ? parseInt(reportData.listings_count, 10) || 0
@@ -204,20 +252,22 @@ class Report {
         sales_amount: reportData.sales_amount !== undefined
           ? normalizeNumericInput(reportData.sales_amount, calculatedData.sales_amount)
           : calculatedData.sales_amount,
-        agent_commission: reportData.agent_commission !== undefined ? normalizeNumericInput(reportData.agent_commission) : 0,
-        finders_commission: reportData.finders_commission !== undefined ? normalizeNumericInput(reportData.finders_commission) : 0,
+        agent_commission: commissionValues.agent_commission,
+        finders_commission: commissionValues.finders_commission,
         referral_commission: 0,
-        team_leader_commission: reportData.team_leader_commission !== undefined ? normalizeNumericInput(reportData.team_leader_commission) : 0,
-        administration_commission: reportData.administration_commission !== undefined ? normalizeNumericInput(reportData.administration_commission) : 0,
-        total_commission: reportData.total_commission !== undefined ? normalizeNumericInput(reportData.total_commission) : 0,
+        team_leader_commission: commissionValues.team_leader_commission,
+        administration_commission: commissionValues.administration_commission,
+        total_commission: commissionValues.total_commission,
         referral_received_count: reportData.referral_received_count !== undefined
           ? parseInt(reportData.referral_received_count, 10) || 0
           : calculatedData.referral_received_count,
-        referral_received_commission: reportData.referral_received_commission !== undefined ? normalizeNumericInput(reportData.referral_received_commission) : 0,
+        referral_received_commission: reportData.referral_received_commission !== undefined
+          ? normalizeNumericInput(reportData.referral_received_commission, calculatedData.referral_received_commission)
+          : calculatedData.referral_received_commission ?? 0,
         referrals_on_properties_count: reportData.referrals_on_properties_count !== undefined
           ? parseInt(reportData.referrals_on_properties_count, 10) || 0
           : calculatedData.referrals_on_properties_count,
-        referrals_on_properties_commission: reportData.referrals_on_properties_commission !== undefined ? normalizeNumericInput(reportData.referrals_on_properties_commission) : 0
+        referrals_on_properties_commission: commissionValues.referrals_on_properties_commission
       };
 
       // Insert new report
@@ -409,7 +459,8 @@ class Report {
       const sales_amount = parseFloat(salesResult.rows[0].total_amount) || 0;
 
       // 5. Count referrals given by this agent and referrals on this agent's properties.
-      // Commission amounts are now entered manually in the report UI.
+      // Closure commission amounts are summed from the closed property rows;
+      // referral-earned commission remains a separate manual report field.
       console.log(`  📊 Step 5: Counting property referrals...`);
       const propertyReferralsResult = await pool.query(
         `SELECT 
@@ -448,7 +499,7 @@ class Report {
           [agentId, startDateStr, endDateStr]
         );
       } catch (error) {
-        if (error.code === '42703' || error.code === '42P01' || error.message.includes('lead_referrals')) {
+        if (error.code === '42703' || error.code === '42P01' || error.message?.includes('lead_referrals')) {
           leadReferralsResult = { rows: [{ referral_count: 0, property_count: 0 }] };
         } else {
           throw error;
@@ -482,7 +533,7 @@ class Report {
         );
       } catch (error) {
         // If date column doesn't exist, fallback to old behavior
-        if (error.code === '42703' || error.message.includes('date')) {
+        if (error.code === '42703' || error.message?.includes('date')) {
           referralsCountResult = await pool.query(
             `SELECT COUNT(r.id) as count
              FROM referrals r
@@ -502,13 +553,60 @@ class Report {
       }
       
       const referrals_on_properties_count = parseInt(referralsCountResult.rows[0].count) || 0;
-      const agent_commission = 0;
-      const finders_commission = 0;
-      const team_leader_commission = 0;
-      const administration_commission = 0;
-      const total_commission = 0;
+      console.log(`  📊 Step 8: Summing closing commissions...`);
+      let closingCommissionResult;
+      try {
+        closingCommissionResult = await pool.query(
+          `SELECT
+             COALESCE(SUM(COALESCE(p.agent_commission, p.commission, 0)), 0) as agent_commission,
+             COALESCE(SUM(COALESCE(p.finders_commission, 0)), 0) as finders_commission,
+             COALESCE(SUM(COALESCE(p.team_leader_commission, 0)), 0) as team_leader_commission,
+             COALESCE(SUM(COALESCE(p.administration_commission, 0)), 0) as administration_commission
+           FROM properties p
+           WHERE p.agent_id = $1
+           AND p.closed_date >= $2::date
+           AND p.closed_date <= $3::date
+           AND p.status_id IN (
+             ${CLOSURE_STATUS_ID_SUBQUERY}
+           )`,
+          [agentId, startDateStr, endDateStr]
+        );
+      } catch (error) {
+        if (error.code === '42703') {
+          closingCommissionResult = await pool.query(
+            `SELECT
+               COALESCE(SUM(COALESCE(p.commission, 0)), 0) as agent_commission,
+               0 as finders_commission,
+               0 as team_leader_commission,
+               0 as administration_commission
+             FROM properties p
+             WHERE p.agent_id = $1
+             AND p.closed_date >= $2::date
+             AND p.closed_date <= $3::date
+             AND p.status_id IN (
+               ${CLOSURE_STATUS_ID_SUBQUERY}
+             )`,
+            [agentId, startDateStr, endDateStr]
+          );
+        } else {
+          throw error;
+        }
+      }
+      const agent_commission = parseFloat(closingCommissionResult.rows[0].agent_commission) || 0;
+      const finders_commission = parseFloat(closingCommissionResult.rows[0].finders_commission) || 0;
+      const team_leader_commission = parseFloat(closingCommissionResult.rows[0].team_leader_commission) || 0;
+      const administration_commission = parseFloat(closingCommissionResult.rows[0].administration_commission) || 0;
       const referral_received_commission = 0;
       const referrals_on_properties_commission = 0;
+      const referral_commission = 0;
+      const total_commission = roundMoney(
+        agent_commission +
+        finders_commission +
+        referral_commission +
+        team_leader_commission +
+        administration_commission +
+        referrals_on_properties_commission
+      );
 
       console.log(`✅ Report calculation completed for agent ${agentId}`);
       
@@ -830,6 +928,44 @@ class Report {
    */
   static async updateReport(id, updates) {
     try {
+      let normalizedUpdates = { ...(updates || {}) };
+      const commissionFieldsChanged = COMMISSION_BREAKDOWN_FIELDS.some((field) =>
+        Object.prototype.hasOwnProperty.call(normalizedUpdates, field)
+      );
+
+      if (commissionFieldsChanged) {
+        const existingReportResult = await pool.query(
+          `SELECT
+            agent_commission,
+            finders_commission,
+            team_leader_commission,
+            administration_commission,
+            referrals_on_properties_commission
+           FROM monthly_agent_reports
+           WHERE id = $1`,
+          [id]
+        );
+
+        if (existingReportResult.rows.length === 0) {
+          throw new Error('Report not found');
+        }
+
+        const resolvedCommissionData = resolveCommissionBreakdown(
+          normalizedUpdates,
+          existingReportResult.rows[0]
+        );
+
+        normalizedUpdates = {
+          ...normalizedUpdates,
+          agent_commission: resolvedCommissionData.agent_commission,
+          finders_commission: resolvedCommissionData.finders_commission,
+          team_leader_commission: resolvedCommissionData.team_leader_commission,
+          administration_commission: resolvedCommissionData.administration_commission,
+          referrals_on_properties_commission: resolvedCommissionData.referrals_on_properties_commission,
+          total_commission: resolvedCommissionData.total_commission
+        };
+      }
+
       // Build dynamic update query to handle any field updates
       const updateFields = [];
       const values = [];
@@ -857,10 +993,10 @@ class Report {
       };
       
       // Handle each field that exists in updates
-      Object.keys(updates).forEach(key => {
+      Object.keys(normalizedUpdates).forEach(key => {
         const dbField = allowedFields[key];
-        if (dbField && updates.hasOwnProperty(key)) {
-          let value = updates[key];
+        if (dbField && Object.prototype.hasOwnProperty.call(normalizedUpdates, key)) {
+          let value = normalizedUpdates[key];
           
           // Special handling for lead_sources (JSON field)
           if (dbField === 'lead_sources') {
@@ -933,7 +1069,7 @@ class Report {
       }
 
       console.log('✅ Report updated successfully');
-      console.log('📊 Updated fields:', Object.keys(updates).join(', '));
+      console.log('📊 Updated fields:', Object.keys(normalizedUpdates).join(', '));
       return result.rows[0];
     } catch (error) {
       console.error('Error updating report:', error);

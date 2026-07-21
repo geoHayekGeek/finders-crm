@@ -183,6 +183,79 @@ const TextareaField = ({
   </div>
 )
 
+const CLOSING_COMMISSION_FIELDS = [
+  'agent_commission',
+  'finders_commission',
+  'team_leader_commission',
+  'administration_commission'
+] as const
+
+type ClosingCommissionField = (typeof CLOSING_COMMISSION_FIELDS)[number]
+
+type ClosingCommissionData = Pick<
+  EditFormData,
+  ClosingCommissionField | 'commission'
+>
+
+const parseMoneyValue = (value: unknown): number | null => {
+  if (value === undefined || value === null || value === '') {
+    return null
+  }
+
+  const parsed = typeof value === 'string' ? parseFloat(value) : Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+const formatMoneyValue = (value: number | null | undefined) => value ?? 0
+
+const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {}) => {
+  const splitValues = CLOSING_COMMISSION_FIELDS.map((field) => ({
+    field,
+    value: parseMoneyValue(data[field])
+  }))
+  const hasSplitValues = splitValues.some(({ value }) => value !== null)
+  const legacyCommission = parseMoneyValue(data.commission)
+
+  if (hasSplitValues) {
+    const agentCommission = formatMoneyValue(splitValues[0].value)
+    const findersCommission = formatMoneyValue(splitValues[1].value)
+    const teamLeaderCommission = formatMoneyValue(splitValues[2].value)
+    const administrationCommission = formatMoneyValue(splitValues[3].value)
+    const commission = Math.round(
+      (agentCommission +
+        findersCommission +
+        teamLeaderCommission +
+        administrationCommission) * 100
+    ) / 100
+
+    return {
+      agent_commission: splitValues[0].value ?? 0,
+      finders_commission: splitValues[1].value ?? 0,
+      team_leader_commission: splitValues[2].value ?? 0,
+      administration_commission: splitValues[3].value ?? 0,
+      commission
+    }
+  }
+
+  if (legacyCommission !== null) {
+    return {
+      agent_commission: legacyCommission,
+      finders_commission: 0,
+      team_leader_commission: 0,
+      administration_commission: 0,
+      commission: legacyCommission
+    }
+  }
+
+  return {
+    agent_commission: null,
+    finders_commission: null,
+    team_leader_commission: null,
+    administration_commission: null,
+    commission: null
+  }
+}
+
 interface Agent {
   id: number
   name: string
@@ -390,6 +463,10 @@ export function PropertyModals({
     closed_date: '',
     sold_amount: undefined as number | undefined,
     buyer_id: undefined as number | undefined,
+    agent_commission: undefined as number | undefined,
+    finders_commission: undefined as number | undefined,
+    team_leader_commission: undefined as number | undefined,
+    administration_commission: undefined as number | undefined,
     commission: undefined as number | undefined,
     platform_id: undefined as number | undefined,
     main_image: '',
@@ -400,6 +477,9 @@ export function PropertyModals({
     gallery_previews: [] as string[], // New: Preview URLs for display
     referrals: [] as Referral[]
   })
+
+  const addClosingCommissionData = resolveClosingCommissionData(addFormData)
+  const editClosingCommissionData = resolveClosingCommissionData(editFormData)
 
 
   // Reset image modal state when modal is closed
@@ -793,6 +873,8 @@ export function PropertyModals({
               }));
             };
 
+            const closingCommissionData = resolveClosingCommissionData(propertyData)
+
             const formData = {
               reference_number: propertyData.reference_number || '',
               status_id: propertyData.status_id || 0,
@@ -846,7 +928,11 @@ export function PropertyModals({
               closed_date: formatClosedDate(propertyData.closed_date || ''),
               sold_amount: propertyData.sold_amount,
               buyer_id: propertyData.buyer_id,
-              commission: propertyData.commission,
+              agent_commission: closingCommissionData.agent_commission ?? undefined,
+              finders_commission: closingCommissionData.finders_commission ?? undefined,
+              team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
+              administration_commission: closingCommissionData.administration_commission ?? undefined,
+              commission: closingCommissionData.commission ?? propertyData.commission,
               platform_id: propertyData.platform_id,
               referrals: formatReferralDates(propertyData.referrals || []),
 
@@ -883,6 +969,8 @@ export function PropertyModals({
                 date: formatClosedDate(ref.date || '')
               }));
             };
+
+            const closingCommissionData = resolveClosingCommissionData(editingProperty)
 
             // Fallback to existing property data
             setEditFormData({
@@ -931,7 +1019,11 @@ export function PropertyModals({
               closed_date: formatClosedDate(editingProperty.closed_date || ''),
               sold_amount: editingProperty.sold_amount,
               buyer_id: editingProperty.buyer_id,
-              commission: editingProperty.commission,
+              agent_commission: closingCommissionData.agent_commission ?? undefined,
+              finders_commission: closingCommissionData.finders_commission ?? undefined,
+              team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
+              administration_commission: closingCommissionData.administration_commission ?? undefined,
+              commission: closingCommissionData.commission ?? editingProperty.commission,
               platform_id: editingProperty.platform_id,
               referrals: formatReferralDates(editingProperty.referrals || []),
 
@@ -959,6 +1051,8 @@ export function PropertyModals({
               date: formatClosedDate(ref.date || '')
             }));
           };
+
+          const closingCommissionData = resolveClosingCommissionData(editingProperty)
 
           // Fallback to existing property data
           setEditFormData({
@@ -1007,7 +1101,11 @@ export function PropertyModals({
             closed_date: formatClosedDate(editingProperty.closed_date || ''),
             sold_amount: editingProperty.sold_amount,
             buyer_id: editingProperty.buyer_id,
-            commission: editingProperty.commission,
+            agent_commission: closingCommissionData.agent_commission ?? undefined,
+            finders_commission: closingCommissionData.finders_commission ?? undefined,
+            team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
+            administration_commission: closingCommissionData.administration_commission ?? undefined,
+            commission: closingCommissionData.commission ?? editingProperty.commission,
             platform_id: editingProperty.platform_id,
             referrals: formatReferralDates(editingProperty.referrals || []),
 
@@ -1181,6 +1279,10 @@ export function PropertyModals({
       closed_date: '',
       sold_amount: undefined as number | undefined,
       buyer_id: undefined as number | undefined,
+      agent_commission: undefined as number | undefined,
+      finders_commission: undefined as number | undefined,
+      team_leader_commission: undefined as number | undefined,
+      administration_commission: undefined as number | undefined,
       commission: undefined as number | undefined,
       platform_id: undefined as number | undefined,
 
@@ -1368,6 +1470,8 @@ export function PropertyModals({
                 try {
                   // Debug: Log the form data being sent
 
+                  const closingCommissionData = resolveClosingCommissionData(addFormData)
+
                   // Create property data object
                   const propertyData = {
                     status_id: resolvedStatusId,
@@ -1394,7 +1498,11 @@ export function PropertyModals({
                     closed_date: addFormData.closed_date || undefined,
                     sold_amount: addFormData.sold_amount,
                     buyer_id: addFormData.buyer_id,
-                    commission: addFormData.commission,
+                    agent_commission: closingCommissionData.agent_commission,
+                    finders_commission: closingCommissionData.finders_commission,
+                    team_leader_commission: closingCommissionData.team_leader_commission,
+                    administration_commission: closingCommissionData.administration_commission,
+                    commission: closingCommissionData.commission,
                     platform_id: addFormData.platform_id,
                     referrals: addFormData.referrals || [],
                     main_image: null // Main image will be uploaded separately after property creation
@@ -1560,6 +1668,10 @@ export function PropertyModals({
                                   : prev.closed_date,
                                 sold_amount: shouldAutoFillClosedDate ? prev.sold_amount : undefined,
                                 buyer_id: shouldAutoFillClosedDate ? prev.buyer_id : undefined,
+                                agent_commission: shouldAutoFillClosedDate ? prev.agent_commission : undefined,
+                                finders_commission: shouldAutoFillClosedDate ? prev.finders_commission : undefined,
+                                team_leader_commission: shouldAutoFillClosedDate ? prev.team_leader_commission : undefined,
+                                administration_commission: shouldAutoFillClosedDate ? prev.administration_commission : undefined,
                                 commission: shouldAutoFillClosedDate ? prev.commission : undefined,
                                 platform_id: shouldAutoFillClosedDate ? prev.platform_id : undefined
                               }
@@ -1645,21 +1757,83 @@ export function PropertyModals({
                         />
                       </div>
 
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Agent Commission ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={addFormData.agent_commission ?? ''}
+                            onChange={(e) => {
+                              const newValue = e.target.value ? parseFloat(e.target.value) : undefined
+                              setAddFormData(prev => ({ ...prev, agent_commission: newValue }))
+                            }}
+                            placeholder="Enter agent commission"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Finders Commission ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={addFormData.finders_commission ?? ''}
+                            onChange={(e) => {
+                              const newValue = e.target.value ? parseFloat(e.target.value) : undefined
+                              setAddFormData(prev => ({ ...prev, finders_commission: newValue }))
+                            }}
+                            placeholder="Enter finders commission"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Team Leader Commission ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={addFormData.team_leader_commission ?? ''}
+                            onChange={(e) => {
+                              const newValue = e.target.value ? parseFloat(e.target.value) : undefined
+                              setAddFormData(prev => ({ ...prev, team_leader_commission: newValue }))
+                            }}
+                            placeholder="Enter team leader commission"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Administration Commission ($)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={addFormData.administration_commission ?? ''}
+                            onChange={(e) => {
+                              const newValue = e.target.value ? parseFloat(e.target.value) : undefined
+                              setAddFormData(prev => ({ ...prev, administration_commission: newValue }))
+                            }}
+                            placeholder="Enter administration commission"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                          />
+                        </div>
+                      </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Commission ($)
+                          Total Commission ($)
                         </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={addFormData.commission || ''}
-                          onChange={(e) => {
-                            const newValue = e.target.value ? parseFloat(e.target.value) : undefined
-                            setAddFormData(prev => ({ ...prev, commission: newValue }))
-                          }}
-                          placeholder="Enter commission amount (optional)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                        />
+                        <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-semibold">
+                          ${formatMoneyValue(addClosingCommissionData.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
                       </div>
 
                       <div>
@@ -2497,6 +2671,10 @@ export function PropertyModals({
                               // Clear closing fields if moving away from a closure status
                               sold_amount: shouldAutoFillClosedDate ? prev.sold_amount : undefined,
                               buyer_id: shouldAutoFillClosedDate ? prev.buyer_id : undefined,
+                              agent_commission: shouldAutoFillClosedDate ? prev.agent_commission : undefined,
+                              finders_commission: shouldAutoFillClosedDate ? prev.finders_commission : undefined,
+                              team_leader_commission: shouldAutoFillClosedDate ? prev.team_leader_commission : undefined,
+                              administration_commission: shouldAutoFillClosedDate ? prev.administration_commission : undefined,
                               commission: shouldAutoFillClosedDate ? prev.commission : undefined,
                               platform_id: shouldAutoFillClosedDate ? prev.platform_id : undefined
                             };
@@ -2597,22 +2775,83 @@ export function PropertyModals({
                             />
                           </div>
 
-                          {/* Commission */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Agent Commission ($)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editFormData.agent_commission ?? ''}
+                                onChange={(e) => {
+                                  const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setEditFormData((prev: EditFormData) => ({ ...prev, agent_commission: newValue }));
+                                }}
+                                placeholder="Enter agent commission"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Finders Commission ($)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editFormData.finders_commission ?? ''}
+                                onChange={(e) => {
+                                  const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setEditFormData((prev: EditFormData) => ({ ...prev, finders_commission: newValue }));
+                                }}
+                                placeholder="Enter finders commission"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Team Leader Commission ($)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editFormData.team_leader_commission ?? ''}
+                                onChange={(e) => {
+                                  const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setEditFormData((prev: EditFormData) => ({ ...prev, team_leader_commission: newValue }));
+                                }}
+                                placeholder="Enter team leader commission"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Administration Commission ($)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={editFormData.administration_commission ?? ''}
+                                onChange={(e) => {
+                                  const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                  setEditFormData((prev: EditFormData) => ({ ...prev, administration_commission: newValue }));
+                                }}
+                                placeholder="Enter administration commission"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                              />
+                            </div>
+                          </div>
+
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                              Commission ($)
+                              Total Commission ($)
                             </label>
-                            <input
-                              type="number"
-                              step="0.01"
-                              value={editFormData.commission || ''}
-                              onChange={(e) => {
-                                const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
-                                setEditFormData((prev: EditFormData) => ({ ...prev, commission: newValue }));
-                              }}
-                              placeholder="Enter commission amount (optional)"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
-                            />
+                            <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-900 font-semibold">
+                              ${formatMoneyValue(editClosingCommissionData.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
                           </div>
 
                           {/* Platform */}
@@ -2668,10 +2907,10 @@ export function PropertyModals({
                           setEditFormData((prev: EditFormData) => ({ ...prev, reference_number: newValue }))
                           clearFieldError('reference_number', true)
                           if (setBackendValidationErrors) {
-                            setBackendValidationErrors(prev => ({
-                              ...prev,
+                            setBackendValidationErrors({
+                              ...backendValidationErrors,
                               reference_number: ''
-                            }))
+                            })
                           }
                         }}
                         onBlur={(e) => validateField('reference_number', e.target.value, true)}
@@ -3519,16 +3758,52 @@ export function PropertyModals({
                             </div>
                           )}
 
-                          {viewPropertyData.commission && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Commission
+                                Agent Commission
                               </label>
                               <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                                ${viewPropertyData.commission.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
-                          )}
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Finders Commission
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Team Leader Commission
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Administration Commission
+                              </label>
+                              <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Total Commission
+                              </label>
+                              <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-green-900 font-semibold">
+                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          </div>
 
                           {viewPropertyData.platform_id && (
                             <div>

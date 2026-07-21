@@ -8,6 +8,73 @@ const {
   isClosureStatus,
 } = require('../utils/propertyStatusUtils');
 
+const CLOSING_COMMISSION_FIELDS = [
+  'agent_commission',
+  'finders_commission',
+  'team_leader_commission',
+  'administration_commission'
+];
+
+function normalizeCommissionValue(value, fallback = null) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = typeof value === 'string' ? parseFloat(value) : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function roundMoney(value) {
+  return Math.round(Number(value || 0) * 100) / 100;
+}
+
+function resolveClosingCommissionPayload(propertyData = {}) {
+  const splitValues = CLOSING_COMMISSION_FIELDS.map((field) => ({
+    field,
+    value: normalizeCommissionValue(propertyData[field], null)
+  }));
+  const hasSplitValues = splitValues.some(({ value }) => value !== null);
+  const legacyCommission = normalizeCommissionValue(propertyData.commission, null);
+
+  if (hasSplitValues) {
+    const agentCommission = splitValues[0].value ?? 0;
+    const findersCommission = splitValues[1].value ?? 0;
+    const teamLeaderCommission = splitValues[2].value ?? 0;
+    const administrationCommission = splitValues[3].value ?? 0;
+
+    return {
+      agent_commission: agentCommission,
+      finders_commission: findersCommission,
+      team_leader_commission: teamLeaderCommission,
+      administration_commission: administrationCommission,
+      commission: roundMoney(
+        agentCommission +
+        findersCommission +
+        teamLeaderCommission +
+        administrationCommission
+      )
+    };
+  }
+
+  if (legacyCommission !== null) {
+    return {
+      agent_commission: legacyCommission,
+      finders_commission: 0,
+      team_leader_commission: 0,
+      administration_commission: 0,
+      commission: roundMoney(legacyCommission)
+    };
+  }
+
+  return {
+    agent_commission: null,
+    finders_commission: null,
+    team_leader_commission: null,
+    administration_commission: null,
+    commission: null
+  };
+}
+
 class Property {
   static buildPropertyFilters(filters = {}, values = [], valueIndex = 1) {
     let whereClause = '';
@@ -152,6 +219,10 @@ class Property {
       closed_date,
       sold_amount,
       buyer_id,
+      agent_commission,
+      finders_commission,
+      team_leader_commission,
+      administration_commission,
       commission,
       platform_id,
       referrals,
@@ -198,6 +269,13 @@ class Property {
       }
     }
     const normalizedReferrals = Array.isArray(referrals) ? referrals : [];
+    const closingCommissionData = resolveClosingCommissionPayload({
+      agent_commission,
+      finders_commission,
+      team_leader_commission,
+      administration_commission,
+      commission
+    });
 
     const manualReferenceNumber = typeof reference_number === 'string'
       ? reference_number.trim()
@@ -269,15 +347,22 @@ class Property {
           owner_id, owner_name, phone_number, surface, details, interior_details, 
           payment_facilities, payment_facilities_specification,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, sold_amount, buyer_id, commission, platform_id, main_image, image_gallery, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
+          closed_date, sold_amount, buyer_id, agent_commission, finders_commission, team_leader_commission,
+          administration_commission, commission, platform_id, main_image, image_gallery, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
         RETURNING *`,
         [
           manualReferenceNumber, resolvedStatusId, property_type, location, category_id, building_name,
           finalOwnerId, finalOwnerName, finalPhoneNumber, surface, detailsJsonb, interiorDetailsJsonb,
           payment_facilities || false, payment_facilities_specification || null,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
-          closed_date, sold_amount ?? null, buyer_id ?? null, commission ?? null, platform_id ?? null, main_image, image_gallery, created_by || null
+          closed_date, sold_amount ?? null, buyer_id ?? null,
+          closingCommissionData.agent_commission,
+          closingCommissionData.finders_commission,
+          closingCommissionData.team_leader_commission,
+          closingCommissionData.administration_commission,
+          closingCommissionData.commission,
+          platform_id ?? null, main_image, image_gallery, created_by || null
         ]
       );
       
@@ -358,6 +443,10 @@ class Property {
           COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
           COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
           p.commission,
+          p.agent_commission,
+          p.finders_commission,
+          p.team_leader_commission,
+          p.administration_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_at,
@@ -463,6 +552,10 @@ class Property {
           COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
           COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
           p.commission,
+          p.agent_commission,
+          p.finders_commission,
+          p.team_leader_commission,
+          p.administration_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_by,
@@ -522,6 +615,10 @@ class Property {
           COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
           COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
           p.commission,
+          p.agent_commission,
+          p.finders_commission,
+          p.team_leader_commission,
+          p.administration_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_by,
@@ -591,6 +688,10 @@ class Property {
           COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
           COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
           p.commission,
+          p.agent_commission,
+          p.finders_commission,
+          p.team_leader_commission,
+          p.administration_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_at,
@@ -736,6 +837,10 @@ class Property {
         COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
         COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
         p.commission,
+        p.agent_commission,
+        p.finders_commission,
+        p.team_leader_commission,
+        p.administration_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -797,6 +902,10 @@ class Property {
         COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
         COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
         p.commission,
+        p.agent_commission,
+        p.finders_commission,
+        p.team_leader_commission,
+        p.administration_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -875,6 +984,10 @@ class Property {
         COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
         COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
         p.commission,
+        p.agent_commission,
+        p.finders_commission,
+        p.team_leader_commission,
+        p.administration_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -958,6 +1071,18 @@ class Property {
       // Sanitize date fields: convert empty strings to null
       if (propertyUpdates.closed_date === '') {
         propertyUpdates.closed_date = null;
+      }
+
+      const hasClosingCommissionUpdates = CLOSING_COMMISSION_FIELDS.some((field) => propertyUpdates[field] !== undefined)
+        || propertyUpdates.commission !== undefined;
+
+      if (hasClosingCommissionUpdates) {
+        const closingCommissionData = resolveClosingCommissionPayload(propertyUpdates);
+        propertyUpdates.agent_commission = closingCommissionData.agent_commission;
+        propertyUpdates.finders_commission = closingCommissionData.finders_commission;
+        propertyUpdates.team_leader_commission = closingCommissionData.team_leader_commission;
+        propertyUpdates.administration_commission = closingCommissionData.administration_commission;
+        propertyUpdates.commission = closingCommissionData.commission;
       }
       
       // VALIDATION: If main_image is being updated, it must not be empty
@@ -1189,6 +1314,10 @@ class Property {
         COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
         COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
         p.commission,
+        p.agent_commission,
+        p.finders_commission,
+        p.team_leader_commission,
+        p.administration_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -1399,6 +1528,10 @@ class Property {
         COALESCE(buyer_lead.customer_name, NULL) as buyer_name,
         COALESCE(buyer_lead.phone_number, NULL) as buyer_phone_number,
         p.commission,
+        p.agent_commission,
+        p.finders_commission,
+        p.team_leader_commission,
+        p.administration_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,

@@ -723,6 +723,15 @@ export default function PropertiesPage() {
           price: parseFloat(propertyData.price),
           notes: propertyData.notes || null,
           property_url: propertyData.property_url || null,
+          closed_date: propertyData.closed_date || null,
+          sold_amount: propertyData.sold_amount ?? null,
+          buyer_id: propertyData.buyer_id ?? null,
+          agent_commission: propertyData.agent_commission ?? null,
+          finders_commission: propertyData.finders_commission ?? null,
+          team_leader_commission: propertyData.team_leader_commission ?? null,
+          administration_commission: propertyData.administration_commission ?? null,
+          commission: propertyData.commission ?? null,
+          platform_id: propertyData.platform_id ?? null,
           referrals: propertyData.referrals || []
         }
         

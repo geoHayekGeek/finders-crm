@@ -170,7 +170,29 @@ export default function EditReportModal({ report, onClose, onSuccess }: EditRepo
         const numValue = typeof value === 'number' && !isNaN(value) ? value : 0
         return { ...prev, [field]: numValue }
       }
-      return { ...prev, [field]: value }
+
+      const next = { ...prev, [field]: value }
+      const commissionFields: Array<keyof typeof editableData> = [
+        'agent_commission',
+        'finders_commission',
+        'team_leader_commission',
+        'administration_commission',
+        'referrals_on_properties_commission'
+      ]
+
+      if (commissionFields.includes(field)) {
+        const commissionTotal = [
+          next.agent_commission,
+          next.finders_commission,
+          next.team_leader_commission,
+          next.administration_commission,
+          next.referrals_on_properties_commission
+        ].reduce((sum, current) => sum + (Number(current) || 0), 0)
+
+        next.total_commission = Math.round(commissionTotal * 100) / 100
+      }
+
+      return next
     })
   }
 

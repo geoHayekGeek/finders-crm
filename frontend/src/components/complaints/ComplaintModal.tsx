@@ -44,6 +44,9 @@ export default function ComplaintModal({ isOpen, onClose, onSuccess }: Complaint
 
   const normalizedRole = normalizeRole(user?.role)
   const canUseTeamLeaderScope = normalizedRole === 'team leader'
+  const targetSearchPlaceholder = canUseTeamLeaderScope
+    ? 'Search your team members'
+    : 'Search agent, consultant, or team leader'
 
   useEffect(() => {
     leadRequestRef.current += 1
@@ -383,7 +386,7 @@ export default function ComplaintModal({ isOpen, onClose, onSuccess }: Complaint
                   type="text"
                   value={targetSearch}
                   onChange={(e) => setTargetSearch(e.target.value)}
-                  placeholder="Search agent, consultant, or team leader"
+                  placeholder={targetSearchPlaceholder}
                   className={`w-full rounded-xl border bg-white py-2.5 pl-10 pr-4 text-sm outline-none transition focus:ring-2 focus:ring-red-500 ${
                     validationErrors.target_user_id ? 'border-red-300' : 'border-gray-300'
                   }`}
