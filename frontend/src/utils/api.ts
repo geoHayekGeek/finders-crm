@@ -138,6 +138,13 @@ function buildGetRequestCacheKey(url: string, token: string | undefined, config:
   })
 }
 
+function shouldBypassGetCache(endpoint: string): boolean {
+  // Report and analytics views need to reflect the latest saved values immediately
+  // after create/update/recalculate actions. These endpoints are intentionally kept
+  // off the short-lived GET cache so the UI does not reopen stale snapshots.
+  return /^\/(reports|dcsr-reports|operations-commission|operations-daily)(\/|$)/.test(endpoint)
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
@@ -183,7 +190,9 @@ async function apiRequest<T>(
   // Debug logging removed for production security
 
   const method = ((options.method || 'GET') as string).toUpperCase()
-  const cacheKey = method === 'GET' ? buildGetRequestCacheKey(url, authToken, config) : null
+  const cacheKey = method === 'GET' && !shouldBypassGetCache(endpoint)
+    ? buildGetRequestCacheKey(url, authToken, config)
+    : null
 
   const executeRequest = async (): Promise<T> => {
     try {

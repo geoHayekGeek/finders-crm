@@ -201,13 +201,28 @@ export default function MonthlyAgentStatsTab() {
   }
 
   // Handle edit report
-  const handleViewReport = (report: MonthlyAgentReport) => {
-    setViewingReport(report)
+  const refreshReportById = async (report: MonthlyAgentReport) => {
+    try {
+      const response = await reportsApi.getById(report.id, token)
+      if (response.success && response.data) {
+        return response.data
+      }
+    } catch (error) {
+      console.error(`Error loading report ${report.id}:`, error)
+    }
+
+    return report
+  }
+
+  const handleViewReport = async (report: MonthlyAgentReport) => {
+    const latestReport = await refreshReportById(report)
+    setViewingReport(latestReport)
     setShowViewModal(true)
   }
 
-  const handleEditReport = (report: MonthlyAgentReport) => {
-    setEditingReport(report)
+  const handleEditReport = async (report: MonthlyAgentReport) => {
+    const latestReport = await refreshReportById(report)
+    setEditingReport(latestReport)
     setShowEditModal(true)
   }
 
