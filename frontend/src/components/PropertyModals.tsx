@@ -187,14 +187,16 @@ const CLOSING_COMMISSION_FIELDS = [
   'agent_commission',
   'finders_commission',
   'team_leader_commission',
-  'administration_commission'
+  'administration_commission',
+  'latest_property_referral_commission',
+  'latest_lead_referral_commission'
 ] as const
 
 type ClosingCommissionField = (typeof CLOSING_COMMISSION_FIELDS)[number]
 
 type ClosingCommissionData = Pick<
   EditFormData,
-  ClosingCommissionField | 'commission'
+  ClosingCommissionField | 'commission' | 'external_referral_commissions' | 'external_referral_commission'
 >
 
 const parseMoneyValue = (value: unknown): number | null => {
@@ -208,6 +210,29 @@ const parseMoneyValue = (value: unknown): number | null => {
 
 const formatMoneyValue = (value: number | null | undefined) => value ?? 0
 
+const normalizeMoneyArray = (value: unknown): number[] => {
+  if (value === undefined || value === null || value === '') {
+    return []
+  }
+
+  let normalizedValue = value
+  if (typeof value === 'string') {
+    try {
+      normalizedValue = JSON.parse(value)
+    } catch (error) {
+      return []
+    }
+  }
+
+  if (!Array.isArray(normalizedValue)) {
+    return []
+  }
+
+  return normalizedValue
+    .map((entry) => parseMoneyValue(entry))
+    .filter((entry): entry is number => entry !== null)
+}
+
 const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {}) => {
   const splitValues = CLOSING_COMMISSION_FIELDS.map((field) => ({
     field,
@@ -215,17 +240,30 @@ const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {})
   }))
   const hasSplitValues = splitValues.some(({ value }) => value !== null)
   const legacyCommission = parseMoneyValue(data.commission)
+  const externalReferralCommissions = normalizeMoneyArray(data.external_referral_commissions)
+  const legacyExternalReferralCommission = parseMoneyValue(data.external_referral_commission)
+  const resolvedExternalReferralCommissions = externalReferralCommissions.length > 0
+    ? externalReferralCommissions
+    : legacyExternalReferralCommission !== null
+      ? [legacyExternalReferralCommission]
+      : []
+  const externalReferralCommission = resolvedExternalReferralCommissions.reduce((sum, value) => sum + value, 0)
 
-  if (hasSplitValues) {
+  if (hasSplitValues || resolvedExternalReferralCommissions.length > 0) {
     const agentCommission = formatMoneyValue(splitValues[0].value)
     const findersCommission = formatMoneyValue(splitValues[1].value)
     const teamLeaderCommission = formatMoneyValue(splitValues[2].value)
     const administrationCommission = formatMoneyValue(splitValues[3].value)
+    const latestPropertyReferralCommission = formatMoneyValue(splitValues[4].value)
+    const latestLeadReferralCommission = formatMoneyValue(splitValues[5].value)
     const commission = Math.round(
       (agentCommission +
         findersCommission +
         teamLeaderCommission +
-        administrationCommission) * 100
+        administrationCommission +
+        latestPropertyReferralCommission +
+        latestLeadReferralCommission +
+        externalReferralCommission) * 100
     ) / 100
 
     return {
@@ -233,6 +271,10 @@ const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {})
       finders_commission: splitValues[1].value ?? 0,
       team_leader_commission: splitValues[2].value ?? 0,
       administration_commission: splitValues[3].value ?? 0,
+      latest_property_referral_commission: splitValues[4].value ?? 0,
+      latest_lead_referral_commission: splitValues[5].value ?? 0,
+      external_referral_commissions: resolvedExternalReferralCommissions,
+      external_referral_commission: externalReferralCommission,
       commission
     }
   }
@@ -243,6 +285,10 @@ const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {})
       finders_commission: 0,
       team_leader_commission: 0,
       administration_commission: 0,
+      latest_property_referral_commission: 0,
+      latest_lead_referral_commission: 0,
+      external_referral_commissions: [],
+      external_referral_commission: 0,
       commission: legacyCommission
     }
   }
@@ -252,6 +298,10 @@ const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {})
     finders_commission: null,
     team_leader_commission: null,
     administration_commission: null,
+    latest_property_referral_commission: null,
+    latest_lead_referral_commission: null,
+    external_referral_commissions: [],
+    external_referral_commission: null,
     commission: null
   }
 }
@@ -467,6 +517,10 @@ export function PropertyModals({
     finders_commission: undefined as number | undefined,
     team_leader_commission: undefined as number | undefined,
     administration_commission: undefined as number | undefined,
+    latest_property_referral_commission: undefined as number | undefined,
+    latest_lead_referral_commission: undefined as number | undefined,
+    external_referral_commissions: [] as Array<number | undefined>,
+    external_referral_commission: undefined as number | undefined,
     commission: undefined as number | undefined,
     platform_id: undefined as number | undefined,
     main_image: '',
@@ -480,6 +534,54 @@ export function PropertyModals({
 
   const addClosingCommissionData = resolveClosingCommissionData(addFormData)
   const editClosingCommissionData = resolveClosingCommissionData(editFormData)
+  const addExternalReferralCommissions = addFormData.external_referral_commissions || []
+  const editExternalReferralCommissions = editFormData.external_referral_commissions || []
+
+  const updateAddExternalReferralCommission = (index: number, value: string) => {
+    const newValue = value ? parseFloat(value) : undefined
+    setAddFormData(prev => {
+      const nextValues = prev.external_referral_commissions && prev.external_referral_commissions.length > 0
+        ? [...prev.external_referral_commissions]
+        : []
+      nextValues[index] = newValue
+      return { ...prev, external_referral_commissions: nextValues }
+    })
+  }
+
+  const addAddExternalReferralCommission = () => {
+    setAddFormData(prev => ({
+      ...prev,
+      external_referral_commissions: [
+        ...(prev.external_referral_commissions && prev.external_referral_commissions.length > 0
+          ? prev.external_referral_commissions
+          : []),
+        undefined
+      ]
+    }))
+  }
+
+  const updateEditExternalReferralCommission = (index: number, value: string) => {
+    const newValue = value ? parseFloat(value) : undefined
+    setEditFormData((prev: EditFormData) => {
+      const nextValues = prev.external_referral_commissions && prev.external_referral_commissions.length > 0
+        ? [...prev.external_referral_commissions]
+        : []
+      nextValues[index] = newValue
+      return { ...prev, external_referral_commissions: nextValues }
+    })
+  }
+
+  const addEditExternalReferralCommission = () => {
+    setEditFormData((prev: EditFormData) => ({
+      ...prev,
+      external_referral_commissions: [
+        ...(prev.external_referral_commissions && prev.external_referral_commissions.length > 0
+          ? prev.external_referral_commissions
+          : []),
+        undefined
+      ]
+    }))
+  }
 
 
   // Reset image modal state when modal is closed
@@ -813,6 +915,7 @@ export function PropertyModals({
       }
       setGalleryModified(false)
       setLocalEditGallery([])
+      setEditingPropertyData(null)
       return
     }
 
@@ -874,6 +977,7 @@ export function PropertyModals({
             };
 
             const closingCommissionData = resolveClosingCommissionData(propertyData)
+            setEditingPropertyData(propertyData)
 
             const formData = {
               reference_number: propertyData.reference_number || '',
@@ -932,6 +1036,10 @@ export function PropertyModals({
               finders_commission: closingCommissionData.finders_commission ?? undefined,
               team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
               administration_commission: closingCommissionData.administration_commission ?? undefined,
+              latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
+              latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
+              external_referral_commissions: closingCommissionData.external_referral_commissions || [],
+              external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
               commission: closingCommissionData.commission ?? propertyData.commission,
               platform_id: propertyData.platform_id,
               referrals: formatReferralDates(propertyData.referrals || []),
@@ -971,6 +1079,7 @@ export function PropertyModals({
             };
 
             const closingCommissionData = resolveClosingCommissionData(editingProperty)
+            setEditingPropertyData(editingProperty)
 
             // Fallback to existing property data
             setEditFormData({
@@ -1023,6 +1132,10 @@ export function PropertyModals({
               finders_commission: closingCommissionData.finders_commission ?? undefined,
               team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
               administration_commission: closingCommissionData.administration_commission ?? undefined,
+              latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
+              latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
+              external_referral_commissions: closingCommissionData.external_referral_commissions || [],
+              external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
               commission: closingCommissionData.commission ?? editingProperty.commission,
               platform_id: editingProperty.platform_id,
               referrals: formatReferralDates(editingProperty.referrals || []),
@@ -1053,6 +1166,7 @@ export function PropertyModals({
           };
 
           const closingCommissionData = resolveClosingCommissionData(editingProperty)
+          setEditingPropertyData(editingProperty)
 
           // Fallback to existing property data
           setEditFormData({
@@ -1105,7 +1219,13 @@ export function PropertyModals({
             finders_commission: closingCommissionData.finders_commission ?? undefined,
             team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
             administration_commission: closingCommissionData.administration_commission ?? undefined,
-            commission: closingCommissionData.commission ?? editingProperty.commission,
+              latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
+              latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
+              external_referral_commissions: closingCommissionData.external_referral_commissions && closingCommissionData.external_referral_commissions.length > 0
+              ? closingCommissionData.external_referral_commissions
+              : [],
+              external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
+              commission: closingCommissionData.commission ?? editingProperty.commission,
             platform_id: editingProperty.platform_id,
             referrals: formatReferralDates(editingProperty.referrals || []),
 
@@ -1119,7 +1239,8 @@ export function PropertyModals({
     fetchPropertyDetails()
   }, [editingProperty, showEditPropertyModal, setEditFormData])
 
-  // Fetch complete property details for view modal as well
+  // Fetch complete property details for edit/view modals
+  const [editingPropertyData, setEditingPropertyData] = useState<Property | null>(null)
   const [viewPropertyData, setViewPropertyData] = useState<Property | null>(null)
 
   useEffect(() => {
@@ -1279,12 +1400,16 @@ export function PropertyModals({
       closed_date: '',
       sold_amount: undefined as number | undefined,
       buyer_id: undefined as number | undefined,
-      agent_commission: undefined as number | undefined,
-      finders_commission: undefined as number | undefined,
-      team_leader_commission: undefined as number | undefined,
-      administration_commission: undefined as number | undefined,
-      commission: undefined as number | undefined,
-      platform_id: undefined as number | undefined,
+        agent_commission: undefined as number | undefined,
+        finders_commission: undefined as number | undefined,
+        team_leader_commission: undefined as number | undefined,
+        administration_commission: undefined as number | undefined,
+        latest_property_referral_commission: undefined as number | undefined,
+        latest_lead_referral_commission: undefined as number | undefined,
+        external_referral_commissions: [] as Array<number | undefined>,
+        external_referral_commission: undefined as number | undefined,
+        commission: undefined as number | undefined,
+        platform_id: undefined as number | undefined,
 
       main_image: '',
       main_image_file: null as File | null,
@@ -1502,6 +1627,10 @@ export function PropertyModals({
                     finders_commission: closingCommissionData.finders_commission,
                     team_leader_commission: closingCommissionData.team_leader_commission,
                     administration_commission: closingCommissionData.administration_commission,
+                    latest_property_referral_commission: closingCommissionData.latest_property_referral_commission,
+                    latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission,
+                    external_referral_commissions: closingCommissionData.external_referral_commissions,
+                    external_referral_commission: closingCommissionData.external_referral_commission,
                     commission: closingCommissionData.commission,
                     platform_id: addFormData.platform_id,
                     referrals: addFormData.referrals || [],
@@ -1672,6 +1801,14 @@ export function PropertyModals({
                                 finders_commission: shouldAutoFillClosedDate ? prev.finders_commission : undefined,
                                 team_leader_commission: shouldAutoFillClosedDate ? prev.team_leader_commission : undefined,
                                 administration_commission: shouldAutoFillClosedDate ? prev.administration_commission : undefined,
+                                latest_property_referral_commission: shouldAutoFillClosedDate ? prev.latest_property_referral_commission : undefined,
+                                latest_lead_referral_commission: shouldAutoFillClosedDate ? prev.latest_lead_referral_commission : undefined,
+                                external_referral_commissions: shouldAutoFillClosedDate
+                                  ? (prev.external_referral_commissions && prev.external_referral_commissions.length > 0
+                                    ? prev.external_referral_commissions
+                                    : [])
+                                  : [],
+                                external_referral_commission: shouldAutoFillClosedDate ? prev.external_referral_commission : undefined,
                                 commission: shouldAutoFillClosedDate ? prev.commission : undefined,
                                 platform_id: shouldAutoFillClosedDate ? prev.platform_id : undefined
                               }
@@ -1825,6 +1962,47 @@ export function PropertyModals({
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                           />
                         </div>
+
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-4 space-y-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700">
+                              External Referral Commissions
+                            </label>
+                            <p className="mt-1 text-xs text-gray-500">
+                              Optional extra commission rows for external referrals. Add one only when needed.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={addAddExternalReferralCommission}
+                            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Add field
+                          </button>
+                        </div>
+                        {addExternalReferralCommissions.length > 0 ? (
+                          <div className="space-y-3">
+                            {addExternalReferralCommissions.map((commission, index) => (
+                              <div key={index}>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  External Referral {index + 1} ($)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={commission ?? ''}
+                                  onChange={(e) => updateAddExternalReferralCommission(index, e.target.value)}
+                                  placeholder="Enter optional external referral commission"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
 
                       <div>
@@ -2675,6 +2853,14 @@ export function PropertyModals({
                               finders_commission: shouldAutoFillClosedDate ? prev.finders_commission : undefined,
                               team_leader_commission: shouldAutoFillClosedDate ? prev.team_leader_commission : undefined,
                               administration_commission: shouldAutoFillClosedDate ? prev.administration_commission : undefined,
+                              latest_property_referral_commission: shouldAutoFillClosedDate ? prev.latest_property_referral_commission : undefined,
+                              latest_lead_referral_commission: shouldAutoFillClosedDate ? prev.latest_lead_referral_commission : undefined,
+                              external_referral_commissions: shouldAutoFillClosedDate
+                                ? (prev.external_referral_commissions && prev.external_referral_commissions.length > 0
+                                  ? prev.external_referral_commissions
+                                  : [])
+                                : [],
+                              external_referral_commission: shouldAutoFillClosedDate ? prev.external_referral_commission : undefined,
                               commission: shouldAutoFillClosedDate ? prev.commission : undefined,
                               platform_id: shouldAutoFillClosedDate ? prev.platform_id : undefined
                             };
@@ -2843,6 +3029,84 @@ export function PropertyModals({
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
                               />
                             </div>
+
+                            {editingPropertyData?.latest_property_referral && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Latest Property Referral Commission ($)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editFormData.latest_property_referral_commission ?? ''}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                    setEditFormData((prev: EditFormData) => ({ ...prev, latest_property_referral_commission: newValue }));
+                                  }}
+                                  placeholder="Enter latest property referral commission"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                />
+                              </div>
+                            )}
+
+                            {editingPropertyData?.latest_lead_referral && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Latest Lead Referral Commission ($)
+                                </label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={editFormData.latest_lead_referral_commission ?? ''}
+                                  onChange={(e) => {
+                                    const newValue = e.target.value ? parseFloat(e.target.value) : undefined;
+                                    setEditFormData((prev: EditFormData) => ({ ...prev, latest_lead_referral_commission: newValue }));
+                                  }}
+                                  placeholder="Enter latest lead referral commission"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="rounded-lg border border-gray-200 bg-gray-50/70 p-4 space-y-4">
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700">
+                                  External Referral Commissions
+                                </label>
+                                <p className="mt-1 text-xs text-gray-500">
+                                  Optional extra commission rows for external referrals. Add one only when needed.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={addEditExternalReferralCommission}
+                                className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add field
+                              </button>
+                            </div>
+                            {editExternalReferralCommissions.length > 0 ? (
+                              <div className="space-y-3">
+                                {editExternalReferralCommissions.map((commission, index) => (
+                                  <div key={index}>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      External Referral {index + 1} ($)
+                                    </label>
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={commission ?? ''}
+                                      onChange={(e) => updateEditExternalReferralCommission(index, e.target.value)}
+                                      placeholder="Enter optional external referral commission"
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
 
                           <div>
@@ -3713,6 +3977,20 @@ export function PropertyModals({
                   {/* Closed Date - only show for closure statuses */}
                   {(() => {
                     if (isClosureStatusForProperty(viewPropertyData)) {
+                      const closingCommissionData = resolveClosingCommissionData(viewPropertyData)
+                      const hasLatestPropertyReferral = Boolean(viewPropertyData.latest_property_referral)
+                      const hasLatestLeadReferral = Boolean(viewPropertyData.latest_lead_referral)
+                      const latestPropertyReferralLabel = hasLatestPropertyReferral
+                        ? viewPropertyData.latest_property_referral?.name ||
+                          viewPropertyData.latest_property_referral?.employee_name ||
+                          'Property referral'
+                        : ''
+                      const latestLeadReferralLabel = hasLatestLeadReferral
+                        ? viewPropertyData.latest_lead_referral?.name ||
+                          viewPropertyData.latest_lead_referral?.agent_name ||
+                          'Lead referral'
+                        : ''
+
                       return (
                         <div className="space-y-4 border-t pt-4 mt-4">
                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Closing Details</h3>
@@ -3764,7 +4042,7 @@ export function PropertyModals({
                                 Agent Commission
                               </label>
                               <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${formatMoneyValue(closingCommissionData.agent_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
 
@@ -3773,7 +4051,7 @@ export function PropertyModals({
                                 Finders Commission
                               </label>
                               <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${formatMoneyValue(closingCommissionData.finders_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
 
@@ -3782,7 +4060,7 @@ export function PropertyModals({
                                 Team Leader Commission
                               </label>
                               <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${formatMoneyValue(closingCommissionData.team_leader_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
 
@@ -3791,16 +4069,59 @@ export function PropertyModals({
                                 Administration Commission
                               </label>
                               <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
-                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${formatMoneyValue(closingCommissionData.administration_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
+
+                            {hasLatestPropertyReferral && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Latest Property Referral Commission
+                                </label>
+                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                  ${formatMoneyValue(closingCommissionData.latest_property_referral_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    {latestPropertyReferralLabel}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {hasLatestLeadReferral && (
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  Latest Lead Referral Commission
+                                </label>
+                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                  ${formatMoneyValue(closingCommissionData.latest_lead_referral_commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  <div className="mt-1 text-xs text-gray-500">
+                                    {latestLeadReferralLabel}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {closingCommissionData.external_referral_commissions.length > 0 && (
+                              <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  External Referral Commissions
+                                </label>
+                                <div className="space-y-2">
+                                  {closingCommissionData.external_referral_commissions.map((commission, index) => (
+                                    <div key={index} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
+                                      External Referral {index + 1}: ${formatMoneyValue(commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
 
                             <div className="md:col-span-2">
                               <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Total Commission
                               </label>
                               <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-green-900 font-semibold">
-                                ${formatMoneyValue(resolveClosingCommissionData(viewPropertyData).commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                ${formatMoneyValue(closingCommissionData.commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </div>
                             </div>
                           </div>

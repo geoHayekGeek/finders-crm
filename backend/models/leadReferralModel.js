@@ -132,9 +132,15 @@ class LeadReferral {
         lr.id,
         lr.lead_id,
         lr.agent_id,
+        lr.name,
+        lr.type,
         u.name as agent_name,
         lr.referral_date,
         lr.external,
+        lr.admin_status,
+        lr.status,
+        lr.referred_to_agent_id,
+        lr.referred_by_user_id,
         lr.created_at,
         lr.updated_at
        FROM lead_referrals lr

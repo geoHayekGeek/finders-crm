@@ -1,3 +1,5 @@
+import type { LeadReferral } from './leads'
+
 export interface Referral {
   id?: number
   name: string
@@ -10,6 +12,8 @@ export interface Referral {
   admin_status?: 'pending' | 'approved' | 'rejected'
   admin_reviewed_by_user_id?: number | null
   admin_reviewed_at?: string | null
+  employee_name?: string
+  employee_role?: string
   referred_to_agent_id?: number // Agent/team leader the property is referred to
   referred_by_user_id?: number // User who made the referral
   referred_to_name?: string
@@ -79,6 +83,10 @@ export interface Property {
   finders_commission?: number // Finders commission amount in dollars
   team_leader_commission?: number // Team leader commission amount in dollars
   administration_commission?: number // Administration commission amount in dollars
+  latest_property_referral_commission?: number // Latest property referral commission amount in dollars
+  latest_lead_referral_commission?: number // Latest lead/property-owner referral commission amount in dollars
+  external_referral_commissions?: number[] // Optional external referral commission breakdown
+  external_referral_commission?: number // Total external referral commission amount in dollars
   commission?: number // Legacy total commission amount in dollars
   platform_id?: number // Foreign key to reference_sources table - platform where property was sold
   platform_name?: string // Name of the platform/reference source
@@ -88,6 +96,8 @@ export interface Property {
   created_at: string
   updated_at: string
   referrals?: Referral[]
+  latest_property_referral?: Referral | null
+  latest_lead_referral?: LeadReferral | null
   // Action handlers (optional, added at runtime)
   onView?: (property: Property) => void
   onEdit?: (property: Property) => void
@@ -159,6 +169,10 @@ export interface EditFormData {
   finders_commission?: number // Finders commission amount in dollars
   team_leader_commission?: number // Team leader commission amount in dollars
   administration_commission?: number // Administration commission amount in dollars
+  latest_property_referral_commission?: number // Latest property referral commission amount in dollars
+  latest_lead_referral_commission?: number // Latest lead/property-owner referral commission amount in dollars
+  external_referral_commissions?: Array<number | undefined> // Optional external referral commission breakdown
+  external_referral_commission?: number // Total external referral commission amount in dollars
   commission?: number // Legacy total commission amount in dollars
   platform_id?: number // Foreign key to reference_sources table - platform where property was sold
   referrals?: Referral[]

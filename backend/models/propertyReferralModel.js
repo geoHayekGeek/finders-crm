@@ -139,9 +139,15 @@ class PropertyReferral {
         r.id,
         r.property_id,
         r.employee_id,
+        r.name,
+        r.type,
         u.name as employee_name,
         r.date,
         r.external,
+        r.admin_status,
+        r.status,
+        r.referred_to_agent_id,
+        r.referred_by_user_id,
         r.created_at,
         r.updated_at
        FROM referrals r

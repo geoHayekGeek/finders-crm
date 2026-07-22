@@ -29,6 +29,25 @@ async function ensureMonthlyAgentReportSchema() {
   }
 }
 
+async function ensurePropertyClosingCommissionSchema() {
+  try {
+    await pool.query(`
+      ALTER TABLE properties
+      ADD COLUMN IF NOT EXISTS agent_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS finders_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS team_leader_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS administration_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS latest_property_referral_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS latest_lead_referral_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS external_referral_commissions JSONB DEFAULT '[]'::JSONB,
+      ADD COLUMN IF NOT EXISTS external_referral_commission DECIMAL(15,2),
+      ADD COLUMN IF NOT EXISTS commission DECIMAL(15,2)
+    `);
+  } catch (error) {
+    // If the table is unavailable or already up to date, let the main flow continue.
+  }
+}
+
 // Helper function to round monetary values to 2 decimal places
 function roundMoney(value) {
   return Math.round(value * 100) / 100;
@@ -362,6 +381,8 @@ class Report {
    */
   static async calculateReportData(agentId, startDateInput, endDateInput) {
     try {
+      await ensurePropertyClosingCommissionSchema();
+
       const startDate = startDateInput instanceof Date ? startDateInput : new Date(startDateInput);
       const endDate = endDateInput instanceof Date ? endDateInput : new Date(endDateInput);
 
@@ -459,8 +480,8 @@ class Report {
       const sales_amount = parseFloat(salesResult.rows[0].total_amount) || 0;
 
       // 5. Count referrals given by this agent and referrals on this agent's properties.
-      // Closure commission amounts are summed from the closed property rows;
-      // referral-earned commission remains a separate manual report field.
+      // Closure commission amounts are summed from the closed property rows, including
+      // the latest property/lead referral commissions and optional external referral splits.
       console.log(`  📊 Step 5: Counting property referrals...`);
       const propertyReferralsResult = await pool.query(
         `SELECT 
@@ -561,7 +582,12 @@ class Report {
              COALESCE(SUM(COALESCE(p.agent_commission, p.commission, 0)), 0) as agent_commission,
              COALESCE(SUM(COALESCE(p.finders_commission, 0)), 0) as finders_commission,
              COALESCE(SUM(COALESCE(p.team_leader_commission, 0)), 0) as team_leader_commission,
-             COALESCE(SUM(COALESCE(p.administration_commission, 0)), 0) as administration_commission
+             COALESCE(SUM(COALESCE(p.administration_commission, 0)), 0) as administration_commission,
+             COALESCE(SUM(
+               COALESCE(p.latest_property_referral_commission, 0) +
+               COALESCE(p.latest_lead_referral_commission, 0) +
+               COALESCE(p.external_referral_commission, 0)
+             ), 0) as referrals_on_properties_commission
            FROM properties p
            WHERE p.agent_id = $1
            AND p.closed_date >= $2::date
@@ -573,12 +599,13 @@ class Report {
         );
       } catch (error) {
         if (error.code === '42703') {
-          closingCommissionResult = await pool.query(
+        closingCommissionResult = await pool.query(
             `SELECT
                COALESCE(SUM(COALESCE(p.commission, 0)), 0) as agent_commission,
                0 as finders_commission,
                0 as team_leader_commission,
-               0 as administration_commission
+               0 as administration_commission,
+               0 as referrals_on_properties_commission
              FROM properties p
              WHERE p.agent_id = $1
              AND p.closed_date >= $2::date
@@ -597,7 +624,7 @@ class Report {
       const team_leader_commission = parseFloat(closingCommissionResult.rows[0].team_leader_commission) || 0;
       const administration_commission = parseFloat(closingCommissionResult.rows[0].administration_commission) || 0;
       const referral_received_commission = 0;
-      const referrals_on_properties_commission = 0;
+      const referrals_on_properties_commission = parseFloat(closingCommissionResult.rows[0].referrals_on_properties_commission) || 0;
       const referral_commission = 0;
       const total_commission = roundMoney(
         agent_commission +

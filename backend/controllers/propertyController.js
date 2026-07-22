@@ -869,6 +869,10 @@ const createProperty = async (req, res) => {
       finders_commission,
       team_leader_commission,
       administration_commission,
+      latest_property_referral_commission,
+      latest_lead_referral_commission,
+      external_referral_commissions,
+      external_referral_commission,
       commission,
       platform_id,
       referrals,
@@ -927,6 +931,10 @@ const createProperty = async (req, res) => {
       finders_commission: finders_commission ?? null,
       team_leader_commission: team_leader_commission ?? null,
       administration_commission: administration_commission ?? null,
+      latest_property_referral_commission: latest_property_referral_commission ?? null,
+      latest_lead_referral_commission: latest_lead_referral_commission ?? null,
+      external_referral_commissions: external_referral_commissions ?? [],
+      external_referral_commission: external_referral_commission ?? null,
       commission: commission ?? null,
       platform_id: platform_id ?? null,
       referrals: referrals || [], // Required - validation happens in middleware and model
@@ -1148,6 +1156,10 @@ const updateProperty = async (req, res) => {
         updates.finders_commission = null;
         updates.team_leader_commission = null;
         updates.administration_commission = null;
+        updates.latest_property_referral_commission = null;
+        updates.latest_lead_referral_commission = null;
+        updates.external_referral_commissions = [];
+        updates.external_referral_commission = null;
         updates.commission = null;
         updates.platform_id = null;
         logger.debug('Clearing closed_date fields', { propertyId: id });

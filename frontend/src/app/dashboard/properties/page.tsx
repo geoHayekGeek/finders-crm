@@ -95,7 +95,11 @@ export default function PropertiesPage() {
     closed_date: '',
     main_image: '',
     image_gallery: [],
-    referrals: []
+    referrals: [],
+    latest_property_referral_commission: undefined,
+    latest_lead_referral_commission: undefined,
+    external_referral_commissions: [undefined],
+    external_referral_commission: undefined
   })
   // Image modal state is now managed internally by PropertyModals component
   
@@ -730,6 +734,10 @@ export default function PropertiesPage() {
           finders_commission: propertyData.finders_commission ?? null,
           team_leader_commission: propertyData.team_leader_commission ?? null,
           administration_commission: propertyData.administration_commission ?? null,
+          latest_property_referral_commission: propertyData.latest_property_referral_commission ?? null,
+          latest_lead_referral_commission: propertyData.latest_lead_referral_commission ?? null,
+          external_referral_commissions: propertyData.external_referral_commissions ?? [],
+          external_referral_commission: propertyData.external_referral_commission ?? null,
           commission: propertyData.commission ?? null,
           platform_id: propertyData.platform_id ?? null,
           referrals: propertyData.referrals || []

@@ -3,6 +3,8 @@ const pool = require('../config/db');
 const { normalizeRole, isAgentLikeRole } = require('../utils/roleUtils');
 const logger = require('../utils/logger');
 const Status = require('./statusModel');
+const PropertyReferral = require('./propertyReferralModel');
+const LeadReferral = require('./leadReferralModel');
 const {
   CLOSURE_STATUS_REQUIRED_ERROR,
   isClosureStatus,
@@ -12,7 +14,9 @@ const CLOSING_COMMISSION_FIELDS = [
   'agent_commission',
   'finders_commission',
   'team_leader_commission',
-  'administration_commission'
+  'administration_commission',
+  'latest_property_referral_commission',
+  'latest_lead_referral_commission'
 ];
 
 function normalizeCommissionValue(value, fallback = null) {
@@ -28,6 +32,29 @@ function roundMoney(value) {
   return Math.round(Number(value || 0) * 100) / 100;
 }
 
+function normalizeCommissionArray(value) {
+  if (value === undefined || value === null || value === '') {
+    return [];
+  }
+
+  let normalizedValue = value;
+  if (typeof value === 'string') {
+    try {
+      normalizedValue = JSON.parse(value);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(normalizedValue)) {
+    return [];
+  }
+
+  return normalizedValue
+    .map((entry) => normalizeCommissionValue(entry, null))
+    .filter((entry) => entry !== null);
+}
+
 function resolveClosingCommissionPayload(propertyData = {}) {
   const splitValues = CLOSING_COMMISSION_FIELDS.map((field) => ({
     field,
@@ -35,23 +62,47 @@ function resolveClosingCommissionPayload(propertyData = {}) {
   }));
   const hasSplitValues = splitValues.some(({ value }) => value !== null);
   const legacyCommission = normalizeCommissionValue(propertyData.commission, null);
+  const externalReferralCommissions = normalizeCommissionArray(propertyData.external_referral_commissions);
+  const legacyExternalReferralCommission = normalizeCommissionValue(propertyData.external_referral_commission, null);
+  const resolvedExternalReferralCommissions = externalReferralCommissions.length > 0
+    ? externalReferralCommissions
+    : legacyExternalReferralCommission !== null
+      ? [legacyExternalReferralCommission]
+      : [];
+  const resolvedExternalReferralCommission = roundMoney(
+    resolvedExternalReferralCommissions.reduce((sum, value) => sum + (Number(value) || 0), 0)
+  );
 
-  if (hasSplitValues) {
+  const hasCommissionInput =
+    hasSplitValues ||
+    resolvedExternalReferralCommissions.length > 0;
+
+  if (hasCommissionInput) {
     const agentCommission = splitValues[0].value ?? 0;
     const findersCommission = splitValues[1].value ?? 0;
     const teamLeaderCommission = splitValues[2].value ?? 0;
     const administrationCommission = splitValues[3].value ?? 0;
+    const latestPropertyReferralCommission = splitValues[4].value ?? 0;
+    const latestLeadReferralCommission = splitValues[5].value ?? 0;
+    const externalReferralCommission = resolvedExternalReferralCommission;
 
     return {
       agent_commission: agentCommission,
       finders_commission: findersCommission,
       team_leader_commission: teamLeaderCommission,
       administration_commission: administrationCommission,
+      latest_property_referral_commission: latestPropertyReferralCommission,
+      latest_lead_referral_commission: latestLeadReferralCommission,
+      external_referral_commissions: resolvedExternalReferralCommissions,
+      external_referral_commission: resolvedExternalReferralCommission,
       commission: roundMoney(
         agentCommission +
         findersCommission +
         teamLeaderCommission +
-        administrationCommission
+        administrationCommission +
+        latestPropertyReferralCommission +
+        latestLeadReferralCommission +
+        externalReferralCommission
       )
     };
   }
@@ -62,6 +113,10 @@ function resolveClosingCommissionPayload(propertyData = {}) {
       finders_commission: 0,
       team_leader_commission: 0,
       administration_commission: 0,
+      latest_property_referral_commission: 0,
+      latest_lead_referral_commission: 0,
+      external_referral_commissions: [],
+      external_referral_commission: 0,
       commission: roundMoney(legacyCommission)
     };
   }
@@ -71,6 +126,10 @@ function resolveClosingCommissionPayload(propertyData = {}) {
     finders_commission: null,
     team_leader_commission: null,
     administration_commission: null,
+    latest_property_referral_commission: null,
+    latest_lead_referral_commission: null,
+    external_referral_commissions: [],
+    external_referral_commission: null,
     commission: null
   };
 }
@@ -85,6 +144,10 @@ async function ensureClosingCommissionSchema() {
         ADD COLUMN IF NOT EXISTS finders_commission DECIMAL(15,2),
         ADD COLUMN IF NOT EXISTS team_leader_commission DECIMAL(15,2),
         ADD COLUMN IF NOT EXISTS administration_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS latest_property_referral_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS latest_lead_referral_commission DECIMAL(15,2),
+        ADD COLUMN IF NOT EXISTS external_referral_commissions JSONB DEFAULT '[]'::JSONB,
+        ADD COLUMN IF NOT EXISTS external_referral_commission DECIMAL(15,2),
         ADD COLUMN IF NOT EXISTS commission DECIMAL(15,2)
     `).catch((error) => {
       closingCommissionSchemaPromise = null;
@@ -245,6 +308,10 @@ class Property {
       finders_commission,
       team_leader_commission,
       administration_commission,
+      latest_property_referral_commission,
+      latest_lead_referral_commission,
+      external_referral_commissions,
+      external_referral_commission,
       commission,
       platform_id,
       referrals,
@@ -296,6 +363,10 @@ class Property {
       finders_commission,
       team_leader_commission,
       administration_commission,
+      latest_property_referral_commission,
+      latest_lead_referral_commission,
+      external_referral_commissions,
+      external_referral_commission,
       commission
     });
 
@@ -370,8 +441,9 @@ class Property {
           payment_facilities, payment_facilities_specification,
           built_year, view_type, concierge, agent_id, price, notes, property_url,
           closed_date, sold_amount, buyer_id, agent_commission, finders_commission, team_leader_commission,
-          administration_commission, commission, platform_id, main_image, image_gallery, created_by
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+          administration_commission, latest_property_referral_commission, latest_lead_referral_commission,
+          external_referral_commissions, external_referral_commission, commission, platform_id, main_image, image_gallery, created_by
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12::jsonb, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31::jsonb, $32, $33, $34, $35, $36, $37)
         RETURNING *`,
         [
           manualReferenceNumber, resolvedStatusId, property_type, location, category_id, building_name,
@@ -383,8 +455,15 @@ class Property {
           closingCommissionData.finders_commission,
           closingCommissionData.team_leader_commission,
           closingCommissionData.administration_commission,
+          closingCommissionData.latest_property_referral_commission,
+          closingCommissionData.latest_lead_referral_commission,
+          JSON.stringify(closingCommissionData.external_referral_commissions || []),
+          closingCommissionData.external_referral_commission,
           closingCommissionData.commission,
-          platform_id ?? null, main_image, image_gallery, created_by || null
+          platform_id ?? null,
+          main_image,
+          image_gallery,
+          created_by || null
         ]
       );
       
@@ -871,6 +950,10 @@ class Property {
         p.finders_commission,
         p.team_leader_commission,
         p.administration_commission,
+        p.latest_property_referral_commission,
+        p.latest_lead_referral_commission,
+        p.external_referral_commissions,
+        p.external_referral_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -1051,19 +1134,24 @@ class Property {
     
     const property = result.rows[0];
     
-    // Fetch referrals for this property
-    const referralsResult = await pool.query(
-      `SELECT id, name, type, employee_id, date, external, status, admin_status, admin_reviewed_by_user_id, admin_reviewed_at, referred_to_agent_id, referred_by_user_id, created_at 
-       FROM referrals 
-       WHERE property_id = $1 
-       ORDER BY 
-         CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
-         date DESC`,
-      [propertyId]
-    );
+    const [referralsResult, latestPropertyReferral, latestLeadReferral] = await Promise.all([
+      pool.query(
+        `SELECT id, name, type, employee_id, date, external, status, admin_status, admin_reviewed_by_user_id, admin_reviewed_at, referred_to_agent_id, referred_by_user_id, created_at
+         FROM referrals
+         WHERE property_id = $1
+         ORDER BY
+           CASE WHEN status = 'pending' THEN 0 ELSE 1 END,
+           date DESC`,
+        [propertyId]
+      ),
+      PropertyReferral.getMostRecentInternalReferral(propertyId),
+      property.owner_id ? LeadReferral.getMostRecentInternalReferral(property.owner_id) : Promise.resolve(null)
+    ]);
     logger.debug('Referrals fetched for property', { propertyId, referralCount: referralsResult.rows.length });
     property.referrals = referralsResult.rows;
-    
+    property.latest_property_referral = latestPropertyReferral;
+    property.latest_lead_referral = latestLeadReferral;
+
     logger.debug('Returning property', { propertyId, hasOwnerId: !!property.owner_id });
     
     return property;
@@ -1109,6 +1197,8 @@ class Property {
       }
 
       const hasClosingCommissionUpdates = CLOSING_COMMISSION_FIELDS.some((field) => propertyUpdates[field] !== undefined)
+        || propertyUpdates.external_referral_commissions !== undefined
+        || propertyUpdates.external_referral_commission !== undefined
         || propertyUpdates.commission !== undefined;
 
       if (hasClosingCommissionUpdates) {
@@ -1117,6 +1207,10 @@ class Property {
         propertyUpdates.finders_commission = closingCommissionData.finders_commission;
         propertyUpdates.team_leader_commission = closingCommissionData.team_leader_commission;
         propertyUpdates.administration_commission = closingCommissionData.administration_commission;
+        propertyUpdates.latest_property_referral_commission = closingCommissionData.latest_property_referral_commission;
+        propertyUpdates.latest_lead_referral_commission = closingCommissionData.latest_lead_referral_commission;
+        propertyUpdates.external_referral_commissions = JSON.stringify(closingCommissionData.external_referral_commissions || []);
+        propertyUpdates.external_referral_commission = closingCommissionData.external_referral_commission;
         propertyUpdates.commission = closingCommissionData.commission;
       }
       
@@ -1189,6 +1283,12 @@ class Property {
           }
         }
       }
+
+      if (propertyUpdates.external_referral_commissions !== undefined) {
+        propertyUpdates.external_referral_commissions = typeof propertyUpdates.external_referral_commissions === 'string'
+          ? propertyUpdates.external_referral_commissions
+          : JSON.stringify(propertyUpdates.external_referral_commissions || []);
+      }
       
       // Update property fields (excluding referrals)
       if (Object.keys(propertyUpdates).length > 0) {
@@ -1197,7 +1297,7 @@ class Property {
         
         // Handle JSONB fields specially
         const setClause = fields.map((field, index) => {
-          if (field === 'details' || field === 'interior_details') {
+          if (field === 'details' || field === 'interior_details' || field === 'external_referral_commissions') {
             return `${field} = $${index + 2}::jsonb`;
           }
           return `${field} = $${index + 2}`;

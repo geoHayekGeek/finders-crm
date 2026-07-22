@@ -8,11 +8,15 @@ ALTER TABLE properties ADD COLUMN IF NOT EXISTS sold_amount DECIMAL(15,2);
 -- Add buyer_id column (foreign key to leads table - the client it was sold to)
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS buyer_id INTEGER REFERENCES leads(id) ON DELETE SET NULL;
 
--- Add commission columns (individual split + legacy total)
+-- Add commission columns (individual split + referral breakdown + legacy total)
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS agent_commission DECIMAL(15,2);
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS finders_commission DECIMAL(15,2);
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS team_leader_commission DECIMAL(15,2);
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS administration_commission DECIMAL(15,2);
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS latest_property_referral_commission DECIMAL(15,2);
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS latest_lead_referral_commission DECIMAL(15,2);
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_referral_commissions JSONB DEFAULT '[]'::JSONB;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS external_referral_commission DECIMAL(15,2);
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS commission DECIMAL(15,2);
 
 -- Add platform_id column (foreign key to reference_sources table - default to lead's reference_source_id)
@@ -30,6 +34,10 @@ COMMENT ON COLUMN properties.agent_commission IS 'Agent commission amount for th
 COMMENT ON COLUMN properties.finders_commission IS 'Finders commission amount for the property closing';
 COMMENT ON COLUMN properties.team_leader_commission IS 'Team leader commission amount for the property closing';
 COMMENT ON COLUMN properties.administration_commission IS 'Administration commission amount for the property closing';
+COMMENT ON COLUMN properties.latest_property_referral_commission IS 'Latest property referral commission amount for the property closing';
+COMMENT ON COLUMN properties.latest_lead_referral_commission IS 'Latest lead/property-owner referral commission amount for the property closing';
+COMMENT ON COLUMN properties.external_referral_commissions IS 'Optional list of external referral commission amounts for the property closing';
+COMMENT ON COLUMN properties.external_referral_commission IS 'Total external referral commission amount for the property closing';
 COMMENT ON COLUMN properties.commission IS 'Commission amount in dollars';
 COMMENT ON COLUMN properties.platform_id IS 'Platform/reference source where the property was sold (defaults to lead reference_source_id)';
 
