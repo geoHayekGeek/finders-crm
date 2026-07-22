@@ -139,10 +139,10 @@ function buildGetRequestCacheKey(url: string, token: string | undefined, config:
 }
 
 function shouldBypassGetCache(endpoint: string): boolean {
-  // Report and analytics views need to reflect the latest saved values immediately
-  // after create/update/recalculate actions. These endpoints are intentionally kept
-  // off the short-lived GET cache so the UI does not reopen stale snapshots.
-  return /^\/(reports|dcsr-reports|operations-commission|operations-daily)(\/|$)/.test(endpoint)
+  // Property and lead records are edited frequently and their modal/detail views
+  // need to reflect the latest save immediately. Keep them off the short-lived
+  // GET cache so we do not reopen stale referral/commission snapshots.
+  return /^\/(properties|leads|reports|dcsr-reports|operations-commission|operations-daily)(\/|$)/.test(endpoint)
 }
 
 async function apiRequest<T>(

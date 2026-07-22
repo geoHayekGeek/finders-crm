@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react'
 import { X, Plus, Edit, Trash2, Star, ChevronLeft, ChevronRight, Upload, RefreshCw, Building2, User, Calendar, Copy, UserPlus } from 'lucide-react'
 import { Property, Category, Status, EditFormData, Referral } from '@/types/property'
+import type { LeadReferral } from '@/types/leads'
 import { compressAndConvertToBase64, getRecommendedCompressionOptions } from '@/utils/imageCompression'
 import { uploadMainPropertyImage, uploadGalleryImages, validateImageFile, validateImageFiles, createImagePreview, getFullImageUrl } from '@/utils/imageUpload'
 
@@ -583,6 +584,40 @@ export function PropertyModals({
     }))
   }
 
+  const enrichPropertyWithLatestLeadReferral = async (propertyData: Property): Promise<Property> => {
+    if (propertyData.latest_lead_referral || !propertyData.owner_id || !token) {
+      return propertyData
+    }
+
+    try {
+      const { leadsApi } = await import('@/utils/api')
+      const leadResult = await leadsApi.getById(propertyData.owner_id, token)
+
+      if (!leadResult.success || !leadResult.data?.referrals || !Array.isArray(leadResult.data.referrals)) {
+        return propertyData
+      }
+
+      const latestLeadReferral = [...leadResult.data.referrals]
+        .filter((ref: LeadReferral) => ref.external === false)
+        .sort((left, right) => {
+          const leftDate = new Date(left.referral_date || left.created_at || 0).getTime()
+          const rightDate = new Date(right.referral_date || right.created_at || 0).getTime()
+          return rightDate - leftDate
+        })[0] || null
+
+      if (!latestLeadReferral) {
+        return propertyData
+      }
+
+      return {
+        ...propertyData,
+        latest_lead_referral: latestLeadReferral
+      }
+    } catch (error) {
+      return propertyData
+    }
+  }
+
 
   // Reset image modal state when modal is closed
   useEffect(() => {
@@ -977,7 +1012,7 @@ export function PropertyModals({
             };
 
             const closingCommissionData = resolveClosingCommissionData(propertyData)
-            setEditingPropertyData(propertyData)
+            setEditingPropertyData(await enrichPropertyWithLatestLeadReferral(propertyData))
 
             const formData = {
               reference_number: propertyData.reference_number || '',
@@ -1079,7 +1114,7 @@ export function PropertyModals({
             };
 
             const closingCommissionData = resolveClosingCommissionData(editingProperty)
-            setEditingPropertyData(editingProperty)
+            setEditingPropertyData(await enrichPropertyWithLatestLeadReferral(editingProperty))
 
             // Fallback to existing property data
             setEditFormData({
@@ -1166,7 +1201,7 @@ export function PropertyModals({
           };
 
           const closingCommissionData = resolveClosingCommissionData(editingProperty)
-          setEditingPropertyData(editingProperty)
+          setEditingPropertyData(await enrichPropertyWithLatestLeadReferral(editingProperty))
 
           // Fallback to existing property data
           setEditFormData({
@@ -1255,12 +1290,12 @@ export function PropertyModals({
           const result = await propertiesApi.getById(viewingProperty.id, token)
 
           if (result.success && result.data) {
-            setViewPropertyData(result.data)
+            setViewPropertyData(await enrichPropertyWithLatestLeadReferral(result.data))
           } else {
-            setViewPropertyData(viewingProperty) // Fallback to existing data
+            setViewPropertyData(await enrichPropertyWithLatestLeadReferral(viewingProperty)) // Fallback to existing data
           }
         } catch (error) {
-          setViewPropertyData(viewingProperty) // Fallback to existing data
+          setViewPropertyData(await enrichPropertyWithLatestLeadReferral(viewingProperty)) // Fallback to existing data
         }
       } else {
         setViewPropertyData(null)
