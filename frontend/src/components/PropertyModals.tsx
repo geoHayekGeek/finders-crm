@@ -234,7 +234,7 @@ const normalizeMoneyArray = (value: unknown): number[] => {
     .filter((entry): entry is number => entry !== null)
 }
 
-const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {}) => {
+const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {}): ClosingCommissionData => {
   const splitValues = CLOSING_COMMISSION_FIELDS.map((field) => ({
     field,
     value: parseMoneyValue(data[field])
@@ -295,16 +295,44 @@ const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {})
   }
 
   return {
-    agent_commission: null,
-    finders_commission: null,
-    team_leader_commission: null,
-    administration_commission: null,
-    latest_property_referral_commission: null,
-    latest_lead_referral_commission: null,
+    agent_commission: undefined,
+    finders_commission: undefined,
+    team_leader_commission: undefined,
+    administration_commission: undefined,
+    latest_property_referral_commission: undefined,
+    latest_lead_referral_commission: undefined,
     external_referral_commissions: [],
-    external_referral_commission: null,
-    commission: null
+    external_referral_commission: undefined,
+    commission: undefined
   }
+}
+
+const formatDateForInput = (dateStr: string) => {
+  if (!dateStr) {
+    return ''
+  }
+
+  try {
+    const date = new Date(dateStr)
+    if (Number.isNaN(date.getTime())) {
+      return dateStr
+    }
+
+    return date.toISOString().split('T')[0]
+  } catch {
+    return dateStr
+  }
+}
+
+const formatReferralDatesForInput = (referrals: any[]) => {
+  if (!referrals || !Array.isArray(referrals)) {
+    return []
+  }
+
+  return referrals.map((referral) => ({
+    ...referral,
+    date: formatDateForInput(referral.date || '')
+  }))
 }
 
 interface Agent {
@@ -584,14 +612,19 @@ export function PropertyModals({
     }))
   }
 
-  const enrichPropertyWithLatestLeadReferral = async (propertyData: Property): Promise<Property> => {
-    if (propertyData.latest_lead_referral || !propertyData.owner_id || !token) {
+  const enrichPropertyWithLatestLeadReferral = async (
+    propertyData: Property,
+    fallbackOwnerId?: number | null
+  ): Promise<Property> => {
+    const ownerId = propertyData.owner_id ?? fallbackOwnerId ?? null
+
+    if (propertyData.latest_lead_referral || !ownerId || !token) {
       return propertyData
     }
 
     try {
       const { leadsApi } = await import('@/utils/api')
-      const leadResult = await leadsApi.getById(propertyData.owner_id, token)
+      const leadResult = await leadsApi.getById(ownerId, token)
 
       if (!leadResult.success || !leadResult.data?.referrals || !Array.isArray(leadResult.data.referrals)) {
         return propertyData
@@ -611,12 +644,80 @@ export function PropertyModals({
 
       return {
         ...propertyData,
+        owner_id: propertyData.owner_id ?? fallbackOwnerId ?? undefined,
         latest_lead_referral: latestLeadReferral
       }
-    } catch (error) {
+    } catch {
       return propertyData
     }
   }
+
+  const buildEditFormDataFromProperty = (
+    sourceProperty: Property,
+    closingCommissionData: ClosingCommissionData,
+    imageGallery: string[]
+  ): EditFormData => ({
+    reference_number: sourceProperty.reference_number || '',
+    status_id: sourceProperty.status_id || 0,
+    property_type: sourceProperty.property_type || 'sale',
+    location: sourceProperty.location || '',
+    category_id: sourceProperty.category_id || 0,
+    building_name: sourceProperty.building_name || '',
+    owner_id: sourceProperty.owner_id ? parseInt(sourceProperty.owner_id.toString()) : undefined,
+    owner_name: sourceProperty.owner_name && sourceProperty.owner_name !== 'Hidden' ? sourceProperty.owner_name : '',
+    phone_number: sourceProperty.phone_number || '',
+    surface: sourceProperty.surface,
+    details: (() => {
+      if (typeof sourceProperty.details === 'object' && sourceProperty.details !== null) {
+        return {
+          floor_number: (sourceProperty.details as any).floor_number || '',
+          balcony: (sourceProperty.details as any).balcony || '',
+          covered_parking: (sourceProperty.details as any).covered_parking || '',
+          outdoor_parking: (sourceProperty.details as any).outdoor_parking || '',
+          cave: (sourceProperty.details as any).cave || ''
+        }
+      }
+      return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
+    })(),
+    interior_details: (() => {
+      if (typeof sourceProperty.interior_details === 'object' && sourceProperty.interior_details !== null) {
+        return {
+          living_rooms: (sourceProperty.interior_details as any).living_rooms || '',
+          bedrooms: (sourceProperty.interior_details as any).bedrooms || '',
+          bathrooms: (sourceProperty.interior_details as any).bathrooms || '',
+          maid_room: (sourceProperty.interior_details as any).maid_room || ''
+        }
+      }
+      return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
+    })(),
+    payment_facilities: (sourceProperty as any).payment_facilities || false,
+    payment_facilities_specification: (sourceProperty as any).payment_facilities_specification || '',
+    built_year: sourceProperty.built_year,
+    view_type: sourceProperty.view_type,
+    concierge: sourceProperty.concierge || false,
+    agent_id: sourceProperty.agent_id ? parseInt(sourceProperty.agent_id.toString()) : undefined,
+    price: sourceProperty.price,
+    notes: sourceProperty.notes || '',
+    property_url: sourceProperty.property_url || '',
+    closed_date: formatDateForInput(sourceProperty.closed_date || ''),
+    sold_amount: sourceProperty.sold_amount,
+    buyer_id: sourceProperty.buyer_id,
+    agent_commission: closingCommissionData.agent_commission ?? undefined,
+    finders_commission: closingCommissionData.finders_commission ?? undefined,
+    team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
+    administration_commission: closingCommissionData.administration_commission ?? undefined,
+    latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
+    latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
+    external_referral_commissions: closingCommissionData.external_referral_commissions && closingCommissionData.external_referral_commissions.length > 0
+      ? closingCommissionData.external_referral_commissions
+      : [],
+    external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
+    commission: closingCommissionData.commission ?? sourceProperty.commission,
+    platform_id: sourceProperty.platform_id,
+    referrals: formatReferralDatesForInput(sourceProperty.referrals || []),
+    main_image: sourceProperty.main_image || '',
+    image_gallery: imageGallery
+  })
 
 
   // Reset image modal state when modal is closed
@@ -969,310 +1070,64 @@ export function PropertyModals({
   // Fetch complete property details from backend when editing property changes
   useEffect(() => {
     const fetchPropertyDetails = async () => {
-      if (editingProperty && showEditPropertyModal) {
-        try {
-          // Make API call to get complete property details
-          if (!token) {
-            throw new Error('Authentication token not available')
-          }
-          const { propertiesApi } = await import('@/utils/api')
-          const result = await propertiesApi.getById(editingProperty.id, token)
+      if (!editingProperty || !showEditPropertyModal) {
+        return
+      }
 
-          if (result.success && result.data) {
-            const propertyData = result.data
-            
-            // Debug: Log owner data to help diagnose the issue
-            if (process.env.NODE_ENV === 'development') {
-              console.log('[PropertyModals] Property data received:', {
-                id: propertyData.id,
-                owner_id: propertyData.owner_id,
-                owner_name: propertyData.owner_name,
-                phone_number: propertyData.phone_number
-              })
-            }
-            
-            // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
-            const formatClosedDate = (dateStr: string) => {
-              if (!dateStr) return '';
-              try {
-                const date = new Date(dateStr);
-                return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-              } catch (e) {
-                return dateStr; // Return as-is if parsing fails
-              }
-            };
+      try {
+        if (!token) {
+          throw new Error('Authentication token not available')
+        }
 
-            // Format referral dates to YYYY-MM-DD format for date inputs
-            const formatReferralDates = (referrals: any[]) => {
-              if (!referrals || !Array.isArray(referrals)) return [];
-              return referrals.map(ref => ({
-                ...ref,
-                date: formatClosedDate(ref.date || '')
-              }));
-            };
+        const { propertiesApi } = await import('@/utils/api')
+        const result = await propertiesApi.getById(editingProperty.id, token)
+        const sourceProperty = result.success && result.data ? result.data : editingProperty
+        const resolvedProperty = await enrichPropertyWithLatestLeadReferral(
+          sourceProperty,
+          editingProperty.owner_id
+        )
+        const closingCommissionData = resolveClosingCommissionData(sourceProperty)
+        const imageGallery = galleryModified
+          ? (editFormData.image_gallery || [])
+          : (sourceProperty.image_gallery || [])
 
-            const closingCommissionData = resolveClosingCommissionData(propertyData)
-            setEditingPropertyData(await enrichPropertyWithLatestLeadReferral(propertyData))
-
-            const formData = {
-              reference_number: propertyData.reference_number || '',
-              status_id: propertyData.status_id || 0,
-              property_type: propertyData.property_type || 'sale',
-              location: propertyData.location || '',
-              category_id: propertyData.category_id || 0,
-              building_name: propertyData.building_name || '',
-              owner_id: (() => {
-                const rawOwnerId = propertyData.owner_id
-                if (rawOwnerId !== null && rawOwnerId !== undefined) {
-                  const parsed = parseInt(rawOwnerId.toString())
-                  return isNaN(parsed) ? undefined : parsed
-                }
-                return undefined
-              })(),
-              owner_name: propertyData.owner_name && propertyData.owner_name !== 'Hidden' ? propertyData.owner_name : '',
-              phone_number: propertyData.phone_number || '',
-              surface: propertyData.surface,
-              details: (() => {
-                if (typeof propertyData.details === 'object' && propertyData.details !== null) {
-                  return {
-                    floor_number: (propertyData.details as any).floor_number || '',
-                    balcony: (propertyData.details as any).balcony || '',
-                    covered_parking: (propertyData.details as any).covered_parking || '',
-                    outdoor_parking: (propertyData.details as any).outdoor_parking || '',
-                    cave: (propertyData.details as any).cave || ''
-                  }
-                }
-                return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
-              })(),
-              interior_details: (() => {
-                if (typeof propertyData.interior_details === 'object' && propertyData.interior_details !== null) {
-                  return {
-                    living_rooms: (propertyData.interior_details as any).living_rooms || '',
-                    bedrooms: (propertyData.interior_details as any).bedrooms || '',
-                    bathrooms: (propertyData.interior_details as any).bathrooms || '',
-                    maid_room: (propertyData.interior_details as any).maid_room || ''
-                  }
-                }
-                return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
-              })(),
-              payment_facilities: propertyData.payment_facilities || false,
-              payment_facilities_specification: propertyData.payment_facilities_specification || '',
-              built_year: propertyData.built_year,
-              view_type: propertyData.view_type,
-              concierge: propertyData.concierge || false,
-              agent_id: propertyData.agent_id ? parseInt(propertyData.agent_id.toString()) : undefined,
-              price: propertyData.price,
-              notes: propertyData.notes || '',
-              property_url: propertyData.property_url || '',
-              closed_date: formatClosedDate(propertyData.closed_date || ''),
-              sold_amount: propertyData.sold_amount,
-              buyer_id: propertyData.buyer_id,
-              agent_commission: closingCommissionData.agent_commission ?? undefined,
-              finders_commission: closingCommissionData.finders_commission ?? undefined,
-              team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
-              administration_commission: closingCommissionData.administration_commission ?? undefined,
-              latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
-              latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
-              external_referral_commissions: closingCommissionData.external_referral_commissions || [],
-              external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
-              commission: closingCommissionData.commission ?? propertyData.commission,
-              platform_id: propertyData.platform_id,
-              referrals: formatReferralDates(propertyData.referrals || []),
-
-              main_image: propertyData.main_image || '',
-              image_gallery: galleryModified ? editFormData.image_gallery : (propertyData.image_gallery || [])
-            }
-
-            setEditFormData(formData)
-            
-            // Debug: Log what was set in editFormData
-            if (process.env.NODE_ENV === 'development') {
-              console.log('[PropertyModals] editFormData set with owner:', {
-                owner_id: formData.owner_id,
-                owner_name: formData.owner_name
-              })
-            }
-          } else {
-            // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
-            const formatClosedDate = (dateStr: string) => {
-              if (!dateStr) return '';
-              try {
-                const date = new Date(dateStr);
-                return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-              } catch (e) {
-                return dateStr; // Return as-is if parsing fails
-              }
-            };
-
-            // Format referral dates to YYYY-MM-DD format for date inputs
-            const formatReferralDates = (referrals: any[]) => {
-              if (!referrals || !Array.isArray(referrals)) return [];
-              return referrals.map(ref => ({
-                ...ref,
-                date: formatClosedDate(ref.date || '')
-              }));
-            };
-
-            const closingCommissionData = resolveClosingCommissionData(editingProperty)
-            setEditingPropertyData(await enrichPropertyWithLatestLeadReferral(editingProperty))
-
-            // Fallback to existing property data
-            setEditFormData({
-              reference_number: editingProperty.reference_number || '',
-              status_id: editingProperty.status_id || 0,
-              property_type: editingProperty.property_type || 'sale',
-              location: editingProperty.location || '',
-              category_id: editingProperty.category_id || 0,
-              building_name: editingProperty.building_name || '',
-              owner_id: editingProperty.owner_id ? parseInt(editingProperty.owner_id.toString()) : undefined,
-              owner_name: editingProperty.owner_name || '',
-              phone_number: editingProperty.phone_number || '',
-              surface: editingProperty.surface,
-              details: (() => {
-                if (typeof editingProperty.details === 'object' && editingProperty.details !== null) {
-                  return {
-                    floor_number: (editingProperty.details as any).floor_number || '',
-                    balcony: (editingProperty.details as any).balcony || '',
-                    covered_parking: (editingProperty.details as any).covered_parking || '',
-                    outdoor_parking: (editingProperty.details as any).outdoor_parking || '',
-                    cave: (editingProperty.details as any).cave || ''
-                  }
-                }
-                return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
-              })(),
-              interior_details: (() => {
-                if (typeof editingProperty.interior_details === 'object' && editingProperty.interior_details !== null) {
-                  return {
-                    living_rooms: (editingProperty.interior_details as any).living_rooms || '',
-                    bedrooms: (editingProperty.interior_details as any).bedrooms || '',
-                    bathrooms: (editingProperty.interior_details as any).bathrooms || '',
-                    maid_room: (editingProperty.interior_details as any).maid_room || ''
-                  }
-                }
-                return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
-              })(),
-              payment_facilities: (editingProperty as any).payment_facilities || false,
-              payment_facilities_specification: (editingProperty as any).payment_facilities_specification || '',
-              built_year: editingProperty.built_year,
-              view_type: editingProperty.view_type,
-              concierge: editingProperty.concierge || false,
-              agent_id: editingProperty.agent_id ? parseInt(editingProperty.agent_id.toString()) : undefined,
-              price: editingProperty.price,
-              notes: editingProperty.notes || '',
-              property_url: editingProperty.property_url || '',
-              closed_date: formatClosedDate(editingProperty.closed_date || ''),
-              sold_amount: editingProperty.sold_amount,
-              buyer_id: editingProperty.buyer_id,
-              agent_commission: closingCommissionData.agent_commission ?? undefined,
-              finders_commission: closingCommissionData.finders_commission ?? undefined,
-              team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
-              administration_commission: closingCommissionData.administration_commission ?? undefined,
-              latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
-              latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
-              external_referral_commissions: closingCommissionData.external_referral_commissions || [],
-              external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
-              commission: closingCommissionData.commission ?? editingProperty.commission,
-              platform_id: editingProperty.platform_id,
-              referrals: formatReferralDates(editingProperty.referrals || []),
-
-              main_image: editingProperty.main_image || '',
-              image_gallery: editingProperty.image_gallery || []
-            })
-          }
-        } catch (error) {
-          // Format closed_date if it exists - convert from ISO timestamp to YYYY-MM-DD format for date input
-          const formatClosedDate = (dateStr: string) => {
-            if (!dateStr) return '';
-            try {
-              const date = new Date(dateStr);
-              return date.toISOString().split('T')[0]; // Convert to YYYY-MM-DD
-            } catch (e) {
-              return dateStr; // Return as-is if parsing fails
-            }
-          };
-
-          // Format referral dates to YYYY-MM-DD format for date inputs
-          const formatReferralDates = (referrals: any[]) => {
-            if (!referrals || !Array.isArray(referrals)) return [];
-            return referrals.map(ref => ({
-              ...ref,
-              date: formatClosedDate(ref.date || '')
-            }));
-          };
-
-          const closingCommissionData = resolveClosingCommissionData(editingProperty)
-          setEditingPropertyData(await enrichPropertyWithLatestLeadReferral(editingProperty))
-
-          // Fallback to existing property data
-          setEditFormData({
-            reference_number: editingProperty.reference_number || '',
-            status_id: editingProperty.status_id || 0,
-            property_type: editingProperty.property_type || 'sale',
-            location: editingProperty.location || '',
-            category_id: editingProperty.category_id || 0,
-            building_name: editingProperty.building_name || '',
-            owner_id: editingProperty.owner_id ? parseInt(editingProperty.owner_id.toString()) : undefined,
-            owner_name: editingProperty.owner_name || '',
-            phone_number: editingProperty.phone_number || '',
-            surface: editingProperty.surface,
-            details: (() => {
-              if (typeof editingProperty.details === 'object' && editingProperty.details !== null) {
-                return {
-                  floor_number: (editingProperty.details as any).floor_number || '',
-                  balcony: (editingProperty.details as any).balcony || '',
-                  covered_parking: (editingProperty.details as any).covered_parking || '',
-                  outdoor_parking: (editingProperty.details as any).outdoor_parking || '',
-                  cave: (editingProperty.details as any).cave || ''
-                }
-              }
-              return { floor_number: '', balcony: '', covered_parking: '', outdoor_parking: '', cave: '' }
-            })(),
-            interior_details: (() => {
-              if (typeof editingProperty.interior_details === 'object' && editingProperty.interior_details !== null) {
-                return {
-                  living_rooms: (editingProperty.interior_details as any).living_rooms || '',
-                  bedrooms: (editingProperty.interior_details as any).bedrooms || '',
-                  bathrooms: (editingProperty.interior_details as any).bathrooms || '',
-                  maid_room: (editingProperty.interior_details as any).maid_room || ''
-                }
-              }
-              return { living_rooms: '', bedrooms: '', bathrooms: '', maid_room: '' }
-            })(),
-            payment_facilities: (editingProperty as any).payment_facilities || false,
-            payment_facilities_specification: (editingProperty as any).payment_facilities_specification || '',
-            built_year: editingProperty.built_year,
-            view_type: editingProperty.view_type,
-            concierge: editingProperty.concierge || false,
-            agent_id: editingProperty.agent_id,
-            price: editingProperty.price,
-            notes: editingProperty.notes || '',
-            property_url: editingProperty.property_url || '',
-            closed_date: formatClosedDate(editingProperty.closed_date || ''),
-            sold_amount: editingProperty.sold_amount,
-            buyer_id: editingProperty.buyer_id,
-            agent_commission: closingCommissionData.agent_commission ?? undefined,
-            finders_commission: closingCommissionData.finders_commission ?? undefined,
-            team_leader_commission: closingCommissionData.team_leader_commission ?? undefined,
-            administration_commission: closingCommissionData.administration_commission ?? undefined,
-              latest_property_referral_commission: closingCommissionData.latest_property_referral_commission ?? undefined,
-              latest_lead_referral_commission: closingCommissionData.latest_lead_referral_commission ?? undefined,
-              external_referral_commissions: closingCommissionData.external_referral_commissions && closingCommissionData.external_referral_commissions.length > 0
-              ? closingCommissionData.external_referral_commissions
-              : [],
-              external_referral_commission: closingCommissionData.external_referral_commission ?? undefined,
-              commission: closingCommissionData.commission ?? editingProperty.commission,
-            platform_id: editingProperty.platform_id,
-            referrals: formatReferralDates(editingProperty.referrals || []),
-
-            main_image: editingProperty.main_image || '',
-            image_gallery: editingProperty.image_gallery || []
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PropertyModals] Property data received:', {
+            id: resolvedProperty.id,
+            owner_id: resolvedProperty.owner_id,
+            owner_name: resolvedProperty.owner_name,
+            phone_number: resolvedProperty.phone_number,
+            has_latest_lead_referral: Boolean(resolvedProperty.latest_lead_referral)
           })
         }
+
+        setEditingPropertyData(resolvedProperty)
+        setEditFormData(buildEditFormDataFromProperty(resolvedProperty, closingCommissionData, imageGallery))
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PropertyModals] editFormData set with owner:', {
+            owner_id: resolvedProperty.owner_id,
+            owner_name: resolvedProperty.owner_name
+          })
+        }
+      } catch (error) {
+        const sourceProperty = editingProperty
+        const resolvedProperty = await enrichPropertyWithLatestLeadReferral(
+          sourceProperty,
+          editingProperty.owner_id
+        )
+        const closingCommissionData = resolveClosingCommissionData(sourceProperty)
+        const imageGallery = galleryModified
+          ? (editFormData.image_gallery || [])
+          : (sourceProperty.image_gallery || [])
+
+        setEditingPropertyData(resolvedProperty)
+        setEditFormData(buildEditFormDataFromProperty(resolvedProperty, closingCommissionData, imageGallery))
       }
     }
 
     fetchPropertyDetails()
-  }, [editingProperty, showEditPropertyModal, setEditFormData])
+  }, [editingProperty, showEditPropertyModal, token, setEditFormData])
 
   // Fetch complete property details for edit/view modals
   const [editingPropertyData, setEditingPropertyData] = useState<Property | null>(null)
@@ -1280,30 +1135,31 @@ export function PropertyModals({
 
   useEffect(() => {
     const fetchViewPropertyDetails = async () => {
-      if (viewingProperty && showViewPropertyModal) {
-        try {
-          // Make API call to get complete property details
-          if (!token) {
-            throw new Error('Authentication token not available')
-          }
-          const { propertiesApi } = await import('@/utils/api')
-          const result = await propertiesApi.getById(viewingProperty.id, token)
-
-          if (result.success && result.data) {
-            setViewPropertyData(await enrichPropertyWithLatestLeadReferral(result.data))
-          } else {
-            setViewPropertyData(await enrichPropertyWithLatestLeadReferral(viewingProperty)) // Fallback to existing data
-          }
-        } catch (error) {
-          setViewPropertyData(await enrichPropertyWithLatestLeadReferral(viewingProperty)) // Fallback to existing data
-        }
-      } else {
+      if (!viewingProperty || !showViewPropertyModal) {
         setViewPropertyData(null)
+        return
+      }
+
+      try {
+        if (!token) {
+          throw new Error('Authentication token not available')
+        }
+
+        const { propertiesApi } = await import('@/utils/api')
+        const result = await propertiesApi.getById(viewingProperty.id, token)
+        const sourceProperty = result.success && result.data ? result.data : viewingProperty
+        setViewPropertyData(
+          await enrichPropertyWithLatestLeadReferral(sourceProperty, viewingProperty.owner_id)
+        )
+      } catch {
+        setViewPropertyData(
+          await enrichPropertyWithLatestLeadReferral(viewingProperty, viewingProperty.owner_id)
+        )
       }
     }
 
     fetchViewPropertyDetails()
-  }, [viewingProperty, showViewPropertyModal])
+  }, [viewingProperty, showViewPropertyModal, token])
 
 
 
@@ -4013,6 +3869,7 @@ export function PropertyModals({
                   {(() => {
                     if (isClosureStatusForProperty(viewPropertyData)) {
                       const closingCommissionData = resolveClosingCommissionData(viewPropertyData)
+                      const externalReferralCommissions = closingCommissionData.external_referral_commissions || []
                       const hasLatestPropertyReferral = Boolean(viewPropertyData.latest_property_referral)
                       const hasLatestLeadReferral = Boolean(viewPropertyData.latest_lead_referral)
                       const latestPropertyReferralLabel = hasLatestPropertyReferral
@@ -4136,13 +3993,13 @@ export function PropertyModals({
                               </div>
                             )}
 
-                            {closingCommissionData.external_referral_commissions.length > 0 && (
+                            {externalReferralCommissions.length > 0 && (
                               <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                   External Referral Commissions
                                 </label>
                                 <div className="space-y-2">
-                                  {closingCommissionData.external_referral_commissions.map((commission, index) => (
+                                  {externalReferralCommissions.map((commission, index) => (
                                     <div key={index} className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-gray-900">
                                       External Referral {index + 1}: ${formatMoneyValue(commission).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
