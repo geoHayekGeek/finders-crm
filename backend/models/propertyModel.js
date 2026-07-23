@@ -62,11 +62,14 @@ function resolveClosingCommissionPayload(propertyData = {}) {
   }));
   const hasSplitValues = splitValues.some(({ value }) => value !== null);
   const legacyCommission = normalizeCommissionValue(propertyData.commission, null);
+  const hasExternalReferralCommissionList =
+    Object.prototype.hasOwnProperty.call(propertyData, 'external_referral_commissions')
+    && propertyData.external_referral_commissions !== undefined;
   const externalReferralCommissions = normalizeCommissionArray(propertyData.external_referral_commissions);
   const legacyExternalReferralCommission = normalizeCommissionValue(propertyData.external_referral_commission, null);
-  const resolvedExternalReferralCommissions = externalReferralCommissions.length > 0
+  const resolvedExternalReferralCommissions = hasExternalReferralCommissionList
     ? externalReferralCommissions
-    : legacyExternalReferralCommission !== null
+    : legacyExternalReferralCommission !== null && legacyExternalReferralCommission !== 0
       ? [legacyExternalReferralCommission]
       : [];
   const resolvedExternalReferralCommission = roundMoney(
@@ -156,6 +159,48 @@ async function ensureClosingCommissionSchema() {
   }
 
   return closingCommissionSchemaPromise;
+}
+
+async function resolveReferralOwnerId(property) {
+  if (property.owner_id) {
+    return property.owner_id;
+  }
+
+  const phoneNumber = String(property.phone_number || '').trim();
+  if (phoneNumber) {
+    const phoneMatches = await pool.query(
+      `SELECT id
+       FROM leads
+       WHERE NULLIF(REGEXP_REPLACE(COALESCE(phone_number, ''), '\\D', '', 'g'), '') IS NOT NULL
+         AND REGEXP_REPLACE(COALESCE(phone_number, ''), '\\D', '', 'g')
+           = REGEXP_REPLACE($1, '\\D', '', 'g')
+       ORDER BY id
+       LIMIT 2`,
+      [phoneNumber]
+    );
+
+    if (phoneMatches.rows.length === 1) {
+      return phoneMatches.rows[0].id;
+    }
+  }
+
+  const ownerName = String(property.owner_name || '').trim();
+  if (ownerName) {
+    const nameMatches = await pool.query(
+      `SELECT id
+       FROM leads
+       WHERE LOWER(TRIM(customer_name)) = LOWER(TRIM($1))
+       ORDER BY id
+       LIMIT 2`,
+      [ownerName]
+    );
+
+    if (nameMatches.rows.length === 1) {
+      return nameMatches.rows[0].id;
+    }
+  }
+
+  return null;
 }
 
 class Property {
@@ -549,6 +594,10 @@ class Property {
           p.finders_commission,
           p.team_leader_commission,
           p.administration_commission,
+          p.latest_property_referral_commission,
+          p.latest_lead_referral_commission,
+          p.external_referral_commissions,
+          p.external_referral_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_at,
@@ -660,6 +709,10 @@ class Property {
           p.finders_commission,
           p.team_leader_commission,
           p.administration_commission,
+          p.latest_property_referral_commission,
+          p.latest_lead_referral_commission,
+          p.external_referral_commissions,
+          p.external_referral_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_by,
@@ -725,6 +778,10 @@ class Property {
           p.finders_commission,
           p.team_leader_commission,
           p.administration_commission,
+          p.latest_property_referral_commission,
+          p.latest_lead_referral_commission,
+          p.external_referral_commissions,
+          p.external_referral_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_by,
@@ -799,6 +856,10 @@ class Property {
           p.finders_commission,
           p.team_leader_commission,
           p.administration_commission,
+          p.latest_property_referral_commission,
+          p.latest_lead_referral_commission,
+          p.external_referral_commissions,
+          p.external_referral_commission,
           p.platform_id,
           rs.source_name as platform_name,
           p.created_at,
@@ -1021,6 +1082,10 @@ class Property {
         p.finders_commission,
         p.team_leader_commission,
         p.administration_commission,
+        p.latest_property_referral_commission,
+        p.latest_lead_referral_commission,
+        p.external_referral_commissions,
+        p.external_referral_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -1104,6 +1169,10 @@ class Property {
         p.finders_commission,
         p.team_leader_commission,
         p.administration_commission,
+        p.latest_property_referral_commission,
+        p.latest_lead_referral_commission,
+        p.external_referral_commissions,
+        p.external_referral_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -1133,6 +1202,7 @@ class Property {
     }
     
     const property = result.rows[0];
+    const referralOwnerId = await resolveReferralOwnerId(property);
     
     const [referralsResult, latestPropertyReferral, latestLeadReferral] = await Promise.all([
       pool.query(
@@ -1145,14 +1215,21 @@ class Property {
         [propertyId]
       ),
       PropertyReferral.getMostRecentInternalReferral(propertyId),
-      property.owner_id ? LeadReferral.getMostRecentInternalReferral(property.owner_id) : Promise.resolve(null)
+      referralOwnerId ? LeadReferral.getMostRecentInternalReferral(referralOwnerId) : Promise.resolve(null)
     ]);
     logger.debug('Referrals fetched for property', { propertyId, referralCount: referralsResult.rows.length });
     property.referrals = referralsResult.rows;
     property.latest_property_referral = latestPropertyReferral;
     property.latest_lead_referral = latestLeadReferral;
+    property.referral_owner_id = referralOwnerId;
+    property.owner_link_inferred = !property.owner_id && !!referralOwnerId;
 
-    logger.debug('Returning property', { propertyId, hasOwnerId: !!property.owner_id });
+    logger.debug('Returning property', {
+      propertyId,
+      hasOwnerId: !!property.owner_id,
+      hasReferralOwnerId: !!referralOwnerId,
+      ownerLinkInferred: property.owner_link_inferred
+    });
     
     return property;
   }
@@ -1455,6 +1532,10 @@ class Property {
         p.finders_commission,
         p.team_leader_commission,
         p.administration_commission,
+        p.latest_property_referral_commission,
+        p.latest_lead_referral_commission,
+        p.external_referral_commissions,
+        p.external_referral_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,
@@ -1671,6 +1752,10 @@ class Property {
         p.finders_commission,
         p.team_leader_commission,
         p.administration_commission,
+        p.latest_property_referral_commission,
+        p.latest_lead_referral_commission,
+        p.external_referral_commissions,
+        p.external_referral_commission,
         p.platform_id,
         rs.source_name as platform_name,
         p.created_by,

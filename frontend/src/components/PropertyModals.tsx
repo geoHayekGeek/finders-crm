@@ -241,11 +241,14 @@ const resolveClosingCommissionData = (data: Partial<ClosingCommissionData> = {})
   }))
   const hasSplitValues = splitValues.some(({ value }) => value !== null)
   const legacyCommission = parseMoneyValue(data.commission)
+  const hasExternalReferralCommissionList =
+    Object.prototype.hasOwnProperty.call(data, 'external_referral_commissions')
+    && data.external_referral_commissions !== undefined
   const externalReferralCommissions = normalizeMoneyArray(data.external_referral_commissions)
   const legacyExternalReferralCommission = parseMoneyValue(data.external_referral_commission)
-  const resolvedExternalReferralCommissions = externalReferralCommissions.length > 0
+  const resolvedExternalReferralCommissions = hasExternalReferralCommissionList
     ? externalReferralCommissions
-    : legacyExternalReferralCommission !== null
+    : legacyExternalReferralCommission !== null && legacyExternalReferralCommission !== 0
       ? [legacyExternalReferralCommission]
       : []
   const externalReferralCommission = resolvedExternalReferralCommissions.reduce((sum, value) => sum + value, 0)
@@ -616,7 +619,11 @@ export function PropertyModals({
     propertyData: Property,
     fallbackOwnerId?: number | null
   ): Promise<Property> => {
-    const ownerId = propertyData.owner_id ?? fallbackOwnerId ?? null
+    const ownerId =
+      propertyData.owner_id
+      ?? propertyData.referral_owner_id
+      ?? fallbackOwnerId
+      ?? null
 
     if (propertyData.latest_lead_referral || !ownerId || !token) {
       return propertyData
@@ -663,7 +670,7 @@ export function PropertyModals({
     location: sourceProperty.location || '',
     category_id: sourceProperty.category_id || 0,
     building_name: sourceProperty.building_name || '',
-    owner_id: sourceProperty.owner_id ? parseInt(sourceProperty.owner_id.toString()) : undefined,
+    owner_id: sourceProperty.owner_id ?? sourceProperty.referral_owner_id ?? undefined,
     owner_name: sourceProperty.owner_name && sourceProperty.owner_name !== 'Hidden' ? sourceProperty.owner_name : '',
     phone_number: sourceProperty.phone_number || '',
     surface: sourceProperty.surface,
@@ -4068,15 +4075,15 @@ export function PropertyModals({
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Owner Name</label>
                       {(() => {
-                        const hasOwner = viewPropertyData && viewPropertyData.owner_id
+                        const ownerLeadId = viewPropertyData?.owner_id ?? viewPropertyData?.referral_owner_id
                         const hasRole = isAdminRole(user?.role) || isOperationsRole(user?.role) || isAgentManagerRole(user?.role)
                         const notHidden = viewPropertyData?.owner_name !== 'Hidden'
-                        const isClickable = hasOwner && hasRole && notHidden
+                        const isClickable = ownerLeadId && hasRole && notHidden
                         
                         return isClickable ? (
                           <div 
                             onClick={() => {
-                              const url = `/dashboard/leads?view=${viewPropertyData.owner_id}`
+                              const url = `/dashboard/leads?view=${ownerLeadId}`
                               window.open(url, '_blank')
                             }}
                             className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-900"

@@ -3,9 +3,17 @@
 
 const Property = require('../../models/propertyModel');
 const pool = require('../../config/db');
+const PropertyReferral = require('../../models/propertyReferralModel');
+const LeadReferral = require('../../models/leadReferralModel');
 
 // Mock database
 jest.mock('../../config/db');
+jest.mock('../../models/propertyReferralModel', () => ({
+  getMostRecentInternalReferral: jest.fn()
+}));
+jest.mock('../../models/leadReferralModel', () => ({
+  getMostRecentInternalReferral: jest.fn()
+}));
 
 describe('Property Model', () => {
   let mockQuery;
@@ -25,6 +33,8 @@ describe('Property Model', () => {
     pool.connect = mockConnect;
     
     jest.clearAllMocks();
+    PropertyReferral.getMostRecentInternalReferral.mockResolvedValue(null);
+    LeadReferral.getMostRecentInternalReferral.mockResolvedValue(null);
   });
 
   describe('createProperty', () => {
@@ -789,6 +799,64 @@ describe('Property Model', () => {
       expect(queryCall).toContain('COALESCE(s.can_be_referred, TRUE) as status_can_be_referred');
     });
 
+    it('should return the closing referral context and commission fields', async () => {
+      const latestPropertyReferral = { id: 10, name: 'Property Referrer' };
+      const latestLeadReferral = { id: 20, name: 'Owner Referrer' };
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          owner_id: 99,
+          latest_property_referral_commission: '125.00',
+          latest_lead_referral_commission: '75.00',
+          external_referral_commissions: [50],
+          external_referral_commission: '50.00'
+        }]
+      };
+      const mockReferrals = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce(mockProperty)
+        .mockResolvedValueOnce(mockReferrals);
+      PropertyReferral.getMostRecentInternalReferral.mockResolvedValue(latestPropertyReferral);
+      LeadReferral.getMostRecentInternalReferral.mockResolvedValue(latestLeadReferral);
+
+      const result = await Property.getPropertyById(1);
+      const queryCall = mockQuery.mock.calls[0][0];
+
+      expect(queryCall).toContain('p.latest_property_referral_commission');
+      expect(queryCall).toContain('p.latest_lead_referral_commission');
+      expect(queryCall).toContain('p.external_referral_commissions');
+      expect(queryCall).toContain('p.external_referral_commission');
+      expect(result.latest_property_referral).toEqual(latestPropertyReferral);
+      expect(result.latest_lead_referral).toEqual(latestLeadReferral);
+    });
+
+    it('should resolve a unique legacy owner before loading the lead referral', async () => {
+      const latestLeadReferral = { id: 20, lead_id: 44, name: 'Owner Referrer' };
+      const mockProperty = {
+        rows: [{
+          id: 1,
+          owner_id: null,
+          owner_name: 'Legacy Owner',
+          phone_number: '+961 70 000 000'
+        }]
+      };
+      const mockReferrals = { rows: [] };
+
+      mockQuery
+        .mockResolvedValueOnce(mockProperty)
+        .mockResolvedValueOnce({ rows: [{ id: 44 }] })
+        .mockResolvedValueOnce(mockReferrals);
+      LeadReferral.getMostRecentInternalReferral.mockResolvedValue(latestLeadReferral);
+
+      const result = await Property.getPropertyById(1);
+
+      expect(LeadReferral.getMostRecentInternalReferral).toHaveBeenCalledWith(44);
+      expect(result.latest_lead_referral).toEqual(latestLeadReferral);
+      expect(result.referral_owner_id).toBe(44);
+      expect(result.owner_link_inferred).toBe(true);
+    });
+
     it('should return property with status_can_be_referred false', async () => {
       const mockProperty = {
         rows: [{
@@ -988,6 +1056,54 @@ describe('Property Model', () => {
         'UPDATE properties SET referrals_count = $1 WHERE id = $2',
         [0, 1]
       );
+    });
+
+    it('should keep an explicitly empty external commission list empty', async () => {
+      const mockUpdated = { rows: [{ id: 1 }] };
+      const mockProperty = { rows: [{ id: 1 }] };
+      const mockReferrals = { rows: [] };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // COMMIT
+        .mockResolvedValueOnce(mockProperty) // SELECT property
+        .mockResolvedValueOnce(mockReferrals); // SELECT referrals
+
+      await Property.updateProperty(1, {
+        external_referral_commissions: [],
+        external_referral_commission: 0
+      });
+
+      const updateCall = mockClient.query.mock.calls.find(([query]) =>
+        typeof query === 'string' && query.includes('UPDATE properties')
+      );
+      expect(updateCall[1]).toContain('[]');
+      expect(updateCall[1]).not.toContain('[0]');
+    });
+
+    it('should calculate the external commission total from the explicit list', async () => {
+      const mockUpdated = { rows: [{ id: 1 }] };
+      const mockProperty = { rows: [{ id: 1 }] };
+      const mockReferrals = { rows: [] };
+
+      mockClient.query
+        .mockResolvedValueOnce({}) // BEGIN
+        .mockResolvedValueOnce(mockUpdated) // UPDATE
+        .mockResolvedValueOnce({}) // COMMIT
+        .mockResolvedValueOnce(mockProperty) // SELECT property
+        .mockResolvedValueOnce(mockReferrals); // SELECT referrals
+
+      await Property.updateProperty(1, {
+        external_referral_commissions: [25, null, 75],
+        external_referral_commission: 0
+      });
+
+      const updateCall = mockClient.query.mock.calls.find(([query]) =>
+        typeof query === 'string' && query.includes('UPDATE properties')
+      );
+      expect(updateCall[1]).toContain('[25,75]');
+      expect(updateCall[1]).toContain(100);
     });
   });
 

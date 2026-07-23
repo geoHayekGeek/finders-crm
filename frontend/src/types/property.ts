@@ -56,6 +56,8 @@ export interface Property {
   category_code: string
   building_name?: string
   owner_id?: number // Foreign key to leads table - the customer (buyer/seller)
+  referral_owner_id?: number // Owner lead used for referral lookup when a legacy property is not linked
+  owner_link_inferred?: boolean // True when referral_owner_id came from a unique legacy owner match
   owner_name: string // Fetched from leads or stored directly for backward compatibility
   phone_number: string // Fetched from leads or stored directly for backward compatibility
   surface: number
