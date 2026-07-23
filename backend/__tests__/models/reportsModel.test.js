@@ -24,6 +24,7 @@ describe('Report Model', () => {
   describe('calculateReportData', () => {
     it('should calculate report metrics and keep commission fields manual', async () => {
       mockQuery
+        .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({ rows: [{ count: '10' }] })
         .mockResolvedValueOnce({ rows: [{ total: '10', earliest: '2024-01-01', latest: '2024-01-31' }] })
         .mockResolvedValueOnce({ rows: [{ source_name: 'Website', count: '5' }] })
@@ -65,7 +66,7 @@ describe('Report Model', () => {
       await expect(
         Report.calculateReportData(1, 'invalid-date', '2024-01-31')
       ).rejects.toThrow('Invalid date range supplied for calculation');
-      expect(mockQuery).not.toHaveBeenCalled();
+      expect(mockQuery).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -90,6 +91,7 @@ describe('Report Model', () => {
         .mockResolvedValueOnce({ rows: [] }) // existing report check
         .mockResolvedValueOnce({ rows: [] }) // properties with referrals
         .mockResolvedValueOnce({ rows: [] }) // leads with referrals
+        .mockResolvedValueOnce({ rows: [] }) // ensurePropertyClosingCommissionSchema
         .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // listings
         .mockResolvedValueOnce({ rows: [{ total: '0', earliest: null, latest: null }] }) // debug
         .mockResolvedValueOnce({ rows: [] }) // leads
@@ -236,7 +238,7 @@ describe('Report Model', () => {
   });
 
   describe('recalculateReport', () => {
-    it('should recalculate counts without overwriting manual commissions', async () => {
+    it('should recalculate counts and refresh sales amount and commissions', async () => {
       mockQuery
         .mockResolvedValueOnce({ rows: [] }) // ensureExternalColumnExists
         .mockResolvedValueOnce({
@@ -253,6 +255,7 @@ describe('Report Model', () => {
         })
         .mockResolvedValueOnce({ rows: [] }) // properties with referrals
         .mockResolvedValueOnce({ rows: [] }) // leads with referrals
+        .mockResolvedValueOnce({ rows: [] }) // ensurePropertyClosingCommissionSchema
         .mockResolvedValueOnce({ rows: [{ count: '15' }] })
         .mockResolvedValueOnce({ rows: [{ total: '15', earliest: '2024-01-01', latest: '2024-01-31' }] })
         .mockResolvedValueOnce({ rows: [] })
@@ -263,10 +266,11 @@ describe('Report Model', () => {
         .mockResolvedValueOnce({ rows: [{ count: '0' }] })
         .mockResolvedValueOnce({
           rows: [{
-            agent_commission: '0',
-            finders_commission: '0',
-            team_leader_commission: '0',
-            administration_commission: '0'
+            agent_commission: '1000',
+            finders_commission: '200',
+            team_leader_commission: '300',
+            administration_commission: '400',
+            referrals_on_properties_commission: '500'
           }]
         })
         .mockResolvedValueOnce({
@@ -279,17 +283,32 @@ describe('Report Model', () => {
             end_date: '2024-01-31',
             listings_count: 15,
             sales_count: 8,
-            agent_commission: 1234,
-            total_commission: 5678
+            sales_amount: 800000,
+            agent_commission: 1000,
+            finders_commission: 200,
+            team_leader_commission: 300,
+            administration_commission: 400,
+            referrals_on_properties_commission: 500,
+            total_commission: 2400
           }]
         });
 
       const result = await Report.recalculateReport(1);
 
+      const updateCall = mockQuery.mock.calls[mockQuery.mock.calls.length - 1];
+      expect(updateCall[0]).toContain('sales_amount = $5');
+      expect(updateCall[0]).toContain('agent_commission = $6');
+      expect(updateCall[0]).toContain('referrals_on_properties_commission = $13');
+
       expect(result.listings_count).toBe(15);
       expect(result.sales_count).toBe(8);
-      expect(result.agent_commission).toBe(1234);
-      expect(result.total_commission).toBe(5678);
+      expect(result.sales_amount).toBe(800000);
+      expect(result.agent_commission).toBe(1000);
+      expect(result.finders_commission).toBe(200);
+      expect(result.team_leader_commission).toBe(300);
+      expect(result.administration_commission).toBe(400);
+      expect(result.referrals_on_properties_commission).toBe(500);
+      expect(result.total_commission).toBe(2400);
     });
   });
 

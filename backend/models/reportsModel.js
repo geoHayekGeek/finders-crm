@@ -816,8 +816,8 @@ class Report {
         recalculationEnd
       );
 
-      // Update report with new calculations, keeping manual fields
-      // Only update start_date and end_date if they are null (COALESCE will keep existing values if they exist)
+      // Update report with the fresh calculated fields while preserving the manual inputs
+      // that are intentionally user-editable elsewhere in the report workflow.
       const result = await pool.query(
         `UPDATE monthly_agent_reports SET
           listings_count = $1,
@@ -825,12 +825,18 @@ class Report {
           viewings_count = $3,
           sales_count = $4,
           sales_amount = $5,
-          referral_received_count = $6,
-          referrals_on_properties_count = $7,
-          start_date = COALESCE(start_date, $8::date),
-          end_date = COALESCE(end_date, $9::date),
+          agent_commission = $6,
+          finders_commission = $7,
+          team_leader_commission = $8,
+          administration_commission = $9,
+          total_commission = $10,
+          referral_received_count = $11,
+          referrals_on_properties_count = $12,
+          referrals_on_properties_commission = $13,
+          start_date = COALESCE(start_date, $14::date),
+          end_date = COALESCE(end_date, $15::date),
           updated_at = NOW()
-        WHERE id = $10
+        WHERE id = $16
         RETURNING *`,
         [
           calculatedData.listings_count,
@@ -838,8 +844,14 @@ class Report {
           calculatedData.viewings_count,
           calculatedData.sales_count,
           calculatedData.sales_amount,
+          calculatedData.agent_commission,
+          calculatedData.finders_commission,
+          calculatedData.team_leader_commission,
+          calculatedData.administration_commission,
+          calculatedData.total_commission,
           calculatedData.referral_received_count,
           calculatedData.referrals_on_properties_count,
+          calculatedData.referrals_on_properties_commission,
           recalculationStart || null,
           recalculationEnd || null,
           reportId
