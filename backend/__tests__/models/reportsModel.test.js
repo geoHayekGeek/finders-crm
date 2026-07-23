@@ -38,7 +38,9 @@ describe('Report Model', () => {
             agent_commission: '0',
             finders_commission: '0',
             team_leader_commission: '0',
-            administration_commission: '0'
+            administration_commission: '0',
+            referral_received_commission: '750',
+            referrals_on_properties_commission: '0'
           }]
         });
 
@@ -56,10 +58,16 @@ describe('Report Model', () => {
         team_leader_commission: 0,
         administration_commission: 0,
         total_commission: 0,
-        referral_received_commission: 0,
+        referral_received_commission: 750,
         referrals_on_properties_commission: 0
       });
       expect(result.lead_sources).toEqual({ Website: 5 });
+
+      const closingCommissionQuery = mockQuery.mock.calls[9][0];
+      expect(closingCommissionQuery).toContain('latest_property_referral.employee_id = $1');
+      expect(closingCommissionQuery).toContain('latest_lead_referral.agent_id = $1');
+      expect(closingCommissionQuery).toContain('r.external = FALSE');
+      expect(closingCommissionQuery).toContain('lr.external = FALSE');
     });
 
     it('should reject invalid date ranges before querying', async () => {
@@ -105,7 +113,9 @@ describe('Report Model', () => {
             agent_commission: '0',
             finders_commission: '0',
             team_leader_commission: '0',
-            administration_commission: '0'
+            administration_commission: '0',
+            referral_received_commission: '0',
+            referrals_on_properties_commission: '0'
           }]
         }) // closing commissions
         .mockResolvedValueOnce({
@@ -270,6 +280,7 @@ describe('Report Model', () => {
             finders_commission: '200',
             team_leader_commission: '300',
             administration_commission: '400',
+            referral_received_commission: '250',
             referrals_on_properties_commission: '500'
           }]
         })
@@ -288,6 +299,7 @@ describe('Report Model', () => {
             finders_commission: 200,
             team_leader_commission: 300,
             administration_commission: 400,
+            referral_received_commission: 250,
             referrals_on_properties_commission: 500,
             total_commission: 2400
           }]
@@ -298,7 +310,9 @@ describe('Report Model', () => {
       const updateCall = mockQuery.mock.calls[mockQuery.mock.calls.length - 1];
       expect(updateCall[0]).toContain('sales_amount = $5');
       expect(updateCall[0]).toContain('agent_commission = $6');
-      expect(updateCall[0]).toContain('referrals_on_properties_commission = $13');
+      expect(updateCall[0]).toContain('referral_received_commission = $12');
+      expect(updateCall[0]).toContain('referrals_on_properties_commission = $14');
+      expect(updateCall[1][11]).toBe(250);
 
       expect(result.listings_count).toBe(15);
       expect(result.sales_count).toBe(8);
@@ -307,6 +321,7 @@ describe('Report Model', () => {
       expect(result.finders_commission).toBe(200);
       expect(result.team_leader_commission).toBe(300);
       expect(result.administration_commission).toBe(400);
+      expect(result.referral_received_commission).toBe(250);
       expect(result.referrals_on_properties_commission).toBe(500);
       expect(result.total_commission).toBe(2400);
     });

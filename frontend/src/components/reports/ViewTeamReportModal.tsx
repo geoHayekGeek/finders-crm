@@ -88,6 +88,14 @@ function AgentReportPanel({ report, isCompact = false }: { report: MonthlyAgentR
             <p className="text-xs font-medium text-orange-600 uppercase tracking-wide">Administration Commission</p>
             <p className="mt-2 text-2xl font-bold text-orange-900">{formatCurrency(report.administration_commission ?? 0)}</p>
           </div>
+          <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+            <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Referral Commission Earned</p>
+            <p className="mt-2 text-2xl font-bold text-teal-900">{formatCurrency(report.referral_received_commission ?? 0)}</p>
+          </div>
+          <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+            <p className="text-xs font-medium text-cyan-600 uppercase tracking-wide">Referrals on Properties Commission</p>
+            <p className="mt-2 text-2xl font-bold text-cyan-900">{formatCurrency(report.referrals_on_properties_commission ?? 0)}</p>
+          </div>
           <div className="bg-green-50 border border-green-200 rounded-lg p-4 md:col-span-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-green-900 uppercase tracking-wide">Total Commission</p>
@@ -276,6 +284,14 @@ export default function ViewTeamReportModal({ report, onClose }: ViewTeamReportM
                     <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                       <p className="text-xs font-medium text-orange-600 uppercase tracking-wide">Administration Commission</p>
                       <p className="mt-2 text-xl font-bold text-orange-900">{formatCurrency(report.administration_commission ?? 0)}</p>
+                    </div>
+                    <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                      <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Referral Commission Earned</p>
+                      <p className="mt-2 text-xl font-bold text-teal-900">{formatCurrency(report.referral_received_commission ?? 0)}</p>
+                    </div>
+                    <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                      <p className="text-xs font-medium text-cyan-600 uppercase tracking-wide">Referrals on Properties Commission</p>
+                      <p className="mt-2 text-xl font-bold text-cyan-900">{formatCurrency(report.referrals_on_properties_commission ?? 0)}</p>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

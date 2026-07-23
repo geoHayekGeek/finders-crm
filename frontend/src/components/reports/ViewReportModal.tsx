@@ -1,6 +1,6 @@
 'use client'
 
-import { X, CalendarRange, Building2, Users, Eye, TrendingUp, DollarSign, Sparkles, ClipboardList } from 'lucide-react'
+import { X, CalendarRange, Building2, Users, Eye, TrendingUp, DollarSign, Sparkles } from 'lucide-react'
 import { MonthlyAgentReport } from '@/types/reports'
 import { formatCurrency } from '@/utils/formatters'
 import { useMemo } from 'react'
@@ -240,7 +240,7 @@ export default function ViewReportModal({ report, onClose }: ViewReportModalProp
 
                 {report.referral_received_commission !== undefined && report.referral_received_commission > 0 && (
                   <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 md:col-span-2">
-                    <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Referral Received Commission</p>
+                    <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Referral Commission Earned</p>
                     <p className="mt-2 text-2xl font-bold text-teal-900">
                       {formatCurrency(report.referral_received_commission)}
                     </p>

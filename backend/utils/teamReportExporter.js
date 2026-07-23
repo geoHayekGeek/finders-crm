@@ -195,7 +195,7 @@ function populateReportWorksheet(worksheet, report, options = {}) {
       referralData.push(['Referrals Received Count', report.referral_received_count || 0]);
     }
     if (report.referral_received_commission !== undefined) {
-      referralData.push(['Commission Received', formatCurrencyValue(report.referral_received_commission || 0)]);
+      referralData.push(['Referral Commission Earned', formatCurrencyValue(report.referral_received_commission || 0)]);
     }
 
     if (referralData.length > 0) {

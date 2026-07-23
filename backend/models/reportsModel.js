@@ -578,7 +578,50 @@ class Report {
       let closingCommissionResult;
       try {
         closingCommissionResult = await pool.query(
-          `SELECT
+          `WITH latest_property_referrals AS (
+             SELECT DISTINCT ON (r.property_id)
+               r.property_id,
+               r.employee_id
+             FROM referrals r
+             WHERE r.external = FALSE
+             ORDER BY r.property_id, r.date DESC, r.created_at DESC, r.id DESC
+           ),
+           latest_lead_referrals AS (
+             SELECT DISTINCT ON (lr.lead_id)
+               lr.lead_id,
+               lr.agent_id
+             FROM lead_referrals lr
+             WHERE lr.external = FALSE
+             ORDER BY lr.lead_id, lr.referral_date DESC, lr.created_at DESC, lr.id DESC
+           ),
+           referral_earnings AS (
+             SELECT
+               COALESCE((
+                 SELECT SUM(COALESCE(referred_property.latest_property_referral_commission, 0))
+                 FROM properties referred_property
+                 INNER JOIN latest_property_referrals latest_property_referral
+                   ON latest_property_referral.property_id = referred_property.id
+                  AND latest_property_referral.employee_id = $1
+                 WHERE referred_property.closed_date >= $2::date
+                   AND referred_property.closed_date <= $3::date
+                   AND referred_property.status_id IN (
+                     ${CLOSURE_STATUS_ID_SUBQUERY}
+                   )
+               ), 0) +
+               COALESCE((
+                 SELECT SUM(COALESCE(referred_lead_property.latest_lead_referral_commission, 0))
+                 FROM properties referred_lead_property
+                 INNER JOIN latest_lead_referrals latest_lead_referral
+                   ON latest_lead_referral.lead_id = referred_lead_property.owner_id
+                  AND latest_lead_referral.agent_id = $1
+                 WHERE referred_lead_property.closed_date >= $2::date
+                   AND referred_lead_property.closed_date <= $3::date
+                   AND referred_lead_property.status_id IN (
+                     ${CLOSURE_STATUS_ID_SUBQUERY}
+                   )
+               ), 0) AS commission
+           )
+           SELECT
              COALESCE(SUM(COALESCE(p.agent_commission, p.commission, 0)), 0) as agent_commission,
              COALESCE(SUM(COALESCE(p.finders_commission, 0)), 0) as finders_commission,
              COALESCE(SUM(COALESCE(p.team_leader_commission, 0)), 0) as team_leader_commission,
@@ -587,7 +630,8 @@ class Report {
                COALESCE(p.latest_property_referral_commission, 0) +
                COALESCE(p.latest_lead_referral_commission, 0) +
                COALESCE(p.external_referral_commission, 0)
-             ), 0) as referrals_on_properties_commission
+             ), 0) as referrals_on_properties_commission,
+             (SELECT commission FROM referral_earnings) as referral_received_commission
            FROM properties p
            WHERE p.agent_id = $1
            AND p.closed_date >= $2::date
@@ -605,7 +649,8 @@ class Report {
                0 as finders_commission,
                0 as team_leader_commission,
                0 as administration_commission,
-               0 as referrals_on_properties_commission
+               0 as referrals_on_properties_commission,
+               0 as referral_received_commission
              FROM properties p
              WHERE p.agent_id = $1
              AND p.closed_date >= $2::date
@@ -623,7 +668,7 @@ class Report {
       const finders_commission = parseFloat(closingCommissionResult.rows[0].finders_commission) || 0;
       const team_leader_commission = parseFloat(closingCommissionResult.rows[0].team_leader_commission) || 0;
       const administration_commission = parseFloat(closingCommissionResult.rows[0].administration_commission) || 0;
-      const referral_received_commission = 0;
+      const referral_received_commission = parseFloat(closingCommissionResult.rows[0].referral_received_commission) || 0;
       const referrals_on_properties_commission = parseFloat(closingCommissionResult.rows[0].referrals_on_properties_commission) || 0;
       const referral_commission = 0;
       const total_commission = roundMoney(
@@ -831,12 +876,13 @@ class Report {
           administration_commission = $9,
           total_commission = $10,
           referral_received_count = $11,
-          referrals_on_properties_count = $12,
-          referrals_on_properties_commission = $13,
-          start_date = COALESCE(start_date, $14::date),
-          end_date = COALESCE(end_date, $15::date),
+          referral_received_commission = $12,
+          referrals_on_properties_count = $13,
+          referrals_on_properties_commission = $14,
+          start_date = COALESCE(start_date, $15::date),
+          end_date = COALESCE(end_date, $16::date),
           updated_at = NOW()
-        WHERE id = $16
+        WHERE id = $17
         RETURNING *`,
         [
           calculatedData.listings_count,
@@ -850,6 +896,7 @@ class Report {
           calculatedData.administration_commission,
           calculatedData.total_commission,
           calculatedData.referral_received_count,
+          calculatedData.referral_received_commission,
           calculatedData.referrals_on_properties_count,
           calculatedData.referrals_on_properties_commission,
           recalculationStart || null,

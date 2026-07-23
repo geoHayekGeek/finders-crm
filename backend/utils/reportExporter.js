@@ -134,7 +134,7 @@ async function exportToExcel(report) {
     }
     // Only show commission if available (team leaders won't have this)
     if (report.referral_received_commission !== undefined) {
-      referralData.push(['Commission Received', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      referralData.push(['Referral Commission Earned', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
     }
     
     if (referralData.length > 0) {
@@ -286,7 +286,7 @@ function exportToPDF(report) {
         }
         // Only show commission if available (team leaders won't have this)
         if (report.referral_received_commission !== undefined) {
-          referralData.push(['Commission Received', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+          referralData.push(['Referral Commission Earned', `$${parseFloat(report.referral_received_commission || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
         }
         
         if (referralData.length > 0) {
