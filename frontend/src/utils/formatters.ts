@@ -1,13 +1,27 @@
 // frontend/src/utils/formatters.ts
 
+const normalizeCurrencyInput = (value: number | string | null | undefined): number | null => {
+  if (value === null || value === undefined || value === '') {
+    return null
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  const parsed = Number(String(value).replace(/[$,\s]/g, ''))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 /**
  * Format a number as currency (USD)
  * @param value - The number to format
  * @param currency - The currency code (default: 'USD')
  * @returns Formatted currency string
  */
-export function formatCurrency(value: number, currency: string = 'USD'): string {
-  if (typeof value !== 'number' || isNaN(value) || !isFinite(value)) {
+export function formatCurrency(value: number | string | null | undefined, currency: string = 'USD'): string {
+  const numericValue = normalizeCurrencyInput(value)
+  if (numericValue === null) {
     return '$0'
   }
   try {
@@ -16,10 +30,10 @@ export function formatCurrency(value: number, currency: string = 'USD'): string 
       currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
-    }).format(value)
-  } catch (error) {
+    }).format(numericValue)
+  } catch {
     // Fallback to simple formatting if Intl.NumberFormat fails
-    return `$${value.toFixed(2)}`
+    return `$${numericValue.toFixed(2)}`
   }
 }
 
@@ -44,7 +58,7 @@ export function formatPercentage(value: number, decimals: number = 2): string {
   }
   try {
     return `${(value * 100).toFixed(decimals)}%`
-  } catch (error) {
+  } catch {
     return '0%'
   }
 }
@@ -67,7 +81,7 @@ export function formatBytes(bytes: number): string {
     const i = Math.floor(Math.log(bytes) / Math.log(k))
 
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`
-  } catch (error) {
+  } catch {
     return '0 Bytes'
   }
 }
