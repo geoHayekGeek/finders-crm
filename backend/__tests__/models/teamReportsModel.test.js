@@ -105,7 +105,14 @@ describe('Team Reports Model', () => {
       )
 
       expect(User.getTeamLeaderAgents).toHaveBeenCalledWith(7)
-      expect(Report.calculateReportData).toHaveBeenCalledWith(
+      expect(Report.calculateReportData).toHaveBeenNthCalledWith(
+        1,
+        7,
+        expect.any(Date),
+        expect.any(Date)
+      )
+      expect(Report.calculateReportData).toHaveBeenNthCalledWith(
+        2,
         11,
         expect.any(Date),
         expect.any(Date)

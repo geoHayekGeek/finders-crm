@@ -180,6 +180,10 @@ async function createTeamMonthlyReport(reportData, createdBy) {
   if (!teamMembers || teamMembers.length === 0) {
     throw new Error('Team leader has no active agents');
   }
+  const reportMembers = [
+    leaderResult.rows[0],
+    ...teamMembers.filter((member) => member.id !== team_leader_id)
+  ];
 
   const derivedMonth = startDateUtc.getUTCMonth() + 1;
   const derivedYear = startDateUtc.getUTCFullYear();
@@ -201,7 +205,7 @@ async function createTeamMonthlyReport(reportData, createdBy) {
   }
 
   const agentReports = [];
-  for (const member of teamMembers) {
+  for (const member of reportMembers) {
     const snapshot = await buildAgentSnapshot(member, startDateUtc, endDateUtc);
     agentReports.push(snapshot);
   }
