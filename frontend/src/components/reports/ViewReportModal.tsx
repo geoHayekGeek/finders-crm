@@ -16,6 +16,10 @@ export default function ViewReportModal({ report, onClose }: ViewReportModalProp
   const { role } = usePermissions()
   const normalizedRole = normalizeRole(role);
   const isTeamLeader = normalizedRole === 'team leader'
+  const hasReferralReceivedCommission =
+    (report.referral_received_count ?? 0) > 0 || (report.referral_received_commission ?? 0) > 0
+  const hasReferralsOnPropertiesCommission =
+    (report.referrals_on_properties_count ?? 0) > 0 || (report.referrals_on_properties_commission ?? 0) > 0
 
   const formatter = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
@@ -238,20 +242,20 @@ export default function ViewReportModal({ report, onClose }: ViewReportModalProp
                   </div>
                 </div>
 
-                {report.referral_received_commission !== undefined && report.referral_received_commission > 0 && (
+                {hasReferralReceivedCommission && (
                   <div className="bg-teal-50 border border-teal-200 rounded-lg p-4 md:col-span-2">
                     <p className="text-xs font-medium text-teal-600 uppercase tracking-wide">Referral Commission Earned</p>
                     <p className="mt-2 text-2xl font-bold text-teal-900">
-                      {formatCurrency(report.referral_received_commission)}
+                      {formatCurrency(report.referral_received_commission ?? 0)}
                     </p>
                   </div>
                 )}
 
-                {report.referrals_on_properties_commission !== undefined && report.referrals_on_properties_commission > 0 && (
+                {hasReferralsOnPropertiesCommission && (
                   <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4 md:col-span-2">
                     <p className="text-xs font-medium text-cyan-600 uppercase tracking-wide">Referrals on Properties Commission</p>
                     <p className="mt-2 text-2xl font-bold text-cyan-900">
-                      {formatCurrency(report.referrals_on_properties_commission)}
+                      {formatCurrency(report.referrals_on_properties_commission ?? 0)}
                     </p>
                   </div>
                 )}

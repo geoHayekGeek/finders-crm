@@ -466,6 +466,20 @@ export function PropertyModals({
   const canViewViewingsForProperty = (property: Property | null): boolean => {
     return canViewViewingsForPropertyUtil(property, user, canManageProperties, teamAgentIds)
   }
+
+  const getLatestInternalPropertyReferral = (property: Property | null) => {
+    if (!property) return null
+    if (property.latest_property_referral) return property.latest_property_referral
+    if (!Array.isArray(property.referrals)) return null
+
+    return [...property.referrals]
+      .filter((referral) => referral.external === false)
+      .sort((left, right) => {
+        const leftDate = new Date(left.date || left.created_at || 0).getTime()
+        const rightDate = new Date(right.date || right.created_at || 0).getTime()
+        return rightDate - leftDate
+      })[0] || null
+  }
   
   // Check if user can create viewings
   const canCreateViewings = () => {
@@ -3877,11 +3891,14 @@ export function PropertyModals({
                     if (isClosureStatusForProperty(viewPropertyData)) {
                       const closingCommissionData = resolveClosingCommissionData(viewPropertyData)
                       const externalReferralCommissions = closingCommissionData.external_referral_commissions || []
-                      const hasLatestPropertyReferral = Boolean(viewPropertyData.latest_property_referral)
-                      const hasLatestLeadReferral = Boolean(viewPropertyData.latest_lead_referral)
+                      const latestPropertyReferral = getLatestInternalPropertyReferral(viewPropertyData)
+                      const hasLatestPropertyReferral =
+                        Boolean(latestPropertyReferral) || (closingCommissionData.latest_property_referral_commission ?? 0) > 0
+                      const hasLatestLeadReferral =
+                        Boolean(viewPropertyData.latest_lead_referral) || (closingCommissionData.latest_lead_referral_commission ?? 0) > 0
                       const latestPropertyReferralLabel = hasLatestPropertyReferral
-                        ? viewPropertyData.latest_property_referral?.name ||
-                          viewPropertyData.latest_property_referral?.employee_name ||
+                        ? latestPropertyReferral?.name ||
+                          latestPropertyReferral?.employee_name ||
                           'Property referral'
                         : ''
                       const latestLeadReferralLabel = hasLatestLeadReferral
