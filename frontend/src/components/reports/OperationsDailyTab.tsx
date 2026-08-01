@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Plus, RefreshCw, FileSpreadsheet, FileText, Trash2, Calendar, Edit, X } from 'lucide-react'
-import { OperationsDailyReport, OperationsDailyFilters } from '@/types/reports'
+import { useEffect, useState } from 'react'
+import { Calendar, Edit, FileSpreadsheet, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
+import { OperationsDailyFilters, OperationsDailyReport } from '@/types/reports'
 import { operationsDailyApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
@@ -11,31 +11,49 @@ import CreateOperationsDailyModal from './CreateOperationsDailyModal'
 import EditOperationsDailyModal from './EditOperationsDailyModal'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { formatDateDisplay, formatDateInput } from '@/utils/formatters'
+import { OPERATIONS_DAILY_VISIBLE_FIELD_DEFINITIONS } from './operationsDailyFields'
+
+const DAILY_TABLE_COLUMNS = OPERATIONS_DAILY_VISIBLE_FIELD_DEFINITIONS
+
+function normalizeCellValue(value: unknown) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0
+  }
+
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function getFieldTone(value: number, fieldKey: string) {
+  if (fieldKey === 'tasks_efficiency' && value < 0) {
+    return 'text-red-600'
+  }
+
+  return 'text-gray-900'
+}
 
 export default function OperationsDailyTab() {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
 
-  // State
   const [reports, setReports] = useState<OperationsDailyReport[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<OperationsDailyFilters>({})
-  
+
   const today = new Date()
   const defaultDate = formatDateInput(today)
 
-  // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedReport, setSelectedReport] = useState<OperationsDailyReport | null>(null)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [reportToDelete, setReportToDelete] = useState<number | null>(null)
 
-  // Load data
   useEffect(() => {
     if (token) {
       loadReports()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, filters])
 
   const loadReports = async () => {
@@ -52,7 +70,6 @@ export default function OperationsDailyTab() {
     }
   }
 
-  // Handle edit
   const handleEdit = async (reportId: number) => {
     try {
       const response = await operationsDailyApi.getById(reportId, token)
@@ -65,7 +82,6 @@ export default function OperationsDailyTab() {
     }
   }
 
-  // Handle recalculate
   const handleRecalculate = async (reportId: number) => {
     try {
       const response = await operationsDailyApi.recalculate(reportId, token)
@@ -78,7 +94,6 @@ export default function OperationsDailyTab() {
     }
   }
 
-  // Handle delete
   const handleDelete = async (reportId: number) => {
     setReportToDelete(reportId)
     setShowDeleteModal(true)
@@ -100,152 +115,137 @@ export default function OperationsDailyTab() {
     }
   }
 
-  // Handle export to Excel
   const handleExportExcel = async (reportId: number) => {
     try {
       const blob = await operationsDailyApi.exportToExcel(reportId, token)
-      
-      const report = reports.find(r => r.id === reportId)
+
+      const report = reports.find((item) => item.id === reportId)
       const dateStr = report?.report_date || 'report'
       const operationsName = report?.operations_name?.replace(/\s+/g, '_') || 'report'
       const filename = `Operations_Daily_${operationsName}_${dateStr}.xlsx`
 
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
       window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      document.body.removeChild(link)
       showSuccess('Report exported to Excel successfully')
     } catch (error: any) {
       showError(error.message || 'Failed to export report to Excel')
     }
   }
 
-  // Handle export to PDF
   const handleExportPDF = async (reportId: number) => {
     try {
       const blob = await operationsDailyApi.exportToPDF(reportId, token)
-      
-      const report = reports.find(r => r.id === reportId)
+
+      const report = reports.find((item) => item.id === reportId)
       const dateStr = report?.report_date || 'report'
       const operationsName = report?.operations_name?.replace(/\s+/g, '_') || 'report'
       const filename = `Operations_Daily_${operationsName}_${dateStr}.pdf`
 
       const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
       window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      document.body.removeChild(link)
       showSuccess('Report exported to PDF successfully')
     } catch (error: any) {
       showError(error.message || 'Failed to export report to PDF')
     }
   }
 
-  // Calculate effective leads responded to (subtract out of duty time)
-  const getEffectiveLeadsResponded = (report: OperationsDailyReport) => {
-    return Math.max(0, report.leads_responded_to - (report.leads_responded_out_of_duty_time || 0))
-  }
-
-  // Format date
   const formatDate = (dateStr: string) => {
     return formatDateDisplay(dateStr, { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
-  // Simple filters component
   const SimpleFilters = () => {
     const hasActiveFilters = Boolean(filters.operations_id || filters.report_date || filters.start_date || filters.end_date)
 
     return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="flex items-center justify-between mb-4">
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center">
-            <Calendar className="h-5 w-5 text-gray-400 mr-2" />
+            <Calendar className="mr-2 h-5 w-5 text-gray-400" />
             <h3 className="text-lg font-medium text-gray-900">Filters</h3>
           </div>
           {hasActiveFilters && (
             <button
               onClick={() => setFilters({})}
-              className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center"
+              className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-700"
             >
-              <X className="h-4 w-4 mr-1" />
+              <X className="mr-1 h-4 w-4" />
               Clear Filters
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Operations
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Operations</label>
             <OperationsSelector
               selectedOperationsId={filters.operations_id}
-              onOperationsChange={(id) => setFilters(prev => ({ ...prev, operations_id: id }))}
+              onOperationsChange={(id) => setFilters((prev) => ({ ...prev, operations_id: id }))}
               placeholder="All operations"
               onlyOperations={true}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Report Date
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Report Date</label>
             <input
               type="date"
               value={filters.report_date || ''}
-              onChange={(e) => {
-                const value = e.target.value || undefined
-                setFilters(prev => ({ ...prev, report_date: value, start_date: undefined, end_date: undefined }))
+              onChange={(event) => {
+                const value = event.target.value || undefined
+                setFilters((prev) => ({ ...prev, report_date: value, start_date: undefined, end_date: undefined }))
               }}
-              className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Start Date
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">Start Date</label>
             <input
               type="date"
               value={filters.start_date || ''}
-              onChange={(e) => {
-                const value = e.target.value || undefined
-                setFilters(prev => {
+              onChange={(event) => {
+                const value = event.target.value || undefined
+                setFilters((prev) => {
                   if (value && prev?.end_date && value > prev.end_date) {
                     return { ...prev, start_date: value, end_date: value, report_date: undefined }
                   }
+
                   return { ...prev, start_date: value, report_date: undefined }
                 })
               }}
-              className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
               max={filters.end_date || undefined}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              End Date
-            </label>
+            <label className="mb-2 block text-sm font-medium text-gray-700">End Date</label>
             <input
               type="date"
               value={filters.end_date || ''}
-              onChange={(e) => {
-                const value = e.target.value || undefined
-                setFilters(prev => {
+              onChange={(event) => {
+                const value = event.target.value || undefined
+                setFilters((prev) => {
                   if (value && prev?.start_date && value < prev.start_date) {
                     return { ...prev, start_date: value, end_date: value, report_date: undefined }
                   }
+
                   return { ...prev, end_date: value, report_date: undefined }
                 })
               }}
-              className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 bg-white"
+              className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
               min={filters.start_date || undefined}
             />
           </div>
@@ -255,12 +255,16 @@ export default function OperationsDailyTab() {
           {[
             { label: 'Today', date: defaultDate },
             { label: 'Yesterday', date: formatDateInput(new Date(Date.now() - 24 * 60 * 60 * 1000)) },
-            { label: 'Month to Date', start: (() => {
-              const today = new Date()
-              const year = today.getFullYear()
-              const month = String(today.getMonth() + 1).padStart(2, '0')
-              return `${year}-${month}-01`
-            })(), end: defaultDate },
+            {
+              label: 'Month to Date',
+              start: (() => {
+                const current = new Date()
+                const year = current.getFullYear()
+                const month = String(current.getMonth() + 1).padStart(2, '0')
+                return `${year}-${month}-01`
+              })(),
+              end: defaultDate
+            },
             { label: 'Last 7 Days', start: formatDateInput(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)), end: defaultDate },
             { label: 'Last 30 Days', start: formatDateInput(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)), end: defaultDate }
           ].map((preset) => (
@@ -274,7 +278,7 @@ export default function OperationsDailyTab() {
                   setFilters({ start_date: preset.start, end_date: preset.end })
                 }
               }}
-              className="px-3 py-1 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
+              className="rounded-full border border-blue-200 px-3 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100"
             >
               {preset.label}
             </button>
@@ -284,100 +288,88 @@ export default function OperationsDailyTab() {
     )
   }
 
+  const visibleFieldCount = DAILY_TABLE_COLUMNS.length
+  const totalColumnCount = 3 + visibleFieldCount
+
   return (
     <div className="space-y-6">
-      {/* Filters */}
       <SimpleFilters />
 
-      {/* Actions Bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setShowCreateModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
           >
-            <Plus className="h-5 w-5 mr-2" />
+            <Plus className="mr-2 h-5 w-5" />
             Create Report
           </button>
           <button
             onClick={loadReports}
             disabled={loading}
-            className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
           >
-            <RefreshCw className={`h-5 w-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`mr-2 h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </button>
         </div>
       </div>
 
-      {/* Info Card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
         <div className="flex items-start">
-          <Calendar className="h-5 w-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" />
+          <Calendar className="mr-3 mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" />
           <div>
-            <h3 className="text-sm font-medium text-blue-900 mb-1">
-              Operations Daily Reports
-            </h3>
+            <h3 className="mb-1 text-sm font-medium text-blue-900">Operations Daily Reports</h3>
             <p className="text-sm text-blue-700">
-              Track daily operations activities including properties added, leads responded to, and task efficiency metrics.
-              Calculated fields load from the database and can be adjusted in the create or edit flow.
+              Review the workbook-style daily columns for each operations user. The calculated database values are
+              visible in the same row layout as the Excel sheet, and you can edit them during create or update.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Reports Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="rounded-lg bg-white shadow-sm ring-1 ring-gray-200">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-[1600px] divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Date
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Operations
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Admin and Operations
                 </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex flex-col items-center">
-                    <span>Properties Added</span>
-                    <span className="text-blue-500 font-normal normal-case mt-0.5">(Calculated)</span>
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex flex-col items-center">
-                    <span>Leads Responded</span>
-                    <span className="text-blue-500 font-normal normal-case mt-0.5">(Calculated)</span>
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  <div className="flex flex-col items-center">
-                    <span>Amending Properties</span>
-                    <span className="text-blue-500 font-normal normal-case mt-0.5">(Calculated)</span>
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Preparing Contract
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Tasks Efficiency
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {DAILY_TABLE_COLUMNS.map((field) => (
+                  <th
+                    key={field.key}
+                    className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500"
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="whitespace-pre-line">{field.label}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        field.calculated ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {field.calculated ? 'Calculated' : 'Editable'}
+                      </span>
+                    </div>
+                  </th>
+                ))}
+                <th className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100 bg-white">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                    <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-2 text-blue-600" />
+                  <td colSpan={totalColumnCount} className="px-6 py-12 text-center text-gray-500">
+                    <RefreshCw className="mx-auto mb-2 h-8 w-8 animate-spin text-blue-600" />
                     Loading reports...
                   </td>
                 </tr>
               ) : reports.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={totalColumnCount} className="px-6 py-12 text-center text-gray-500">
                     No reports found. Create your first report to get started.
                   </td>
                 </tr>
@@ -388,51 +380,27 @@ export default function OperationsDailyTab() {
                       {formatDate(report.report_date)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {report.operations_name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex flex-col items-center">
-                        <span className="text-lg font-bold text-blue-600">{report.properties_added}</span>
-                        <span className="text-xs text-blue-500 font-medium">Properties Added</span>
-                        <span className="text-xs text-gray-400 mt-0.5">(calculated)</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{report.operations_name}</span>
+                        <span className="text-xs text-gray-500">ID #{report.operations_id}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex flex-col items-center">
-                        <span className="text-lg font-bold text-blue-600">{getEffectiveLeadsResponded(report)}</span>
-                        <span className="text-xs text-blue-500 font-medium">Leads Responded</span>
-                        {report.leads_responded_out_of_duty_time > 0 && (
-                          <span className="text-xs text-gray-500 mt-0.5">
-                            ({report.leads_responded_to} total - {report.leads_responded_out_of_duty_time} out of duty)
-                          </span>
-                        )}
-                        <span className="text-xs text-gray-400 mt-0.5">(calculated)</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                      <div className="flex flex-col items-center">
-                        <span className="text-lg font-bold text-blue-600">{report.amending_previous_properties}</span>
-                        <span className="text-xs text-blue-500 font-medium">Amending Properties</span>
-                        <span className="text-xs text-gray-400 mt-0.5">(calculated)</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                      {report.preparing_contract || 0}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-900">
-                      <div className="flex flex-col space-y-1">
-                        <span className="text-xs">
-                          Duty: <span className={report.tasks_efficiency_duty_time < 0 ? 'text-red-600 font-semibold' : ''}>{report.tasks_efficiency_duty_time || 0}</span>
-                        </span>
-                        <span className="text-xs">
-                          Uniform: <span className={report.tasks_efficiency_uniform < 0 ? 'text-red-600 font-semibold' : ''}>{report.tasks_efficiency_uniform || 0}</span>
-                        </span>
-                        <span className="text-xs">
-                          After Duty: <span className={report.tasks_efficiency_after_duty < 0 ? 'text-red-600 font-semibold' : ''}>{report.tasks_efficiency_after_duty || 0}</span>
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                    {DAILY_TABLE_COLUMNS.map((field) => {
+                      const value = normalizeCellValue(report[field.key as keyof OperationsDailyReport])
+                      const tone = getFieldTone(value, field.key)
+
+                      return (
+                        <td key={field.key} className="px-4 py-4 text-center align-middle">
+                          <div className="flex flex-col items-center">
+                            <span className={`text-lg font-semibold ${tone}`}>{value}</span>
+                            <span className="mt-0.5 text-[11px] text-gray-400">
+                              {field.calculated ? 'database-driven' : 'editable'}
+                            </span>
+                          </div>
+                        </td>
+                      )
+                    })}
+                    <td className="px-6 py-4 text-center">
                       <div className="flex items-center justify-center space-x-2">
                         <button
                           onClick={() => handleEdit(report.id)}
@@ -479,7 +447,6 @@ export default function OperationsDailyTab() {
         </div>
       </div>
 
-      {/* Create Modal */}
       <CreateOperationsDailyModal
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -489,7 +456,6 @@ export default function OperationsDailyTab() {
         }}
       />
 
-      {/* Edit Modal */}
       {selectedReport && showEditModal && (
         <EditOperationsDailyModal
           report={selectedReport}
@@ -505,7 +471,6 @@ export default function OperationsDailyTab() {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => {
@@ -521,4 +486,3 @@ export default function OperationsDailyTab() {
     </div>
   )
 }
-

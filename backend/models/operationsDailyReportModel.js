@@ -2,20 +2,13 @@
 // Model for Operations Daily Reports
 
 const pool = require('../config/db');
-
-const CALCULATED_DAILY_FIELDS = [
-  'properties_added',
-  'leads_responded_to',
-  'amending_previous_properties'
-];
-
-const MANUAL_DAILY_FIELDS = [
-  'preparing_contract',
-  'tasks_efficiency_duty_time',
-  'tasks_efficiency_uniform',
-  'tasks_efficiency_after_duty',
-  'leads_responded_out_of_duty_time'
-];
+const {
+  DAILY_CALCULATED_FIELDS,
+  DAILY_MANUAL_FIELDS,
+  DAILY_INSERT_FIELDS,
+  resolveDailyFieldValues,
+  normalizeDailyIntegerValue
+} = require('../utils/operationsDailyFields');
 
 /**
  * Normalize and validate a date
@@ -81,26 +74,8 @@ function normalizeDate(dateInput) {
   };
 }
 
-function normalizeIntegerValue(value, fallback = 0) {
-  if (value === undefined || value === null || value === '') {
-    return fallback;
-  }
-
-  const parsed = typeof value === 'number'
-    ? value
-    : parseInt(String(value), 10);
-
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
 function hasOwnValue(source, field) {
   return Object.prototype.hasOwnProperty.call(source || {}, field);
-}
-
-function getResolvedDailyValue(source, field, fallback = 0) {
-  return hasOwnValue(source, field)
-    ? normalizeIntegerValue(source[field], fallback)
-    : fallback;
 }
 
 /**
@@ -142,8 +117,9 @@ async function calculateDailyData(operations_id, reportDateInput) {
       client.query(
         `SELECT COUNT(*) as count
          FROM properties
-         WHERE DATE(created_at AT TIME ZONE 'UTC') = $1::date`,
-        [dateStr]
+         WHERE created_by = $1
+           AND DATE(created_at AT TIME ZONE 'UTC') = $2::date`,
+        [normalizedOperationsId, dateStr]
       ),
       client.query(
         `SELECT COUNT(*) as count
@@ -155,9 +131,10 @@ async function calculateDailyData(operations_id, reportDateInput) {
       client.query(
         `SELECT COUNT(*) as count
          FROM properties
-         WHERE DATE(updated_at AT TIME ZONE 'UTC') = $1::date
-           AND DATE(created_at AT TIME ZONE 'UTC') < $1::date`,
-        [dateStr]
+         WHERE created_by = $1
+           AND DATE(updated_at AT TIME ZONE 'UTC') = $2::date
+           AND DATE(created_at AT TIME ZONE 'UTC') < $2::date`,
+        [normalizedOperationsId, dateStr]
       )
     ]);
 
@@ -185,55 +162,101 @@ async function calculateDailyData(operations_id, reportDateInput) {
  * @param {Object} inputFields - Manual input fields and optional calculated overrides
  * @returns {Promise<Object>} - Created report
  */
-async function createReport(operations_id, report_date, inputFields = {}) {
+async function createReportRecord(db, operations_id, report_date, inputFields = {}) {
   const { dateStr } = normalizeDate(report_date);
+  const normalizedOperationsId = Number(operations_id);
 
-  // Check if report already exists
-  const existing = await pool.query(
+  const existing = await db.query(
     'SELECT id FROM operations_daily_reports WHERE operations_id = $1 AND report_date = $2',
-    [operations_id, dateStr]
+    [normalizedOperationsId, dateStr]
   );
 
   if (existing.rows.length > 0) {
     throw new Error('A report already exists for this operations user and date');
   }
 
-  const calculatedData = await calculateDailyData(operations_id, dateStr);
-  const resolvedFields = {
-    properties_added: getResolvedDailyValue(inputFields, 'properties_added', calculatedData.properties_added),
-    leads_responded_to: getResolvedDailyValue(inputFields, 'leads_responded_to', calculatedData.leads_responded_to),
-    amending_previous_properties: getResolvedDailyValue(inputFields, 'amending_previous_properties', calculatedData.amending_previous_properties),
-    preparing_contract: getResolvedDailyValue(inputFields, 'preparing_contract', 0),
-    tasks_efficiency_duty_time: getResolvedDailyValue(inputFields, 'tasks_efficiency_duty_time', 0),
-    tasks_efficiency_uniform: getResolvedDailyValue(inputFields, 'tasks_efficiency_uniform', 0),
-    tasks_efficiency_after_duty: getResolvedDailyValue(inputFields, 'tasks_efficiency_after_duty', 0),
-    leads_responded_out_of_duty_time: getResolvedDailyValue(inputFields, 'leads_responded_out_of_duty_time', 0)
-  };
-  
-  const result = await pool.query(
-    `INSERT INTO operations_daily_reports 
-      (operations_id, operations_name, report_date, 
-       properties_added, leads_responded_to, amending_previous_properties,
-       preparing_contract, tasks_efficiency_duty_time, tasks_efficiency_uniform, 
-       tasks_efficiency_after_duty, leads_responded_out_of_duty_time)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  const calculatedData = await calculateDailyData(normalizedOperationsId, dateStr);
+  const resolvedFields = resolveDailyFieldValues(calculatedData, inputFields);
+  const insertColumns = [
+    'operations_id',
+    'operations_name',
+    'report_date',
+    ...DAILY_INSERT_FIELDS
+  ];
+  const insertValues = [
+    calculatedData.operations_id,
+    calculatedData.operations_name,
+    calculatedData.report_date,
+    ...DAILY_INSERT_FIELDS.map((field) => normalizeDailyIntegerValue(resolvedFields[field], 0))
+  ];
+  const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ');
+
+  const result = await db.query(
+    `INSERT INTO operations_daily_reports (${insertColumns.join(', ')})
+     VALUES (${placeholders})
      RETURNING *`,
-    [
-      calculatedData.operations_id,
-      calculatedData.operations_name,
-      calculatedData.report_date,
-      resolvedFields.properties_added,
-      resolvedFields.leads_responded_to,
-      resolvedFields.amending_previous_properties,
-      resolvedFields.preparing_contract,
-      resolvedFields.tasks_efficiency_duty_time,
-      resolvedFields.tasks_efficiency_uniform,
-      resolvedFields.tasks_efficiency_after_duty,
-      resolvedFields.leads_responded_out_of_duty_time
-    ]
+    insertValues
   );
-  
+
   return result.rows[0];
+}
+
+async function createReport(operations_id, report_date, inputFields = {}) {
+  return await createReportRecord(pool, operations_id, report_date, inputFields);
+}
+
+async function createReportsBulk(operationsReports = [], report_date) {
+  if (!Array.isArray(operationsReports) || operationsReports.length === 0) {
+    throw new Error('At least one operations user is required');
+  }
+
+  const { dateStr } = normalizeDate(report_date);
+  const client = await pool.connect();
+
+  try {
+    const normalizedReports = operationsReports
+      .map((entry) => ({
+        ...entry,
+        operations_id: Number(entry.operations_id)
+      }))
+      .filter((entry) => Number.isInteger(entry.operations_id) && entry.operations_id > 0);
+
+    if (normalizedReports.length === 0) {
+      throw new Error('At least one operations user is required');
+    }
+
+    await client.query('BEGIN');
+
+    const created = [];
+    const skipped = [];
+
+    for (const entry of normalizedReports) {
+      const existing = await client.query(
+        'SELECT id FROM operations_daily_reports WHERE operations_id = $1 AND report_date = $2',
+        [entry.operations_id, dateStr]
+      );
+
+      if (existing.rows.length > 0) {
+        skipped.push({
+          operations_id: entry.operations_id,
+          reason: 'Report already exists'
+        });
+        continue;
+      }
+
+      const report = await createReportRecord(client, entry.operations_id, dateStr, entry);
+      created.push(report);
+    }
+
+    await client.query('COMMIT');
+
+    return { created, skipped, report_date: dateStr };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -317,7 +340,7 @@ async function updateReport(id, data) {
 
   const appendField = (field, value) => {
     updateFields.push(`${field} = $${paramCount++}`);
-    params.push(normalizeIntegerValue(value, 0));
+    params.push(normalizeDailyIntegerValue(value, 0));
   };
 
   // If recalculate is true, recalculate the calculated fields
@@ -327,11 +350,11 @@ async function updateReport(id, data) {
       existingReport.report_date
     );
 
-    CALCULATED_DAILY_FIELDS.forEach((field) => {
+    DAILY_CALCULATED_FIELDS.forEach((field) => {
       appendField(field, calculatedData[field]);
     });
   } else {
-    CALCULATED_DAILY_FIELDS.forEach((field) => {
+    DAILY_CALCULATED_FIELDS.forEach((field) => {
       if (hasOwnValue(data, field)) {
         appendField(field, data[field]);
       }
@@ -339,7 +362,7 @@ async function updateReport(id, data) {
   }
 
   // Update manual fields if provided
-  MANUAL_DAILY_FIELDS.forEach((field) => {
+  DAILY_MANUAL_FIELDS.forEach((field) => {
     if (hasOwnValue(data, field)) {
       appendField(field, data[field]);
     }
@@ -407,6 +430,7 @@ async function getOperationsUsers() {
 module.exports = {
   calculateDailyData,
   createReport,
+  createReportsBulk,
   getAllReports,
   getReportById,
   updateReport,

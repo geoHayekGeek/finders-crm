@@ -360,23 +360,55 @@ export interface SaleRentSourceExportPayload {
 }
 
 // Operations Daily Report Types
+export interface OperationsDailyWorkbookFields {
+  properties_added?: number
+  preparing_daily_report?: number
+  phone_calls_duty_time?: number
+  replying_to_msg_on_sm_duty_time?: number
+  cvs?: number
+  amending_previous_properties?: number
+  filling?: number
+  preparing_contract?: number
+  tasks_efficiency?: number
+  phone_calls_out_of_duty_time?: number
+  replying_to_msg_on_sm_out_of_duty_time?: number
+  replying_to_whats_up_msg_out_of_duty_time?: number
+}
+
+export interface OperationsDailyLegacyFields {
+  leads_responded_to?: number
+  leads_responded_out_of_duty_time?: number
+  tasks_efficiency_duty_time?: number
+  tasks_efficiency_uniform?: number
+  tasks_efficiency_after_duty?: number
+}
+
 export interface OperationsDailyReport {
   id: number
   operations_id: number
   operations_name: string
   report_date: string
   
-  // Calculated fields (from database)
+  // Workbook-style daily fields
   properties_added: number
-  leads_responded_to: number
+  preparing_daily_report: number
+  phone_calls_duty_time: number
+  replying_to_msg_on_sm_duty_time: number
+  cvs: number
   amending_previous_properties: number
-  
-  // Manual input fields
+  filling: number
   preparing_contract: number
-  tasks_efficiency_duty_time: number
-  tasks_efficiency_uniform: number
-  tasks_efficiency_after_duty: number
-  leads_responded_out_of_duty_time: number
+  tasks_efficiency: number
+  phone_calls_out_of_duty_time: number
+  replying_to_msg_on_sm_out_of_duty_time: number
+  replying_to_whats_up_msg_out_of_duty_time: number
+
+  // Legacy/internal fields retained for compatibility
+  leads_responded_to?: number
+  leads_responded_out_of_duty_time?: number
+  tasks_efficiency_duty_time?: number
+  tasks_efficiency_uniform?: number
+  tasks_efficiency_after_duty?: number
   
   created_at: string
   updated_at: string
@@ -387,13 +419,56 @@ export interface OperationsDailyPreviewData {
   operations_name: string
   report_date: string
   properties_added: number
-  leads_responded_to: number
   amending_previous_properties: number
+  preparing_daily_report: number
+  phone_calls_duty_time: number
+  replying_to_msg_on_sm_duty_time: number
+  cvs: number
+  filling: number
   preparing_contract: number
-  tasks_efficiency_duty_time: number
-  tasks_efficiency_uniform: number
-  tasks_efficiency_after_duty: number
-  leads_responded_out_of_duty_time: number
+  tasks_efficiency: number
+  phone_calls_out_of_duty_time: number
+  replying_to_msg_on_sm_out_of_duty_time: number
+  replying_to_whats_up_msg_out_of_duty_time: number
+  leads_responded_to?: number
+  leads_responded_out_of_duty_time?: number
+  tasks_efficiency_duty_time?: number
+  tasks_efficiency_uniform?: number
+  tasks_efficiency_after_duty?: number
+}
+
+export interface OperationsDailyBulkPreviewRow extends OperationsDailyPreviewData {
+  report_exists?: boolean
+  existing_report_id?: number | null
+}
+
+export interface OperationsDailyBulkPreviewData {
+  report_date: string
+  reports: OperationsDailyBulkPreviewRow[]
+}
+
+export interface OperationsDailyBulkCreateRow extends OperationsDailyWorkbookFields, OperationsDailyLegacyFields {
+  operations_id: number
+}
+
+export interface OperationsDailyBulkCreateData {
+  report_date: string
+  operations_ids?: number[]
+  all_operations?: boolean
+  rows?: OperationsDailyBulkCreateRow[]
+}
+
+export interface OperationsDailyBulkCreateSkippedRow {
+  operations_id: number
+  reason: string
+  operations_name?: string
+  existing_report_id?: number | null
+}
+
+export interface OperationsDailyBulkCreateResult {
+  report_date: string
+  created: OperationsDailyReport[]
+  skipped: OperationsDailyBulkCreateSkippedRow[]
 }
 
 export interface OperationsDailyFilters {
@@ -407,24 +482,42 @@ export interface CreateOperationsDailyData {
   operations_id: number
   report_date: string
   properties_added?: number
-  leads_responded_to?: number
   amending_previous_properties?: number
+  preparing_daily_report?: number
+  phone_calls_duty_time?: number
+  replying_to_msg_on_sm_duty_time?: number
+  cvs?: number
+  filling?: number
   preparing_contract?: number
+  tasks_efficiency?: number
+  phone_calls_out_of_duty_time?: number
+  replying_to_msg_on_sm_out_of_duty_time?: number
+  replying_to_whats_up_msg_out_of_duty_time?: number
+  leads_responded_to?: number
+  leads_responded_out_of_duty_time?: number
   tasks_efficiency_duty_time?: number
   tasks_efficiency_uniform?: number
   tasks_efficiency_after_duty?: number
-  leads_responded_out_of_duty_time?: number
 }
 
 export interface UpdateOperationsDailyData {
   properties_added?: number
-  leads_responded_to?: number
   amending_previous_properties?: number
+  preparing_daily_report?: number
+  phone_calls_duty_time?: number
+  replying_to_msg_on_sm_duty_time?: number
+  cvs?: number
+  filling?: number
   preparing_contract?: number
+  tasks_efficiency?: number
+  phone_calls_out_of_duty_time?: number
+  replying_to_msg_on_sm_out_of_duty_time?: number
+  replying_to_whats_up_msg_out_of_duty_time?: number
+  leads_responded_to?: number
+  leads_responded_out_of_duty_time?: number
   tasks_efficiency_duty_time?: number
   tasks_efficiency_uniform?: number
   tasks_efficiency_after_duty?: number
-  leads_responded_out_of_duty_time?: number
   recalculate?: boolean
 }
 

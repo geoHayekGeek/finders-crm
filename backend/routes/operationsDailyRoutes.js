@@ -13,6 +13,9 @@ router.get('/operations-users', operationsDailyController.getOperationsUsers);
 // Preview calculated values without saving
 router.post('/preview', operationsDailyController.previewReport);
 
+// Preview multiple reports without saving
+router.post('/bulk-preview', operationsDailyController.previewBulkReport);
+
 // Get all operations daily reports with optional filters
 router.get('/', operationsDailyController.getAllReports);
 
@@ -21,6 +24,9 @@ router.get('/:id', operationsDailyController.getReportById);
 
 // Create a new operations daily report
 router.post('/', operationsDailyController.createReport);
+
+// Create multiple operations daily reports
+router.post('/bulk', operationsDailyController.createBulkReports);
 
 // Update an existing operations daily report
 router.put('/:id', operationsDailyController.updateReport);

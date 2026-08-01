@@ -3,17 +3,7 @@
 
 const operationsDailyModel = require('../models/operationsDailyReportModel');
 const { exportOperationsDailyToExcel, exportOperationsDailyToPDF } = require('../utils/operationsDailyExporter');
-
-const DAILY_EDITABLE_FIELDS = [
-  'properties_added',
-  'leads_responded_to',
-  'amending_previous_properties',
-  'preparing_contract',
-  'tasks_efficiency_duty_time',
-  'tasks_efficiency_uniform',
-  'tasks_efficiency_after_duty',
-  'leads_responded_out_of_duty_time'
-];
+const { DAILY_INSERT_FIELDS } = require('../utils/operationsDailyFields');
 
 function parseOperationsId(operations_id) {
   const parsed = Number(operations_id);
@@ -25,7 +15,7 @@ function parseOperationsId(operations_id) {
 }
 
 function pickEditableFields(source = {}) {
-  return DAILY_EDITABLE_FIELDS.reduce((acc, field) => {
+  return DAILY_INSERT_FIELDS.reduce((acc, field) => {
     if (Object.prototype.hasOwnProperty.call(source, field)) {
       acc[field] = source[field];
     }
@@ -59,6 +49,94 @@ function parseReportDateInput(report_date) {
   }
 
   return dateUtc.toISOString().split('T')[0];
+}
+
+function normalizeBulkReportRows(rows = []) {
+  return rows
+    .map((row) => {
+      if (!row || row.operations_id === undefined || row.operations_id === null || row.operations_id === '') {
+        return null;
+      }
+
+      let operationsId;
+      try {
+        operationsId = parseOperationsId(row.operations_id);
+      } catch (error) {
+        return null;
+      }
+
+      return {
+        operations_id: operationsId,
+        ...pickEditableFields(row)
+      };
+    })
+    .filter(Boolean);
+}
+
+async function resolveBulkOperationsIds(body = {}) {
+  if (Array.isArray(body.rows) && body.rows.length > 0) {
+    const rowIds = normalizeBulkReportRows(body.rows).map((row) => row.operations_id);
+    if (rowIds.length > 0) {
+      return rowIds;
+    }
+  }
+
+  if (Array.isArray(body.operations_ids) && body.operations_ids.length > 0) {
+    return body.operations_ids.map((operationsId) => parseOperationsId(operationsId));
+  }
+
+  if (body.operations_id !== undefined && body.operations_id !== null && body.operations_id !== '') {
+    return [parseOperationsId(body.operations_id)];
+  }
+
+  if (body.all_operations) {
+    const users = await operationsDailyModel.getOperationsUsers();
+    return users.map((user) => user.id);
+  }
+
+  return [];
+}
+
+async function buildBulkPreviewRows(body = {}) {
+  const reportDate = parseReportDateInput(body.report_date);
+  const operationsIds = await resolveBulkOperationsIds(body);
+
+  if (operationsIds.length === 0) {
+    throw new Error('At least one operations user is required');
+  }
+
+  const overridesByOperationsId = new Map(
+    normalizeBulkReportRows(body.rows || []).map((row) => [row.operations_id, row])
+  );
+
+  const previewRows = await Promise.all(
+    operationsIds.map(async (operationsId) => {
+      const calculated = await operationsDailyModel.calculateDailyData(operationsId, reportDate);
+      const overrides = overridesByOperationsId.get(operationsId) || {};
+      const merged = {
+        ...calculated,
+        ...pickEditableFields(overrides)
+      };
+
+      const existingReports = await operationsDailyModel.getAllReports({
+        operations_id: operationsId,
+        report_date: reportDate
+      });
+
+      return {
+        ...merged,
+        operations_id: operationsId,
+        report_date: reportDate,
+        report_exists: existingReports.length > 0,
+        existing_report_id: existingReports[0]?.id || null
+      };
+    })
+  );
+
+  return {
+    report_date: reportDate,
+    reports: previewRows
+  };
 }
 
 function formatReportDateLabel(dateValue, options) {
@@ -321,6 +399,123 @@ async function previewReport(req, res) {
 }
 
 /**
+ * Preview multiple operations daily reports without persisting them
+ * POST /api/operations-daily/bulk-preview
+ */
+async function previewBulkReport(req, res) {
+  try {
+    console.log('📊 Calculating bulk operations daily preview:', req.body);
+
+    const preview = await buildBulkPreviewRows(req.body);
+
+    console.log(`✅ Calculated bulk operations daily preview for ${preview.reports.length} operations user(s)`);
+
+    res.json({
+      success: true,
+      data: preview,
+      message: 'Operations daily bulk preview calculated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error calculating bulk operations daily preview:', error);
+
+    if (error.message?.includes('Date is required') || error.message?.includes('Invalid date format')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (error.message?.includes('At least one operations user is required')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select at least one operations user'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate bulk operations daily preview',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Create multiple operations daily reports
+ * POST /api/operations-daily/bulk
+ */
+async function createBulkReports(req, res) {
+  try {
+    console.log('📊 Creating bulk operations daily reports:', req.body);
+
+    const { report_date } = req.body;
+
+    if (!report_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Report date is required'
+      });
+    }
+
+    const reportDate = parseReportDateInput(report_date);
+
+    let rows = [];
+    if (Array.isArray(req.body.rows) && req.body.rows.length > 0) {
+      rows = normalizeBulkReportRows(req.body.rows);
+    } else {
+      const operationsIds = await resolveBulkOperationsIds(req.body);
+      rows = operationsIds.map((operationsId) => ({
+        operations_id: operationsId
+      }));
+    }
+
+    if (rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select at least one operations user'
+      });
+    }
+
+    const result = await operationsDailyModel.createReportsBulk(rows, reportDate);
+    const createdCount = result.created.length;
+    const skippedCount = result.skipped.length;
+    const message = skippedCount > 0
+      ? `Created ${createdCount} report(s) and skipped ${skippedCount} existing report(s)`
+      : `Created ${createdCount} operations daily report(s)`;
+
+    console.log(`✅ Bulk operations daily reports created successfully: ${createdCount} created, ${skippedCount} skipped`);
+
+    res.status(201).json({
+      success: true,
+      data: result,
+      message
+    });
+  } catch (error) {
+    console.error('❌ Error creating bulk operations daily reports:', error);
+
+    if (error.message?.includes('Date is required') || error.message?.includes('Invalid date format')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (error.message?.includes('At least one operations user is required')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select at least one operations user'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to create bulk operations daily reports',
+      error: error.message
+    });
+  }
+}
+
+/**
  * Recalculate an operations daily report
  * POST /api/operations-daily/:id/recalculate
  */
@@ -501,8 +696,10 @@ module.exports = {
   getAllReports,
   getReportById,
   createReport,
+  createBulkReports,
   updateReport,
   previewReport,
+  previewBulkReport,
   recalculateReport,
   deleteReport,
   exportReportToExcel,

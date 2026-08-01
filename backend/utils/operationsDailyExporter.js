@@ -1,5 +1,54 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
+const {
+  DAILY_EXPORT_HEADERS,
+  LEGACY_DAILY_FIELD_DEFINITIONS,
+  WORKBOOK_DAILY_FIELD_DEFINITIONS,
+  normalizeDailyIntegerValue
+} = require('./operationsDailyFields');
+
+const DAILY_COLUMN_WIDTHS = [
+  9.4140625,
+  17.484375,
+  9.4140625,
+  11.56640625,
+  11.43359375,
+  13,
+  9.55078125,
+  11.43359375,
+  9.4140625,
+  13.44921875,
+  13,
+  13,
+  14.52734375,
+  14.390625
+];
+
+const HEADER_BORDER = {
+  top: { style: 'thin', color: { argb: 'FF000000' } },
+  left: { style: 'thin', color: { argb: 'FF000000' } },
+  bottom: { style: 'medium', color: { argb: 'FF000000' } },
+  right: { style: 'thin', color: { argb: 'FF000000' } }
+};
+
+const DATA_BORDER = {
+  top: { style: 'thin', color: { argb: 'FF000000' } },
+  left: { style: 'thin', color: { argb: 'FF000000' } },
+  bottom: { style: 'thin', color: { argb: 'FF000000' } },
+  right: { style: 'thin', color: { argb: 'FF000000' } }
+};
+
+const HEADER_FILL = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFF2F2F2' }
+};
+
+const DATA_FILL = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFFFFFFF' }
+};
 
 function parseDateOnly(dateValue) {
   if (!dateValue) {
@@ -44,95 +93,78 @@ function formatReportDate(dateValue, options) {
  */
 async function exportOperationsDailyToExcel(report) {
   const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet('Operations Daily Report');
+  const dailyRows = buildDailyExportRows(report);
+  const firstReport = Array.isArray(report) ? report[0] : report;
+  const sheetName = getDailySheetName(firstReport?.report_date);
+  const worksheet = workbook.addWorksheet(sheetName);
 
-  // Set column widths
-  worksheet.columns = [
-    { width: 30 },  // Field
-    { width: 20 }   // Value
-  ];
+  worksheet.columns = DAILY_COLUMN_WIDTHS.map((width) => ({ width }));
 
-  // Title
-  worksheet.mergeCells('A1:B1');
-  const titleCell = worksheet.getCell('A1');
-  titleCell.value = 'Operations Daily Report';
-  titleCell.font = { size: 16, bold: true };
-  titleCell.alignment = { horizontal: 'center' };
-
-  // Report date and operations name
-  worksheet.mergeCells('A2:B2');
-  const periodCell = worksheet.getCell('A2');
-  const reportName = report.operations_name || 'Operations';
-  periodCell.value = `${reportName} | ${formatReportDate(report.report_date, { month: 'short', day: '2-digit', year: 'numeric' })}`;
-  periodCell.font = { size: 12, italic: true };
-  periodCell.alignment = { horizontal: 'center' };
-
-  let currentRow = 4;
-
-  // Calculated Fields Section
-  worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-  const calculatedHeaderCell = worksheet.getCell(`A${currentRow}`);
-  calculatedHeaderCell.value = 'Calculated Fields';
-  calculatedHeaderCell.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-  calculatedHeaderCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF2563EB' }
+  const headerStyle = {
+    font: { name: 'Aptos Narrow', size: 11, bold: true },
+    fill: HEADER_FILL,
+    border: HEADER_BORDER,
+    alignment: { horizontal: 'center', vertical: 'middle', wrapText: true }
   };
-  calculatedHeaderCell.alignment = { horizontal: 'center' };
-  currentRow++;
 
-  // Calculate effective leads responded to (subtract out of duty time)
-  const effectiveLeadsResponded = Math.max(0, report.leads_responded_to - (report.leads_responded_out_of_duty_time || 0));
+  const dataStyle = {
+    font: { name: 'Aptos Narrow', size: 11 },
+    fill: DATA_FILL,
+    border: DATA_BORDER,
+    alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+    numFmt: '0'
+  };
 
-  const calculatedData = [
-    ['Properties Added', report.properties_added],
-    ['Leads Responded To', `${effectiveLeadsResponded} (${report.leads_responded_to} total, ${report.leads_responded_out_of_duty_time || 0} out of duty)`],
-    ['Amending Previous Properties', report.amending_previous_properties]
-  ];
-
-  calculatedData.forEach(([label, value]) => {
-    worksheet.getCell(`A${currentRow}`).value = label;
-    worksheet.getCell(`A${currentRow}`).font = { bold: true };
-    worksheet.getCell(`B${currentRow}`).value = value;
-    currentRow++;
+  worksheet.getRow(2).height = 30;
+  worksheet.getRow(3).height = 42;
+  dailyRows.forEach((row, index) => {
+    worksheet.getRow(4 + index).height = 30;
   });
 
-  currentRow++; // Add spacing
-
-  // Manual Fields Section
-  worksheet.mergeCells(`A${currentRow}:B${currentRow}`);
-  const manualHeaderCell = worksheet.getCell(`A${currentRow}`);
-  manualHeaderCell.value = 'Manual Fields';
-  manualHeaderCell.font = { size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
-  manualHeaderCell.fill = {
-    type: 'pattern',
-    pattern: 'solid',
-    fgColor: { argb: 'FF059669' }
-  };
-  manualHeaderCell.alignment = { horizontal: 'center' };
-  currentRow++;
-
-  const manualData = [
-    ['Preparing Contract', report.preparing_contract || 0],
-    ['Tasks Efficiency - Duty Time', report.tasks_efficiency_duty_time || 0],
-    ['Tasks Efficiency - Uniform', report.tasks_efficiency_uniform || 0],
-    ['Tasks Efficiency - After Duty Performance', report.tasks_efficiency_after_duty || 0],
-    ['Leads Responded Out of Duty Time', report.leads_responded_out_of_duty_time || 0]
-  ];
-
-  manualData.forEach(([label, value]) => {
-    worksheet.getCell(`A${currentRow}`).value = label;
-    worksheet.getCell(`A${currentRow}`).font = { bold: true };
-    worksheet.getCell(`B${currentRow}`).value = value;
-    // Highlight negative values in red
-    if (typeof value === 'number' && value < 0) {
-      worksheet.getCell(`B${currentRow}`).font = { color: { argb: 'FFFF0000' } };
-    }
-    currentRow++;
+  writeWorkbookCell(worksheet, 2, 1, getDailyDayNumber(firstReport?.report_date), {
+    font: { name: 'Aptos Narrow', size: 11, bold: true },
+    border: DATA_BORDER,
+    alignment: { horizontal: 'center', vertical: 'middle' },
+    numFmt: '0'
   });
 
-  // Return buffer
+  writeWorkbookCell(worksheet, 3, 1, null, headerStyle);
+  DAILY_EXPORT_HEADERS.forEach((header, index) => {
+    writeWorkbookCell(worksheet, 3, index + 2, header, headerStyle);
+  });
+
+  dailyRows.forEach((row, index) => {
+    const rowNumber = 4 + index;
+    writeWorkbookCell(worksheet, rowNumber, 1, row.sequence, {
+      font: { name: 'Aptos Narrow', size: 11, bold: true },
+      fill: DATA_FILL,
+      border: DATA_BORDER,
+      alignment: { horizontal: 'center', vertical: 'middle' },
+      numFmt: '0'
+    });
+
+    writeWorkbookCell(worksheet, rowNumber, 2, row.values[0], {
+      font: { name: 'Aptos Narrow', size: 11 },
+      fill: DATA_FILL,
+      border: DATA_BORDER,
+      alignment: { horizontal: 'left', vertical: 'middle' }
+    });
+
+    row.values.slice(1).forEach((value, valueIndex) => {
+      const cell = writeWorkbookCell(worksheet, rowNumber, valueIndex + 3, value, {
+        font: { name: 'Aptos Narrow', size: 11 },
+        fill: DATA_FILL,
+        border: DATA_BORDER,
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        numFmt: '0'
+      });
+
+      if (typeof value === 'number' && value < 0) {
+        cell.font = { name: 'Aptos Narrow', size: 11, color: { argb: 'FFFF0000' } };
+      }
+    });
+  });
+
   return await workbook.xlsx.writeBuffer();
 }
 
@@ -142,7 +174,7 @@ async function exportOperationsDailyToExcel(report) {
 function exportOperationsDailyToPDF(report) {
   return new Promise((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+      const doc = new PDFDocument({ margin: 40, size: 'LETTER', layout: 'landscape' });
       const chunks = [];
 
       doc.on('data', chunk => chunks.push(chunk));
@@ -153,20 +185,20 @@ function exportOperationsDailyToPDF(report) {
       const reportName = report.operations_name || 'Operations';
 
       // Title Section
-      doc.fontSize(24).font('Helvetica-Bold').fillColor('#2563EB')
+      doc.fontSize(22).font('Helvetica-Bold').fillColor('#2563EB')
          .text('Operations Daily Report', { align: 'center' });
       doc.moveDown(0.3);
-      doc.fontSize(14).font('Helvetica-Oblique').fillColor('#666666')
+      doc.fontSize(13).font('Helvetica-Oblique').fillColor('#666666')
          .text(`${reportName} | ${reportDateLabel}`, { align: 'center' });
-      doc.moveDown(1.5);
+      doc.moveDown(1);
       doc.fillColor('#000000');
 
       // Helper function to add section with proper styling
       const addSection = (title, data, headerColor = '#2563EB') => {
         const startY = doc.y;
-        const sectionWidth = 495;
+        const sectionWidth = doc.page.width - 80;
         const headerHeight = 28;
-        const leftMargin = 50;
+        const leftMargin = 40;
         
         // Draw header background
         doc.rect(leftMargin, startY, sectionWidth, headerHeight)
@@ -201,31 +233,24 @@ function exportOperationsDailyToPDF(report) {
         doc.moveDown(0.6);
       };
 
-      // Calculate effective leads responded to
-      const effectiveLeadsResponded = Math.max(0, report.leads_responded_to - (report.leads_responded_out_of_duty_time || 0));
+      // Workbook-style daily fields
+      addSection('Workbook Daily Fields', WORKBOOK_DAILY_FIELD_DEFINITIONS.map((field) => [
+        field.label,
+        normalizeDailyIntegerValue(report[field.key], 0)
+      ]), '#2563EB');
 
-      // Calculated Fields Section
-      addSection('Calculated Fields', [
-        ['Properties Added', report.properties_added],
-        ['Leads Responded To', `${effectiveLeadsResponded} (${report.leads_responded_to} total, ${report.leads_responded_out_of_duty_time || 0} out of duty)`],
-        ['Amending Previous Properties', report.amending_previous_properties]
-      ], '#2563EB');
-
-      // Manual Fields Section
-      addSection('Manual Fields', [
-        ['Preparing Contract', report.preparing_contract || 0],
-        ['Tasks Efficiency - Duty Time', report.tasks_efficiency_duty_time || 0],
-        ['Tasks Efficiency - Uniform', report.tasks_efficiency_uniform || 0],
-        ['Tasks Efficiency - After Duty Performance', report.tasks_efficiency_after_duty || 0],
-        ['Leads Responded Out of Duty Time', report.leads_responded_out_of_duty_time || 0]
-      ], '#059669');
+      // Legacy internal fields kept for compatibility
+      addSection('Legacy Internal Fields', LEGACY_DAILY_FIELD_DEFINITIONS.map((field) => [
+        field.label,
+        normalizeDailyIntegerValue(report[field.key], 0)
+      ]), '#2563EB');
 
       // Footer
       const footerY = doc.page.height - 50;
       doc.fontSize(8).font('Helvetica-Oblique').fillColor('#999999')
          .text(`Generated on ${new Date().toLocaleString('en-US')}`, 50, footerY, { 
            align: 'center',
-           width: 495
+           width: doc.page.width - 100
          });
 
       doc.end();
@@ -233,6 +258,55 @@ function exportOperationsDailyToPDF(report) {
       reject(error);
     }
   });
+}
+
+function getDailySheetName(dateValue) {
+  const parsed = parseDateOnly(dateValue);
+  if (!parsed) {
+    return 'Daily';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    timeZone: 'UTC'
+  }).format(parsed).toUpperCase();
+}
+
+function getDailyDayNumber(dateValue) {
+  const parsed = parseDateOnly(dateValue);
+  if (!parsed) {
+    return '';
+  }
+
+  return parsed.getUTCDate();
+}
+
+function buildDailyExportRows(reportOrReports) {
+  const reports = Array.isArray(reportOrReports)
+    ? reportOrReports.filter(Boolean)
+    : [reportOrReports].filter(Boolean);
+
+  return reports.map((report, index) => ({
+    sequence: index + 1,
+    report,
+    values: [
+      report.operations_name || 'Operations',
+      ...WORKBOOK_DAILY_FIELD_DEFINITIONS.map((field) => normalizeDailyIntegerValue(report[field.key], 0))
+    ]
+  }));
+}
+
+function writeWorkbookCell(worksheet, rowNumber, columnNumber, value, style = {}) {
+  const cell = worksheet.getCell(rowNumber, columnNumber);
+  cell.value = value;
+
+  if (style.font) cell.font = style.font;
+  if (style.fill) cell.fill = style.fill;
+  if (style.border) cell.border = style.border;
+  if (style.alignment) cell.alignment = style.alignment;
+  if (style.numFmt) cell.numFmt = style.numFmt;
+
+  return cell;
 }
 
 module.exports = {

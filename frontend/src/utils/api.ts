@@ -4,7 +4,7 @@ import { LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateL
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, SaleRentSourceExportPayload, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData, OperationsDailyPreviewData } from '@/types/reports'
+import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, SaleRentSourceExportPayload, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData, OperationsDailyPreviewData, OperationsDailyBulkCreateData, OperationsDailyBulkCreateResult, OperationsDailyBulkPreviewData } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
 // For client-side code, only NEXT_PUBLIC_* variables are available
@@ -2095,11 +2095,31 @@ export const operationsDailyApi = {
     token
   ),
 
+  // Preview multiple reports without persisting them
+  previewBulk: (data: OperationsDailyBulkCreateData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyBulkPreviewData; message: string }>(
+    '/operations-daily/bulk-preview',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
   // Update an existing operations daily report
   update: (id: number, data: UpdateOperationsDailyData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyReport; message: string }>(
     `/operations-daily/${id}`,
     {
       method: 'PUT',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Create multiple operations daily reports
+  createBulk: (data: OperationsDailyBulkCreateData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyBulkCreateResult; message: string }>(
+    '/operations-daily/bulk',
+    {
+      method: 'POST',
       body: JSON.stringify(data),
     },
     token
