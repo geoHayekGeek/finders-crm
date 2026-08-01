@@ -3,6 +3,7 @@
 -- before the workbook-style daily columns were added.
 
 ALTER TABLE operations_daily_reports
+  ADD COLUMN IF NOT EXISTS operations_rows JSONB NOT NULL DEFAULT '[]'::JSONB,
   ADD COLUMN IF NOT EXISTS properties_added INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS leads_responded_to INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS amending_previous_properties INTEGER NOT NULL DEFAULT 0,

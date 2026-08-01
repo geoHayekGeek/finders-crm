@@ -178,7 +178,10 @@ describe('Operations Daily Controller', () => {
         all_operations: true
       };
 
-      operationsDailyModel.getOperationsUsers.mockResolvedValue([{ id: 1 }, { id: 2 }]);
+      operationsDailyModel.getOperationsUsers.mockResolvedValue([
+        { id: 1, name: 'Ops 1' },
+        { id: 2, name: 'Ops 2' }
+      ]);
       operationsDailyModel.createReportsBulk.mockResolvedValue({
         created: [{ id: 10 }],
         skipped: [],
@@ -190,8 +193,8 @@ describe('Operations Daily Controller', () => {
       expect(operationsDailyModel.getOperationsUsers).toHaveBeenCalled();
       expect(operationsDailyModel.createReportsBulk).toHaveBeenCalledWith(
         [
-          { operations_id: 1 },
-          { operations_id: 2 }
+          { operations_id: 1, operations_name: 'Ops 1' },
+          { operations_id: 2, operations_name: 'Ops 2' }
         ],
         '2024-01-15'
       );

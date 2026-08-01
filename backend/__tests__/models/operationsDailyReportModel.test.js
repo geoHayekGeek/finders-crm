@@ -39,22 +39,67 @@ describe('Operations Daily Report Model', () => {
       .mockResolvedValueOnce({ rows: [{ count: String(amending) }] });
   }
 
+  function buildExpectedPayloadRow(inputFields, calculatedData, name = 'Operations User') {
+    const payload = {
+      operations_id: operationsId,
+      operations_name: name,
+      report_date: reportDate
+    };
+
+    DAILY_INSERT_FIELDS.forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(inputFields, field)) {
+        payload[field] = inputFields[field];
+        return;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(calculatedData, field)) {
+        payload[field] = calculatedData[field];
+        return;
+      }
+
+      payload[field] = 0;
+    });
+
+    return payload;
+  }
+
   function expectedInsertValues(inputFields, calculatedData, name = 'Operations User') {
+    const payloadRow = buildExpectedPayloadRow(inputFields, calculatedData, name);
+
     return [
       operationsId,
       name,
       reportDate,
-      ...DAILY_INSERT_FIELDS.map((field) => {
-        if (Object.prototype.hasOwnProperty.call(inputFields, field)) {
-          return inputFields[field];
-        }
+      JSON.stringify([payloadRow]),
+      ...DAILY_INSERT_FIELDS.map((field) => payloadRow[field] ?? 0)
+    ];
+  }
 
-        if (Object.prototype.hasOwnProperty.call(calculatedData, field)) {
-          return calculatedData[field];
-        }
+  function expectedBulkInsertValues(rows) {
+    const payloadRows = rows.map((row) => {
+      const payload = {
+        operations_id: row.operations_id,
+        operations_name: row.operations_name || `Operations ${row.operations_id}`,
+        report_date: reportDate
+      };
 
-        return 0;
-      })
+      DAILY_INSERT_FIELDS.forEach((field) => {
+        payload[field] = Object.prototype.hasOwnProperty.call(row, field) ? row[field] : 0;
+      });
+
+      return payload;
+    });
+
+    const summaryValues = DAILY_INSERT_FIELDS.map((field) => (
+      payloadRows.reduce((total, row) => total + (row[field] || 0), 0)
+    ));
+
+    return [
+      payloadRows[0].operations_id,
+      payloadRows.map((row) => row.operations_name).join(' + '),
+      reportDate,
+      JSON.stringify(payloadRows),
+      ...summaryValues
     ];
   }
 
@@ -119,6 +164,7 @@ describe('Operations Daily Report Model', () => {
         operations_id: operationsId,
         operations_name: 'Operations User',
         report_date: reportDate,
+        operations_rows: [buildExpectedPayloadRow(inputFields, calculatedData)],
         ...inputFields
       };
 
@@ -146,45 +192,94 @@ describe('Operations Daily Report Model', () => {
   });
 
   describe('createReportsBulk', () => {
-    it('creates new reports and skips existing ones in a transaction', async () => {
+    it('creates one combined report for multiple selected operations users', async () => {
+      const bulkRows = [
+        {
+          operations_id: 1,
+          operations_name: 'Operations One',
+          preparing_daily_report: 2,
+          phone_calls_duty_time: 3,
+          tasks_efficiency: 4,
+          properties_added: 5,
+          leads_responded_to: 6,
+          amending_previous_properties: 7
+        },
+        {
+          operations_id: 2,
+          operations_name: 'Operations Two',
+          preparing_daily_report: 1,
+          phone_calls_duty_time: 5,
+          tasks_efficiency: 6,
+          properties_added: 8,
+          leads_responded_to: 9,
+          amending_previous_properties: 10
+        }
+      ];
+      const payloadRows = bulkRows.map((row) => ({
+        operations_id: row.operations_id,
+        operations_name: row.operations_name,
+        report_date: reportDate,
+        preparing_daily_report: row.preparing_daily_report,
+        phone_calls_duty_time: row.phone_calls_duty_time,
+        replying_to_msg_on_sm_duty_time: row.replying_to_msg_on_sm_duty_time || 0,
+        cvs: row.cvs || 0,
+        amending_previous_properties: row.amending_previous_properties,
+        filling: row.filling || 0,
+        preparing_contract: row.preparing_contract || 0,
+        tasks_efficiency: row.tasks_efficiency,
+        phone_calls_out_of_duty_time: row.phone_calls_out_of_duty_time || 0,
+        replying_to_msg_on_sm_out_of_duty_time: row.replying_to_msg_on_sm_out_of_duty_time || 0,
+        replying_to_whats_up_msg_out_of_duty_time: row.replying_to_whats_up_msg_out_of_duty_time || 0,
+        leads_responded_to: row.leads_responded_to,
+        leads_responded_out_of_duty_time: row.leads_responded_out_of_duty_time || 0,
+        tasks_efficiency_duty_time: row.tasks_efficiency_duty_time || 0,
+        tasks_efficiency_uniform: row.tasks_efficiency_uniform || 0,
+        tasks_efficiency_after_duty: row.tasks_efficiency_after_duty || 0
+      }));
       const createdRow = {
         id: 21,
         operations_id: 1,
-        operations_name: 'Operations User',
+        operations_name: 'Operations One + Operations Two',
         report_date: reportDate,
-        properties_added: 5,
-        amending_previous_properties: 2
+        operations_rows: payloadRows,
+        preparing_daily_report: 3,
+        phone_calls_duty_time: 8,
+        replying_to_msg_on_sm_duty_time: 0,
+        cvs: 0,
+        amending_previous_properties: 17,
+        filling: 0,
+        preparing_contract: 0,
+        tasks_efficiency: 10,
+        phone_calls_out_of_duty_time: 0,
+        replying_to_msg_on_sm_out_of_duty_time: 0,
+        replying_to_whats_up_msg_out_of_duty_time: 0,
+        leads_responded_to: 15,
+        leads_responded_out_of_duty_time: 0,
+        tasks_efficiency_duty_time: 0,
+        tasks_efficiency_uniform: 0,
+        tasks_efficiency_after_duty: 0,
+        properties_added: 13
       };
 
       mockClient.query
         .mockResolvedValueOnce({ rows: [] }) // BEGIN
-        .mockResolvedValueOnce({ rows: [] }) // row 1 bulk existence check
-        .mockResolvedValueOnce({ rows: [] }) // row 1 createReportRecord existence check
-        .mockResolvedValueOnce({ rows: [{ id: 1, name: 'Operations User' }] }) // row 1 user
-        .mockResolvedValueOnce({ rows: [{ count: '5' }] }) // row 1 properties
-        .mockResolvedValueOnce({ rows: [{ count: '3' }] }) // row 1 leads
-        .mockResolvedValueOnce({ rows: [{ count: '2' }] }) // row 1 amendments
-        .mockResolvedValueOnce({ rows: [createdRow] }) // row 1 insert
-        .mockResolvedValueOnce({ rows: [{ id: 99 }] }) // row 2 bulk existence check
+        .mockResolvedValueOnce({ rows: [] }) // existing check
+        .mockResolvedValueOnce({ rows: [createdRow] }) // insert
         .mockResolvedValueOnce({ rows: [] }); // COMMIT
 
       const result = await operationsDailyReportModel.createReportsBulk(
-        [
-          { operations_id: 1, preparing_contract: 1 },
-          { operations_id: 2, preparing_contract: 2 }
-        ],
+        bulkRows,
         reportDate
       );
 
       expect(result.created).toHaveLength(1);
-      expect(result.skipped).toHaveLength(1);
-      expect(result.skipped[0]).toEqual({
-        operations_id: 2,
-        reason: 'Report already exists'
-      });
+      expect(result.created[0]).toEqual(createdRow);
+      expect(result.skipped).toHaveLength(0);
       expect(result.report_date).toBe(reportDate);
       expect(mockClient.query).toHaveBeenNthCalledWith(1, 'BEGIN');
-      expect(mockClient.query).toHaveBeenNthCalledWith(10, 'COMMIT');
+      expect(mockClient.query).toHaveBeenNthCalledWith(2, 'SELECT id FROM operations_daily_reports WHERE operations_id = $1 AND report_date = $2', [1, reportDate]);
+      expect(mockClient.query).toHaveBeenNthCalledWith(3, expect.stringContaining('INSERT INTO operations_daily_reports'), expectedBulkInsertValues(bulkRows));
+      expect(mockClient.query).toHaveBeenNthCalledWith(4, 'COMMIT');
       expect(mockClient.release).toHaveBeenCalled();
     });
   });
@@ -213,13 +308,25 @@ describe('Operations Daily Report Model', () => {
       const existingReport = {
         id: reportId,
         operations_id: operationsId,
+        operations_name: 'Operations User',
         report_date: reportDate
       };
       const updatedRow = {
         ...existingReport,
         preparing_contract: 4,
         tasks_efficiency: -2,
-        leads_responded_out_of_duty_time: 1
+        leads_responded_out_of_duty_time: 1,
+        operations_rows: [
+          buildExpectedPayloadRow(
+            {
+              preparing_contract: 4,
+              tasks_efficiency: -2,
+              leads_responded_out_of_duty_time: 1
+            },
+            {},
+            'Operations User'
+          )
+        ]
       };
 
       mockQuery
@@ -233,7 +340,13 @@ describe('Operations Daily Report Model', () => {
       });
 
       expect(result).toEqual(updatedRow);
-      expect(mockQuery.mock.calls[1][1]).toEqual([4, -2, 1, reportId]);
+      expect(mockQuery.mock.calls[1][0]).toContain('UPDATE operations_daily_reports');
+      expect(mockQuery.mock.calls[1][1]).toEqual(expect.arrayContaining([
+        operationsId,
+        'Operations User',
+        JSON.stringify([updatedRow.operations_rows[0]]),
+        reportId
+      ]));
     });
 
     it('recalculates calculated fields when requested', async () => {
@@ -241,13 +354,25 @@ describe('Operations Daily Report Model', () => {
       const existingReport = {
         id: reportId,
         operations_id: operationsId,
+        operations_name: 'Operations User',
         report_date: reportDate
       };
       const recalculatedRow = {
         ...existingReport,
         properties_added: 5,
         leads_responded_to: 3,
-        amending_previous_properties: 2
+        amending_previous_properties: 2,
+        operations_rows: [
+          buildExpectedPayloadRow(
+            {
+              properties_added: 5,
+              leads_responded_to: 3,
+              amending_previous_properties: 2
+            },
+            {},
+            'Operations User'
+          )
+        ]
       };
 
       mockQuery
@@ -261,7 +386,12 @@ describe('Operations Daily Report Model', () => {
       });
 
       expect(result).toEqual(recalculatedRow);
-      expect(mockQuery.mock.calls[1][1]).toEqual([5, 2, 3, reportId]);
+      expect(mockQuery.mock.calls[1][1]).toEqual(expect.arrayContaining([
+        operationsId,
+        'Operations User',
+        JSON.stringify([recalculatedRow.operations_rows[0]]),
+        reportId
+      ]));
     });
   });
 
@@ -271,13 +401,25 @@ describe('Operations Daily Report Model', () => {
       const existingReport = {
         id: reportId,
         operations_id: operationsId,
+        operations_name: 'Operations User',
         report_date: reportDate
       };
       const recalculatedRow = {
         ...existingReport,
         properties_added: 5,
         leads_responded_to: 3,
-        amending_previous_properties: 2
+        amending_previous_properties: 2,
+        operations_rows: [
+          buildExpectedPayloadRow(
+            {
+              properties_added: 5,
+              leads_responded_to: 3,
+              amending_previous_properties: 2
+            },
+            {},
+            'Operations User'
+          )
+        ]
       };
 
       mockQuery

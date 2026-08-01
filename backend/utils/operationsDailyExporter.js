@@ -94,7 +94,11 @@ function formatReportDate(dateValue, options) {
 async function exportOperationsDailyToExcel(report) {
   const workbook = new ExcelJS.Workbook();
   const dailyRows = buildDailyExportRows(report);
-  const firstReport = Array.isArray(report) ? report[0] : report;
+  const firstReport = Array.isArray(report)
+    ? report[0]
+    : Array.isArray(report?.operations_rows) && report.operations_rows.length > 0
+      ? report.operations_rows[0]
+      : report;
   const sheetName = getDailySheetName(firstReport?.report_date);
   const worksheet = workbook.addWorksheet(sheetName);
 
@@ -181,8 +185,15 @@ function exportOperationsDailyToPDF(report) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const reportDateLabel = formatReportDate(report.report_date, { month: 'long', day: '2-digit', year: 'numeric' });
-      const reportName = report.operations_name || 'Operations';
+      const firstReport = Array.isArray(report)
+        ? report[0]
+        : Array.isArray(report?.operations_rows) && report.operations_rows.length > 0
+          ? report.operations_rows[0]
+          : report;
+      const reportDateLabel = formatReportDate(firstReport?.report_date, { month: 'long', day: '2-digit', year: 'numeric' });
+      const reportName = Array.isArray(report?.operations_rows) && report.operations_rows.length > 0
+        ? report.operations_rows.map((row) => row.operations_name || 'Operations').join(' + ')
+        : report.operations_name || 'Operations';
 
       // Title Section
       doc.fontSize(22).font('Helvetica-Bold').fillColor('#2563EB')
@@ -236,13 +247,13 @@ function exportOperationsDailyToPDF(report) {
       // Workbook-style daily fields
       addSection('Workbook Daily Fields', WORKBOOK_DAILY_FIELD_DEFINITIONS.map((field) => [
         field.label,
-        normalizeDailyIntegerValue(report[field.key], 0)
+        normalizeDailyIntegerValue(firstReport?.[field.key], 0)
       ]), '#2563EB');
 
       // Legacy internal fields kept for compatibility
       addSection('Legacy Internal Fields', LEGACY_DAILY_FIELD_DEFINITIONS.map((field) => [
         field.label,
-        normalizeDailyIntegerValue(report[field.key], 0)
+        normalizeDailyIntegerValue(firstReport?.[field.key], 0)
       ]), '#2563EB');
 
       // Footer
@@ -284,7 +295,9 @@ function getDailyDayNumber(dateValue) {
 function buildDailyExportRows(reportOrReports) {
   const reports = Array.isArray(reportOrReports)
     ? reportOrReports.filter(Boolean)
-    : [reportOrReports].filter(Boolean);
+    : Array.isArray(reportOrReports?.operations_rows) && reportOrReports.operations_rows.length > 0
+      ? reportOrReports.operations_rows.filter(Boolean)
+      : [reportOrReports].filter(Boolean);
 
   return reports.map((report, index) => ({
     sequence: index + 1,

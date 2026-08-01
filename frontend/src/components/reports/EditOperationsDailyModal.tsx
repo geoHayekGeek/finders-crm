@@ -17,6 +17,26 @@ interface EditOperationsDailyModalProps {
   onSuccess: () => void
 }
 
+function buildInitialRows(report: OperationsDailyReport): OperationsDailyRowDraft[] {
+  if (Array.isArray(report.operations_rows) && report.operations_rows.length > 0) {
+    return report.operations_rows.map((row) =>
+      toOperationsDailyRowDraft({
+        ...row,
+        operations_id: row.operations_id,
+        operations_name: row.operations_name
+      })
+    )
+  }
+
+  return [
+    toOperationsDailyRowDraft({
+      ...report,
+      operations_id: report.operations_id,
+      operations_name: report.operations_name
+    })
+  ]
+}
+
 export default function EditOperationsDailyModal({
   report,
   onClose,
@@ -27,32 +47,30 @@ export default function EditOperationsDailyModal({
 
   const [showRecalculateModal, setShowRecalculateModal] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [rows, setRows] = useState<OperationsDailyRowDraft[]>([
-    toOperationsDailyRowDraft({
-      ...report,
-      operations_id: report.operations_id,
-      operations_name: report.operations_name
-    })
-  ])
+  const [rows, setRows] = useState<OperationsDailyRowDraft[]>(buildInitialRows(report))
 
   useEffect(() => {
-    setRows([
-      toOperationsDailyRowDraft({
-        ...report,
-        operations_id: report.operations_id,
-        operations_name: report.operations_name
-      })
-    ])
+    setRows(buildInitialRows(report))
   }, [report])
-
-  const row = rows[0]
+  const hasMultipleRows = rows.length > 1
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
     try {
       setLoading(true)
-      const response = await operationsDailyApi.update(report.id, row, token)
+      const updatePayload = hasMultipleRows
+        ? {
+            operations_rows: rows.map((row) => ({
+              ...row,
+              operations_id: row.operations_id || report.operations_id,
+              operations_name: row.operations_name || report.operations_name,
+              report_date: report.report_date
+            }))
+          }
+        : rows[0]
+
+      const response = await operationsDailyApi.update(report.id, updatePayload, token)
 
       if (response.success) {
         showSuccess('Operations daily report updated successfully')
@@ -71,13 +89,7 @@ export default function EditOperationsDailyModal({
       const response = await operationsDailyApi.update(report.id, { recalculate: true }, token)
 
       if (response.success) {
-        setRows([
-          toOperationsDailyRowDraft({
-            ...response.data,
-            operations_id: response.data.operations_id,
-            operations_name: response.data.operations_name
-          })
-        ])
+        setRows(buildInitialRows(response.data))
         showSuccess('Report recalculated successfully')
         setShowRecalculateModal(false)
       }
@@ -115,6 +127,7 @@ export default function EditOperationsDailyModal({
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
             <p className="text-sm text-blue-700">
               The workbook values are fully editable. Recalculate will refresh the database-driven values for this row.
+              If this is a combined report, every selected operations row stays inside the same saved report.
             </p>
           </div>
 
@@ -132,7 +145,9 @@ export default function EditOperationsDailyModal({
           <div className="flex items-center justify-between gap-3">
             <div>
               <h4 className="text-sm font-semibold text-gray-900">Workbook Daily Values</h4>
-              <p className="text-xs text-gray-500">Edit the row below using the same workbook column order.</p>
+              <p className="text-xs text-gray-500">
+                Edit the row{hasMultipleRows ? 's' : ''} below using the same workbook column order.
+              </p>
             </div>
             <button
               type="button"

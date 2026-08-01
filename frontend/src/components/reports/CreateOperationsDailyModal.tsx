@@ -207,10 +207,11 @@ export default function CreateOperationsDailyModal({
       if (response.success) {
         const createdCount = response.data.created.length
         const skippedCount = response.data.skipped.length
+        const successLabel = selectedIds.length > 1 ? 'combined operations daily report' : 'operations daily report'
         showSuccess(
           skippedCount > 0
-            ? `Created ${createdCount} report(s) and skipped ${skippedCount} existing report(s)`
-            : `Created ${createdCount} operations daily report(s)`
+            ? `Created ${createdCount} ${successLabel} and skipped ${skippedCount} existing report(s)`
+            : `Created ${createdCount} ${successLabel}`
         )
         onSuccess()
       }
@@ -236,6 +237,7 @@ export default function CreateOperationsDailyModal({
             <h2 className="text-xl font-semibold text-gray-900">Create Operations Daily Report</h2>
             <p className="mt-1 text-sm text-gray-600">
               Select one, many, or all operations users, then edit the workbook-style values before saving.
+              The selected rows will be combined into one saved daily report.
             </p>
           </div>
           <button
@@ -256,7 +258,7 @@ export default function CreateOperationsDailyModal({
                   The calculated fields auto-fill from the database for each selected operations user and date.
                 </p>
                 <p>
-                  You can still edit every value before the report is saved, matching the workbook layout.
+                  You can still edit every value before the report is saved, and the final report keeps the workbook row layout.
                 </p>
               </div>
             </div>
@@ -343,7 +345,7 @@ export default function CreateOperationsDailyModal({
               disabled={submitLoading || previewLoading || !hasSelectedUsers || rows.length === 0}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitLoading ? 'Creating...' : 'Create Reports'}
+              {submitLoading ? 'Creating...' : 'Create Report'}
             </button>
           </div>
         </form>

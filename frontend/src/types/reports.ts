@@ -383,6 +383,12 @@ export interface OperationsDailyLegacyFields {
   tasks_efficiency_after_duty?: number
 }
 
+export interface OperationsDailyReportRowPayload extends OperationsDailyWorkbookFields, OperationsDailyLegacyFields {
+  operations_id: number
+  operations_name: string
+  report_date: string
+}
+
 export interface OperationsDailyReport {
   id: number
   operations_id: number
@@ -409,6 +415,8 @@ export interface OperationsDailyReport {
   tasks_efficiency_duty_time?: number
   tasks_efficiency_uniform?: number
   tasks_efficiency_after_duty?: number
+
+  operations_rows?: OperationsDailyReportRowPayload[]
   
   created_at: string
   updated_at: string
@@ -449,6 +457,8 @@ export interface OperationsDailyBulkPreviewData {
 
 export interface OperationsDailyBulkCreateRow extends OperationsDailyWorkbookFields, OperationsDailyLegacyFields {
   operations_id: number
+  operations_name?: string
+  report_date?: string
 }
 
 export interface OperationsDailyBulkCreateData {
@@ -518,6 +528,7 @@ export interface UpdateOperationsDailyData {
   tasks_efficiency_duty_time?: number
   tasks_efficiency_uniform?: number
   tasks_efficiency_after_duty?: number
+  operations_rows?: OperationsDailyReportRowPayload[]
   recalculate?: boolean
 }
 

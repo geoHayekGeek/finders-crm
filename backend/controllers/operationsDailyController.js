@@ -85,6 +85,9 @@ function normalizeBulkReportRows(rows = []) {
 
       return {
         operations_id: operationsId,
+        operations_name: typeof row.operations_name === 'string' && row.operations_name.trim()
+          ? row.operations_name.trim()
+          : undefined,
         ...pickEditableFields(row)
       };
     })
@@ -480,10 +483,19 @@ async function createBulkReports(req, res) {
     let rows = [];
     if (Array.isArray(req.body.rows) && req.body.rows.length > 0) {
       rows = normalizeBulkReportRows(req.body.rows);
+    } else if (req.body.all_operations) {
+      const users = await operationsDailyModel.getOperationsUsers();
+      rows = users.map((user) => ({
+        operations_id: user.id,
+        operations_name: user.name
+      }));
     } else {
       const operationsIds = await resolveBulkOperationsIds(req.body);
+      const users = await operationsDailyModel.getOperationsUsers();
+      const userNamesById = new Map(users.map((user) => [user.id, user.name]));
       rows = operationsIds.map((operationsId) => ({
-        operations_id: operationsId
+        operations_id: operationsId,
+        operations_name: userNamesById.get(operationsId)
       }));
     }
 

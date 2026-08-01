@@ -114,7 +114,8 @@ function buildOperationsDailySchemaEnsureSql() {
   });
 
   return `ALTER TABLE operations_daily_reports
-  ${fieldDefinitions.join(',\n  ')}`;
+  ${fieldDefinitions.join(',\n  ')},
+  ADD COLUMN IF NOT EXISTS operations_rows JSONB NOT NULL DEFAULT '[]'::JSONB`;
 }
 
 async function ensureOperationsDailySchema() {
@@ -201,6 +202,73 @@ function normalizeDate(dateInput) {
 
 function hasOwnValue(source, field) {
   return Object.prototype.hasOwnProperty.call(source || {}, field);
+}
+
+function normalizeOperationsDailyRowPayload(row = {}, fallbackReportDate) {
+  const normalizedOperationsId = Number(row.operations_id);
+
+  if (!Number.isInteger(normalizedOperationsId) || normalizedOperationsId <= 0) {
+    throw new Error('Invalid operations user ID');
+  }
+
+  const operationsName = typeof row.operations_name === 'string' && row.operations_name.trim()
+    ? row.operations_name.trim()
+    : `Operations ${normalizedOperationsId}`;
+  const { dateStr } = normalizeDate(fallbackReportDate || row.report_date);
+
+  const normalizedRow = {
+    operations_id: normalizedOperationsId,
+    operations_name: operationsName,
+    report_date: dateStr
+  };
+
+  DAILY_INSERT_FIELDS.forEach((field) => {
+    normalizedRow[field] = normalizeDailyIntegerValue(row[field], 0);
+  });
+
+  return normalizedRow;
+}
+
+function buildOperationsDailyPayloadRows(rows = [], fallbackReportDate) {
+  return rows.map((row) => normalizeOperationsDailyRowPayload(row, fallbackReportDate));
+}
+
+function buildOperationsDailySummaryFromRows(rows = []) {
+  return DAILY_INSERT_FIELDS.reduce((summary, field) => {
+    summary[field] = rows.reduce((total, row) => total + normalizeDailyIntegerValue(row[field], 0), 0);
+    return summary;
+  }, {});
+}
+
+function buildOperationsDailyCombinedReport(rows = [], fallbackReportDate) {
+  const normalizedRows = buildOperationsDailyPayloadRows(rows, fallbackReportDate);
+
+  if (normalizedRows.length === 0) {
+    throw new Error('At least one operations user is required');
+  }
+
+  const summary = buildOperationsDailySummaryFromRows(normalizedRows);
+
+  return {
+    operations_id: normalizedRows[0].operations_id,
+    operations_name: normalizedRows.map((row) => row.operations_name).join(' + '),
+    report_date: normalizedRows[0].report_date,
+    operations_rows: normalizedRows,
+    ...summary
+  };
+}
+
+function buildOperationsDailyReportPayload(reportRow) {
+  return normalizeOperationsDailyRowPayload(reportRow, reportRow.report_date);
+}
+
+function pickOperationsDailyFields(source = {}) {
+  return DAILY_INSERT_FIELDS.reduce((acc, field) => {
+    if (hasOwnValue(source, field)) {
+      acc[field] = source[field];
+    }
+    return acc;
+  }, {});
 }
 
 /**
@@ -304,16 +372,25 @@ async function createReportRecord(db, operations_id, report_date, inputFields = 
 
   const calculatedData = await calculateDailyData(normalizedOperationsId, dateStr);
   const resolvedFields = resolveDailyFieldValues(calculatedData, inputFields);
+  const payloadRow = buildOperationsDailyReportPayload({
+    ...calculatedData,
+    ...resolvedFields,
+    operations_id: calculatedData.operations_id,
+    operations_name: calculatedData.operations_name,
+    report_date: calculatedData.report_date
+  });
   const insertColumns = [
     'operations_id',
     'operations_name',
     'report_date',
+    'operations_rows',
     ...DAILY_INSERT_FIELDS
   ];
   const insertValues = [
     calculatedData.operations_id,
     calculatedData.operations_name,
     calculatedData.report_date,
+    JSON.stringify([payloadRow]),
     ...DAILY_INSERT_FIELDS.map((field) => normalizeDailyIntegerValue(resolvedFields[field], 0))
   ];
   const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ');
@@ -344,11 +421,23 @@ async function createReportsBulk(operationsReports = [], report_date) {
 
   try {
     const normalizedReports = operationsReports
-      .map((entry) => ({
-        ...entry,
-        operations_id: Number(entry.operations_id)
-      }))
-      .filter((entry) => Number.isInteger(entry.operations_id) && entry.operations_id > 0);
+      .map((entry) => {
+        const operationsId = Number(entry.operations_id);
+        if (!Number.isInteger(operationsId) || operationsId <= 0) {
+          return null;
+        }
+
+        const operationsName = typeof entry.operations_name === 'string' && entry.operations_name.trim()
+          ? entry.operations_name.trim()
+          : `Operations ${operationsId}`;
+
+        return {
+          operations_id: operationsId,
+          operations_name: operationsName,
+          ...pickOperationsDailyFields(entry)
+        };
+      })
+      .filter(Boolean);
 
     if (normalizedReports.length === 0) {
       throw new Error('At least one operations user is required');
@@ -356,30 +445,57 @@ async function createReportsBulk(operationsReports = [], report_date) {
 
     await client.query('BEGIN');
 
-    const created = [];
-    const skipped = [];
+    const combinedReport = buildOperationsDailyCombinedReport(normalizedReports, dateStr);
 
-    for (const entry of normalizedReports) {
-      const existing = await client.query(
-        'SELECT id FROM operations_daily_reports WHERE operations_id = $1 AND report_date = $2',
-        [entry.operations_id, dateStr]
-      );
+    const existing = await client.query(
+      'SELECT id FROM operations_daily_reports WHERE operations_id = $1 AND report_date = $2',
+      [combinedReport.operations_id, dateStr]
+    );
 
-      if (existing.rows.length > 0) {
-        skipped.push({
-          operations_id: entry.operations_id,
-          reason: 'Report already exists'
-        });
-        continue;
-      }
-
-      const report = await createReportRecord(client, entry.operations_id, dateStr, entry);
-      created.push(report);
+    if (existing.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return {
+        created: [],
+        skipped: [
+          {
+            operations_id: combinedReport.operations_id,
+            reason: 'Report already exists'
+          }
+        ],
+        report_date: dateStr
+      };
     }
+
+    const insertColumns = [
+      'operations_id',
+      'operations_name',
+      'report_date',
+      'operations_rows',
+      ...DAILY_INSERT_FIELDS
+    ];
+    const insertValues = [
+      combinedReport.operations_id,
+      combinedReport.operations_name,
+      combinedReport.report_date,
+      JSON.stringify(combinedReport.operations_rows),
+      ...DAILY_INSERT_FIELDS.map((field) => normalizeDailyIntegerValue(combinedReport[field], 0))
+    ];
+    const placeholders = insertColumns.map((_, index) => `$${index + 1}`).join(', ');
+
+    const result = await client.query(
+      `INSERT INTO operations_daily_reports (${insertColumns.join(', ')})
+       VALUES (${placeholders})
+       RETURNING *`,
+      insertValues
+    );
 
     await client.query('COMMIT');
 
-    return { created, skipped, report_date: dateStr };
+    return {
+      created: [result.rows[0]],
+      skipped: [],
+      report_date: dateStr
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -465,55 +581,92 @@ async function updateReport(id, data) {
   }
 
   const existingReport = report.rows[0];
-  let updateFields = [];
-  let params = [];
-  let paramCount = 1;
+  const existingPayloadRows = Array.isArray(existingReport.operations_rows)
+    ? existingReport.operations_rows
+    : [];
+  const hasIncomingRows = Array.isArray(data.operations_rows) && data.operations_rows.length > 0;
 
-  const appendField = (field, value) => {
-    updateFields.push(`${field} = $${paramCount++}`);
-    params.push(normalizeDailyIntegerValue(value, 0));
-  };
+  let payloadRows = hasIncomingRows
+    ? buildOperationsDailyPayloadRows(data.operations_rows, existingReport.report_date)
+    : existingPayloadRows.length > 0
+      ? existingPayloadRows.map((row) => buildOperationsDailyReportPayload(row))
+      : [buildOperationsDailyReportPayload(existingReport)];
 
-  // If recalculate is true, recalculate the calculated fields
-  if (data.recalculate) {
-    const calculatedData = await calculateDailyData(
-      existingReport.operations_id,
-      existingReport.report_date
-    );
+  if (!hasIncomingRows && payloadRows.length === 1) {
+    const row = { ...payloadRows[0] };
 
-    DAILY_CALCULATED_FIELDS.forEach((field) => {
-      appendField(field, calculatedData[field]);
-    });
-  } else {
     DAILY_CALCULATED_FIELDS.forEach((field) => {
       if (hasOwnValue(data, field)) {
-        appendField(field, data[field]);
+        row[field] = data[field];
       }
     });
-  }
 
-  // Update manual fields if provided
-  DAILY_MANUAL_FIELDS.forEach((field) => {
-    if (hasOwnValue(data, field)) {
-      appendField(field, data[field]);
+    DAILY_MANUAL_FIELDS.forEach((field) => {
+      if (hasOwnValue(data, field)) {
+        row[field] = data[field];
+      }
+    });
+
+    if (hasOwnValue(data, 'operations_name')) {
+      const nextOperationsName = String(data.operations_name).trim();
+      if (nextOperationsName) {
+        row.operations_name = nextOperationsName;
+      }
     }
-  });
 
-  if (updateFields.length === 0) {
-    // No fields to update, return existing report
-    return existingReport;
+    if (hasOwnValue(data, 'operations_id')) {
+      const nextOperationsId = Number(data.operations_id);
+      if (Number.isInteger(nextOperationsId) && nextOperationsId > 0) {
+        row.operations_id = nextOperationsId;
+      }
+    }
+
+    payloadRows = [buildOperationsDailyReportPayload(row)];
   }
 
-  updateFields.push(`updated_at = NOW()`);
+  if (data.recalculate) {
+    payloadRows = await Promise.all(payloadRows.map(async (row) => {
+      const calculatedData = await calculateDailyData(row.operations_id, existingReport.report_date);
+      const recalculatedRow = {
+        ...row,
+        operations_name: row.operations_name || calculatedData.operations_name,
+        report_date: existingReport.report_date
+      };
+
+      DAILY_CALCULATED_FIELDS.forEach((field) => {
+        if (hasOwnValue(calculatedData, field)) {
+          recalculatedRow[field] = calculatedData[field];
+        }
+      });
+
+      return buildOperationsDailyReportPayload(recalculatedRow);
+    }));
+  }
+
+  const summary = buildOperationsDailyCombinedReport(payloadRows, existingReport.report_date);
+  const updateColumns = [
+    'operations_id',
+    'operations_name',
+    'operations_rows',
+    ...DAILY_INSERT_FIELDS
+  ];
+  const updateValues = [
+    summary.operations_id,
+    summary.operations_name,
+    JSON.stringify(summary.operations_rows),
+    ...DAILY_INSERT_FIELDS.map((field) => normalizeDailyIntegerValue(summary[field], 0))
+  ];
+  const setClauses = updateColumns.map((field, index) => `${field} = $${index + 1}`);
 
   const result = await pool.query(
     `UPDATE operations_daily_reports 
-     SET ${updateFields.join(', ')}
-     WHERE id = $${paramCount}
+     SET ${setClauses.join(', ')},
+         updated_at = NOW()
+     WHERE id = $${updateValues.length + 1}
      RETURNING *`,
-    [...params, id]
+    [...updateValues, id]
   );
-  
+
   return result.rows[0];
 }
 

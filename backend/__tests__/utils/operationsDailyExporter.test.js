@@ -136,6 +136,30 @@ describe('Operations Daily Exporter', () => {
       expect(mockWorksheet.cells.get('4:2').value).toBe('John Doe');
       expect(mockWorksheet.cells.get('5:2').value).toBe('Jane Doe');
     });
+
+    it('uses stored operations rows when a single combined report is exported', async () => {
+      const mockWorksheet = createMockWorksheet();
+      const mockWorkbook = {
+        addWorksheet: jest.fn().mockReturnValue(mockWorksheet),
+        xlsx: {
+          writeBuffer: jest.fn().mockResolvedValue(Buffer.from('excel-data'))
+        }
+      };
+
+      ExcelJS.Workbook.mockImplementation(() => mockWorkbook);
+
+      await operationsDailyExporter.exportOperationsDailyToExcel({
+        ...mockReport,
+        operations_name: 'John Doe + Jane Doe',
+        operations_rows: [
+          { ...mockReport, operations_name: 'John Doe' },
+          { ...mockReport, operations_name: 'Jane Doe' }
+        ]
+      });
+
+      expect(mockWorksheet.cells.get('4:2').value).toBe('John Doe');
+      expect(mockWorksheet.cells.get('5:2').value).toBe('Jane Doe');
+    });
   });
 
   describe('exportOperationsDailyToPDF', () => {

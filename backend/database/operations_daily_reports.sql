@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS operations_daily_reports (
   operations_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   operations_name VARCHAR(255) NOT NULL,
   report_date DATE NOT NULL,
+  operations_rows JSONB NOT NULL DEFAULT '[]'::JSONB,
 
   -- Calculated fields (from database)
   properties_added INTEGER NOT NULL DEFAULT 0,
@@ -44,7 +45,8 @@ CREATE INDEX IF NOT EXISTS idx_operations_daily_reports_created_at ON operations
 COMMENT ON TABLE operations_daily_reports IS 'Daily reports for operations employees/managers tracking their daily activities';
 COMMENT ON COLUMN operations_daily_reports.operations_id IS 'Operations employee or manager user ID';
 COMMENT ON COLUMN operations_daily_reports.operations_name IS 'Name of the operations employee/manager (denormalized for display)';
-COMMENT ON COLUMN operations_daily_reports.report_date IS 'Date of the report (one report per day per operations user)';
+COMMENT ON COLUMN operations_daily_reports.report_date IS 'Date of the report (one saved daily report per representative operations user)';
+COMMENT ON COLUMN operations_daily_reports.operations_rows IS 'Serialized workbook rows used to render multi-row exports for a combined daily report';
 COMMENT ON COLUMN operations_daily_reports.properties_added IS 'Default number of properties added on this day (database-calculated, editable in the report UI)';
 COMMENT ON COLUMN operations_daily_reports.leads_responded_to IS 'Default number of leads responded to on this day for the selected operations user (database-calculated, editable in the report UI)';
 COMMENT ON COLUMN operations_daily_reports.amending_previous_properties IS 'Default number of properties amended on this day, excluding same-day creates and system bookkeeping updates (database-calculated, editable in the report UI)';

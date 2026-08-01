@@ -39,6 +39,7 @@ async function runOperationsDailyWorkbookMigration() {
         ORDER BY column_name
       `,
       [[
+        'operations_rows',
         'properties_added',
         'leads_responded_to',
         'amending_previous_properties',
