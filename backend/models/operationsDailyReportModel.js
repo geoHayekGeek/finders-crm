@@ -106,6 +106,35 @@ const {
   normalizeDailyIntegerValue
 } = operationsDailyFieldConfig;
 
+let operationsDailySchemaEnsurePromise = null;
+
+function buildOperationsDailySchemaEnsureSql() {
+  const fieldDefinitions = DAILY_INSERT_FIELDS.map((field) => {
+    return `ADD COLUMN IF NOT EXISTS ${field} INTEGER NOT NULL DEFAULT 0`;
+  });
+
+  return `ALTER TABLE operations_daily_reports
+  ${fieldDefinitions.join(',\n  ')}`;
+}
+
+async function ensureOperationsDailySchema() {
+  if (process.env.NODE_ENV === 'test') {
+    return;
+  }
+
+  if (!operationsDailySchemaEnsurePromise) {
+    operationsDailySchemaEnsurePromise = pool
+      .query(buildOperationsDailySchemaEnsureSql())
+      .then(() => undefined)
+      .catch((error) => {
+        operationsDailySchemaEnsurePromise = null;
+        throw error;
+      });
+  }
+
+  return operationsDailySchemaEnsurePromise;
+}
+
 /**
  * Normalize and validate a date
  * @param {Date|string} dateInput 
@@ -259,6 +288,8 @@ async function calculateDailyData(operations_id, reportDateInput) {
  * @returns {Promise<Object>} - Created report
  */
 async function createReportRecord(db, operations_id, report_date, inputFields = {}) {
+  await ensureOperationsDailySchema();
+
   const { dateStr } = normalizeDate(report_date);
   const normalizedOperationsId = Number(operations_id);
 
@@ -305,6 +336,8 @@ async function createReportsBulk(operationsReports = [], report_date) {
   if (!Array.isArray(operationsReports) || operationsReports.length === 0) {
     throw new Error('At least one operations user is required');
   }
+
+  await ensureOperationsDailySchema();
 
   const { dateStr } = normalizeDate(report_date);
   const client = await pool.connect();
@@ -420,6 +453,8 @@ async function getReportById(id) {
  * @returns {Promise<Object>} - Updated report
  */
 async function updateReport(id, data) {
+  await ensureOperationsDailySchema();
+
   const report = await pool.query(
     'SELECT * FROM operations_daily_reports WHERE id = $1',
     [id]
