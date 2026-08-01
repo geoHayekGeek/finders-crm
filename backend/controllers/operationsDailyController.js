@@ -4,6 +4,84 @@
 const operationsDailyModel = require('../models/operationsDailyReportModel');
 const { exportOperationsDailyToExcel, exportOperationsDailyToPDF } = require('../utils/operationsDailyExporter');
 
+const DAILY_EDITABLE_FIELDS = [
+  'properties_added',
+  'leads_responded_to',
+  'amending_previous_properties',
+  'preparing_contract',
+  'tasks_efficiency_duty_time',
+  'tasks_efficiency_uniform',
+  'tasks_efficiency_after_duty',
+  'leads_responded_out_of_duty_time'
+];
+
+function parseOperationsId(operations_id) {
+  const parsed = Number(operations_id);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error('Operations ID must be a valid number');
+  }
+
+  return parsed;
+}
+
+function pickEditableFields(source = {}) {
+  return DAILY_EDITABLE_FIELDS.reduce((acc, field) => {
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      acc[field] = source[field];
+    }
+    return acc;
+  }, {});
+}
+
+function parseReportDateInput(report_date) {
+  if (!report_date) {
+    throw new Error('Date is required');
+  }
+
+  const rawValue = String(report_date).trim();
+  const dateMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!dateMatch) {
+    throw new Error('Invalid date format. Please use YYYY-MM-DD.');
+  }
+
+  const year = parseInt(dateMatch[1], 10);
+  const month = parseInt(dateMatch[2], 10);
+  const day = parseInt(dateMatch[3], 10);
+  const dateUtc = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+
+  if (
+    dateUtc.getUTCFullYear() !== year ||
+    dateUtc.getUTCMonth() + 1 !== month ||
+    dateUtc.getUTCDate() !== day
+  ) {
+    throw new Error('Invalid date format. Please use YYYY-MM-DD.');
+  }
+
+  return dateUtc.toISOString().split('T')[0];
+}
+
+function formatReportDateLabel(dateValue, options) {
+  if (!dateValue) {
+    return '';
+  }
+
+  const rawValue = String(dateValue).trim();
+  const dateMatch = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsedDate = dateMatch
+    ? new Date(Date.UTC(parseInt(dateMatch[1], 10), parseInt(dateMatch[2], 10) - 1, parseInt(dateMatch[3], 10), 0, 0, 0, 0))
+    : new Date(rawValue);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return rawValue;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    ...options,
+    timeZone: 'UTC'
+  }).format(parsedDate);
+}
+
 /**
  * Get all operations daily reports with optional filters
  * GET /api/operations-daily
@@ -81,8 +159,7 @@ async function createReport(req, res) {
   try {
     console.log('📊 Creating operations daily report:', req.body);
     
-    const { operations_id, report_date, preparing_contract, tasks_efficiency_duty_time, 
-            tasks_efficiency_uniform, tasks_efficiency_after_duty, leads_responded_out_of_duty_time } = req.body;
+    const { operations_id, report_date } = req.body;
     
     if (!operations_id || !report_date) {
       return res.status(400).json({
@@ -91,29 +168,24 @@ async function createReport(req, res) {
       });
     }
 
-    const reportDate = new Date(report_date);
-
-    if (Number.isNaN(reportDate.getTime())) {
+    let operationsId;
+    let reportDate;
+    try {
+      operationsId = parseOperationsId(operations_id);
+      reportDate = parseReportDateInput(report_date);
+    } catch (error) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid date format. Please use YYYY-MM-DD.'
+        message: error.message
       });
     }
 
-    const reportDateStr = reportDate.toISOString().split('T')[0];
-    
     const report = await operationsDailyModel.createReport(
-      parseInt(operations_id),
-      reportDateStr,
-      {
-        preparing_contract: preparing_contract || 0,
-        tasks_efficiency_duty_time: tasks_efficiency_duty_time || 0,
-        tasks_efficiency_uniform: tasks_efficiency_uniform || 0,
-        tasks_efficiency_after_duty: tasks_efficiency_after_duty || 0,
-        leads_responded_out_of_duty_time: leads_responded_out_of_duty_time || 0
-      }
+      operationsId,
+      reportDate,
+      pickEditableFields(req.body)
     );
-    
+
     console.log('✅ Operations daily report created successfully:', report.id);
     
     res.status(201).json({
@@ -124,6 +196,23 @@ async function createReport(req, res) {
   } catch (error) {
     console.error('❌ Error creating operations daily report:', error);
     const isDuplicate = error.code === '23505' || error.message?.includes('already exists');
+    const isInvalidDate = error.message?.includes('Date is required') || error.message?.includes('Invalid date format');
+    const isInvalidOperations = error.message?.includes('Invalid operations user ID');
+
+    if (isInvalidDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (isInvalidOperations) {
+      return res.status(400).json({
+        success: false,
+        message: 'Operations ID must be a valid number'
+      });
+    }
+
     res.status(isDuplicate ? 409 : 500).json({
       success: false,
       message: isDuplicate
@@ -143,21 +232,10 @@ async function updateReport(req, res) {
     const { id } = req.params;
     console.log('📊 Updating operations daily report:', id, req.body);
     
-    const {
-      preparing_contract,
-      tasks_efficiency_duty_time,
-      tasks_efficiency_uniform,
-      tasks_efficiency_after_duty,
-      leads_responded_out_of_duty_time,
-      recalculate
-    } = req.body;
+    const { recalculate } = req.body;
     
     const updateData = {};
-    if (preparing_contract !== undefined) updateData.preparing_contract = preparing_contract;
-    if (tasks_efficiency_duty_time !== undefined) updateData.tasks_efficiency_duty_time = tasks_efficiency_duty_time;
-    if (tasks_efficiency_uniform !== undefined) updateData.tasks_efficiency_uniform = tasks_efficiency_uniform;
-    if (tasks_efficiency_after_duty !== undefined) updateData.tasks_efficiency_after_duty = tasks_efficiency_after_duty;
-    if (leads_responded_out_of_duty_time !== undefined) updateData.leads_responded_out_of_duty_time = leads_responded_out_of_duty_time;
+    Object.assign(updateData, pickEditableFields(req.body));
     if (recalculate) updateData.recalculate = true;
     
     const report = await operationsDailyModel.updateReport(parseInt(id), updateData);
@@ -174,6 +252,69 @@ async function updateReport(req, res) {
     res.status(error.message.includes('not found') ? 404 : 500).json({
       success: false,
       message: error.message || 'Failed to update operations daily report',
+      error: error.message
+    });
+  }
+}
+
+/**
+ * Preview an operations daily report without persisting it
+ * POST /api/operations-daily/preview
+ */
+async function previewReport(req, res) {
+  try {
+    console.log('📊 Calculating operations daily preview:', req.body);
+
+    const { operations_id, report_date } = req.body;
+
+    if (!operations_id || !report_date) {
+      return res.status(400).json({
+        success: false,
+        message: 'Operations ID and report date are required'
+      });
+    }
+
+    let operationsId;
+    let reportDate;
+    try {
+      operationsId = parseOperationsId(operations_id);
+      reportDate = parseReportDateInput(report_date);
+    } catch (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    const preview = await operationsDailyModel.calculateDailyData(operationsId, reportDate);
+
+    console.log('✅ Operations daily preview calculated successfully');
+
+    res.json({
+      success: true,
+      data: preview,
+      message: 'Operations daily preview calculated successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error calculating operations daily preview:', error);
+
+    if (error.message?.includes('Date is required') || error.message?.includes('Invalid date format')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid date format. Please use YYYY-MM-DD.'
+      });
+    }
+
+    if (error.message === 'Invalid operations user ID') {
+      return res.status(400).json({
+        success: false,
+        message: 'Operations ID must be a valid number'
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: 'Failed to calculate operations daily preview',
       error: error.message
     });
   }
@@ -271,12 +412,9 @@ async function exportReportToExcel(req, res) {
 
     const buffer = await exportOperationsDailyToExcel(report);
     
-    const formatDateLabel = () => {
-      const date = new Date(report.report_date);
-      const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-      return formatter.format(date).replace(/[, ]/g, '-');
-    };
-    const filename = `Operations_Daily_${report.operations_name.replace(/\s+/g, '_')}_${formatDateLabel()}.xlsx`;
+    const filenameDate = formatReportDateLabel(report.report_date, { month: 'short', day: '2-digit', year: 'numeric' }).replace(/[, ]/g, '-');
+    const operationsName = report.operations_name ? report.operations_name.replace(/\s+/g, '_') : 'report';
+    const filename = `Operations_Daily_${operationsName}_${filenameDate}.xlsx`;
     
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -340,12 +478,9 @@ async function exportReportToPDF(req, res) {
 
     const buffer = await exportOperationsDailyToPDF(report);
     
-    const formatDateLabel = () => {
-      const date = new Date(report.report_date);
-      const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-      return formatter.format(date).replace(/[, ]/g, '-');
-    };
-    const filename = `Operations_Daily_${report.operations_name.replace(/\s+/g, '_')}_${formatDateLabel()}.pdf`;
+    const filenameDate = formatReportDateLabel(report.report_date, { month: 'short', day: '2-digit', year: 'numeric' }).replace(/[, ]/g, '-');
+    const operationsName = report.operations_name ? report.operations_name.replace(/\s+/g, '_') : 'report';
+    const filename = `Operations_Daily_${operationsName}_${filenameDate}.pdf`;
     
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -367,6 +502,7 @@ module.exports = {
   getReportById,
   createReport,
   updateReport,
+  previewReport,
   recalculateReport,
   deleteReport,
   exportReportToExcel,

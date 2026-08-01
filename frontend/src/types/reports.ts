@@ -382,6 +382,20 @@ export interface OperationsDailyReport {
   updated_at: string
 }
 
+export interface OperationsDailyPreviewData {
+  operations_id: number
+  operations_name: string
+  report_date: string
+  properties_added: number
+  leads_responded_to: number
+  amending_previous_properties: number
+  preparing_contract: number
+  tasks_efficiency_duty_time: number
+  tasks_efficiency_uniform: number
+  tasks_efficiency_after_duty: number
+  leads_responded_out_of_duty_time: number
+}
+
 export interface OperationsDailyFilters {
   operations_id?: number
   report_date?: string
@@ -392,6 +406,9 @@ export interface OperationsDailyFilters {
 export interface CreateOperationsDailyData {
   operations_id: number
   report_date: string
+  properties_added?: number
+  leads_responded_to?: number
+  amending_previous_properties?: number
   preparing_contract?: number
   tasks_efficiency_duty_time?: number
   tasks_efficiency_uniform?: number
@@ -400,6 +417,9 @@ export interface CreateOperationsDailyData {
 }
 
 export interface UpdateOperationsDailyData {
+  properties_added?: number
+  leads_responded_to?: number
+  amending_previous_properties?: number
   preparing_contract?: number
   tasks_efficiency_duty_time?: number
   tasks_efficiency_uniform?: number

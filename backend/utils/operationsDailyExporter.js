@@ -1,6 +1,44 @@
 const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 
+function parseDateOnly(dateValue) {
+  if (!dateValue) {
+    return null;
+  }
+
+  if (dateValue instanceof Date) {
+    return Number.isNaN(dateValue.getTime()) ? null : dateValue;
+  }
+
+  const rawValue = String(dateValue).trim();
+  if (!rawValue) {
+    return null;
+  }
+
+  const match = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  }
+
+  const parsed = new Date(rawValue);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatReportDate(dateValue, options) {
+  const parsed = parseDateOnly(dateValue);
+  if (!parsed) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    ...options,
+    timeZone: 'UTC'
+  }).format(parsed);
+}
+
 /**
  * Export operations daily report to Excel
  */
@@ -24,9 +62,8 @@ async function exportOperationsDailyToExcel(report) {
   // Report date and operations name
   worksheet.mergeCells('A2:B2');
   const periodCell = worksheet.getCell('A2');
-  const reportDate = new Date(report.report_date);
-  const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-  periodCell.value = `${report.operations_name} | ${formatter.format(reportDate)}`;
+  const reportName = report.operations_name || 'Operations';
+  periodCell.value = `${reportName} | ${formatReportDate(report.report_date, { month: 'short', day: '2-digit', year: 'numeric' })}`;
   periodCell.font = { size: 12, italic: true };
   periodCell.alignment = { horizontal: 'center' };
 
@@ -112,15 +149,15 @@ function exportOperationsDailyToPDF(report) {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
-      const reportDate = new Date(report.report_date);
-      const formatter = new Intl.DateTimeFormat('en-US', { month: 'long', day: '2-digit', year: 'numeric' });
+      const reportDateLabel = formatReportDate(report.report_date, { month: 'long', day: '2-digit', year: 'numeric' });
+      const reportName = report.operations_name || 'Operations';
 
       // Title Section
       doc.fontSize(24).font('Helvetica-Bold').fillColor('#2563EB')
          .text('Operations Daily Report', { align: 'center' });
       doc.moveDown(0.3);
       doc.fontSize(14).font('Helvetica-Oblique').fillColor('#666666')
-         .text(`${report.operations_name} | ${formatter.format(reportDate)}`, { align: 'center' });
+         .text(`${reportName} | ${reportDateLabel}`, { align: 'center' });
       doc.moveDown(1.5);
       doc.fillColor('#000000');
 

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
-import { Plus, RefreshCw, Download, FileSpreadsheet, FileText, Trash2, Calendar, Edit, X } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, RefreshCw, FileSpreadsheet, FileText, Trash2, Calendar, Edit, X } from 'lucide-react'
 import { OperationsDailyReport, OperationsDailyFilters } from '@/types/reports'
 import { operationsDailyApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -10,6 +10,7 @@ import { OperationsSelector } from '@/components/OperationsSelector'
 import CreateOperationsDailyModal from './CreateOperationsDailyModal'
 import EditOperationsDailyModal from './EditOperationsDailyModal'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
+import { formatDateDisplay, formatDateInput } from '@/utils/formatters'
 
 export default function OperationsDailyTab() {
   const { token } = useAuth()
@@ -21,7 +22,7 @@ export default function OperationsDailyTab() {
   const [filters, setFilters] = useState<OperationsDailyFilters>({})
   
   const today = new Date()
-  const defaultDate = today.toISOString().split('T')[0]
+  const defaultDate = formatDateInput(today)
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -105,8 +106,9 @@ export default function OperationsDailyTab() {
       const blob = await operationsDailyApi.exportToExcel(reportId, token)
       
       const report = reports.find(r => r.id === reportId)
-      const dateStr = report ? new Date(report.report_date).toISOString().split('T')[0] : 'report'
-      const filename = `Operations_Daily_${report?.operations_name.replace(/\s+/g, '_')}_${dateStr}.xlsx`
+      const dateStr = report?.report_date || 'report'
+      const operationsName = report?.operations_name?.replace(/\s+/g, '_') || 'report'
+      const filename = `Operations_Daily_${operationsName}_${dateStr}.xlsx`
 
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -128,8 +130,9 @@ export default function OperationsDailyTab() {
       const blob = await operationsDailyApi.exportToPDF(reportId, token)
       
       const report = reports.find(r => r.id === reportId)
-      const dateStr = report ? new Date(report.report_date).toISOString().split('T')[0] : 'report'
-      const filename = `Operations_Daily_${report?.operations_name.replace(/\s+/g, '_')}_${dateStr}.pdf`
+      const dateStr = report?.report_date || 'report'
+      const operationsName = report?.operations_name?.replace(/\s+/g, '_') || 'report'
+      const filename = `Operations_Daily_${operationsName}_${dateStr}.pdf`
 
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -152,8 +155,7 @@ export default function OperationsDailyTab() {
 
   // Format date
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return formatDateDisplay(dateStr, { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
   // Simple filters component
@@ -252,15 +254,15 @@ export default function OperationsDailyTab() {
         <div className="mt-4 flex flex-wrap gap-2">
           {[
             { label: 'Today', date: defaultDate },
-            { label: 'Yesterday', date: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0] },
+            { label: 'Yesterday', date: formatDateInput(new Date(Date.now() - 24 * 60 * 60 * 1000)) },
             { label: 'Month to Date', start: (() => {
               const today = new Date()
               const year = today.getFullYear()
               const month = String(today.getMonth() + 1).padStart(2, '0')
               return `${year}-${month}-01`
             })(), end: defaultDate },
-            { label: 'Last 7 Days', start: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: defaultDate },
-            { label: 'Last 30 Days', start: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], end: defaultDate }
+            { label: 'Last 7 Days', start: formatDateInput(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)), end: defaultDate },
+            { label: 'Last 30 Days', start: formatDateInput(new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)), end: defaultDate }
           ].map((preset) => (
             <button
               key={preset.label}
@@ -318,7 +320,7 @@ export default function OperationsDailyTab() {
             </h3>
             <p className="text-sm text-blue-700">
               Track daily operations activities including properties added, leads responded to, and task efficiency metrics.
-              Calculated fields are automatically updated from the database.
+              Calculated fields load from the database and can be adjusted in the create or edit flow.
             </p>
           </div>
         </div>

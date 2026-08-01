@@ -102,6 +102,60 @@ describe('Operations Daily Report Model', () => {
       expect(result.operations_id).toBe(operationsId);
     });
 
+    it('should allow overriding calculated fields when creating a report', async () => {
+      const operationsId = 1;
+      const reportDate = '2024-01-15';
+      const inputFields = {
+        properties_added: 12,
+        leads_responded_to: 9,
+        amending_previous_properties: 4,
+        preparing_contract: 2,
+        tasks_efficiency_duty_time: 1,
+        tasks_efficiency_uniform: 0,
+        tasks_efficiency_after_duty: -1,
+        leads_responded_out_of_duty_time: 3
+      };
+
+      mockClient.query
+        .mockResolvedValueOnce({
+          rows: [{ id: operationsId, name: 'Operations User' }]
+        })
+        .mockResolvedValueOnce({ rows: [{ count: '5' }] })
+        .mockResolvedValueOnce({ rows: [{ count: '3' }] })
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] });
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: 1,
+            operations_id: operationsId,
+            report_date: reportDate,
+            ...inputFields
+          }]
+        });
+
+      await operationsDailyReportModel.createReport(operationsId, reportDate, inputFields);
+
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('INSERT INTO operations_daily_reports'),
+        [
+          operationsId,
+          'Operations User',
+          reportDate,
+          12,
+          9,
+          4,
+          2,
+          1,
+          0,
+          -1,
+          3
+        ]
+      );
+    });
+
     it('should throw error if report already exists', async () => {
       const operationsId = 1;
       const reportDate = '2024-01-15';
@@ -217,6 +271,42 @@ describe('Operations Daily Report Model', () => {
 
       expect(result).toBeDefined();
       expect(result.preparing_contract).toBe(2);
+    });
+
+    it('should allow updating calculated fields directly', async () => {
+      const reportId = 1;
+      const updateData = {
+        properties_added: 8,
+        leads_responded_to: 6,
+        amending_previous_properties: 4
+      };
+
+      mockQuery
+        .mockResolvedValueOnce({
+          rows: [{
+            id: reportId,
+            operations_id: 1,
+            report_date: '2024-01-15',
+            properties_added: 5,
+            leads_responded_to: 3,
+            amending_previous_properties: 2
+          }]
+        })
+        .mockResolvedValueOnce({
+          rows: [{
+            id: reportId,
+            ...updateData
+          }]
+        });
+
+      const result = await operationsDailyReportModel.updateReport(reportId, updateData);
+
+      expect(result).toBeDefined();
+      expect(mockQuery).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('UPDATE operations_daily_reports'),
+        [8, 6, 4, reportId]
+      );
     });
 
     it('should recalculate calculated fields if recalculate flag is set', async () => {

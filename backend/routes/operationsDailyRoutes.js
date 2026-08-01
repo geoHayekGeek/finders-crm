@@ -10,6 +10,9 @@ router.use(authenticateToken);
 // Get operations users for selector - MUST come before /:id route
 router.get('/operations-users', operationsDailyController.getOperationsUsers);
 
+// Preview calculated values without saving
+router.post('/preview', operationsDailyController.previewReport);
+
 // Get all operations daily reports with optional filters
 router.get('/', operationsDailyController.getAllReports);
 

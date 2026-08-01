@@ -4,7 +4,7 @@ import { LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateL
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, SaleRentSourceExportPayload, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData } from '@/types/reports'
+import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, SaleRentSourceExportPayload, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData, OperationsDailyPreviewData } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
 // For client-side code, only NEXT_PUBLIC_* variables are available
@@ -2078,6 +2078,16 @@ export const operationsDailyApi = {
   // Create a new operations daily report
   create: (data: CreateOperationsDailyData, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyReport; message: string }>(
     '/operations-daily',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  // Preview a report's calculated values without persisting it
+  preview: (data: Pick<CreateOperationsDailyData, 'operations_id' | 'report_date'>, token?: AuthToken) => apiRequest<{ success: boolean; data: OperationsDailyPreviewData; message: string }>(
+    '/operations-daily/preview',
     {
       method: 'POST',
       body: JSON.stringify(data),

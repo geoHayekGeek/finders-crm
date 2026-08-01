@@ -37,6 +37,30 @@ export function formatCurrency(value: number | string | null | undefined, curren
   }
 }
 
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/
+
+function parseDateLikeValue(value: string | Date): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+
+  const raw = String(value).trim()
+  if (!raw) {
+    return null
+  }
+
+  const match = raw.match(DATE_ONLY_PATTERN)
+  if (match) {
+    const year = parseInt(match[1], 10)
+    const month = parseInt(match[2], 10)
+    const day = parseInt(match[3], 10)
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+  }
+
+  const parsed = new Date(raw)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 /**
  * Format a number with thousand separators
  * @param value - The number to format
@@ -44,6 +68,39 @@ export function formatCurrency(value: number | string | null | undefined, curren
  */
 export function formatNumber(value: number): string {
   return new Intl.NumberFormat('en-US').format(value)
+}
+
+/**
+ * Format a date for a date input while preserving the local calendar date.
+ * @param value - The date to format
+ * @returns YYYY-MM-DD string
+ */
+export function formatDateInput(value: Date = new Date()): string {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/**
+ * Format a date string or Date object for display without timezone drift.
+ * @param value - The date to format
+ * @param options - Intl formatting options (defaults to short month/day/year)
+ * @returns Formatted date string
+ */
+export function formatDateDisplay(
+  value: string | Date,
+  options: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
+): string {
+  const parsed = parseDateLikeValue(value)
+  if (!parsed) {
+    return typeof value === 'string' ? value : ''
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    ...options,
+    timeZone: 'UTC',
+  }).format(parsed)
 }
 
 /**

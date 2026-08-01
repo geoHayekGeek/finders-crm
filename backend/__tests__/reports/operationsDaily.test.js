@@ -309,6 +309,50 @@ describe('Operations Daily Report', () => {
     });
   });
 
+  describe('previewReport', () => {
+    it('should calculate a preview successfully', async () => {
+      req.body = {
+        operations_id: 1,
+        report_date: '2024-01-15'
+      };
+
+      const mockPreview = {
+        operations_id: 1,
+        operations_name: 'Operations User',
+        report_date: '2024-01-15',
+        properties_added: 7,
+        leads_responded_to: 5,
+        amending_previous_properties: 2
+      };
+
+      operationsDailyModel.calculateDailyData.mockResolvedValue(mockPreview);
+
+      await operationsDailyController.previewReport(req, res);
+
+      expect(operationsDailyModel.calculateDailyData).toHaveBeenCalledWith(1, '2024-01-15');
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockPreview,
+        message: 'Operations daily preview calculated successfully'
+      });
+    });
+
+    it('should return 400 when operations_id is invalid', async () => {
+      req.body = {
+        operations_id: 'invalid',
+        report_date: '2024-01-15'
+      };
+
+      await operationsDailyController.previewReport(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'Operations ID must be a valid number'
+      });
+    });
+  });
+
   describe('updateReport', () => {
     it('should update operations daily report successfully', async () => {
       req.params = { id: '1' };

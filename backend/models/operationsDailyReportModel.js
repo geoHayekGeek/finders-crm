@@ -3,6 +3,20 @@
 
 const pool = require('../config/db');
 
+const CALCULATED_DAILY_FIELDS = [
+  'properties_added',
+  'leads_responded_to',
+  'amending_previous_properties'
+];
+
+const MANUAL_DAILY_FIELDS = [
+  'preparing_contract',
+  'tasks_efficiency_duty_time',
+  'tasks_efficiency_uniform',
+  'tasks_efficiency_after_duty',
+  'leads_responded_out_of_duty_time'
+];
+
 /**
  * Normalize and validate a date
  * @param {Date|string} dateInput 
@@ -13,23 +27,80 @@ function normalizeDate(dateInput) {
     throw new Error('Date is required');
   }
 
-  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  let year;
+  let month;
+  let day;
 
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
+  if (dateInput instanceof Date) {
+    if (Number.isNaN(dateInput.getTime())) {
+      throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
+    }
+
+    year = dateInput.getUTCFullYear();
+    month = dateInput.getUTCMonth() + 1;
+    day = dateInput.getUTCDate();
+  } else {
+    const rawInput = String(dateInput).trim();
+    const isoMatch = rawInput.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+    if (isoMatch) {
+      year = parseInt(isoMatch[1], 10);
+      month = parseInt(isoMatch[2], 10);
+      day = parseInt(isoMatch[3], 10);
+    } else {
+      const parsedDate = new Date(rawInput);
+
+      if (Number.isNaN(parsedDate.getTime())) {
+        throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
+      }
+
+      year = parsedDate.getUTCFullYear();
+      month = parsedDate.getUTCMonth() + 1;
+      day = parsedDate.getUTCDate();
+    }
   }
 
   const dateUtc = new Date(Date.UTC(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
+    year,
+    month - 1,
+    day,
     0, 0, 0, 0
   ));
+
+  if (
+    dateUtc.getUTCFullYear() !== year ||
+    dateUtc.getUTCMonth() + 1 !== month ||
+    dateUtc.getUTCDate() !== day
+  ) {
+    throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
+  }
 
   return {
     dateUtc,
     dateStr: dateUtc.toISOString().split('T')[0]
   };
+}
+
+function normalizeIntegerValue(value, fallback = 0) {
+  if (value === undefined || value === null || value === '') {
+    return fallback;
+  }
+
+  const parsed = typeof value === 'number'
+    ? value
+    : parseInt(String(value), 10);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function hasOwnValue(source, field) {
+  return Object.prototype.hasOwnProperty.call(source || {}, field);
+}
+
+function getResolvedDailyValue(source, field, fallback = 0) {
+  return hasOwnValue(source, field)
+    ? normalizeIntegerValue(source[field], fallback)
+    : fallback;
 }
 
 /**
@@ -42,12 +113,17 @@ async function calculateDailyData(operations_id, reportDateInput) {
   const client = await pool.connect();
   
   try {
+    const normalizedOperationsId = Number(operations_id);
+    if (!Number.isInteger(normalizedOperationsId) || normalizedOperationsId <= 0) {
+      throw new Error('Invalid operations user ID');
+    }
+
     const { dateStr } = normalizeDate(reportDateInput);
 
     // Get operations user name
     const userResult = await client.query(
       'SELECT id, name FROM users WHERE id = $1 AND role IN (\'operations\', \'operations_manager\')',
-      [operations_id]
+      [normalizedOperationsId]
     );
 
     if (userResult.rows.length === 0) {
@@ -56,38 +132,41 @@ async function calculateDailyData(operations_id, reportDateInput) {
 
     const operationsName = userResult.rows[0].name;
 
-    // Calculate properties added (properties created on this day)
-    const propertiesAddedResult = await client.query(
-      `SELECT COUNT(*) as count
-       FROM properties
-       WHERE DATE(created_at AT TIME ZONE 'UTC') = $1::date`,
-      [dateStr]
-    );
-    const propertiesAdded = parseInt(propertiesAddedResult.rows[0].count) || 0;
+    // These counts are intentionally calculated from the database so the UI can
+    // preview them before saving, while still allowing an override when needed.
+    const [
+      propertiesAddedResult,
+      leadsRespondedResult,
+      amendingPropertiesResult
+    ] = await Promise.all([
+      client.query(
+        `SELECT COUNT(*) as count
+         FROM properties
+         WHERE DATE(created_at AT TIME ZONE 'UTC') = $1::date`,
+        [dateStr]
+      ),
+      client.query(
+        `SELECT COUNT(*) as count
+         FROM leads
+         WHERE added_by_id = $1
+           AND DATE(created_at AT TIME ZONE 'UTC') = $2::date`,
+        [normalizedOperationsId, dateStr]
+      ),
+      client.query(
+        `SELECT COUNT(*) as count
+         FROM properties
+         WHERE DATE(updated_at AT TIME ZONE 'UTC') = $1::date
+           AND updated_at > created_at`,
+        [dateStr]
+      )
+    ]);
 
-    // Calculate leads responded to (leads where added_by_id matches and were created/added on this day)
-    // Note: We count all leads created on this day, but the display will subtract leads_responded_out_of_duty_time
-    const leadsRespondedResult = await client.query(
-      `SELECT COUNT(*) as count
-       FROM leads
-       WHERE added_by_id = $1
-         AND DATE(created_at AT TIME ZONE 'UTC') = $2::date`,
-      [operations_id, dateStr]
-    );
-    const leadsRespondedTo = parseInt(leadsRespondedResult.rows[0].count) || 0;
-
-    // Calculate amending previous properties (properties updated on this day that were created before)
-    const amendingPropertiesResult = await client.query(
-      `SELECT COUNT(*) as count
-       FROM properties
-       WHERE DATE(updated_at AT TIME ZONE 'UTC') = $1::date
-         AND updated_at > created_at`,
-      [dateStr]
-    );
-    const amendingPreviousProperties = parseInt(amendingPropertiesResult.rows[0].count) || 0;
+    const propertiesAdded = parseInt(propertiesAddedResult.rows[0].count, 10) || 0;
+    const leadsRespondedTo = parseInt(leadsRespondedResult.rows[0].count, 10) || 0;
+    const amendingPreviousProperties = parseInt(amendingPropertiesResult.rows[0].count, 10) || 0;
 
     return {
-      operations_id,
+      operations_id: normalizedOperationsId,
       operations_name: operationsName,
       report_date: dateStr,
       properties_added: propertiesAdded,
@@ -103,10 +182,10 @@ async function calculateDailyData(operations_id, reportDateInput) {
  * Create a new operations daily report
  * @param {number} operations_id - Operations user ID
  * @param {string} report_date - Report date (YYYY-MM-DD)
- * @param {Object} manualFields - Manual input fields
+ * @param {Object} inputFields - Manual input fields and optional calculated overrides
  * @returns {Promise<Object>} - Created report
  */
-async function createReport(operations_id, report_date, manualFields = {}) {
+async function createReport(operations_id, report_date, inputFields = {}) {
   const { dateStr } = normalizeDate(report_date);
 
   // Check if report already exists
@@ -120,6 +199,16 @@ async function createReport(operations_id, report_date, manualFields = {}) {
   }
 
   const calculatedData = await calculateDailyData(operations_id, dateStr);
+  const resolvedFields = {
+    properties_added: getResolvedDailyValue(inputFields, 'properties_added', calculatedData.properties_added),
+    leads_responded_to: getResolvedDailyValue(inputFields, 'leads_responded_to', calculatedData.leads_responded_to),
+    amending_previous_properties: getResolvedDailyValue(inputFields, 'amending_previous_properties', calculatedData.amending_previous_properties),
+    preparing_contract: getResolvedDailyValue(inputFields, 'preparing_contract', 0),
+    tasks_efficiency_duty_time: getResolvedDailyValue(inputFields, 'tasks_efficiency_duty_time', 0),
+    tasks_efficiency_uniform: getResolvedDailyValue(inputFields, 'tasks_efficiency_uniform', 0),
+    tasks_efficiency_after_duty: getResolvedDailyValue(inputFields, 'tasks_efficiency_after_duty', 0),
+    leads_responded_out_of_duty_time: getResolvedDailyValue(inputFields, 'leads_responded_out_of_duty_time', 0)
+  };
   
   const result = await pool.query(
     `INSERT INTO operations_daily_reports 
@@ -133,14 +222,14 @@ async function createReport(operations_id, report_date, manualFields = {}) {
       calculatedData.operations_id,
       calculatedData.operations_name,
       calculatedData.report_date,
-      calculatedData.properties_added,
-      calculatedData.leads_responded_to,
-      calculatedData.amending_previous_properties,
-      manualFields.preparing_contract || 0,
-      manualFields.tasks_efficiency_duty_time || 0,
-      manualFields.tasks_efficiency_uniform || 0,
-      manualFields.tasks_efficiency_after_duty || 0,
-      manualFields.leads_responded_out_of_duty_time || 0
+      resolvedFields.properties_added,
+      resolvedFields.leads_responded_to,
+      resolvedFields.amending_previous_properties,
+      resolvedFields.preparing_contract,
+      resolvedFields.tasks_efficiency_duty_time,
+      resolvedFields.tasks_efficiency_uniform,
+      resolvedFields.tasks_efficiency_after_duty,
+      resolvedFields.leads_responded_out_of_duty_time
     ]
   );
   
@@ -226,48 +315,35 @@ async function updateReport(id, data) {
   let params = [];
   let paramCount = 1;
 
+  const appendField = (field, value) => {
+    updateFields.push(`${field} = $${paramCount++}`);
+    params.push(normalizeIntegerValue(value, 0));
+  };
+
   // If recalculate is true, recalculate the calculated fields
   if (data.recalculate) {
     const calculatedData = await calculateDailyData(
       existingReport.operations_id,
       existingReport.report_date
     );
-    
-    updateFields.push(`properties_added = $${paramCount++}`);
-    params.push(calculatedData.properties_added);
-    
-    updateFields.push(`leads_responded_to = $${paramCount++}`);
-    params.push(calculatedData.leads_responded_to);
-    
-    updateFields.push(`amending_previous_properties = $${paramCount++}`);
-    params.push(calculatedData.amending_previous_properties);
+
+    CALCULATED_DAILY_FIELDS.forEach((field) => {
+      appendField(field, calculatedData[field]);
+    });
+  } else {
+    CALCULATED_DAILY_FIELDS.forEach((field) => {
+      if (hasOwnValue(data, field)) {
+        appendField(field, data[field]);
+      }
+    });
   }
 
   // Update manual fields if provided
-  if (data.preparing_contract !== undefined) {
-    updateFields.push(`preparing_contract = $${paramCount++}`);
-    params.push(parseInt(data.preparing_contract) || 0);
-  }
-
-  if (data.tasks_efficiency_duty_time !== undefined) {
-    updateFields.push(`tasks_efficiency_duty_time = $${paramCount++}`);
-    params.push(parseInt(data.tasks_efficiency_duty_time) || 0);
-  }
-
-  if (data.tasks_efficiency_uniform !== undefined) {
-    updateFields.push(`tasks_efficiency_uniform = $${paramCount++}`);
-    params.push(parseInt(data.tasks_efficiency_uniform) || 0);
-  }
-
-  if (data.tasks_efficiency_after_duty !== undefined) {
-    updateFields.push(`tasks_efficiency_after_duty = $${paramCount++}`);
-    params.push(parseInt(data.tasks_efficiency_after_duty) || 0);
-  }
-
-  if (data.leads_responded_out_of_duty_time !== undefined) {
-    updateFields.push(`leads_responded_out_of_duty_time = $${paramCount++}`);
-    params.push(parseInt(data.leads_responded_out_of_duty_time) || 0);
-  }
+  MANUAL_DAILY_FIELDS.forEach((field) => {
+    if (hasOwnValue(data, field)) {
+      appendField(field, data[field]);
+    }
+  });
 
   if (updateFields.length === 0) {
     // No fields to update, return existing report
