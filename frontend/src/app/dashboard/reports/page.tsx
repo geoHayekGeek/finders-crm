@@ -85,9 +85,9 @@ function ReportsPageContent() {
     if (normalizedRole === 'agent manager') {
       return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source')
     }
-    // Operations can see the combined reports tab, DCSR, Sale & Rent Source, Operations Commission (read only), and Operations Daily
+    // Operations can see the combined reports tab, Sale & Rent Source, Operations Commission (read only), and Operations Daily
     if (normalizedRole === 'operations') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'dcsr-report' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
     }
     // Admin and operations manager can see all tabs
     return TABS

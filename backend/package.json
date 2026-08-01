@@ -21,6 +21,7 @@
     "migrate:verify-users": "node verify-users-migration.js",
     "migrate:added-by": "node run-added-by-migration.js",
     "migrate:operations-team-agents": "node run-operations-team-agents-migration.js",
+    "migrate:operations-daily": "node run-operations-daily-workbook-migration.js",
     "migrate:employment-start-date": "node run-employment-start-date-migration.js",
     "migrate:team-reports": "node run-team-reports-migration.js",
     "seed:agents": "node scripts/seed-agents-from-excel.js",
