@@ -36,7 +36,7 @@ COMMENT ON COLUMN operations_daily_reports.operations_name IS 'Name of the opera
 COMMENT ON COLUMN operations_daily_reports.report_date IS 'Date of the report (one report per day per operations user)';
 COMMENT ON COLUMN operations_daily_reports.properties_added IS 'Default number of properties added on this day (database-calculated, editable in the report UI)';
 COMMENT ON COLUMN operations_daily_reports.leads_responded_to IS 'Default number of leads responded to on this day for the selected operations user (database-calculated, editable in the report UI)';
-COMMENT ON COLUMN operations_daily_reports.amending_previous_properties IS 'Default number of properties amended on this day (database-calculated, editable in the report UI)';
+COMMENT ON COLUMN operations_daily_reports.amending_previous_properties IS 'Default number of properties amended on this day, excluding same-day creates and system bookkeeping updates (database-calculated, editable in the report UI)';
 COMMENT ON COLUMN operations_daily_reports.preparing_contract IS 'Number of contracts prepared (manual input)';
 COMMENT ON COLUMN operations_daily_reports.tasks_efficiency_duty_time IS 'Duty time efficiency points (manual input, can be negative)';
 COMMENT ON COLUMN operations_daily_reports.tasks_efficiency_uniform IS 'Uniform efficiency points (manual input, can be negative)';

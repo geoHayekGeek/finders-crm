@@ -156,7 +156,7 @@ async function calculateDailyData(operations_id, reportDateInput) {
         `SELECT COUNT(*) as count
          FROM properties
          WHERE DATE(updated_at AT TIME ZONE 'UTC') = $1::date
-           AND updated_at > created_at`,
+           AND DATE(created_at AT TIME ZONE 'UTC') < $1::date`,
         [dateStr]
       )
     ]);

@@ -49,6 +49,25 @@ describe('Operations Daily Report Model', () => {
       expect(mockClient.release).toHaveBeenCalled();
     });
 
+    it('should only count properties amended before the report date as amendments', async () => {
+      const operationsId = 1;
+      const reportDate = '2024-01-15';
+
+      mockClient.query
+        .mockResolvedValueOnce({
+          rows: [{ id: operationsId, name: 'Operations User' }]
+        }) // user
+        .mockResolvedValueOnce({ rows: [{ count: '5' }] }) // properties added
+        .mockResolvedValueOnce({ rows: [{ count: '3' }] }) // leads responded
+        .mockResolvedValueOnce({ rows: [{ count: '2' }] }); // amended previous properties
+
+      await operationsDailyReportModel.calculateDailyData(operationsId, reportDate);
+
+      expect(mockClient.query.mock.calls[3][0]).toContain(
+        "DATE(created_at AT TIME ZONE 'UTC') < $1::date"
+      );
+    });
+
     it('should throw error for invalid operations user', async () => {
       const operationsId = 999;
       const reportDate = '2024-01-15';
