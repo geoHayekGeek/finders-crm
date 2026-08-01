@@ -2,13 +2,109 @@
 // Model for Operations Daily Reports
 
 const pool = require('../config/db');
+
+function loadOperationsDailyFieldConfig() {
+  try {
+    return require('../utils/operationsDailyFields');
+  } catch (error) {
+    const WORKBOOK_DAILY_FIELD_DEFINITIONS = [
+      { key: 'properties_added', label: 'New Data', workbookHeader: 'New Data', calculated: true, defaultValue: 0, visible: true },
+      { key: 'preparing_daily_report', label: 'Preparing Daily report', workbookHeader: 'Preparing Daily report', calculated: false, defaultValue: 0, visible: true },
+      { key: 'phone_calls_duty_time', label: 'PHONE CALLS duty time', workbookHeader: 'PHONE CALLS duty time', calculated: false, defaultValue: 0, visible: true },
+      { key: 'replying_to_msg_on_sm_duty_time', label: 'Replying to msg on SM duty time', workbookHeader: 'Replying to msg on SM duty time', calculated: false, defaultValue: 0, visible: true },
+      { key: 'cvs', label: "CV's", workbookHeader: "CV's", calculated: false, defaultValue: 0, visible: true },
+      { key: 'amending_previous_properties', label: 'Amending previous data', workbookHeader: 'Amending previous data', calculated: true, defaultValue: 0, visible: true },
+      { key: 'filling', label: 'Filling', workbookHeader: 'Filling', calculated: false, defaultValue: 0, visible: true },
+      { key: 'preparing_contract', label: 'Preparing contract', workbookHeader: 'Preparing contract', calculated: false, defaultValue: 0, visible: true },
+      { key: 'tasks_efficiency', label: 'Tasks Efficiency', workbookHeader: 'Tasks Efficiency', calculated: false, defaultValue: 0, visible: true },
+      { key: 'phone_calls_out_of_duty_time', label: 'Phone calls out of duty time', workbookHeader: 'Phone calls out of duty time', calculated: false, defaultValue: 0, visible: true },
+      { key: 'replying_to_msg_on_sm_out_of_duty_time', label: 'Replying to msg on SM out of duty time', workbookHeader: 'Replying to msg on SM out of duty time', calculated: false, defaultValue: 0, visible: true },
+      { key: 'replying_to_whats_up_msg_out_of_duty_time', label: "Replying to what's up msg out of duty time", workbookHeader: "Replying to what's up msg out of duty time", calculated: false, defaultValue: 0, visible: true }
+    ];
+
+    const LEGACY_DAILY_FIELD_DEFINITIONS = [
+      { key: 'leads_responded_to', label: 'Leads Responded To', workbookHeader: null, calculated: true, defaultValue: 0, visible: false },
+      { key: 'leads_responded_out_of_duty_time', label: 'Leads Responded Out of Duty Time', workbookHeader: null, calculated: false, defaultValue: 0, visible: false },
+      { key: 'tasks_efficiency_duty_time', label: 'Tasks Efficiency - Duty Time', workbookHeader: null, calculated: false, defaultValue: 0, visible: false },
+      { key: 'tasks_efficiency_uniform', label: 'Tasks Efficiency - Uniform', workbookHeader: null, calculated: false, defaultValue: 0, visible: false },
+      { key: 'tasks_efficiency_after_duty', label: 'Tasks Efficiency - After Duty Performance', workbookHeader: null, calculated: false, defaultValue: 0, visible: false }
+    ];
+
+    const DAILY_FIELD_DEFINITIONS = [
+      ...WORKBOOK_DAILY_FIELD_DEFINITIONS,
+      ...LEGACY_DAILY_FIELD_DEFINITIONS
+    ];
+
+    const normalizeDailyIntegerValue = (value, fallback = 0) => {
+      if (value === undefined || value === null || value === '') {
+        return fallback;
+      }
+
+      const parsed = typeof value === 'number' ? value : parseInt(String(value), 10);
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const hasOwnValue = (source, field) => Object.prototype.hasOwnProperty.call(source || {}, field);
+    const resolveDailyFieldValues = (calculatedData = {}, inputFields = {}) => {
+      const resolved = {};
+
+      DAILY_FIELD_DEFINITIONS.forEach((definition) => {
+        const fallback = definition.defaultValue ?? 0;
+
+        if (definition.calculated && hasOwnValue(calculatedData, definition.key)) {
+          resolved[definition.key] = hasOwnValue(inputFields, definition.key)
+            ? normalizeDailyIntegerValue(inputFields[definition.key], normalizeDailyIntegerValue(calculatedData[definition.key], fallback))
+            : normalizeDailyIntegerValue(calculatedData[definition.key], fallback);
+          return;
+        }
+
+        if (hasOwnValue(inputFields, definition.key)) {
+          resolved[definition.key] = normalizeDailyIntegerValue(inputFields[definition.key], fallback);
+          return;
+        }
+
+        if (hasOwnValue(calculatedData, definition.key)) {
+          resolved[definition.key] = normalizeDailyIntegerValue(calculatedData[definition.key], fallback);
+          return;
+        }
+
+        resolved[definition.key] = fallback;
+      });
+
+      return resolved;
+    };
+
+    return {
+      WORKBOOK_DAILY_FIELD_DEFINITIONS,
+      LEGACY_DAILY_FIELD_DEFINITIONS,
+      DAILY_FIELD_DEFINITIONS,
+      DAILY_CALCULATED_FIELDS: DAILY_FIELD_DEFINITIONS.filter((field) => field.calculated).map((field) => field.key),
+      DAILY_MANUAL_FIELDS: DAILY_FIELD_DEFINITIONS.filter((field) => !field.calculated).map((field) => field.key),
+      DAILY_INSERT_FIELDS: DAILY_FIELD_DEFINITIONS.map((field) => field.key),
+      DAILY_VISIBLE_FIELD_DEFINITIONS: DAILY_FIELD_DEFINITIONS.filter((field) => field.visible),
+      DAILY_EXPORT_HEADERS: [
+        'Admin and Operations',
+        ...WORKBOOK_DAILY_FIELD_DEFINITIONS.map((field) => field.workbookHeader)
+      ],
+      normalizeDailyIntegerValue,
+      resolveDailyFieldValues
+    };
+  }
+}
+
+const operationsDailyFieldConfig = loadOperationsDailyFieldConfig();
 const {
+  WORKBOOK_DAILY_FIELD_DEFINITIONS,
+  LEGACY_DAILY_FIELD_DEFINITIONS,
+  DAILY_FIELD_DEFINITIONS,
   DAILY_CALCULATED_FIELDS,
   DAILY_MANUAL_FIELDS,
   DAILY_INSERT_FIELDS,
+  DAILY_VISIBLE_FIELD_DEFINITIONS,
+  DAILY_EXPORT_HEADERS,
   resolveDailyFieldValues,
   normalizeDailyIntegerValue
-} = require('../utils/operationsDailyFields');
+} = operationsDailyFieldConfig;
 
 /**
  * Normalize and validate a date
@@ -428,6 +524,16 @@ async function getOperationsUsers() {
 }
 
 module.exports = {
+  WORKBOOK_DAILY_FIELD_DEFINITIONS,
+  LEGACY_DAILY_FIELD_DEFINITIONS,
+  DAILY_FIELD_DEFINITIONS,
+  DAILY_CALCULATED_FIELDS,
+  DAILY_MANUAL_FIELDS,
+  DAILY_INSERT_FIELDS,
+  DAILY_VISIBLE_FIELD_DEFINITIONS,
+  DAILY_EXPORT_HEADERS,
+  normalizeDailyIntegerValue,
+  resolveDailyFieldValues,
   calculateDailyData,
   createReport,
   createReportsBulk,

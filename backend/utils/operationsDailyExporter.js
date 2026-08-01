@@ -5,7 +5,7 @@ const {
   LEGACY_DAILY_FIELD_DEFINITIONS,
   WORKBOOK_DAILY_FIELD_DEFINITIONS,
   normalizeDailyIntegerValue
-} = require('./operationsDailyFields');
+} = require('../models/operationsDailyReportModel');
 
 const DAILY_COLUMN_WIDTHS = [
   9.4140625,

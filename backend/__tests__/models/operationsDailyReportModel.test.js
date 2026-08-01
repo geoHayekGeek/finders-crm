@@ -1,6 +1,6 @@
 const operationsDailyReportModel = require('../../models/operationsDailyReportModel');
 const pool = require('../../config/db');
-const { DAILY_INSERT_FIELDS } = require('../../utils/operationsDailyFields');
+const { DAILY_INSERT_FIELDS } = operationsDailyReportModel;
 
 jest.mock('../../config/db');
 

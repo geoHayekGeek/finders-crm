@@ -3,7 +3,25 @@
 
 const operationsDailyModel = require('../models/operationsDailyReportModel');
 const { exportOperationsDailyToExcel, exportOperationsDailyToPDF } = require('../utils/operationsDailyExporter');
-const { DAILY_INSERT_FIELDS } = require('../utils/operationsDailyFields');
+const DAILY_INSERT_FIELDS = [
+  'properties_added',
+  'preparing_daily_report',
+  'phone_calls_duty_time',
+  'replying_to_msg_on_sm_duty_time',
+  'cvs',
+  'amending_previous_properties',
+  'filling',
+  'preparing_contract',
+  'tasks_efficiency',
+  'phone_calls_out_of_duty_time',
+  'replying_to_msg_on_sm_out_of_duty_time',
+  'replying_to_whats_up_msg_out_of_duty_time',
+  'leads_responded_to',
+  'leads_responded_out_of_duty_time',
+  'tasks_efficiency_duty_time',
+  'tasks_efficiency_uniform',
+  'tasks_efficiency_after_duty'
+];
 
 function parseOperationsId(operations_id) {
   const parsed = Number(operations_id);
