@@ -132,6 +132,10 @@ export interface AgentViewReportSummary {
   new_join_count: number
   reviews_count: number
   agent_commission: number
+  finders_commission: number
+  referrals_on_properties_commission: number
+  team_leader_commission: number
+  administration_commission: number
   referral_received_commission: number
   total_commission: number
 }

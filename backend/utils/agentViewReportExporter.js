@@ -683,7 +683,7 @@ function renderSummarySheet(workbook, report) {
       reviewsTargetCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
       reviewsTargetCell.border = createBorder('thin');
       reviewsTargetCell.fill = TOTAL_FILL;
-      reviewsTargetCell.numFmt = '0.0%';
+      reviewsTargetCell.numFmt = '#,##0';
     }
 
     writeCell(worksheet, rowNumber, 19, {
@@ -755,7 +755,7 @@ function renderSummarySheet(workbook, report) {
     writeCell(worksheet, lastDataRow + 1, 15, { formula: `=SUM(O${firstDataRow}:O${lastDataRow})`, result: totalSummary.new_join }, { bold: true, fill: TOTAL_FILL, numFmt: '#,##0' });
     writeCell(worksheet, lastDataRow + 1, 16, { formula: `=SUM(P${firstDataRow}:P${lastDataRow})`, result: toNumber(report.summary_targets?.new_join_target, 0) }, { bold: true, fill: TOTAL_FILL, numFmt: '#,##0' });
     writeCell(worksheet, lastDataRow + 1, 17, { formula: `=SUM(Q${firstDataRow}:Q${lastDataRow})`, result: totalSummary.reviews }, { bold: true, fill: TOTAL_FILL, numFmt: '#,##0' });
-    writeCell(worksheet, lastDataRow + 1, 18, { formula: `=SUM(R${firstDataRow}:R${lastDataRow})`, result: toNumber(report.summary_targets?.reviews_target, 0) }, { bold: true, fill: TOTAL_FILL, numFmt: '0.0%' });
+    writeCell(worksheet, lastDataRow + 1, 18, { formula: `=SUM(R${firstDataRow}:R${lastDataRow})`, result: toNumber(report.summary_targets?.reviews_target, 0) }, { bold: true, fill: TOTAL_FILL, numFmt: '#,##0' });
     writeCell(worksheet, lastDataRow + 1, 19, { formula: `=SUM(S${firstDataRow}:S${lastDataRow})`, result: totalSummary.agent_commission }, { bold: true, fill: TOTAL_FILL, numFmt: '$#,##0.00' });
     writeCell(worksheet, lastDataRow + 1, 20, 'TOTAL', { bold: true, fill: TOTAL_FILL });
     writeCell(worksheet, lastDataRow + 1, 21, { formula: `=SUM(U${firstDataRow}:U${lastDataRow})`, result: totalSummary.total_commission }, { bold: true, fill: TOTAL_FILL, numFmt: '$#,##0.00' });

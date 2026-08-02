@@ -158,7 +158,7 @@ function normalizeSummaryTargets(rawTargets = {}) {
   return {
     dev_target: toInteger(rawTargets.dev_target ?? rawTargets.dev ?? rawTargets.target_dev, 0),
     new_join_target: toInteger(rawTargets.new_join_target ?? rawTargets.new_join ?? rawTargets.target_new_join, 0),
-    reviews_target: toMoney(rawTargets.reviews_target ?? rawTargets.reviews ?? rawTargets.target_reviews, 0)
+    reviews_target: toInteger(rawTargets.reviews_target ?? rawTargets.reviews ?? rawTargets.target_reviews, 0)
   };
 }
 
@@ -669,8 +669,12 @@ function buildSummaryFromMonths(monthSnapshots) {
     summary.new_join_count += month.manual_totals.new_join_total || 0;
     summary.reviews_count += month.manual_totals.reviews_total || 0;
     summary.agent_commission += month.totals.agent_commission || 0;
+    summary.finders_commission += month.totals.finders_commission || 0;
+    summary.referrals_on_properties_commission += month.totals.referrals_on_properties_commission || 0;
+    summary.team_leader_commission += month.totals.team_leader_commission || 0;
+    summary.administration_commission += month.totals.administration_commission || 0;
     summary.referral_received_commission += month.totals.referral_received_commission || 0;
-    summary.total_commission += (month.totals.agent_commission || 0) + (month.totals.referral_received_commission || 0);
+    summary.total_commission += month.totals.total_commission || 0;
     return summary;
   }, {
     listings_count: 0,
@@ -682,6 +686,10 @@ function buildSummaryFromMonths(monthSnapshots) {
     new_join_count: 0,
     reviews_count: 0,
     agent_commission: 0,
+    finders_commission: 0,
+    referrals_on_properties_commission: 0,
+    team_leader_commission: 0,
+    administration_commission: 0,
     referral_received_commission: 0,
     total_commission: 0
   });

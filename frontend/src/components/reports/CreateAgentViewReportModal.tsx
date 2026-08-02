@@ -39,6 +39,44 @@ function createMonthOverrides(months: AgentViewMonthSnapshot[]) {
   }))
 }
 
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+})
+
+const percentFormatter = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1
+})
+
+function formatCurrency(value: number) {
+  return currencyFormatter.format(Number.isFinite(value) ? value : 0)
+}
+
+function formatPercent(numerator: number, denominator: number) {
+  return percentFormatter.format(denominator > 0 ? numerator / denominator : 0)
+}
+
+function getMonthLeadSourceTotals(month: AgentViewMonthSnapshot) {
+  return month.rows.reduce((totals, row) => {
+    totals.olx += Number(row.olx_leads) || 0
+    totals.fb += Number(row.fb_leads) || 0
+    totals.insta += Number(row.insta_leads) || 0
+    totals.website += Number(row.website_leads) || 0
+    totals.unknown += Number(row.unknown_leads) || 0
+    return totals
+  }, {
+    olx: 0,
+    fb: 0,
+    insta: 0,
+    website: 0,
+    unknown: 0
+  })
+}
+
 export default function CreateAgentViewReportModal({ onClose, onSuccess }: CreateAgentViewReportModalProps) {
   const { token } = useAuth()
   const { showSuccess, showError } = useToast()
@@ -197,8 +235,12 @@ export default function CreateAgentViewReportModal({ onClose, onSuccess }: Creat
       summary.new_join_count += month.manual_totals.new_join_total || 0
       summary.reviews_count += month.manual_totals.reviews_total || 0
       summary.agent_commission += month.totals.agent_commission || 0
+      summary.finders_commission += month.totals.finders_commission || 0
+      summary.referrals_on_properties_commission += month.totals.referrals_on_properties_commission || 0
+      summary.team_leader_commission += month.totals.team_leader_commission || 0
+      summary.administration_commission += month.totals.administration_commission || 0
       summary.referral_received_commission += month.totals.referral_received_commission || 0
-      summary.total_commission += (month.totals.agent_commission || 0) + (month.totals.referral_received_commission || 0)
+      summary.total_commission += month.totals.total_commission || 0
       return summary
     }, {
       listings_count: 0,
@@ -210,10 +252,57 @@ export default function CreateAgentViewReportModal({ onClose, onSuccess }: Creat
       new_join_count: 0,
       reviews_count: 0,
       agent_commission: 0,
+      finders_commission: 0,
+      referrals_on_properties_commission: 0,
+      team_leader_commission: 0,
+      administration_commission: 0,
       referral_received_commission: 0,
       total_commission: 0
     })
   }, [currentMonths])
+
+  const currentLeadSourceTotals = useMemo(() => {
+    return currentMonths.reduce((totals, month) => {
+      const monthTotals = getMonthLeadSourceTotals(month)
+      totals.olx += monthTotals.olx
+      totals.fb += monthTotals.fb
+      totals.insta += monthTotals.insta
+      totals.website += monthTotals.website
+      totals.unknown += monthTotals.unknown
+      return totals
+    }, {
+      olx: 0,
+      fb: 0,
+      insta: 0,
+      website: 0,
+      unknown: 0
+    })
+  }, [currentMonths])
+
+  const performanceMetrics = useMemo(() => {
+    return [
+      { label: 'Listings', value: currentSummary.listings_count.toLocaleString() },
+      { label: 'Leads', value: currentSummary.leads_count.toLocaleString() },
+      { label: 'Viewings', value: currentSummary.viewings_count.toLocaleString() },
+      { label: 'Viewing %', value: formatPercent(currentSummary.viewings_count, currentSummary.leads_count) },
+      { label: 'Sales', value: currentSummary.sales_count.toLocaleString() },
+      { label: 'Sales / Leads', value: formatPercent(currentSummary.sales_count, currentSummary.leads_count) },
+      { label: 'Sales / Viewings', value: formatPercent(currentSummary.sales_count, currentSummary.viewings_count) },
+      { label: 'Sales Amount', value: formatCurrency(currentSummary.sales_amount) }
+    ]
+  }, [currentSummary])
+
+  const commissionMetrics = useMemo(() => {
+    return [
+      { label: 'Agent Com', value: formatCurrency(currentSummary.agent_commission) },
+      { label: "Finder's Com", value: formatCurrency(currentSummary.finders_commission) },
+      { label: 'Ref Props Com', value: formatCurrency(currentSummary.referrals_on_properties_commission) },
+      { label: 'Team Leader', value: formatCurrency(currentSummary.team_leader_commission) },
+      { label: 'Admin Com', value: formatCurrency(currentSummary.administration_commission) },
+      { label: 'Ref Received', value: formatCurrency(currentSummary.referral_received_commission) },
+      { label: 'Total Com', value: formatCurrency(currentSummary.total_commission) }
+    ]
+  }, [currentSummary])
 
   const displayPayload = useMemo<AgentViewReportPayload | null>(() => {
     if (!previewData) {
@@ -433,6 +522,58 @@ export default function CreateAgentViewReportModal({ onClose, onSuccess }: Creat
 
           {displayPayload && !calculating && (
             <div className="space-y-6">
+              <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-900">Calculated Totals</h3>
+                    <p className="text-sm text-gray-500">
+                      Pulled from the selected agent and ready to edit before saving.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
+                    {displayPayload.agent.name}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
+                  {performanceMetrics.map((metric) => (
+                    <div key={metric.label} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">{metric.label}</p>
+                      <p className="mt-1 text-lg font-semibold text-gray-900">{metric.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-7">
+                  {commissionMetrics.map((metric) => (
+                    <div key={metric.label} className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-blue-700">{metric.label}</p>
+                      <p className="mt-1 text-lg font-semibold text-blue-900">{metric.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Lead Sources</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[
+                      { label: 'OLX', value: currentLeadSourceTotals.olx },
+                      { label: 'FB', value: currentLeadSourceTotals.fb },
+                      { label: 'Insta', value: currentLeadSourceTotals.insta },
+                      { label: 'Website', value: currentLeadSourceTotals.website },
+                      { label: 'Unknown', value: currentLeadSourceTotals.unknown }
+                    ].map((source) => (
+                      <span
+                        key={source.label}
+                        className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                      >
+                        {source.label} {source.value.toLocaleString()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-gray-200 bg-white p-4">
                 <div className="mb-4 flex items-center justify-between">
                   <div>
@@ -514,9 +655,9 @@ export default function CreateAgentViewReportModal({ onClose, onSuccess }: Creat
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="1"
                       value={summaryTargets.reviews_target}
-                      onChange={(event) => setSummaryTarget('reviews_target', parseFloat(event.target.value || '0') || 0)}
+                      onChange={(event) => setSummaryTarget('reviews_target', parseInt(event.target.value || '0', 10) || 0)}
                       className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
