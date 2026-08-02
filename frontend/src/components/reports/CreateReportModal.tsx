@@ -7,7 +7,6 @@ import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
-import { normalizeRole } from '@/utils/roleUtils'
 import { formatCurrency } from '@/utils/formatters'
 import { downloadBlob, sanitizeFilenamePart } from '@/utils/fileDownload'
 
@@ -79,15 +78,9 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
   const loadAgents = async () => {
     if (!token) return
     try {
-      const response = await usersApi.getAll(token)
+      const response = await usersApi.getAgents(token)
       if (response.success) {
-        const agentsList = response.users.filter(
-          (u: User) => {
-            const normalizedAgentRole = normalizeRole(u.role);
-            return (['agent', 'consultant'].includes(normalizedAgentRole) || normalizedAgentRole === 'team leader');
-          }
-        )
-        setAgents(agentsList)
+        setAgents(response.agents as User[])
       }
     } catch (error) {
       // Error handled silently - agents list will remain empty
