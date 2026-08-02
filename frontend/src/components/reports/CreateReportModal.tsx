@@ -9,6 +9,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 import { formatCurrency } from '@/utils/formatters'
+import { downloadBlob, sanitizeFilenamePart } from '@/utils/fileDownload'
 
 interface CreateReportModalProps {
   onClose: () => void
@@ -112,16 +113,8 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     const end = new Date(formData.end_date)
     const safeStart = formatter.format(start).replace(/[, ]/g, '-')
     const safeEnd = formatter.format(end).replace(/[, ]/g, '-')
-    const filename = `Report_${agentName.replace(/\s+/g, '_')}_${safeStart}_to_${safeEnd}.xlsx`
-
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
+    const filename = `Report_${sanitizeFilenamePart(agentName, 'agent')}_${safeStart}_to_${safeEnd}.xlsx`
+    downloadBlob(blob, filename)
   }
 
   const calculatePreview = async () => {

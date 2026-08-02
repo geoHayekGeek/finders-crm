@@ -9,6 +9,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
 import { Status, Category } from '@/types/property'
+import { downloadBlob } from '@/utils/fileDownload'
 import DCSRAgentBreakdownTable from './DCSRAgentBreakdownTable'
 import DCSROperationsBreakdownTable from './DCSROperationsBreakdownTable'
 
@@ -23,17 +24,6 @@ function buildDCSRRangeSlug(report: Pick<DCSRMonthlyReport, 'start_date' | 'end_
   const end = new Date(report.end_date)
 
   return `${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
-}
-
-function triggerBlobDownload(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = filename
-  document.body.appendChild(link)
-  link.click()
-  window.URL.revokeObjectURL(url)
-  document.body.removeChild(link)
 }
 
 export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalProps) {
@@ -362,10 +352,7 @@ export default function CreateDCSRModal({ onClose, onSuccess }: CreateDCSRModalP
 
         try {
           const blob = await dcsrApi.exportToExcel(response.data.id, token)
-          triggerBlobDownload(
-            blob,
-            `DCSR_Report_${buildDCSRRangeSlug(response.data)}.xlsx`
-          )
+          downloadBlob(blob, `DCSR_Report_${buildDCSRRangeSlug(response.data)}.xlsx`)
           showSuccess(
             hasManualEdits
               ? 'DCSR report created and downloaded successfully with custom values'

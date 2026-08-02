@@ -6,6 +6,7 @@ import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { OperationsCommissionReport } from '@/types/reports'
+import { downloadBlob } from '@/utils/fileDownload'
 import OperationsCommissionMonthlyTable from './OperationsCommissionMonthlyTable'
 
 interface CreateOperationsCommissionModalProps {
@@ -45,15 +46,7 @@ export default function CreateOperationsCommissionModal({
     const safeStart = formatter.format(start).replace(/[, ]/g, '-')
     const safeEnd = formatter.format(end).replace(/[, ]/g, '-')
     const filename = `Operations_Commission_${safeStart}_to_${safeEnd}.xlsx`
-
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
+    downloadBlob(blob, filename)
   }
 
   // Calculate preview when modal opens or month/year changes

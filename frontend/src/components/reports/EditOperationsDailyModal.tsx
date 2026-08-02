@@ -6,6 +6,7 @@ import { operationsDailyApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { OperationsDailyReport } from '@/types/reports'
+import { downloadBlob, sanitizeFilenamePart } from '@/utils/fileDownload'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import { formatDateDisplay } from '@/utils/formatters'
 import OperationsDailyRowsTable from './OperationsDailyRowsTable'
@@ -54,6 +55,13 @@ export default function EditOperationsDailyModal({
   }, [report])
   const hasMultipleRows = rows.length > 1
 
+  const downloadUpdatedReport = async (reportToDownload: OperationsDailyReport) => {
+    const blob = await operationsDailyApi.exportToExcel(reportToDownload.id, token)
+    const safeOperationsName = sanitizeFilenamePart(reportToDownload.operations_name || 'report')
+    const safeDate = sanitizeFilenamePart(reportToDownload.report_date || 'report', 'report')
+    downloadBlob(blob, `Operations_Daily_${safeOperationsName}_${safeDate}.xlsx`)
+  }
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
 
@@ -74,6 +82,11 @@ export default function EditOperationsDailyModal({
 
       if (response.success) {
         showSuccess('Operations daily report updated successfully')
+        try {
+          await downloadUpdatedReport(response.data)
+        } catch (downloadError: any) {
+          showError(downloadError.message || 'Report was saved, but the automatic download failed')
+        }
         onSuccess()
       }
     } catch (error: any) {

@@ -7,6 +7,7 @@ import { operationsCommissionApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { downloadBlob } from '@/utils/fileDownload'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import CreateOperationsCommissionModal from './CreateOperationsCommissionModal'
 import EditOperationsCommissionModal from './EditOperationsCommissionModal'
@@ -169,15 +170,7 @@ export default function OperationsCommissionTab() {
       
       const report = reports.find(r => r.id === reportId)
       const filename = `Operations_Commission_${formatRangeSlug(report)}.xlsx`
-
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      downloadBlob(blob, filename)
       showSuccess('Report exported to Excel successfully')
     } catch (error: any) {
       console.error('Error exporting to Excel:', error)
@@ -192,15 +185,7 @@ export default function OperationsCommissionTab() {
       
       const report = reports.find(r => r.id === reportId)
       const filename = `Operations_Commission_${formatRangeSlug(report)}.pdf`
-
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      downloadBlob(blob, filename)
       showSuccess('Report exported to PDF successfully')
     } catch (error: any) {
       console.error('Error exporting to PDF:', error)
@@ -246,14 +231,7 @@ export default function OperationsCommissionTab() {
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const link = document.createElement('a')
-    const url = URL.createObjectURL(blob)
-    link.setAttribute('href', url)
-    link.setAttribute('download', `Operations_Commission_Reports_${new Date().toISOString().split('T')[0]}.csv`)
-    link.style.visibility = 'hidden'
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
+    downloadBlob(blob, `Operations_Commission_Reports_${new Date().toISOString().split('T')[0]}.csv`)
     showSuccess('Report exported to CSV successfully')
   }
 

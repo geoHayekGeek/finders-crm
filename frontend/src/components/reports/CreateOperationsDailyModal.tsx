@@ -6,6 +6,7 @@ import { operationsDailyApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { formatDateInput } from '@/utils/formatters'
+import { downloadBlob, sanitizeFilenamePart } from '@/utils/fileDownload'
 import { OperationsUser } from '@/types/leads'
 import OperationsDailyMultiSelect from './OperationsDailyMultiSelect'
 import OperationsDailyRowsTable from './OperationsDailyRowsTable'
@@ -54,30 +55,30 @@ export default function CreateOperationsDailyModal({
     rowsRef.current = rows
   }, [rows])
 
-  const loadUsers = async () => {
-    if (!token) {
-      setPreviewError('Authentication required')
-      return
-    }
-
-    setUsersLoading(true)
-    try {
-      const response = await operationsDailyApi.getOperationsUsers(token)
-      if (response.success) {
-        setUsers(response.data)
-      } else {
-        setPreviewError(response.message || 'Failed to load operations users')
-      }
-    } catch (error: any) {
-      setPreviewError(error.message || 'Failed to load operations users')
-    } finally {
-      setUsersLoading(false)
-    }
-  }
-
   useEffect(() => {
     if (!isOpen) {
       return
+    }
+
+    const loadUsers = async () => {
+      if (!token) {
+        setPreviewError('Authentication required')
+        return
+      }
+
+      setUsersLoading(true)
+      try {
+        const response = await operationsDailyApi.getOperationsUsers(token)
+        if (response.success) {
+          setUsers(response.data)
+        } else {
+          setPreviewError(response.message || 'Failed to load operations users')
+        }
+      } catch (error: any) {
+        setPreviewError(error.message || 'Failed to load operations users')
+      } finally {
+        setUsersLoading(false)
+      }
     }
 
     setReportDate(formatDateInput(new Date()))
@@ -87,7 +88,6 @@ export default function CreateOperationsDailyModal({
     setPreviewLoading(false)
     previewRequestIdRef.current += 1
     loadUsers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, token])
 
   useEffect(() => {
@@ -168,11 +168,17 @@ export default function CreateOperationsDailyModal({
     }
 
     loadPreview()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, reportDate, selectedIds, token])
 
   const handleRowsChange = (nextRows: OperationsDailyRowDraft[]) => {
     setRows(nextRows)
+  }
+
+  const downloadCreatedReport = async (reportId: number, operationsName: string, date: string) => {
+    const blob = await operationsDailyApi.exportToExcel(reportId, token)
+    const safeOperationsName = sanitizeFilenamePart(operationsName)
+    const safeDate = sanitizeFilenamePart(date, 'report')
+    downloadBlob(blob, `Operations_Daily_${safeOperationsName}_${safeDate}.xlsx`)
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -205,6 +211,7 @@ export default function CreateOperationsDailyModal({
       )
 
       if (response.success) {
+        const createdReport = response.data.created[0]
         const createdCount = response.data.created.length
         const skippedCount = response.data.skipped.length
         const successLabel = selectedIds.length > 1 ? 'combined operations daily report' : 'operations daily report'
@@ -213,6 +220,17 @@ export default function CreateOperationsDailyModal({
             ? `Created ${createdCount} ${successLabel} and skipped ${skippedCount} existing report(s)`
             : `Created ${createdCount} ${successLabel}`
         )
+        if (createdReport?.id) {
+          try {
+            await downloadCreatedReport(
+              createdReport.id,
+              createdReport.operations_name || 'report',
+              createdReport.report_date || reportDate
+            )
+          } catch (downloadError: any) {
+            showError(downloadError.message || 'Report was saved, but the automatic download failed')
+          }
+        }
         onSuccess()
       }
     } catch (error: any) {

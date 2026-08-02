@@ -8,6 +8,7 @@ import { useToast } from '@/contexts/ToastContext'
 import { TeamMonthlyReport } from '@/types/reports'
 import { User } from '@/types/user'
 import { normalizeRole } from '@/utils/roleUtils'
+import { downloadBlob } from '@/utils/fileDownload'
 
 function sanitizeFilenamePart(value: string, fallback: string) {
   const safe = value
@@ -112,14 +113,7 @@ export default function CreateTeamReportModal({ onClose, onSuccess }: CreateTeam
     const formatter = new Intl.DateTimeFormat('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
     const teamName = report.team_leader_code || report.team_leader_name || 'Team'
     const slug = `${sanitizeFilenamePart(teamName, 'Team')}_${formatter.format(start).replace(/[, ]/g, '-')}_to_${formatter.format(end).replace(/[, ]/g, '-')}`
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `Team_Report_${slug}.xlsx`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
+    downloadBlob(blob, `Team_Report_${slug}.xlsx`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

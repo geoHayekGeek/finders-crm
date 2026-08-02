@@ -7,6 +7,7 @@ import { reportsApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { downloadBlob } from '@/utils/fileDownload'
 import { ConfirmationModal } from '@/components/ConfirmationModal'
 import ReportsFilters from './ReportsFilters'
 import CreateTeamReportModal from './CreateTeamReportModal'
@@ -121,15 +122,7 @@ export default function TeamReportsTab() {
       }
 
       const filename = `Team_Report_${formatRangeSlug(report)}.xlsx`
-
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = filename
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      downloadBlob(blob, filename)
       showSuccess('Team report exported to Excel successfully')
     } catch (error: any) {
       showError(error.message || 'Failed to export team report to Excel')

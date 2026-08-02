@@ -6,6 +6,7 @@ import { OperationsDailyFilters, OperationsDailyReport } from '@/types/reports'
 import { operationsDailyApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { downloadBlob, sanitizeFilenamePart } from '@/utils/fileDownload'
 import { OperationsSelector } from '@/components/OperationsSelector'
 import CreateOperationsDailyModal from './CreateOperationsDailyModal'
 import EditOperationsDailyModal from './EditOperationsDailyModal'
@@ -120,18 +121,10 @@ export default function OperationsDailyTab() {
       const blob = await operationsDailyApi.exportToExcel(reportId, token)
 
       const report = reports.find((item) => item.id === reportId)
-      const dateStr = report?.report_date || 'report'
-      const operationsName = report?.operations_name?.replace(/\s+/g, '_') || 'report'
+      const dateStr = sanitizeFilenamePart(report?.report_date || 'report', 'report')
+      const operationsName = sanitizeFilenamePart(report?.operations_name || 'report')
       const filename = `Operations_Daily_${operationsName}_${dateStr}.xlsx`
-
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(link)
+      downloadBlob(blob, filename)
       showSuccess('Report exported to Excel successfully')
     } catch (error: any) {
       showError(error.message || 'Failed to export report to Excel')
@@ -143,18 +136,10 @@ export default function OperationsDailyTab() {
       const blob = await operationsDailyApi.exportToPDF(reportId, token)
 
       const report = reports.find((item) => item.id === reportId)
-      const dateStr = report?.report_date || 'report'
-      const operationsName = report?.operations_name?.replace(/\s+/g, '_') || 'report'
+      const dateStr = sanitizeFilenamePart(report?.report_date || 'report', 'report')
+      const operationsName = sanitizeFilenamePart(report?.operations_name || 'report')
       const filename = `Operations_Daily_${operationsName}_${dateStr}.pdf`
-
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(link)
+      downloadBlob(blob, filename)
       showSuccess('Report exported to PDF successfully')
     } catch (error: any) {
       showError(error.message || 'Failed to export report to PDF')

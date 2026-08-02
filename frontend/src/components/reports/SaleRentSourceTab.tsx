@@ -7,6 +7,7 @@ import { saleRentSourceApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePermissions } from '@/contexts/PermissionContext'
+import { downloadBlob } from '@/utils/fileDownload'
 import { normalizeRole } from '@/utils/roleUtils'
 import { formatDateForDisplay } from '@/utils/dateUtils'
 
@@ -124,17 +125,6 @@ function sanitizeFilenamePart(value: string, fallback: string) {
     .replace(/_+/g, '_')
     .replace(/^_+|_+$/g, '')
   return safe || fallback
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = window.URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  document.body.appendChild(a)
-  a.click()
-  window.URL.revokeObjectURL(url)
-  document.body.removeChild(a)
 }
 
 function hashString(value: string) {
