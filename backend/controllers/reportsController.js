@@ -120,6 +120,73 @@ class ReportsController {
   }
 
   /**
+   * Preview a monthly report without saving it
+   */
+  static async previewMonthlyReport(req, res) {
+    try {
+      logger.debug('Previewing monthly report', { agent_id: req.body.agent_id, start_date: req.body.start_date, end_date: req.body.end_date });
+      
+      const role = normalizeRole(req.user.role);
+      
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to create reports'
+        });
+      }
+      
+      const { agent_id, start_date, end_date } = req.body;
+      
+      if (!agent_id || !start_date || !end_date) {
+        return res.status(400).json({
+          success: false,
+          message: 'Agent ID, start date, and end date are required'
+        });
+      }
+
+      const startDate = new Date(start_date);
+      const endDate = new Date(end_date);
+
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid date format. Please use YYYY-MM-DD.'
+        });
+      }
+
+      if (endDate < startDate) {
+        return res.status(400).json({
+          success: false,
+          message: 'End date cannot be before start date'
+        });
+      }
+
+      const preview = await Report.previewMonthlyReport(req.body);
+
+      res.json({
+        success: true,
+        data: preview,
+        message: 'Monthly report preview generated successfully'
+      });
+    } catch (error) {
+      logger.error('Error previewing monthly report', error);
+      
+      if (error.message?.includes('Year must be')) {
+        return res.status(400).json({
+          success: false,
+          message: error.message
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: 'Failed to preview monthly report',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
    * Get all monthly reports with optional filters
    */
   static async getAllReports(req, res) {
@@ -386,8 +453,8 @@ class ReportsController {
       const { id } = req.params;
       const role = normalizeRole(req.user.role);
       
-      // Only admin and operations manager can delete reports
-      if (!['admin', 'operations manager'].includes(role)) {
+      // Admin, operations manager, and operations can delete reports
+      if (!['admin', 'operations manager', 'operations'].includes(role)) {
         return res.status(403).json({
           success: false,
           message: 'You do not have permission to delete reports'

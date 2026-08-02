@@ -79,6 +79,151 @@ function normalizeLeadSourcesInput(value, fallback = {}) {
   return JSON.stringify(value);
 }
 
+function normalizeMonthlyReportInput(reportData = {}) {
+  const agentId = Number(reportData.agent_id);
+  const { start_date, end_date } = reportData;
+
+  if (!Number.isInteger(agentId) || agentId <= 0) {
+    throw new Error('Agent ID is required');
+  }
+
+  if (!start_date || !end_date) {
+    throw new Error('Start date and end date are required');
+  }
+
+  const startDateObj = new Date(start_date);
+  const endDateObj = new Date(end_date);
+
+  if (Number.isNaN(startDateObj.getTime()) || Number.isNaN(endDateObj.getTime())) {
+    throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
+  }
+
+  if (endDateObj < startDateObj) {
+    throw new Error('End date cannot be before start date');
+  }
+
+  const normalizedStart = new Date(Date.UTC(
+    startDateObj.getUTCFullYear(),
+    startDateObj.getUTCMonth(),
+    startDateObj.getUTCDate(),
+    0, 0, 0, 0
+  ));
+  const normalizedEnd = new Date(Date.UTC(
+    endDateObj.getUTCFullYear(),
+    endDateObj.getUTCMonth(),
+    endDateObj.getUTCDate(),
+    23, 59, 59, 999
+  ));
+
+  const startDateStr = normalizedStart.toISOString().split('T')[0];
+  const endDateStr = normalizedEnd.toISOString().split('T')[0];
+  const derivedMonth = normalizedStart.getUTCMonth() + 1;
+  const derivedYear = normalizedStart.getUTCFullYear();
+
+  if (derivedYear < 2000) {
+    throw new Error(`Year must be 2000 or later. Selected date range results in year ${derivedYear}. Please select a date range starting from 2000 or later.`);
+  }
+
+  return {
+    agentId,
+    boosts: normalizeNumericInput(reportData.boosts),
+    normalizedStart,
+    normalizedEnd,
+    startDateStr,
+    endDateStr,
+    derivedMonth,
+    derivedYear
+  };
+}
+
+async function applyMonthlyReportExternalRules(agentId, startDateStr, endDateStr) {
+  console.log(`🔄 Applying external rule to referrals for agent ${agentId}...`);
+  try {
+    const propertiesWithReferralsResult = await pool.query(
+      `SELECT DISTINCT p.id 
+       FROM properties p
+       INNER JOIN referrals r ON p.id = r.property_id
+       WHERE r.employee_id = $1 
+       AND p.closed_date >= $2::date 
+       AND p.closed_date <= $3::date
+       AND p.status_id IN (
+         ${CLOSURE_STATUS_ID_SUBQUERY}
+       )`,
+      [agentId, startDateStr, endDateStr]
+    );
+
+    for (const prop of propertiesWithReferralsResult.rows) {
+      try {
+        await PropertyReferral.applyExternalRuleToPropertyReferrals(prop.id);
+      } catch (err) {
+        console.warn(`⚠️ Could not apply external rule to property ${prop.id}:`, err.message);
+      }
+    }
+
+    const leadsWithReferralsResult = await pool.query(
+      `SELECT DISTINCT l.id 
+       FROM leads l
+       INNER JOIN lead_referrals lr ON l.id = lr.lead_id
+       INNER JOIN properties p ON p.owner_id = l.id
+       WHERE lr.agent_id = $1 
+       AND p.closed_date >= $2::date 
+       AND p.closed_date <= $3::date
+       AND p.status_id IN (
+         ${CLOSURE_STATUS_ID_SUBQUERY}
+       )`,
+      [agentId, startDateStr, endDateStr]
+    );
+
+    for (const lead of leadsWithReferralsResult.rows) {
+      try {
+        await LeadReferral.applyExternalRuleToLeadReferrals(lead.id);
+      } catch (err) {
+        console.warn(`⚠️ Could not apply external rule to lead ${lead.id}:`, err.message);
+      }
+    }
+
+    console.log(`✅ External rule applied to ${propertiesWithReferralsResult.rows.length} properties and ${leadsWithReferralsResult.rows.length} leads`);
+  } catch (error) {
+    console.warn(`⚠️ Error applying external rule (continuing with calculation):`, error.message);
+  }
+}
+
+function buildMonthlyReportResolvedValues(reportData = {}, calculatedData = {}) {
+  const commissionValues = resolveCommissionBreakdown(reportData, calculatedData);
+
+  return {
+    listings_count: reportData.listings_count !== undefined
+      ? parseInt(reportData.listings_count, 10) || 0
+      : calculatedData.listings_count,
+    lead_sources: normalizeLeadSourcesInput(reportData.lead_sources, calculatedData.lead_sources),
+    viewings_count: reportData.viewings_count !== undefined
+      ? parseInt(reportData.viewings_count, 10) || 0
+      : calculatedData.viewings_count,
+    sales_count: reportData.sales_count !== undefined
+      ? parseInt(reportData.sales_count, 10) || 0
+      : calculatedData.sales_count,
+    sales_amount: reportData.sales_amount !== undefined
+      ? normalizeNumericInput(reportData.sales_amount, calculatedData.sales_amount)
+      : calculatedData.sales_amount,
+    agent_commission: commissionValues.agent_commission,
+    finders_commission: commissionValues.finders_commission,
+    referral_commission: 0,
+    team_leader_commission: commissionValues.team_leader_commission,
+    administration_commission: commissionValues.administration_commission,
+    total_commission: commissionValues.total_commission,
+    referral_received_count: reportData.referral_received_count !== undefined
+      ? parseInt(reportData.referral_received_count, 10) || 0
+      : calculatedData.referral_received_count,
+    referral_received_commission: reportData.referral_received_commission !== undefined
+      ? normalizeNumericInput(reportData.referral_received_commission, calculatedData.referral_received_commission)
+      : calculatedData.referral_received_commission ?? 0,
+    referrals_on_properties_count: reportData.referrals_on_properties_count !== undefined
+      ? parseInt(reportData.referrals_on_properties_count, 10) || 0
+      : calculatedData.referrals_on_properties_count,
+    referrals_on_properties_commission: commissionValues.referrals_on_properties_commission
+  };
+}
+
 const COMMISSION_BREAKDOWN_FIELDS = [
   'agent_commission',
   'finders_commission',
@@ -133,161 +278,96 @@ class Report {
    * @returns {Promise<Object>} Created report with calculated data
    */
   static async createMonthlyReport(reportData, createdBy) {
-    // Ensure external column exists
     await ensureMonthlyAgentReportSchema();
     await ensureExternalColumnExists();
 
-    const {
-      agent_id,
-      start_date,
-      end_date,
-      boosts = 0
-    } = reportData;
-
     try {
-      if (!start_date || !end_date) {
-        throw new Error('Start date and end date are required');
-      }
-
-      const startDateObj = new Date(start_date);
-      const endDateObj = new Date(end_date);
-
-      if (Number.isNaN(startDateObj.getTime()) || Number.isNaN(endDateObj.getTime())) {
-        throw new Error('Invalid date format. Please use ISO date strings (YYYY-MM-DD).');
-      }
-
-      if (endDateObj < startDateObj) {
-        throw new Error('End date cannot be before start date');
-      }
-
-      // Normalize to full inclusive days in UTC
-      const normalizedStart = new Date(Date.UTC(
-        startDateObj.getUTCFullYear(),
-        startDateObj.getUTCMonth(),
-        startDateObj.getUTCDate(),
-        0, 0, 0, 0
-      ));
-      const normalizedEnd = new Date(Date.UTC(
-        endDateObj.getUTCFullYear(),
-        endDateObj.getUTCMonth(),
-        endDateObj.getUTCDate(),
-        23, 59, 59, 999
-      ));
-
-      const startDateStr = normalizedStart.toISOString().split('T')[0];
-      const endDateStr = normalizedEnd.toISOString().split('T')[0];
-
-      // Derive month/year (legacy columns) from the start date for backwards compatibility
-      const derivedMonth = normalizedStart.getUTCMonth() + 1;
-      const derivedYear = normalizedStart.getUTCFullYear();
-
-      // Validate year constraint (must be >= 2000, no upper limit)
-      if (derivedYear < 2000) {
-        throw new Error(`Year must be 2000 or later. Selected date range results in year ${derivedYear}. Please select a date range starting from 2000 or later.`);
-      }
+      const {
+        agentId,
+        boosts,
+        normalizedStart,
+        normalizedEnd,
+        startDateStr,
+        endDateStr,
+        derivedMonth,
+        derivedYear
+      } = normalizeMonthlyReportInput(reportData);
 
       // Check if report already exists for this exact range
       const existing = await pool.query(
-        'SELECT id FROM monthly_agent_reports WHERE agent_id = $1 AND start_date = $2::date AND end_date = $3::date',
-        [agent_id, startDateStr, endDateStr]
+        'SELECT id, created_by FROM monthly_agent_reports WHERE agent_id = $1 AND start_date = $2::date AND end_date = $3::date',
+        [agentId, startDateStr, endDateStr]
       );
 
-      if (existing.rows.length > 0) {
+      const existingReport = existing.rows[0] || null;
+
+      if (existingReport && existingReport.created_by !== null && existingReport.created_by !== createdBy) {
         throw new Error('Report already exists for this agent and date range');
       }
 
-      // Apply external rule to all properties and leads for this agent before calculating
-      // This ensures referral external flags are correctly set
-      console.log(`🔄 Applying external rule to referrals for agent ${agent_id}...`);
-      try {
-        // Get all properties that have referrals FROM this agent (where r.employee_id = agent_id)
-        // These are properties that this agent referred, not properties owned by this agent
-        const propertiesWithReferralsResult = await pool.query(
-          `SELECT DISTINCT p.id 
-           FROM properties p
-           INNER JOIN referrals r ON p.id = r.property_id
-           WHERE r.employee_id = $1 
-           AND p.closed_date >= $2::date 
-           AND p.closed_date <= $3::date
-           AND p.status_id IN (
-             ${CLOSURE_STATUS_ID_SUBQUERY}
-           )`,
-          [agent_id, startDateStr, endDateStr]
-        );
-        
-        // Apply external rule to each property that has referrals from this agent
-        for (const prop of propertiesWithReferralsResult.rows) {
-          try {
-            await PropertyReferral.applyExternalRuleToPropertyReferrals(prop.id);
-          } catch (err) {
-            console.warn(`⚠️ Could not apply external rule to property ${prop.id}:`, err.message);
-          }
-        }
-
-        // Get all leads that have referrals FROM this agent (where lr.agent_id = agent_id)
-        const leadsWithReferralsResult = await pool.query(
-          `SELECT DISTINCT l.id 
-           FROM leads l
-           INNER JOIN lead_referrals lr ON l.id = lr.lead_id
-           INNER JOIN properties p ON p.owner_id = l.id
-           WHERE lr.agent_id = $1 
-           AND p.closed_date >= $2::date 
-           AND p.closed_date <= $3::date
-           AND p.status_id IN (
-             ${CLOSURE_STATUS_ID_SUBQUERY}
-           )`,
-          [agent_id, startDateStr, endDateStr]
-        );
-        
-        // Apply external rule to each lead that has referrals from this agent
-        for (const lead of leadsWithReferralsResult.rows) {
-          try {
-            await LeadReferral.applyExternalRuleToLeadReferrals(lead.id);
-          } catch (err) {
-            console.warn(`⚠️ Could not apply external rule to lead ${lead.id}:`, err.message);
-          }
-        }
-        console.log(`✅ External rule applied to ${propertiesWithReferralsResult.rows.length} properties and ${leadsWithReferralsResult.rows.length} leads`);
-      } catch (error) {
-        console.warn(`⚠️ Error applying external rule (continuing with calculation):`, error.message);
-      }
+      await applyMonthlyReportExternalRules(agentId, startDateStr, endDateStr);
 
       // Calculate report data
-      const calculatedData = await this.calculateReportData(agent_id, normalizedStart, normalizedEnd);
+      const calculatedData = await this.calculateReportData(agentId, normalizedStart, normalizedEnd);
+      const resolvedValues = buildMonthlyReportResolvedValues(reportData, calculatedData);
+      const writeValues = [
+        derivedMonth,
+        derivedYear,
+        startDateStr,
+        endDateStr,
+        boosts,
+        resolvedValues.listings_count,
+        resolvedValues.lead_sources,
+        resolvedValues.viewings_count,
+        resolvedValues.sales_count,
+        resolvedValues.sales_amount,
+        resolvedValues.agent_commission,
+        resolvedValues.finders_commission,
+        resolvedValues.referral_commission,
+        resolvedValues.team_leader_commission,
+        resolvedValues.administration_commission,
+        resolvedValues.total_commission,
+        resolvedValues.referral_received_count,
+        resolvedValues.referral_received_commission,
+        resolvedValues.referrals_on_properties_count,
+        resolvedValues.referrals_on_properties_commission,
+        createdBy
+      ];
 
-      const commissionValues = resolveCommissionBreakdown(reportData, calculatedData);
+      if (existingReport) {
+        console.log(`📝 Updating existing monthly report ${existingReport.id} for agent ${agentId}...`);
 
-      const resolvedValues = {
-        listings_count: reportData.listings_count !== undefined
-          ? parseInt(reportData.listings_count, 10) || 0
-          : calculatedData.listings_count,
-        lead_sources: normalizeLeadSourcesInput(reportData.lead_sources, calculatedData.lead_sources),
-        viewings_count: reportData.viewings_count !== undefined
-          ? parseInt(reportData.viewings_count, 10) || 0
-          : calculatedData.viewings_count,
-        sales_count: reportData.sales_count !== undefined
-          ? parseInt(reportData.sales_count, 10) || 0
-          : calculatedData.sales_count,
-        sales_amount: reportData.sales_amount !== undefined
-          ? normalizeNumericInput(reportData.sales_amount, calculatedData.sales_amount)
-          : calculatedData.sales_amount,
-        agent_commission: commissionValues.agent_commission,
-        finders_commission: commissionValues.finders_commission,
-        referral_commission: 0,
-        team_leader_commission: commissionValues.team_leader_commission,
-        administration_commission: commissionValues.administration_commission,
-        total_commission: commissionValues.total_commission,
-        referral_received_count: reportData.referral_received_count !== undefined
-          ? parseInt(reportData.referral_received_count, 10) || 0
-          : calculatedData.referral_received_count,
-        referral_received_commission: reportData.referral_received_commission !== undefined
-          ? normalizeNumericInput(reportData.referral_received_commission, calculatedData.referral_received_commission)
-          : calculatedData.referral_received_commission ?? 0,
-        referrals_on_properties_count: reportData.referrals_on_properties_count !== undefined
-          ? parseInt(reportData.referrals_on_properties_count, 10) || 0
-          : calculatedData.referrals_on_properties_count,
-        referrals_on_properties_commission: commissionValues.referrals_on_properties_commission
-      };
+        const updateResult = await pool.query(
+          `UPDATE monthly_agent_reports SET
+            month = $2,
+            year = $3,
+            start_date = $4,
+            end_date = $5,
+            boosts = $6,
+            listings_count = $7,
+            lead_sources = $8,
+            viewings_count = $9,
+            sales_count = $10,
+            sales_amount = $11,
+            agent_commission = $12,
+            finders_commission = $13,
+            referral_commission = $14,
+            team_leader_commission = $15,
+            administration_commission = $16,
+            total_commission = $17,
+            referral_received_count = $18,
+            referral_received_commission = $19,
+            referrals_on_properties_count = $20,
+            referrals_on_properties_commission = $21,
+            created_by = $22,
+            updated_at = NOW()
+          WHERE id = $1
+          RETURNING *`,
+          [existingReport.id, ...writeValues]
+        );
+
+        return updateResult.rows[0];
+      }
 
       // Insert new report
       const result = await pool.query(
@@ -339,35 +419,56 @@ class Report {
           $22
         )
         RETURNING *`,
-        [
-          agent_id,
-          derivedMonth,
-          derivedYear,
-          startDateStr,
-          endDateStr,
-          normalizeNumericInput(boosts),
-          resolvedValues.listings_count,
-          resolvedValues.lead_sources,
-          resolvedValues.viewings_count,
-          resolvedValues.sales_count,
-          resolvedValues.sales_amount,
-          resolvedValues.agent_commission,
-          resolvedValues.finders_commission,
-          resolvedValues.referral_commission,
-          resolvedValues.team_leader_commission,
-          resolvedValues.administration_commission,
-          resolvedValues.total_commission,
-          resolvedValues.referral_received_count,
-          resolvedValues.referral_received_commission,
-          resolvedValues.referrals_on_properties_count,
-          resolvedValues.referrals_on_properties_commission,
-          createdBy
-        ]
+        [agentId, ...writeValues]
       );
 
       return result.rows[0];
     } catch (error) {
       console.error('Error creating agent report:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Preview monthly report calculations without persisting a row
+   * @param {Object} reportData - Report data including agent_id, start_date, end_date
+   * @returns {Promise<Object>} Calculated report preview
+   */
+  static async previewMonthlyReport(reportData) {
+    await ensureExternalColumnExists();
+
+    try {
+      const {
+        agentId,
+        boosts,
+        normalizedStart,
+        normalizedEnd,
+        startDateStr,
+        endDateStr,
+        derivedMonth,
+        derivedYear
+      } = normalizeMonthlyReportInput(reportData);
+
+      await applyMonthlyReportExternalRules(agentId, startDateStr, endDateStr);
+
+      const calculatedData = await this.calculateReportData(agentId, normalizedStart, normalizedEnd);
+      const resolvedValues = buildMonthlyReportResolvedValues(reportData, calculatedData);
+      const leadSources = typeof resolvedValues.lead_sources === 'string'
+        ? JSON.parse(resolvedValues.lead_sources)
+        : resolvedValues.lead_sources;
+
+      return {
+        agent_id: agentId,
+        month: derivedMonth,
+        year: derivedYear,
+        start_date: startDateStr,
+        end_date: endDateStr,
+        boosts,
+        ...resolvedValues,
+        lead_sources: leadSources
+      };
+    } catch (error) {
+      console.error('Error previewing agent report:', error);
       throw error;
     }
   }

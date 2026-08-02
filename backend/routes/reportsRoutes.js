@@ -33,6 +33,14 @@ router.get('/monthly/:id', ReportsController.getReportById);
 router.post('/monthly', ReportsController.createMonthlyReport);
 
 /**
+ * @route   POST /api/reports/monthly/preview
+ * @desc    Preview a monthly agent report without saving it
+ * @body    agent_id, start_date, end_date, boosts (optional)
+ * @access  Private (Admin, Operations Manager, Operations)
+ */
+router.post('/monthly/preview', ReportsController.previewMonthlyReport);
+
+/**
  * @route   PUT /api/reports/monthly/:id
  * @desc    Update a monthly report (manual fields)
  * @body    boosts (or other manual fields)

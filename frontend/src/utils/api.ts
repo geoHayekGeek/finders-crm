@@ -1392,6 +1392,16 @@ export const reportsApi = {
     token
   ),
 
+  // Preview a monthly report without saving it
+  preview: (data: Pick<CreateReportData, 'agent_id' | 'start_date' | 'end_date' | 'boosts'>, token?: AuthToken) => apiRequest<{ success: boolean; data: Partial<MonthlyAgentReport>; message: string }>(
+    '/reports/monthly/preview',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
   // Update a report (mainly manual fields like boosts)
   update: (id: number, data: UpdateReportData, token?: AuthToken) => apiRequest<{ success: boolean; data: MonthlyAgentReport; message: string }>(
     `/reports/monthly/${id}`,

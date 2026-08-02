@@ -142,6 +142,74 @@ describe('Report Model', () => {
       expect(result.agent_commission).toBe(0);
       expect(result.total_commission).toBe(0);
     });
+
+    it('should update an existing report when the same creator resubmits the same range', async () => {
+      const calculatedData = {
+        listings_count: 2,
+        lead_sources: { Website: 1 },
+        viewings_count: 4,
+        sales_count: 1,
+        sales_amount: 250000,
+        agent_commission: 1000,
+        finders_commission: 200,
+        team_leader_commission: 300,
+        administration_commission: 400,
+        total_commission: 1900,
+        referral_received_count: 0,
+        referral_received_commission: 0,
+        referrals_on_properties_count: 0,
+        referrals_on_properties_commission: 0
+      };
+
+      const updatedReport = {
+        id: 42,
+        agent_id: 1,
+        month: 1,
+        year: 2000,
+        start_date: '2000-01-01',
+        end_date: '2000-01-31',
+        boosts: 25,
+        listings_count: calculatedData.listings_count,
+        lead_sources: calculatedData.lead_sources,
+        viewings_count: calculatedData.viewings_count,
+        sales_count: calculatedData.sales_count,
+        sales_amount: calculatedData.sales_amount,
+        agent_commission: calculatedData.agent_commission,
+        finders_commission: calculatedData.finders_commission,
+        referral_commission: 0,
+        team_leader_commission: calculatedData.team_leader_commission,
+        administration_commission: calculatedData.administration_commission,
+        total_commission: calculatedData.total_commission,
+        referral_received_count: calculatedData.referral_received_count,
+        referral_received_commission: calculatedData.referral_received_commission,
+        referrals_on_properties_count: calculatedData.referrals_on_properties_count,
+        referrals_on_properties_commission: calculatedData.referrals_on_properties_commission,
+        created_by: 1
+      };
+
+      mockQuery
+        .mockResolvedValueOnce({ rows: [] }) // ensureMonthlyAgentReportSchema
+        .mockResolvedValueOnce({ rows: [] }) // ensureExternalColumnExists
+        .mockResolvedValueOnce({ rows: [{ id: 42, created_by: 1 }] }) // existing report check
+        .mockResolvedValueOnce({ rows: [] }) // properties with referrals
+        .mockResolvedValueOnce({ rows: [] }) // leads with referrals
+        .mockResolvedValueOnce({ rows: [updatedReport] }); // update existing report
+
+      const calculateSpy = jest.spyOn(Report, 'calculateReportData').mockResolvedValue(calculatedData);
+
+      try {
+        const result = await Report.createMonthlyReport(
+          { agent_id: 1, start_date: '2000-01-01', end_date: '2000-01-31', boosts: 25 },
+          1
+        );
+
+        expect(calculateSpy).toHaveBeenCalledWith(1, expect.any(Date), expect.any(Date));
+        expect(mockQuery.mock.calls.some(([sql]) => sql.includes('UPDATE monthly_agent_reports'))).toBe(true);
+        expect(result).toEqual(updatedReport);
+      } finally {
+        calculateSpy.mockRestore();
+      }
+    });
   });
 
   describe('getAllReports', () => {

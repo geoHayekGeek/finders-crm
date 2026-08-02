@@ -344,6 +344,48 @@ describe('Monthly Agent Statistics Report', () => {
     });
   });
 
+  describe('previewMonthlyReport', () => {
+    it('should preview a report successfully with valid data', async () => {
+      req.body = {
+        agent_id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        boosts: 0
+      };
+
+      const mockPreview = {
+        agent_id: 1,
+        start_date: '2024-01-01',
+        end_date: '2024-01-31',
+        month: 1,
+        year: 2024,
+        boosts: 0,
+        listings_count: 10,
+        sales_count: 5,
+        sales_amount: 500000
+      };
+
+      Report.previewMonthlyReport.mockResolvedValue(mockPreview);
+
+      await ReportsController.previewMonthlyReport(req, res);
+
+      expect(Report.previewMonthlyReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agent_id: 1,
+          start_date: '2024-01-01',
+          end_date: '2024-01-31',
+          boosts: 0
+        })
+      );
+      expect(res.status).not.toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: mockPreview,
+        message: 'Monthly report preview generated successfully'
+      });
+    });
+  });
+
   describe('getAllReports', () => {
     it('should get all reports without filters', async () => {
       const mockReports = [
@@ -1280,18 +1322,21 @@ describe('Monthly Agent Statistics Report', () => {
         expect(Report.deleteReport).toHaveBeenCalled();
       });
 
-      it('should prevent operations from deleting reports', async () => {
+      it('should allow operations to delete reports', async () => {
         req.user = { id: 1, role: 'operations' };
         req.params.id = '1';
+        const mockReport = { id: 1 };
+
+        Report.deleteReport.mockResolvedValue(mockReport);
 
         await ReportsController.deleteReport(req, res);
 
-        expect(res.status).toHaveBeenCalledWith(403);
+        expect(Report.deleteReport).toHaveBeenCalled();
         expect(res.json).toHaveBeenCalledWith({
-          success: false,
-          message: 'You do not have permission to delete reports'
+          success: true,
+          data: mockReport,
+          message: 'Report deleted successfully'
         });
-        expect(Report.deleteReport).not.toHaveBeenCalled();
       });
     });
   });

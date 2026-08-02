@@ -7,7 +7,6 @@ import { reportsApi, usersApi } from '@/utils/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { User } from '@/types/user'
-import { formatCurrency } from '@/utils/formatters'
 import { downloadBlob, sanitizeFilenamePart } from '@/utils/fileDownload'
 
 interface CreateReportModalProps {
@@ -61,9 +60,49 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
 
   // Load agents and lead sources
   useEffect(() => {
-    if (token) {
-      loadAgents()
-      loadLeadSources()
+    if (!token) return
+
+    let isActive = true
+
+    const loadReferenceData = async () => {
+      try {
+        const [agentsResponse, leadSourcesResponse] = await Promise.allSettled([
+          usersApi.getAgents(token),
+          reportsApi.getLeadSources(token)
+        ])
+
+        if (!isActive) return
+
+        if (agentsResponse.status === 'fulfilled' && agentsResponse.value.success) {
+          const agentList = Array.isArray(agentsResponse.value.agents) ? agentsResponse.value.agents : []
+          setAgents(agentList as User[])
+        } else {
+          try {
+            const fallbackResponse = await usersApi.getByRole('agent', token)
+            if (isActive && fallbackResponse.success) {
+              setAgents((fallbackResponse.data || []) as User[])
+            }
+          } catch {
+            if (isActive) {
+              setError('Unable to load the agent list for monthly reports.')
+            }
+          }
+        }
+
+        if (leadSourcesResponse.status === 'fulfilled' && leadSourcesResponse.value.success) {
+          setLeadSources(leadSourcesResponse.value.data)
+        }
+      } catch {
+        if (isActive) {
+          setError('Unable to load the agent list for monthly reports.')
+        }
+      }
+    }
+
+    void loadReferenceData()
+
+    return () => {
+      isActive = false
     }
   }, [token])
 
@@ -74,30 +113,6 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.agent_id, formData.start_date, formData.end_date, token])
-
-  const loadAgents = async () => {
-    if (!token) return
-    try {
-      const response = await usersApi.getAgents(token)
-      if (response.success) {
-        setAgents(response.agents as User[])
-      }
-    } catch (error) {
-      // Error handled silently - agents list will remain empty
-    }
-  }
-
-  const loadLeadSources = async () => {
-    if (!token) return
-    try {
-      const response = await reportsApi.getLeadSources(token)
-      if (response.success) {
-        setLeadSources(response.data)
-      }
-    } catch (error) {
-      // Error handled silently - lead sources list will remain empty
-    }
-  }
 
   const downloadReportExcel = async (reportId: number, agentName: string) => {
     const blob = await reportsApi.exportToExcel(reportId, token)
@@ -115,8 +130,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
       setCalculating(true)
       setError(null)
       
-      // Create a temporary report to get calculated values
-      const tempReport = await reportsApi.create(
+      const previewResponse = await reportsApi.preview(
         {
           agent_id: formData.agent_id!,
           start_date: formData.start_date,
@@ -126,36 +140,28 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
         token
       )
 
-      if (tempReport.success) {
-        setPreviewData(tempReport.data)
+      if (previewResponse.success) {
+        setPreviewData(previewResponse.data)
         setEditableData({
-          listings_count: tempReport.data.listings_count,
-          lead_sources: tempReport.data.lead_sources,
-          viewings_count: tempReport.data.viewings_count,
-          sales_count: tempReport.data.sales_count,
-          sales_amount: tempReport.data.sales_amount,
-          agent_commission: tempReport.data.agent_commission,
-          finders_commission: tempReport.data.finders_commission,
+          listings_count: previewResponse.data.listings_count || 0,
+          lead_sources: previewResponse.data.lead_sources || {},
+          viewings_count: previewResponse.data.viewings_count || 0,
+          sales_count: previewResponse.data.sales_count || 0,
+          sales_amount: previewResponse.data.sales_amount || 0,
+          agent_commission: previewResponse.data.agent_commission || 0,
+          finders_commission: previewResponse.data.finders_commission || 0,
           // referral_commission removed - use referrals_on_properties_commission instead
-          team_leader_commission: tempReport.data.team_leader_commission,
-          administration_commission: tempReport.data.administration_commission,
-          total_commission: tempReport.data.total_commission,
-          referral_received_count: tempReport.data.referral_received_count,
-          referral_received_commission: tempReport.data.referral_received_commission,
-          referrals_on_properties_count: tempReport.data.referrals_on_properties_count || 0,
-          referrals_on_properties_commission: tempReport.data.referrals_on_properties_commission || 0
+          team_leader_commission: previewResponse.data.team_leader_commission || 0,
+          administration_commission: previewResponse.data.administration_commission || 0,
+          total_commission: previewResponse.data.total_commission || 0,
+          referral_received_count: previewResponse.data.referral_received_count || 0,
+          referral_received_commission: previewResponse.data.referral_received_commission || 0,
+          referrals_on_properties_count: previewResponse.data.referrals_on_properties_count || 0,
+          referrals_on_properties_commission: previewResponse.data.referrals_on_properties_commission || 0
         })
-        
-        // Delete the temporary report
-        await reportsApi.delete(tempReport.data.id, token)
       }
     } catch (error: any) {
-      // If report already exists, show specific message
-      if (error.message?.includes('already exists')) {
-        setError('A report already exists for this agent and date range. Try adjusting the window or pick another agent.')
-      } else {
-        // Error handled by error state
-      }
+      setError(error.message || 'Failed to calculate preview')
     } finally {
       setCalculating(false)
     }
@@ -248,7 +254,7 @@ export default function CreateReportModal({ onClose, onSuccess }: CreateReportMo
           } else {
             showSuccess('Report created and downloaded successfully')
           }
-        } catch (downloadError) {
+        } catch {
           showError('Report was saved, but the Excel download failed. You can export it from the reports list.')
         }
         
