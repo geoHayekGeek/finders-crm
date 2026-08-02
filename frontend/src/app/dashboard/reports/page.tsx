@@ -1,11 +1,12 @@
 'use client'
 
 import { useMemo, useState, useEffect } from 'react'
-import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar } from 'lucide-react'
+import { BarChart3, FileText, TrendingUp, DollarSign, ClipboardList, PieChart, Calendar, FileSpreadsheet } from 'lucide-react'
 import { usePermissions } from '@/contexts/PermissionContext'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { normalizeRole } from '@/utils/roleUtils'
 import AgentTeamReportsTab from '@/components/reports/AgentTeamReportsTab'
+import AgentViewReportsTab from '@/components/reports/AgentViewReportsTab'
 import DCSRTab from '@/components/reports/DCSRTab'
 import OperationsCommissionTab from '@/components/reports/OperationsCommissionTab'
 import SaleRentSourceTab from '@/components/reports/SaleRentSourceTab'
@@ -14,6 +15,7 @@ import OperationsDailyTab from '@/components/reports/OperationsDailyTab'
 // Tab configuration
 type TabId =
   | 'monthly-agent-stats'
+  | 'agent-view'
   | 'dcsr-report'
   | 'operations-commission'
   | 'sale-rent-source'
@@ -36,6 +38,12 @@ const TABS: Tab[] = [
     name: 'Agent & Team Reports',
     icon: BarChart3,
     description: 'View and manage individual monthly reports plus team summaries'
+  },
+  {
+    id: 'agent-view',
+    name: 'Agent View',
+    icon: FileSpreadsheet,
+    description: 'Multi-month agent workbook with per-quarter targets and Excel export'
   },
   {
     id: 'dcsr-report',
@@ -69,25 +77,25 @@ function ReportsPageContent() {
   const availableTabs = useMemo(() => {
     const normalizedRole = normalizeRole(role);
     // Agents are blocked from accessing this page entirely (handled by ProtectedRoute)
-    // Accountant can view the combined agent/team reports
+    // Accountant can view the combined agent/team reports plus the agent view workbook
     if (normalizedRole === 'accountant') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'agent-view')
     }
-    // HR can view agent/team reports and operations commission reports
+    // HR can view agent/team reports, agent view workbooks, and operations commission reports
     if (normalizedRole === 'hr') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'operations-commission')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'agent-view' || tab.id === 'operations-commission')
     }
-    // Team leaders can see the combined reports tab and DCSR Report (but limited to their team)
+    // Team leaders can see the combined reports tab, agent view workbooks, and DCSR Report (but limited to their team)
     if (normalizedRole === 'team leader') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'dcsr-report')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'agent-view' || tab.id === 'dcsr-report')
     }
-    // Agent manager can see the combined reports tab and Sale & Rent Source (read only)
+    // Agent manager can see the combined reports tab, agent view workbooks, and Sale & Rent Source (read only)
     if (normalizedRole === 'agent manager') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'agent-view' || tab.id === 'sale-rent-source')
     }
-    // Operations can see the combined reports tab, Sale & Rent Source, Operations Commission (read only), and Operations Daily
+    // Operations can see the combined reports tab, agent view workbooks, Sale & Rent Source, Operations Commission (read only), and Operations Daily
     if (normalizedRole === 'operations') {
-      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
+      return TABS.filter(tab => tab.id === 'monthly-agent-stats' || tab.id === 'agent-view' || tab.id === 'sale-rent-source' || tab.id === 'operations-commission' || tab.id === 'operations-daily')
     }
     // Admin and operations manager can see all tabs
     return TABS
@@ -169,6 +177,7 @@ function ReportsPageContent() {
         {/* Tab Content */}
         <div className="p-6">
           {activeTab === 'monthly-agent-stats' && <AgentTeamReportsTab />}
+          {activeTab === 'agent-view' && <AgentViewReportsTab />}
           
           {activeTab === 'dcsr-report' && <DCSRTab />}
           

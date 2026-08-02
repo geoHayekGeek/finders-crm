@@ -4,7 +4,7 @@ import { LeadFilters, LeadsResponse, LeadResponse, LeadStatsApiResponse, CreateL
 import { ComplaintFilters, ComplaintsResponse, ComplaintResponse, CreateComplaintFormData } from '@/types/complaints'
 import { User, UserFilters, CreateUserFormData, EditUserFormData, UserDocument, UploadDocumentData } from '@/types/user'
 import { ViewingFilters, ViewingsResponse, ViewingResponse, ViewingStatsApiResponse, CreateViewingFormData, ViewingUpdatesResponse, ViewingUpdateInput } from '@/types/viewing'
-import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, SaleRentSourceExportPayload, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData, OperationsDailyPreviewData, OperationsDailyBulkCreateData, OperationsDailyBulkCreateResult, OperationsDailyBulkPreviewData } from '@/types/reports'
+import { MonthlyAgentReport, TeamMonthlyReport, ReportFilters, TeamReportFilters, CreateReportData, CreateTeamReportData, UpdateReportData, DCSRMonthlyReport, DCSRReportFilters, CreateDCSRData, UpdateDCSRData, DCSRTeamBreakdown, DCSRAllTeamsBreakdown, DCSRPreviewData, OperationsCommissionReport, OperationsCommissionFilters, CreateOperationsCommissionData, UpdateOperationsCommissionData, SaleRentSourceRow, SaleRentSourceFilters, SaleRentSourceExportPayload, OperationsDailyReport, OperationsDailyFilters, CreateOperationsDailyData, UpdateOperationsDailyData, OperationsDailyPreviewData, OperationsDailyBulkCreateData, OperationsDailyBulkCreateResult, OperationsDailyBulkPreviewData, AgentViewReport, AgentViewReportFilters, CreateAgentViewReportData, AgentViewReportPayload } from '@/types/reports'
 
 // NEXT_PUBLIC_* variables are embedded at build time
 // For client-side code, only NEXT_PUBLIC_* variables are available
@@ -143,6 +143,7 @@ function shouldBypassGetCache(endpoint: string): boolean {
   // need to reflect the latest save immediately. Keep them off the short-lived
   // GET cache so we do not reopen stale referral/commission snapshots.
   return /^\/(properties|leads|reports|dcsr-reports|operations-commission|operations-daily)(\/|$)/.test(endpoint)
+    || /^\/reports\/agent-view(\/|$)/.test(endpoint)
 }
 
 async function apiRequest<T>(
@@ -1560,6 +1561,74 @@ export const reportsApi = {
 
     return response.blob()
   },
+}
+
+export const agentViewReportsApi = {
+  getAll: (filters: AgentViewReportFilters = {}, token?: AuthToken) => {
+    const params = new URLSearchParams()
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        params.append(key, String(value))
+      }
+    })
+    const queryString = params.toString()
+    return apiRequest<{ success: boolean; data: AgentViewReport[]; count: number; message: string }>(
+      `/reports/agent-view${queryString ? `?${queryString}` : ''}`,
+      {},
+      token
+    )
+  },
+
+  getById: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; data: AgentViewReport; message: string }>(
+    `/reports/agent-view/${id}`,
+    {},
+    token
+  ),
+
+  preview: (data: CreateAgentViewReportData, token?: AuthToken) => apiRequest<{ success: boolean; data: AgentViewReportPayload; message: string }>(
+    '/reports/agent-view/preview',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  create: (data: CreateAgentViewReportData, token?: AuthToken) => apiRequest<{ success: boolean; data: AgentViewReport; message: string }>(
+    '/reports/agent-view',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    },
+    token
+  ),
+
+  delete: (id: number, token?: AuthToken) => apiRequest<{ success: boolean; message: string }>(
+    `/reports/agent-view/${id}`,
+    {
+      method: 'DELETE',
+    },
+    token
+  ),
+
+  exportToExcel: async (id: number, token?: AuthToken): Promise<Blob> => {
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+    const authToken = (token ?? storedToken ?? undefined) ?? ''
+
+    const response = await fetch(`${API_BASE_URL}/reports/agent-view/${id}/export/excel`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: 'Failed to export report' }))
+      throw new Error(errorData.message || 'Failed to export agent view report to Excel')
+    }
+
+    return response.blob()
+  }
 }
 
 // Sale & Rent Source Report API

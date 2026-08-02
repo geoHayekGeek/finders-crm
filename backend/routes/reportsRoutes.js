@@ -2,6 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const ReportsController = require('../controllers/reportsController');
+const AgentViewReportsController = require('../controllers/agentViewReportsController');
 const TeamReportsController = require('../controllers/teamReportsController');
 const { authenticateToken, canViewReports, canViewSaleRentSource } = require('../middlewares/permissions');
 
@@ -39,6 +40,48 @@ router.post('/monthly', ReportsController.createMonthlyReport);
  * @access  Private (Admin, Operations Manager, Operations)
  */
 router.post('/monthly/preview', ReportsController.previewMonthlyReport);
+
+/**
+ * @route   GET /api/reports/agent-view
+ * @desc    Get all agent view reports with optional filters
+ * @access  Private (Admin, Operations Manager, Operations, Agent Manager, Team Leader, Accountant, HR)
+ */
+router.get('/agent-view', AgentViewReportsController.getAllAgentViewReports);
+
+/**
+ * @route   GET /api/reports/agent-view/:id
+ * @desc    Get a single agent view report by ID
+ * @access  Private (Admin, Operations Manager, Operations, Agent Manager, Team Leader, Accountant, HR)
+ */
+router.get('/agent-view/:id', AgentViewReportsController.getAgentViewReportById);
+
+/**
+ * @route   POST /api/reports/agent-view/preview
+ * @desc    Preview an agent view report without saving it
+ * @access  Private (Admin, Operations Manager, Operations)
+ */
+router.post('/agent-view/preview', AgentViewReportsController.previewAgentViewReport);
+
+/**
+ * @route   POST /api/reports/agent-view
+ * @desc    Create an agent view report
+ * @access  Private (Admin, Operations Manager, Operations)
+ */
+router.post('/agent-view', AgentViewReportsController.createAgentViewReport);
+
+/**
+ * @route   DELETE /api/reports/agent-view/:id
+ * @desc    Delete an agent view report
+ * @access  Private (Admin, Operations Manager, Operations)
+ */
+router.delete('/agent-view/:id', AgentViewReportsController.deleteAgentViewReport);
+
+/**
+ * @route   GET /api/reports/agent-view/:id/export/excel
+ * @desc    Export an agent view report to Excel
+ * @access  Private
+ */
+router.get('/agent-view/:id/export/excel', AgentViewReportsController.exportAgentViewReportExcel);
 
 /**
  * @route   PUT /api/reports/monthly/:id

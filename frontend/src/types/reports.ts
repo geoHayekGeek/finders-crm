@@ -53,6 +53,154 @@ export interface ReportFilters {
   end_date?: string
 }
 
+export interface AgentViewQuarterTarget {
+  listings_target: number
+  sales_amount_target: number
+}
+
+export interface AgentViewSummaryTargets {
+  dev_target: number
+  new_join_target: number
+  reviews_target: number
+}
+
+export interface AgentViewMonthlyRow {
+  day: number
+  date: string | null
+  listings: number
+  olx_leads: number
+  fb_leads: number
+  insta_leads: number
+  unknown_leads: number
+  website_leads: number
+  viewing: number
+  dev: number
+  new_join: number
+  reviews: number
+  sales: number
+  sales_amount: number
+  age_com: number
+  fin_com: number
+  ref_com: number
+  tl_com: number
+  adm_com: number
+  ref_received: number
+  total_commission: number
+}
+
+export interface AgentViewMonthTotals {
+  listings_count: number
+  leads_count: number
+  viewings_count: number
+  sales_count: number
+  sales_amount: number
+  dev_count: number
+  new_join_count: number
+  reviews_count: number
+  agent_commission: number
+  finders_commission: number
+  referrals_on_properties_commission: number
+  team_leader_commission: number
+  administration_commission: number
+  referral_received_commission: number
+  total_commission: number
+}
+
+export interface AgentViewMonthSnapshot {
+  sheet_name: string
+  month_key: string
+  month_label: string
+  display_label: string
+  start_date: string
+  end_date: string
+  rows: AgentViewMonthlyRow[]
+  totals: AgentViewMonthTotals
+  manual_totals: {
+    dev_total: number
+    new_join_total: number
+    reviews_total: number
+  }
+}
+
+export interface AgentViewReportSummary {
+  listings_count: number
+  leads_count: number
+  viewings_count: number
+  sales_count: number
+  sales_amount: number
+  dev_count: number
+  new_join_count: number
+  reviews_count: number
+  agent_commission: number
+  referral_received_commission: number
+  total_commission: number
+}
+
+export interface AgentViewReportPayload {
+  agent: {
+    id: number
+    name: string
+    user_code?: string | null
+    role?: string | null
+  }
+  start_date: string
+  end_date: string
+  period_months: number
+  quarter_targets: AgentViewQuarterTarget[]
+  summary_targets: AgentViewSummaryTargets
+  months: AgentViewMonthSnapshot[]
+  summary: AgentViewReportSummary
+}
+
+export interface AgentViewReport {
+  id: number
+  agent_id: number
+  agent_name: string
+  agent_code?: string | null
+  agent_role?: string | null
+  start_date: string
+  end_date: string
+  period_months: number
+  listings_count: number
+  leads_count: number
+  viewings_count: number
+  sales_count: number
+  sales_amount: number
+  dev_count: number
+  new_join_count: number
+  reviews_count: number
+  agent_commission: number
+  referral_received_commission: number
+  total_commission: number
+  report_payload: AgentViewReportPayload
+  created_at: string
+  updated_at: string
+  created_by?: number
+}
+
+export interface AgentViewReportFilters {
+  agent_id?: number
+  start_date?: string
+  end_date?: string
+  date_from?: string
+  date_to?: string
+}
+
+export interface CreateAgentViewReportData {
+  agent_id: number
+  start_date: string
+  period_months: 3 | 6 | 9 | 12
+  quarter_targets?: AgentViewQuarterTarget[]
+  summary_targets?: AgentViewSummaryTargets
+  month_overrides?: Array<{
+    month_start?: string
+    sheet_name?: string
+    dev_total?: number
+    new_join_total?: number
+    reviews_total?: number
+  }>
+}
+
 export interface CreateReportData {
   agent_id: number
   start_date: string
